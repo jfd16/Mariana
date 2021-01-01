@@ -178,7 +178,7 @@ namespace Mariana.AVM2.Core {
                 case NamespaceKind.PACKAGE_INTERNAL:
                     return "<internal " + uri + ">";
                 case NamespaceKind.PRIVATE:
-                    return "<private #" + (m_kindAndId >> 4).ToString(CultureInfo.InvariantCulture) + ">";
+                    return "<private #" + privateNamespaceId.ToString(CultureInfo.InvariantCulture) + ">";
                 case NamespaceKind.PROTECTED:
                     return "<protected " + uri + ">";
                 case NamespaceKind.STATIC_PROTECTED:
@@ -202,12 +202,7 @@ namespace Mariana.AVM2.Core {
         /// </item>
         /// </list>
         /// </exception>
-        public static Namespace createPrivate() {
-            int id = s_privateIdGenerator.atomicNext();
-            if (id > PRIVATE_MAX_ID)
-                throw ErrorHelper.createError(ErrorCode.MARIANA__PRIVATE_NS_LIMIT_EXCEEDED);
-            return new Namespace(id);
-        }
+        public static Namespace createPrivate() => createPrivate(s_privateIdGenerator.atomicNext());
 
         /// <summary>
         /// Creates a private namespace with the given identifier.
