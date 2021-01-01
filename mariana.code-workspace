@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+    "extensions": {
+        "recommendations": [
+            "ms-dotnettools.csharp",
+            "tintoy.msbuild-project-tools",
+            "EditorConfig.EditorConfig",
+            "k--kato.docomment",
+            "bowlerhatllc.vscode-nextgenas",
+        ]
+    }
+}

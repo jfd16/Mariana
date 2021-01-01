@@ -1,0 +1,13 @@
+BenchmarkDotNet.Artifacts
+.vscode
+
+*/bin
+*/obj
+**/TestResults
+**/coverage.json
+**/output.txt
+
+TestApp
+
+flash/
+asconfig.json

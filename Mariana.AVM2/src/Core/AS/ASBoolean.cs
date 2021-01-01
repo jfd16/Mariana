@@ -1,0 +1,120 @@
+using System;
+using Mariana.AVM2.Native;
+
+namespace Mariana.AVM2.Core {
+
+    /// <summary>
+    /// A Boolean represents one of two possible values, true or false.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// This is a boxed representation of the primitive type <see cref="System.Boolean"/>. It is
+    /// only used when a boxing conversion is required. This type should not be used for any other
+    /// purpose, other than for using its static properties or methods of for type checking of
+    /// objects.
+    /// </remarks>
+    [AVM2ExportClass(name = "Boolean", hasPrototypeMethods = true)]
+    [AVM2ExportClassInternal(tag = ClassTag.BOOLEAN, primitiveType = typeof(bool))]
+    sealed public class ASBoolean : ASObject {
+
+        /// <summary>
+        /// The value of the "length" property of the AS3 Boolean class.
+        /// </summary>
+        [AVM2ExportTrait(name = "length")]
+        public new const int AS_length = 1;
+
+        private const string TRUE_STRING = "true";
+        private const string FALSE_STRING = "false";
+
+        // The boxed instances of true and false
+        internal static readonly ASBoolean s_trueVal = new ASBoolean();
+        internal static readonly ASBoolean s_falseVal = new ASBoolean();
+
+        private ASBoolean() {}
+
+        /// <summary>
+        /// Converts the current instance to a Boolean value.
+        /// </summary>
+        /// <returns>The Boolean value</returns>
+        protected override bool AS_coerceBoolean() => this == s_trueVal;
+
+        /// <summary>
+        /// Converts the current instance to an integer value.
+        /// </summary>
+        /// <returns>The integer value.</returns>
+        protected override int AS_coerceInt() => (this == s_trueVal) ? 1 : 0;
+
+        /// <summary>
+        /// Converts the current instance to a floating-point value.
+        /// </summary>
+        /// <returns>The floating-point value.</returns>
+        protected override double AS_coerceNumber() => (this == s_trueVal) ? 1 : 0;
+
+        /// <summary>
+        /// Converts the current instance to a string value.
+        /// </summary>
+        /// <returns>The string value.</returns>
+        protected override string AS_coerceString() => (this == s_trueVal) ? TRUE_STRING : FALSE_STRING;
+
+        /// <summary>
+        /// Converts the current instance to an unsigned integer value.
+        /// </summary>
+        /// <returns>The unsigned integer value.</returns>
+        protected override uint AS_coerceUint() =>(this == s_trueVal) ? 1u : 0u;
+
+        /// <summary>
+        /// Returns the string representation of the object.
+        /// </summary>
+        /// <returns>The string representation of the object.</returns>
+        ///
+        /// <remarks>
+        /// This method is exported to the AVM2 with the name <c>toString</c>, but must be called
+        /// from .NET code with the name <c>AS_toString</c> to avoid confusion with the
+        /// <see cref="Object.ToString" qualifyHint="true"/> method.
+        /// </remarks>
+        [AVM2ExportTrait(name = "toString", nsUri = "http://adobe.com/AS3/2006/builtin")]
+        [AVM2ExportPrototypeMethod(name = "toString")]
+        public new string AS_toString() => (this == s_trueVal) ? TRUE_STRING : FALSE_STRING;
+
+        /// <summary>
+        /// Returns the primitive type representation of the object.
+        /// </summary>
+        /// <returns>A primitive representation of the object.</returns>
+        [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
+        [AVM2ExportPrototypeMethod]
+        public new bool valueOf() => this == s_trueVal;
+
+        /// <summary>
+        /// Converts a Boolean value to a string.
+        /// </summary>
+        /// <param name="b">The Boolean value</param>
+        /// <returns>A string representation of the boolean value.</returns>
+        public static string AS_convertString(bool b) => b ? TRUE_STRING : FALSE_STRING;
+
+        /// <summary>
+        /// Returns the given argument. This is used by the ABC compiler for calls to the
+        /// <c>valueOf</c> method on Boolean values.
+        /// </summary>
+        /// <param name="b">The argument.</param>
+        /// <returns>The value of <paramref name="b"/>.</returns>
+        [AVM2ExportPrototypeMethod]
+        public static bool valueOf(bool b) => b;
+
+        /// <exclude/>
+        /// <summary>
+        /// This is a special method that is called from the AVM2 runtime and by code compiled by the
+        /// ABCIL compiler. It must not be called from outside code.
+        /// </summary>
+        internal static new ASAny __AS_INVOKE(ReadOnlySpan<ASAny> args) =>
+            (args.Length == 0) ? s_falseVal : ASAny.AS_fromBoolean(ASAny.AS_toBoolean(args[0]));
+
+        /// <exclude/>
+        /// <summary>
+        /// This is a special method that is called from the AVM2 runtime and by code compiled by the
+        /// ABCIL compiler. It must not be called from outside code.
+        /// </summary>
+        internal static new ASAny __AS_CONSTRUCT(ReadOnlySpan<ASAny> args) => __AS_INVOKE(args);
+
+    }
+
+}
