@@ -706,6 +706,26 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <inheritdoc/>
+        public override BindStatus AS_tryCallPropertyObj(
+            ASAny key, ReadOnlySpan<ASAny> args, out ASAny result,
+            BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
+        {
+            return (key.value is ASQName qName)
+                ? AS_tryCallProperty(QName.fromASQName(qName), args, out result, options)
+                : AS_tryCallProperty(QName.publicName(ASAny.AS_convertString(key)), args, out result, options);
+        }
+
+        /// <inheritdoc/>
+        public override BindStatus AS_tryCallPropertyObj(
+            ASAny key, in NamespaceSet nsSet, ReadOnlySpan<ASAny> args, out ASAny result,
+            BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
+        {
+            return (key.value is ASQName qName)
+                ? AS_tryCallProperty(QName.fromASQName(qName), args, out result, options)
+                : AS_tryCallProperty(ASAny.AS_convertString(key), nsSet, args, out result, options);
+        }
+
+        /// <inheritdoc/>
         public override int AS_nextIndex(int index) =>
             ((uint)index < (uint)m_items.length) ? index + 1 : 0;
 

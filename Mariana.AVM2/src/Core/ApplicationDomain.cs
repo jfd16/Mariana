@@ -745,9 +745,8 @@ namespace Mariana.AVM2.Core {
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(type));
             if (type.IsConstructedGenericType && type.GetGenericTypeDefinition() == typeof(ASVector<>))
                 throw ErrorHelper.createError(ErrorCode.MARIANA__NATIVE_CLASS_LOAD_VECTOR_EXPLICIT);
-            if (this == s_systemDomain)
-                CoreClasses.ensureLoaded();
 
+            CoreClasses.ensureLoaded();
             return NativeClass.createClass(type, this);
         }
 

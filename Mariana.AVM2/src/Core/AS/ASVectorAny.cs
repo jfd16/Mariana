@@ -356,7 +356,8 @@ namespace Mariana.AVM2.Core {
             in QName name,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0 && name.ns.isPublic
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && name.ns.isPublic
                 && NumberFormatHelper.parseArrayIndex(name.localName, true, out uint index))
             {
                 return AS_hasElement(index);
@@ -369,8 +370,9 @@ namespace Mariana.AVM2.Core {
             string name, in NamespaceSet nsSet,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0
-                && nsSet.containsPublic && NumberFormatHelper.parseArrayIndex(name, true, out uint index))
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && nsSet.containsPublic
+                && NumberFormatHelper.parseArrayIndex(name, true, out uint index))
             {
                 return AS_hasElement(index);
             }
@@ -382,7 +384,8 @@ namespace Mariana.AVM2.Core {
             in QName name, out ASAny value,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0 && name.ns.isPublic
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && name.ns.isPublic
                 && NumberFormatHelper.parseArrayIndex(name.localName, true, out uint index))
             {
                 value = AS_getElement(index);
@@ -396,8 +399,9 @@ namespace Mariana.AVM2.Core {
             string name, in NamespaceSet nsSet, out ASAny value,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0
-                && nsSet.containsPublic && NumberFormatHelper.parseArrayIndex(name, true, out uint index))
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && nsSet.containsPublic
+                && NumberFormatHelper.parseArrayIndex(name, true, out uint index))
             {
                 value = AS_getElement(index);
                 return BindStatus.SUCCESS;
@@ -410,7 +414,8 @@ namespace Mariana.AVM2.Core {
             in QName name, ASAny value,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0 && name.ns.isPublic
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && name.ns.isPublic
                 && NumberFormatHelper.parseArrayIndex(name.localName, true, out uint index))
             {
                 AS_setElement(index, value.value);
@@ -424,8 +429,9 @@ namespace Mariana.AVM2.Core {
             string name, in NamespaceSet nsSet, ASAny value,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0
-                && nsSet.containsPublic && NumberFormatHelper.parseArrayIndex(name, true, out uint index))
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && nsSet.containsPublic
+                && NumberFormatHelper.parseArrayIndex(name, true, out uint index))
             {
                 AS_setElement(index, value.value);
                 return BindStatus.SUCCESS;
@@ -437,7 +443,8 @@ namespace Mariana.AVM2.Core {
         public sealed override bool AS_deleteProperty(
             in QName name, BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0 && name.ns.isPublic
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && name.ns.isPublic
                 && NumberFormatHelper.parseArrayIndex(name.localName, true, out uint index))
             {
                 return AS_deleteElement(index);
@@ -450,8 +457,9 @@ namespace Mariana.AVM2.Core {
             string name, in NamespaceSet nsSet,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0
-                && nsSet.containsPublic && NumberFormatHelper.parseArrayIndex(name, true, out uint index))
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && nsSet.containsPublic
+                && NumberFormatHelper.parseArrayIndex(name, true, out uint index))
             {
                 return AS_deleteElement(index);
             }
@@ -463,7 +471,8 @@ namespace Mariana.AVM2.Core {
             in QName name, ReadOnlySpan<ASAny> args, out ASAny result,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0 && name.ns.isPublic
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && name.ns.isPublic
                 && NumberFormatHelper.parseArrayIndex(name.localName, true, out uint index))
             {
                 ASObject f = AS_getElement(index);
@@ -477,8 +486,9 @@ namespace Mariana.AVM2.Core {
             string name, in NamespaceSet nsSet, ReadOnlySpan<ASAny> args, out ASAny result,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0
-                && nsSet.containsPublic && NumberFormatHelper.parseArrayIndex(name, true, out uint index))
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && nsSet.containsPublic
+                && NumberFormatHelper.parseArrayIndex(name, true, out uint index))
             {
                 ASObject f = AS_getElement(index);
                 return f.AS_tryInvoke(this, args, out result) ? BindStatus.SUCCESS : BindStatus.FAILED_NOTFUNCTION;
@@ -491,7 +501,8 @@ namespace Mariana.AVM2.Core {
             in QName name, ReadOnlySpan<ASAny> args, out ASAny result,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0 && name.ns.isPublic
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && name.ns.isPublic
                 && NumberFormatHelper.parseArrayIndex(name.localName, true, out uint index))
             {
                 ASObject f = AS_getElement(index);
@@ -505,8 +516,9 @@ namespace Mariana.AVM2.Core {
             string name, in NamespaceSet nsSet, ReadOnlySpan<ASAny> args, out ASAny result,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0
-                && nsSet.containsPublic && NumberFormatHelper.parseArrayIndex(name, true, out uint index))
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && nsSet.containsPublic
+                && NumberFormatHelper.parseArrayIndex(name, true, out uint index))
             {
                 ASObject f = AS_getElement(index);
                 return f.AS_tryConstruct(args, out result) ? BindStatus.SUCCESS : BindStatus.FAILED_NOTCONSTRUCTOR;
@@ -1024,7 +1036,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <returns>The string representation of the current instance.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        [AVM2ExportPrototypeMethod]
+        [AVM2ExportPrototypeMethod(name = "toString")]
         public new string AS_toString() => _VA_toString();
 
         protected private virtual string _VA_toString() => throw new NotImplementedException();

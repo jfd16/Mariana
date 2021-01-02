@@ -411,6 +411,7 @@ namespace Mariana.AVM2.Core {
             if (methodInfo == null)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(methodInfo));
 
+            CoreClasses.ensureLoaded();
             return NativeClass.internalCreateStandAloneMethod(methodInfo);
         }
 

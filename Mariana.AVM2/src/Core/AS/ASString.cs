@@ -564,7 +564,8 @@ namespace Mariana.AVM2.Core {
                 return "";
 
             char c = s[index];
-            return (c <= SINGLE_CHAR_CACHE_RANGE) ? s_singleCharCachedValues[(int)c] : new string(c, 1);
+            var cache = s_singleCharCachedValues;
+            return ((uint)c < (uint)cache.Length) ? cache[(int)c] : new string(c, 1);
         }
 
         /// <summary>
@@ -1369,13 +1370,14 @@ namespace Mariana.AVM2.Core {
             if (val == null)
                 return null;
 
-            if (val.Length == 0)
+            if ((uint)val.Length <= 0)
                 return s_emptyString;
 
             if (val.Length == 1) {
                 char cv = val[0];
-                if (cv <= SINGLE_CHAR_CACHE_RANGE)
-                    return s_singleCharCachedObjects[cv];
+                var cache = s_singleCharCachedObjects;
+                if ((uint)cv < (uint)cache.Length)
+                    return cache[cv];
             }
 
             return new ASString(val);

@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Runtime.CompilerServices;
 using Mariana.AVM2.Native;
-using Mariana.Common;
 
 namespace Mariana.AVM2.Core {
 
@@ -399,6 +397,15 @@ namespace Mariana.AVM2.Core {
         private bool _isDenseArray() => m_hashLinks == null;
 
         /// <summary>
+        /// Returns a value indicating whether the current array is using dense array storage
+        /// and does not have any empty slots.
+        /// </summary>
+        /// <returns>True if the current storage of this Array instance is a dense array without
+        /// any empty slots, otherwise false.</returns>
+        private bool _isDenseArrayWithoutEmptySlots() =>
+            m_hashLinks == null && m_nonEmptyCount == m_totalCount && m_length == (uint)m_totalCount;
+
+        /// <summary>
         /// Gets the value of an element from the hash table with the specified key. Call this method
         /// only if hash table storage is currently in use.
         /// </summary>
@@ -566,6 +573,21 @@ namespace Mariana.AVM2.Core {
                     m_hashEmptyChainHead = i;
                 }
             }
+        }
+
+        /// <summary>
+        /// Returns the value in the array at the given index.
+        /// </summary>
+        /// <param name="index">The index.</param>
+        /// <returns>The <see cref="Value"/> representing the value at the given index.</returns>
+        private Value _getValueAt(uint index) {
+            if (index == UInt32.MaxValue)   // Not a valid index
+                return default;
+
+            if (_isDenseArray())
+                return (index < (uint)m_totalCount) ? m_values[(int)index] : default;
+
+            return _hashGetValue(index);
         }
 
         /// <summary>
@@ -859,9 +881,8 @@ namespace Mariana.AVM2.Core {
                 return;
 
             var converter = GenericTypeConverter<ASAny, T>.instance;
-            T clearVal = converter.convert(default(ASAny));
 
-            if (_isDenseArray()) {
+            if (_isDenseArrayWithoutEmptySlots()) {
                 uint srcEndIndex = Math.Min(srcIndex + (uint)dest.Length, (uint)m_totalCount);
                 if (srcEndIndex <= srcIndex)
                     return;
@@ -872,38 +893,11 @@ namespace Mariana.AVM2.Core {
                     dest[i] = converter.convert(valuesSpan[i].toAny());
 
                 if (dest.Length > valuesSpan.Length)
-                    dest.Slice(valuesSpan.Length).Fill(clearVal);
-
-                return;
-            }
-
-            // If the current storage is a hash table, two ways are possible
-            // for filling the destination array: either query the hash table for
-            // all possible indices in the source range, or iterate over the entire
-            // hash table and pick up the elements within the range. The first one is
-            // preferred if the length of the range is small compared to the number of
-            // slots in the table; the second one is suitable for larger lengths.
-
-            if (dest.Length < (m_totalCount >> 2)) {
-                for (int i = 0; i < dest.Length; i++) {
-                    Value val = _hashGetValue(srcIndex + (uint)i);
-                    dest[i] = !val.isEmpty ? converter.convert(val.toAny()) : clearVal;
-                }
+                    dest.Slice(valuesSpan.Length).Fill(converter.convert(default(ASAny)));
             }
             else {
-                dest.Fill(clearVal);
-
-                var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, m_totalCount);
-                var linksSpan = new ReadOnlySpan<HashLink>(m_hashLinks, 0, valuesSpan.Length);
-
-                for (int i = 0; i < valuesSpan.Length; i++) {
-                    Value value = valuesSpan[i];
-                    if (value.isEmpty)
-                        continue;
-                    uint key = linksSpan[i].key;
-                    if (key - srcIndex < (uint)dest.Length)
-                        dest[(int)(key - srcIndex)] = converter.convert(value.toAny());
-                }
+                for (int i = 0; i < dest.Length; i++)
+                    dest[i] = converter.convert(AS_getElement(srcIndex + (uint)i));
             }
         }
 
@@ -932,11 +926,10 @@ namespace Mariana.AVM2.Core {
             var converter = GenericTypeConverter<ASAny, T>.instance;
             uint length = this.length;
 
-            if (_isDenseArray()) {
-                for (int i = 0; i < m_totalCount; i++)
-                    yield return converter.convert(m_values[i].toAny());
-                for (uint i = (uint)m_totalCount; i < length; i++)
-                    yield return converter.convert(default(ASAny));
+            if (_isDenseArrayWithoutEmptySlots()) {
+                var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, (int)m_length);
+                for (int i = 0; i < valuesSpan.Length; i++)
+                    yield return converter.convert(valuesSpan[i].toAny());
             }
             else {
                 for (uint i = 0; i < length; i++)
@@ -967,6 +960,25 @@ namespace Mariana.AVM2.Core {
             }
         }
 
+        private ASAny _getElementFallback(string indexStr) {
+            var name = QName.publicName(indexStr);
+            BindStatus bindStatus = base.AS_tryGetProperty(name, out ASAny value);
+            if (bindStatus == BindStatus.SUCCESS || bindStatus == BindStatus.SOFT_SUCCESS)
+                return value;
+            throw ErrorHelper.createBindingError(AS_class.name, name, bindStatus);
+        }
+
+        private void _setElementFallback(string indexStr, ASAny value) {
+            var name = QName.publicName(indexStr);
+            BindStatus bindStatus = base.AS_trySetProperty(name, value);
+            if (bindStatus != BindStatus.SUCCESS && bindStatus != BindStatus.SOFT_SUCCESS)
+                throw ErrorHelper.createBindingError(AS_class.name, name, bindStatus);
+        }
+
+        private bool _hasElementFallback(string indexStr) => base.AS_hasProperty(QName.publicName(indexStr));
+
+        private bool _deleteElementFallback(string indexStr) => base.AS_deleteProperty(QName.publicName(indexStr));
+
         /// <summary>
         /// Gets the value of the element at the given index.
         /// </summary>
@@ -974,13 +986,8 @@ namespace Mariana.AVM2.Core {
         /// <returns>The value of the element, or undefined if no element exists at the given
         /// index.</returns>
         public ASAny AS_getElement(uint index) {
-            if (index == UInt32.MaxValue)   // Not a valid array index
-                return AS_getProperty(ASuint.AS_convertString(index));
-
-            if (_isDenseArray())
-                return (index < (uint)m_totalCount) ? m_values[index].toAny() : default;
-
-            return _hashGetValue(index).toAny();
+            Value val = _getValueAt(index);
+            return !val.isEmpty ? val.toAny() : _getElementFallback(ASuint.AS_convertString(index));
         }
 
         /// <summary>
@@ -991,15 +998,8 @@ namespace Mariana.AVM2.Core {
         /// <returns>True, if the current instance has an element at the given index, false
         /// otherwise.</returns>
         public bool AS_hasElement(uint index) {
-            if (index == UInt32.MaxValue)   // Not a valid array index
-                return base.AS_hasProperty(ASuint.AS_convertString(index));
-
-            if (index >= m_length)
-                return false;
-
-            return _isDenseArray()
-                ? index < (uint)m_totalCount && !m_values[index].isEmpty
-                : !_hashGetValue(index).isEmpty;
+            Value val = _getValueAt(index);
+            return !val.isEmpty || _hasElementFallback(ASuint.AS_convertString(index));
         }
 
         /// <summary>
@@ -1009,7 +1009,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="value">The value of the element.</param>
         public void AS_setElement(uint index, ASAny value) {
             if (index == UInt32.MaxValue) {  // Not a valid array index
-                AS_setProperty(ASuint.AS_convertString(index), value);
+                _setElementFallback(ASuint.AS_convertString(index), value);
                 return;
             }
 
@@ -1064,7 +1064,7 @@ namespace Mariana.AVM2.Core {
         /// <returns>True if the property was deleted, false otherwise.</returns>
         public bool AS_deleteElement(uint index) {
             if (index == UInt32.MaxValue)   // Not a valid array index
-                return base.AS_deleteProperty(ASuint.AS_convertString(index));
+                return _deleteElementFallback(ASuint.AS_convertString(index));
 
             if (_isDenseArray()) {
                 ref Value slot = ref m_values[(int)index];
@@ -1101,7 +1101,7 @@ namespace Mariana.AVM2.Core {
         /// subclass of Array that is non-dynamic, an error is thrown.
         /// </remarks>
         public ASAny AS_getElement(int index) =>
-            (index >= 0) ? AS_getElement((uint)index) : AS_getProperty(ASint.AS_convertString(index));
+            (index >= 0) ? AS_getElement((uint)index) : _getElementFallback(ASint.AS_convertString(index));
 
         /// <summary>
         /// Returns a Boolean value indicating whether the current instance has an element at the
@@ -1117,7 +1117,7 @@ namespace Mariana.AVM2.Core {
         /// subclass of Array that is non-dynamic, an error is thrown.
         /// </remarks>
         public bool AS_hasElement(int index) =>
-            (index >= 0) ? AS_hasElement((uint)index) : AS_hasProperty(ASint.AS_convertString(index));
+            (index >= 0) ? AS_hasElement((uint)index) : _hasElementFallback(ASint.AS_convertString(index));
 
         /// <summary>
         /// Sets the value of the element at the given index.
@@ -1134,7 +1134,7 @@ namespace Mariana.AVM2.Core {
             if (index >= 0)
                 AS_setElement((uint)index, value);
             else
-                AS_setProperty(ASint.AS_convertString(index), value);
+                _setElementFallback(ASint.AS_convertString(index), value);
         }
 
         /// <summary>
@@ -1150,7 +1150,7 @@ namespace Mariana.AVM2.Core {
         /// that is non-dynamic, this method returns false.
         /// </remarks>
         public bool AS_deleteElement(int index) =>
-            (index >= 0) ? AS_deleteElement((uint)index) : base.AS_deleteProperty(ASint.AS_convertString(index));
+            (index >= 0) ? AS_deleteElement((uint)index) : _deleteElementFallback(ASint.AS_convertString(index));
 
         /// <summary>
         /// Gets the value of the element at the given index.
@@ -1167,7 +1167,7 @@ namespace Mariana.AVM2.Core {
         public ASAny AS_getElement(double index) {
             return _tryGetIndexFromNumberKey(index, out uint uintIndex)
                 ? AS_getElement(uintIndex)
-                : AS_getProperty(ASNumber.AS_convertString(index));
+                : _getElementFallback(ASNumber.AS_convertString(index));
         }
 
         /// <summary>
@@ -1186,7 +1186,7 @@ namespace Mariana.AVM2.Core {
         public bool AS_hasElement(double index) {
             return _tryGetIndexFromNumberKey(index, out uint uintIndex)
                 ? AS_hasElement(uintIndex)
-                : base.AS_hasProperty(ASNumber.AS_convertString(index));
+                : _hasElementFallback(ASNumber.AS_convertString(index));
         }
 
         /// <summary>
@@ -1204,7 +1204,7 @@ namespace Mariana.AVM2.Core {
             if (_tryGetIndexFromNumberKey(index, out uint uintIndex))
                 AS_setElement(uintIndex, value);
             else
-                AS_setProperty(ASNumber.AS_convertString(index), value);
+                _setElementFallback(ASNumber.AS_convertString(index), value);
         }
 
         /// <summary>
@@ -1222,7 +1222,7 @@ namespace Mariana.AVM2.Core {
         public bool AS_deleteElement(double index) {
             return _tryGetIndexFromNumberKey(index, out uint uintIndex)
                 ? AS_deleteElement(uintIndex)
-                : base.AS_deleteProperty(ASNumber.AS_convertString(index));
+                : _deleteElementFallback(ASNumber.AS_convertString(index));
         }
 
         /// <summary>
@@ -1261,13 +1261,14 @@ namespace Mariana.AVM2.Core {
             in QName name,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && name.ns.isPublic
                 && NumberFormatHelper.parseArrayIndex(name.localName, false, out uint index)
-                && index != UInt32.MaxValue)
+                && !_getValueAt(index).isEmpty)
             {
-                return AS_hasElement(index);
+                return true;
             }
+
             return base.AS_hasProperty(name, options);
         }
 
@@ -1276,14 +1277,48 @@ namespace Mariana.AVM2.Core {
             string name, in NamespaceSet nsSet,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic
                 && NumberFormatHelper.parseArrayIndex(name, false, out uint index)
-                && index != UInt32.MaxValue)
+                && !_getValueAt(index).isEmpty)
             {
-                return AS_hasElement(index);
+                return true;
             }
+
             return base.AS_hasProperty(name, nsSet, options);
+        }
+
+        /// <inheritdoc/>
+        public override bool AS_hasPropertyObj(
+            ASAny key,
+            BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
+        {
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && AS_isUint(key.value) && !_getValueAt((uint)key).isEmpty)
+            {
+                return true;
+            }
+
+            return (key.value is ASQName qName)
+                ? AS_hasProperty(QName.fromASQName(qName), options)
+                : AS_hasProperty(QName.publicName(ASAny.AS_convertString(key)), options);
+        }
+
+        /// <inheritdoc/>
+        public override bool AS_hasPropertyObj(
+            ASAny key, in NamespaceSet nsSet,
+            BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
+        {
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && nsSet.containsPublic
+                && AS_isUint(key.value) && !_getValueAt((uint)key).isEmpty)
+            {
+                return true;
+            }
+
+            return (key.value is ASQName qName)
+                ? AS_hasProperty(QName.fromASQName(qName), options)
+                : AS_hasProperty(ASAny.AS_convertString(key), nsSet, options);
         }
 
         /// <inheritdoc/>
@@ -1291,13 +1326,15 @@ namespace Mariana.AVM2.Core {
             in QName name, out ASAny value,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && name.ns.isPublic
-                && NumberFormatHelper.parseArrayIndex(name.localName, false, out uint index)
-                && index != UInt32.MaxValue)
+                && NumberFormatHelper.parseArrayIndex(name.localName, false, out uint index))
             {
-                value = AS_getElement(index);
-                return BindStatus.SUCCESS;
+                Value v = _getValueAt(index);
+                if (!v.isEmpty) {
+                    value = v.toAny();
+                    return BindStatus.SUCCESS;
+                }
             }
             return base.AS_tryGetProperty(name, out value, options);
         }
@@ -1307,15 +1344,58 @@ namespace Mariana.AVM2.Core {
             string name, in NamespaceSet nsSet, out ASAny value,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic
-                && NumberFormatHelper.parseArrayIndex(name, false, out uint index)
-                && index != UInt32.MaxValue)
+                && NumberFormatHelper.parseArrayIndex(name, false, out uint index))
             {
-                value = AS_getElement(index);
-                return BindStatus.SUCCESS;
+                Value v = _getValueAt(index);
+                if (!v.isEmpty) {
+                    value = v.toAny();
+                    return BindStatus.SUCCESS;
+                }
             }
             return base.AS_tryGetProperty(name, nsSet, out value, options);
+        }
+
+        /// <inheritdoc/>
+        public override BindStatus AS_tryGetPropertyObj(
+            ASAny key, out ASAny value,
+            BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
+        {
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && AS_isUint(key.value))
+            {
+                Value v = _getValueAt((uint)key);
+                if (!v.isEmpty) {
+                    value = v.toAny();
+                    return BindStatus.SUCCESS;
+                }
+            }
+
+            return (key.value is ASQName qName)
+                ? AS_tryGetProperty(QName.fromASQName(qName), out value, options)
+                : AS_tryGetProperty(QName.publicName(ASAny.AS_convertString(key)), out value, options);
+        }
+
+        /// <inheritdoc/>
+        public override BindStatus AS_tryGetPropertyObj(
+            ASAny key, in NamespaceSet nsSet, out ASAny value,
+            BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
+        {
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && nsSet.containsPublic
+                && AS_isUint(key.value))
+            {
+                Value v = _getValueAt((uint)key);
+                if (!v.isEmpty) {
+                    value = v.toAny();
+                    return BindStatus.SUCCESS;
+                }
+            }
+
+            return (key.value is ASQName qName)
+                ? AS_tryGetProperty(QName.fromASQName(qName), out value, options)
+                : AS_tryGetProperty(ASAny.AS_convertString(key), nsSet, out value, options);
         }
 
         /// <inheritdoc/>
@@ -1323,7 +1403,7 @@ namespace Mariana.AVM2.Core {
             in QName name, ASAny value,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && name.ns.isPublic
                 && NumberFormatHelper.parseArrayIndex(name.localName, false, out uint index)
                 && index != UInt32.MaxValue)
@@ -1339,7 +1419,7 @@ namespace Mariana.AVM2.Core {
             string name, in NamespaceSet nsSet, ASAny value,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic
                 && NumberFormatHelper.parseArrayIndex(name, false, out uint index)
                 && index != UInt32.MaxValue)
@@ -1351,10 +1431,51 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <inheritdoc/>
+        public override BindStatus AS_trySetPropertyObj(
+            ASAny key, ASAny value,
+            BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
+        {
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && AS_isUint(key.value))
+            {
+                uint index = (uint)key;
+                if (index != UInt32.MaxValue) {
+                    AS_setElement(index, value);
+                    return BindStatus.SUCCESS;
+                }
+            }
+
+            return (key.value is ASQName qName)
+                ? AS_trySetProperty(QName.fromASQName(qName), value, options)
+                : AS_trySetProperty(QName.publicName(ASAny.AS_convertString(key)), value, options);
+        }
+
+        /// <inheritdoc/>
+        public override BindStatus AS_trySetPropertyObj(
+            ASAny key, in NamespaceSet nsSet, ASAny value,
+            BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
+        {
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && nsSet.containsPublic
+                && AS_isUint(key.value))
+            {
+                uint index = (uint)key;
+                if (index != UInt32.MaxValue) {
+                    AS_setElement(index, value);
+                    return BindStatus.SUCCESS;
+                }
+            }
+
+            return (key.value is ASQName qName)
+                ? AS_trySetProperty(QName.fromASQName(qName), value, options)
+                : AS_trySetProperty(QName.publicName(ASAny.AS_convertString(key)), value, options);
+        }
+
+        /// <inheritdoc/>
         public override bool AS_deleteProperty(
             in QName name, BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && name.ns.isPublic
                 && NumberFormatHelper.parseArrayIndex(name.localName, false, out uint index)
                 && index != UInt32.MaxValue)
@@ -1369,7 +1490,7 @@ namespace Mariana.AVM2.Core {
             string name, in NamespaceSet nsSet,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic
                 && NumberFormatHelper.parseArrayIndex(name, false, out uint index)
                 && index != UInt32.MaxValue)
@@ -1380,19 +1501,56 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <inheritdoc/>
+        public override bool AS_deletePropertyObj(
+            ASAny key, BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
+        {
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && AS_isUint(key.value))
+            {
+                uint index = (uint)key;
+                if (index != UInt32.MaxValue)
+                    return AS_deleteElement(index);
+            }
+
+            return (key.value is ASQName qName)
+                ? AS_deleteProperty(QName.fromASQName(qName), options)
+                : AS_deleteProperty(QName.publicName(ASAny.AS_convertString(key)), options);
+        }
+
+        /// <inheritdoc/>
+        public override bool AS_deletePropertyObj(
+            ASAny key, in NamespaceSet nsSet,
+            BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
+        {
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && nsSet.containsPublic
+                && AS_isUint(key.value))
+            {
+                uint index = (uint)key;
+                if (index != UInt32.MaxValue)
+                    return AS_deleteElement(index);
+            }
+
+            return (key.value is ASQName qName)
+                ? AS_deleteProperty(QName.fromASQName(qName), options)
+                : AS_deleteProperty(QName.publicName(ASAny.AS_convertString(key)), options);
+        }
+
+        /// <inheritdoc/>
         public override BindStatus AS_tryCallProperty(
             in QName name, ReadOnlySpan<ASAny> args, out ASAny result,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && name.ns.isPublic
-                && NumberFormatHelper.parseArrayIndex(name.localName, false, out uint index)
-                && index != UInt32.MaxValue)
+                && NumberFormatHelper.parseArrayIndex(name.localName, false, out uint index))
             {
-                ASAny f = AS_getElement(index);
-                return f.AS_tryInvoke(this, args, out result)
-                    ? BindStatus.SUCCESS
-                    : BindStatus.FAILED_NOTFUNCTION;
+                Value v = _getValueAt(index);
+                if (!v.isEmpty) {
+                    return v.toAny().AS_tryInvoke(this, args, out result)
+                        ? BindStatus.SUCCESS
+                        : BindStatus.FAILED_NOTFUNCTION;
+                }
             }
             return base.AS_tryCallProperty(name, args, out result, options);
         }
@@ -1402,17 +1560,61 @@ namespace Mariana.AVM2.Core {
             string name, in NamespaceSet nsSet, ReadOnlySpan<ASAny> args, out ASAny result,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic
-                && NumberFormatHelper.parseArrayIndex(name, false, out uint index)
-                && index != UInt32.MaxValue)
+                && NumberFormatHelper.parseArrayIndex(name, false, out uint index))
             {
-                ASAny f = AS_getElement(index);
-                return f.AS_tryInvoke(this, args, out result)
-                    ? BindStatus.SUCCESS
-                    : BindStatus.FAILED_NOTFUNCTION;
+                Value v = _getValueAt(index);
+                if (!v.isEmpty) {
+                    return v.toAny().AS_tryInvoke(this, args, out result)
+                        ? BindStatus.SUCCESS
+                        : BindStatus.FAILED_NOTFUNCTION;
+                }
             }
             return base.AS_tryCallProperty(name, nsSet, args, out result, options);
+        }
+
+        /// <inheritdoc/>
+        public override BindStatus AS_tryCallPropertyObj(
+            ASAny key, ReadOnlySpan<ASAny> args, out ASAny result,
+            BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
+        {
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && AS_isUint(key.value))
+            {
+                Value v = _getValueAt((uint)key);
+                if (!v.isEmpty) {
+                    return v.toAny().AS_tryInvoke(this, args, out result)
+                        ? BindStatus.SUCCESS
+                        : BindStatus.FAILED_NOTFUNCTION;
+                }
+            }
+
+            return (key.value is ASQName qName)
+                ? AS_tryCallProperty(QName.fromASQName(qName), args, out result, options)
+                : AS_tryCallProperty(QName.publicName(ASAny.AS_convertString(key)), args, out result, options);
+        }
+
+        /// <inheritdoc/>
+        public override BindStatus AS_tryCallPropertyObj(
+            ASAny key, in NamespaceSet nsSet, ReadOnlySpan<ASAny> args, out ASAny result,
+            BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
+        {
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && nsSet.containsPublic
+                && AS_isUint(key.value))
+            {
+                Value v = _getValueAt((uint)key);
+                if (!v.isEmpty) {
+                    return v.toAny().AS_tryInvoke(this, args, out result)
+                        ? BindStatus.SUCCESS
+                        : BindStatus.FAILED_NOTFUNCTION;
+                }
+            }
+
+            return (key.value is ASQName qName)
+                ? AS_tryCallProperty(QName.fromASQName(qName), args, out result, options)
+                : AS_tryCallProperty(ASAny.AS_convertString(key), nsSet, args, out result, options);
         }
 
         /// <inheritdoc/>
@@ -1420,15 +1622,16 @@ namespace Mariana.AVM2.Core {
             in QName name, ReadOnlySpan<ASAny> args, out ASAny result,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && name.ns.isPublic
-                && NumberFormatHelper.parseArrayIndex(name.localName, false, out uint index)
-                && index != UInt32.MaxValue)
+                && NumberFormatHelper.parseArrayIndex(name.localName, false, out uint index))
             {
-                ASAny f = AS_getElement(index);
-                return f.AS_tryConstruct(args, out result)
-                    ? BindStatus.SUCCESS
-                    : BindStatus.FAILED_NOTCONSTRUCTOR;
+                Value v = _getValueAt(index);
+                if (!v.isEmpty) {
+                    return v.toAny().AS_tryConstruct(args, out result)
+                        ? BindStatus.SUCCESS
+                        : BindStatus.FAILED_NOTCONSTRUCTOR;
+                }
             }
             return base.AS_tryCallProperty(name, args, out result, options);
         }
@@ -1438,21 +1641,63 @@ namespace Mariana.AVM2.Core {
             string name, in NamespaceSet nsSet, ReadOnlySpan<ASAny> args, out ASAny result,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if ((options & BindOptions.SEARCH_DYNAMIC) != 0
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic
-                && NumberFormatHelper.parseArrayIndex(name, false, out uint index)
-                && index != UInt32.MaxValue)
+                && NumberFormatHelper.parseArrayIndex(name, false, out uint index))
             {
-                ASAny f = AS_getElement(index);
-                return f.AS_tryConstruct(args, out result)
-                    ? BindStatus.SUCCESS
-                    : BindStatus.FAILED_NOTCONSTRUCTOR;
+                Value v = _getValueAt(index);
+                if (!v.isEmpty) {
+                    return v.toAny().AS_tryConstruct(args, out result)
+                        ? BindStatus.SUCCESS
+                        : BindStatus.FAILED_NOTCONSTRUCTOR;
+                }
             }
             return base.AS_tryCallProperty(name, nsSet, args, out result, options);
         }
 
         /// <inheritdoc/>
-        ///
+        public override BindStatus AS_tryConstructPropertyObj(
+            ASAny key, ReadOnlySpan<ASAny> args, out ASAny result,
+            BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
+        {
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && AS_isUint(key.value))
+            {
+                Value v = _getValueAt((uint)key);
+                if (!v.isEmpty) {
+                    return v.toAny().AS_tryConstruct(args, out result)
+                        ? BindStatus.SUCCESS
+                        : BindStatus.FAILED_NOTCONSTRUCTOR;
+                }
+            }
+
+            return (key.value is ASQName qName)
+                ? AS_tryConstructProperty(QName.fromASQName(qName), args, out result, options)
+                : AS_tryConstructProperty(QName.publicName(ASAny.AS_convertString(key)), args, out result, options);
+        }
+
+        /// <inheritdoc/>
+        public override BindStatus AS_tryConstructPropertyObj(
+            ASAny key, in NamespaceSet nsSet, ReadOnlySpan<ASAny> args, out ASAny result,
+            BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
+        {
+            if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
+                && nsSet.containsPublic
+                && AS_isUint(key.value))
+            {
+                Value v = _getValueAt((uint)key);
+                if (!v.isEmpty) {
+                    return v.toAny().AS_tryConstruct(args, out result)
+                        ? BindStatus.SUCCESS
+                        : BindStatus.FAILED_NOTCONSTRUCTOR;
+                }
+            }
+
+            return (key.value is ASQName qName)
+                ? AS_tryConstructProperty(QName.fromASQName(qName), args, out result, options)
+                : AS_tryConstructProperty(ASAny.AS_convertString(key), nsSet, args, out result, options);
+        }
+
         /// <summary>
         /// Gets the one-based index of the next enumerable dynamic property after the given index. If
         /// the object is not dynamic or has no enumerable dynamic properties after the given index, 0
@@ -1585,7 +1830,6 @@ namespace Mariana.AVM2.Core {
         }
 
         private void _internalConcatArray(ASArray srcArr, ref uint curIndex) {
-
             // We don't need to check the additions or int-uint casts here
             // for overflow since the checks done in the concat() method ensure
             // that it will never happen.
@@ -1630,7 +1874,6 @@ namespace Mariana.AVM2.Core {
             }
 
             curIndex += srcArr.m_length;
-
         }
 
         private void _internalConcatVector(ASVectorAny srcVec, ref uint curIndex) {
@@ -1705,7 +1948,7 @@ namespace Mariana.AVM2.Core {
 
             ReadOnlySpan<ASAny> cbArgs = cbArgsArray.AsSpan(0, Math.Min(cbArgsArray.Length, callback.length));
 
-            if (_isDenseArray()) {
+            if (_isDenseArrayWithoutEmptySlots()) {
                 var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, m_totalCount);
                 for (int i = 0; i < valuesSpan.Length; i++) {
                     cbArgsArray[0] = valuesSpan[i].toAny();
@@ -1713,20 +1956,10 @@ namespace Mariana.AVM2.Core {
                     if (!(bool)callback.AS_invoke(thisObject, cbArgs))
                         return false;
                 }
-
-                // If the length property is greater than the actual number of
-                // elements, we need to make extra calls to the function with the
-                // value argument as undefined.
-                for (uint i = (uint)m_totalCount, n = m_length; i < n; i++) {
-                    cbArgsArray[0] = default(ASAny);
-                    cbArgsArray[1] = i;
-                    if (!(bool)callback.AS_invoke(thisObject, cbArgs))
-                        return false;
-                }
             }
             else {
                 for (uint i = 0, n = m_length; i < n; i++) {
-                    cbArgsArray[0] = _hashGetValue(i).toAny();
+                    cbArgsArray[0] = AS_getElement(i);
                     cbArgsArray[1] = i;
                     if (!(bool)callback.AS_invoke(thisObject, cbArgs))
                         return false;
@@ -1783,63 +2016,35 @@ namespace Mariana.AVM2.Core {
             if (thisObject.value != null && callback is ASMethodClosure)
                 throw ErrorHelper.createError(ErrorCode.CALLBACK_METHOD_THIS_NOT_NULL);
 
-            ASArray resultASArray = new ASArray();
-            int resultCount = 0;
+            ASArray resultArray = new ASArray();
+            uint resultCount = 0;
 
             ASAny[] cbArgsArray = new ASAny[3];
             cbArgsArray[2] = this;
 
             ReadOnlySpan<ASAny> cbArgs = cbArgsArray.AsSpan(0, Math.Min(cbArgsArray.Length, callback.length));
 
-            // If the dummy call made to the callback function for a deleted
-            // element returns true, undefined is added to the result array
-            // instead of leaving that index deleted. So the array returned
-            // by the filter() method will always have dense array storage.
+            void check(uint ind, ASAny val, in ReadOnlySpan<ASAny> _cbArgs) {
+                cbArgsArray[0] = val;
+                cbArgsArray[1] = ind;
 
-            if (_isDenseArray()) {
+                if ((bool)callback.AS_invoke(thisObject, _cbArgs)) {
+                    resultArray.AS_setElement(resultCount, val);
+                    resultCount++;
+                }
+            }
+
+            if (_isDenseArrayWithoutEmptySlots()) {
                 var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, m_totalCount);
-                for (int i = 0; i < valuesSpan.Length; i++) {
-                    ASAny test = valuesSpan[i].toAny();
-                    cbArgsArray[0] = test;
-                    cbArgsArray[1] = (uint)i;
-
-                    if (!(bool)callback.AS_invoke(thisObject, cbArgs))
-                        continue;
-
-                    resultASArray.AS_setElement((uint)resultCount, test);
-                    resultCount++;
-                }
-
-                for (uint i = (uint)m_totalCount, n = m_length; i < n; i++) {
-                    cbArgsArray[0] = default(ASAny);
-                    cbArgsArray[1] = i;
-
-                    if ((bool)callback.AS_invoke(thisObject, cbArgs))
-                        continue;
-
-                    resultASArray.AS_setElement((uint)resultCount, default(ASAny));
-                    resultCount++;
-                    if (resultCount == Int32.MaxValue)
-                        break;
-                }
+                for (int i = 0; i < valuesSpan.Length; i++)
+                    check((uint)i, valuesSpan[i].toAny(), cbArgs);
             }
             else {
-                for (uint i = 0, n = m_length; i < n; i++) {
-                    ASAny test = _hashGetValue(i).toAny();
-                    cbArgsArray[0] = test;
-                    cbArgsArray[1] = i;
-
-                    if ((bool)callback.AS_invoke(thisObject, cbArgs))
-                        continue;
-
-                    resultASArray.AS_setElement((uint)resultCount, test);
-                    resultCount++;
-                    if (resultCount == Int32.MaxValue)
-                        break;
-                }
+                for (uint i = 0, n = m_length; i < n; i++)
+                    check(i, AS_getElement(i), cbArgs);
             }
 
-            return resultASArray;
+            return resultArray;
         }
 
         /// <summary>
@@ -1884,25 +2089,17 @@ namespace Mariana.AVM2.Core {
 
             ReadOnlySpan<ASAny> cbArgs = cbArgsArray.AsSpan(0, Math.Min(cbArgsArray.Length, callback.length));
 
-            if (_isDenseArray()) {
+            if (_isDenseArrayWithoutEmptySlots()) {
                 var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, m_totalCount);
-                for (int i = 0, n = m_totalCount; i < n; i++) {
-                    ASAny test = valuesSpan[i].toAny();
-                    cbArgsArray[0] = test;
+                for (int i = 0; i < valuesSpan.Length; i++) {
+                    cbArgsArray[0] = valuesSpan[i].toAny();
                     cbArgsArray[1] = (uint)i;
-                    callback.AS_invoke(thisObject, cbArgs);
-                }
-
-                for (uint i = (uint)m_totalCount, n = m_length; i < n; i++) {
-                    cbArgsArray[0] = default(ASAny);
-                    cbArgsArray[1] = i;
                     callback.AS_invoke(thisObject, cbArgs);
                 }
             }
             else {
                 for (uint i = 0, n = m_length; i < n; i++) {
-                    ASAny test = _hashGetValue(i).toAny();
-                    cbArgsArray[0] = test;
+                    cbArgsArray[0] = AS_getElement(i);
                     cbArgsArray[1] = i;
                     callback.AS_invoke(thisObject, cbArgs);
                 }
@@ -1936,42 +2133,24 @@ namespace Mariana.AVM2.Core {
         {
             uint fromIndexU = _normalizeIndex((double)fromIndex, m_length);
 
-            if (_isDenseArray()) {
+            if (_isDenseArrayWithoutEmptySlots()) {
                 if (fromIndexU >= (uint)m_totalCount)
                     return -1.0;
 
                 var valuesSpan = new ReadOnlySpan<Value>(m_values, (int)fromIndexU, m_totalCount - (int)fromIndexU);
                 for (int i = 0; i < valuesSpan.Length; i++) {
-                    Value val = valuesSpan[i];
-                    if (!val.isEmpty && ASAny.AS_strictEq(searchElement, val.toAny()))
+                    if (ASAny.AS_strictEq(searchElement, valuesSpan[i].toAny()))
                         return (double)i;
                 }
-                return -1.0;
             }
             else {
-                var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, m_totalCount);
-                var linksSpan = new ReadOnlySpan<HashLink>(m_hashLinks, 0, m_totalCount);
-
-                bool found = false;
-                uint minKeyFound = UInt32.MaxValue;
-
-                for (int i = 0; i < valuesSpan.Length; i++) {
-                    Value val = valuesSpan[i];
-                    if (val.isEmpty)
-                        continue;
-
-                    uint key = linksSpan[i].key;
-                    if (key < fromIndexU)
-                        continue;
-
-                    if (ASAny.AS_strictEq(searchElement, val.toAny())) {
-                        found = true;
-                        minKeyFound = Math.Min(minKeyFound, key);
-                    }
+                for (uint i = 0, n = m_length; i < n; i++) {
+                    if (ASAny.AS_strictEq(searchElement, AS_getElement(i)))
+                        return (double)i;
                 }
-
-                return found ? (double)minKeyFound : -1.0;
             }
+
+            return -1.0;
         }
 
         /// <summary>
@@ -1991,28 +2170,14 @@ namespace Mariana.AVM2.Core {
 
             string[] strings = new string[length];
 
-            if (_isDenseArray()) {
+            if (_isDenseArrayWithoutEmptySlots()) {
                 var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, m_totalCount);
-                for (int i = 0; i < valuesSpan.Length; i++) {
-                    ASAny obj = valuesSpan[i].toAny();
-                    strings[i] = (obj.value != null) ? AS_convertString(obj.value) : null;
-                }
+                for (int i = 0; i < valuesSpan.Length; i++)
+                    strings[i] = ASAny.AS_coerceString(valuesSpan[i].toAny());
             }
             else {
-                var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, m_totalCount);
-                var linksSpan = new ReadOnlySpan<HashLink>(m_hashLinks, 0, m_totalCount);
-
-                for (int i = 0; i < valuesSpan.Length; i++) {
-                    ASAny obj = valuesSpan[i].toAny();
-                    if (obj.value == null)
-                        continue;
-
-                    uint key = linksSpan[i].key;
-                    if (key >= length)
-                        continue;
-
-                    strings[(int)key] = AS_convertString(obj.value);
-                }
+                for (uint i = 0, n = m_length; i < n; i++)
+                    strings[i] = ASAny.AS_coerceString(AS_getElement(i));
             }
 
             return String.Join(sepStr, strings);
@@ -2044,40 +2209,21 @@ namespace Mariana.AVM2.Core {
         {
             uint fromIndexU = _normalizeIndex((double)fromIndex, m_length);
 
-            if (_isDenseArray()) {
+            if (_isDenseArrayWithoutEmptySlots()) {
                 var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, (int)Math.Min(fromIndexU, (uint)m_totalCount));
                 for (int i = valuesSpan.Length - 1; i >= 0; i--) {
-                    Value val = valuesSpan[i];
-                    if (!val.isEmpty && ASAny.AS_strictEq(searchElement, val.toAny()))
+                    if (ASAny.AS_strictEq(searchElement, valuesSpan[i].toAny()))
                         return (double)i;
                 }
-                return -1.0;
             }
             else {
-                var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, m_totalCount);
-                var linksSpan = new ReadOnlySpan<HashLink>(m_hashLinks, 0, m_totalCount);
-
-                bool found = false;
-                uint maxKeyFound = 0;
-
-                for (int i = 0; i < valuesSpan.Length; i++) {
-                    Value val = valuesSpan[i];
-                    if (val.isEmpty)
-                        continue;
-
-                    uint key = linksSpan[i].key;
-                    if (key > fromIndexU)
-                        continue;
-
-                    if (ASAny.AS_strictEq(searchElement, val.toAny())) {
-                        found = true;
-                        maxKeyFound = Math.Max(maxKeyFound, key);
-                    }
+                for (uint i = m_length; i >= 0; i--) {
+                    if (ASAny.AS_strictEq(searchElement, AS_getElement(i)))
+                        return (double)i;
                 }
-
-                return found ? (double)maxKeyFound : -1.0;
             }
 
+            return -1.0;
         }
 
         /// <summary>
@@ -2124,46 +2270,36 @@ namespace Mariana.AVM2.Core {
             if (thisObject.value != null && callback is ASMethodClosure)
                 throw ErrorHelper.createError(ErrorCode.CALLBACK_METHOD_THIS_NOT_NULL);
 
-            // This method will always create a dense array, since the callback must
-            // be dummy-called for deleted indices; and it will always return some value.
-            // Because of this, the maximum possible length that can be mapped has
-            // to be clamped to the maximum possible dense array size (which is 2^31-1)
-
             int length = (int)Math.Min(m_length, (uint)Int32.MaxValue);
 
-            ASArray resultASArray = new ASArray(length);
-            Span<Value> resultValues = resultASArray.m_values;
+            ASArray resultArray = new ASArray(length);
+            Span<Value> resultValues = resultArray.m_values;
 
             ASAny[] cbArgsArray = new ASAny[3];
             cbArgsArray[2] = this;
 
             ReadOnlySpan<ASAny> cbArgs = cbArgsArray.AsSpan(0, Math.Min(cbArgsArray.Length, callback.length));
 
-            if (_isDenseArray()) {
-                for (int i = 0, n = m_totalCount; i < n; i++) {
-                    cbArgsArray[0] = m_values[i].toAny();
-                    cbArgsArray[1] = (uint)i;
-                    resultValues[i] = Value.fromAny(callback.AS_invoke(thisObject, cbArgs));
-                }
-
-                for (int i = m_totalCount; i < length; i++) {
-                    cbArgsArray[0] = default(ASAny);
+            if (_isDenseArrayWithoutEmptySlots()) {
+                var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, length);
+                for (int i = 0; i < valuesSpan.Length; i++) {
+                    cbArgsArray[0] = valuesSpan[i].toAny();
                     cbArgsArray[1] = (uint)i;
                     resultValues[i] = Value.fromAny(callback.AS_invoke(thisObject, cbArgs));
                 }
             }
             else {
                 for (uint i = 0; i < (uint)length; i++) {
-                    cbArgsArray[0] = _hashGetValue(i).toAny();
+                    cbArgsArray[0] = AS_getElement(i);
                     cbArgsArray[1] = i;
-                    resultValues[(int)i] = Value.fromAny(callback.AS_invoke(thisObject, cbArgsArray));
+                    resultValues[(int)i] = Value.fromAny(callback.AS_invoke(thisObject, cbArgs));
                 }
             }
 
-            resultASArray.m_nonEmptyCount = length;
-            resultASArray.m_totalCount = length;
+            resultArray.m_nonEmptyCount = length;
+            resultArray.m_totalCount = length;
 
-            return resultASArray;
+            return resultArray;
         }
 
         /// <summary>
@@ -2417,58 +2553,28 @@ namespace Mariana.AVM2.Core {
         private ASArray _internalSlice(uint startIndex, int sliceLength) {
             if (sliceLength == 0)
                 return new ASArray();
-            if (startIndex == 0 && sliceLength == (int)m_length)
-                return clone();
 
             ASArray sliceArray = new ASArray(sliceLength);
+            Span<Value> sliceValues = sliceArray.m_values.AsSpan(0, sliceLength);
 
-            if (_isDenseArray()) {
+            if (_isDenseArrayWithoutEmptySlots()) {
                 int sliceLengthInArray = (startIndex >= (uint)m_values.Length)
                     ? 0
                     : Math.Min(sliceLength, m_values.Length - (int)startIndex);
 
                 if (sliceLengthInArray > 0) {
-                    ReadOnlySpan<Value> valuesSpan = m_values.AsSpan((int)startIndex, sliceLengthInArray);
-                    Span<Value> sliceSpan = sliceArray.m_values.AsSpan(0, sliceLengthInArray);
-                    for (int i = 0; i < sliceSpan.Length ; i++)
-                        sliceSpan[i] = valuesSpan[i].isEmpty ? Value.undef : valuesSpan[i];
+                    ReadOnlySpan<Value> src = m_values.AsSpan((int)startIndex, sliceLengthInArray);
+                    Span<Value> dest = sliceValues.Slice(0, sliceLengthInArray);
+                    for (int i = 0; i < src.Length ; i++)
+                        dest[i] = src[i].isEmpty ? Value.undef : src[i];
                 }
 
                 if (sliceLengthInArray < sliceLength)
-                    sliceArray.m_values.AsSpan(sliceLengthInArray).Fill(Value.undef);
+                    sliceValues.Slice(sliceLengthInArray).Fill(Value.undef);
             }
             else {
-                // For small slice lengths, query the hash table for each index in
-                // the slice. For larger slices, iterate over the hash table slots
-                // and pick up the elements within the slicing range.
-                Value[] sliceValues = sliceArray.m_values;
-                HashLink[] hashLinks = m_hashLinks;
-
-                if (sliceLength < (m_totalCount >> 2)) {
-                    for (int i = 0; i < sliceLength; i++) {
-                        Value val = _hashGetValue(startIndex + (uint)i);
-                        sliceValues[i] = val.isEmpty ? Value.undef : val;
-                    }
-                }
-                else {
-                    uint endIndex = startIndex + (uint)sliceLength;
-                    var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, m_totalCount);
-
-                    for (int i = 0; i < valuesSpan.Length; i++) {
-                        Value val = valuesSpan[i];
-                        if (val.isEmpty)
-                            continue;
-
-                        uint key = hashLinks[i].key;
-                        if (key >= startIndex && key < endIndex)
-                            sliceValues[(int)(key - startIndex)] = valuesSpan[i];
-                    }
-
-                    for (int i = 0; i < sliceValues.Length; i++) {
-                        if (sliceValues[i].isEmpty)
-                            sliceValues[i] = Value.undef;
-                    }
-                }
+                for (int i = 0; i < sliceValues.Length; i++)
+                    sliceValues[i] = Value.fromAny(AS_getElement(startIndex + (uint)i));
             }
 
             sliceArray.m_nonEmptyCount = sliceLength;
@@ -2529,7 +2635,7 @@ namespace Mariana.AVM2.Core {
 
             ReadOnlySpan<ASAny> cbArgs = cbArgsArray.AsSpan(0, Math.Min(cbArgsArray.Length, callback.length));
 
-            if (m_hashLinks == null) {
+            if (_isDenseArrayWithoutEmptySlots()) {
                 var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, m_totalCount);
                 for (int i = 0; i < valuesSpan.Length; i++) {
                     cbArgsArray[0] = m_values[i].toAny();
@@ -2537,19 +2643,12 @@ namespace Mariana.AVM2.Core {
                     if ((bool)callback.AS_invoke(thisObject, cbArgs))
                         return true;
                 }
-
-                for (uint i = (uint)m_totalCount, n = m_length; i < n; i++) {
-                    cbArgsArray[0] = default(ASAny);
-                    cbArgsArray[1] = i;
-                    if ((bool)callback.AS_invoke(thisObject, cbArgs))
-                        return true;
-                }
             }
             else {
                 for (uint i = 0, n = m_length; i < n; i++) {
-                    cbArgsArray[0] = _hashGetValue(i).toAny();
+                    cbArgsArray[0] = AS_getElement(i);
                     cbArgsArray[1] = i;
-                    if ((bool)callback.AS_invoke(thisObject, cbArgsArray))
+                    if ((bool)callback.AS_invoke(thisObject, cbArgs))
                         return true;
                 }
             }
@@ -3039,7 +3138,7 @@ namespace Mariana.AVM2.Core {
                 for (int i = 0; i < values.Length; i++) {
                     ref Value val = ref values[i];
                     if (val.isEmpty) {
-                        spliceValues[i] = Value.undef;
+                        spliceValues[i] = Value.fromAny(AS_getElement((uint)i));
                         m_nonEmptyCount++;
                     }
                     else {
@@ -3049,6 +3148,8 @@ namespace Mariana.AVM2.Core {
                 }
 
                 m_totalCount = Math.Max(m_totalCount, (int)endIndex);
+                m_length = Math.Max(m_length, endIndex);
+
                 spliceArray.m_nonEmptyCount = (int)deleteCount;
                 spliceArray.m_totalCount = (int)deleteCount;
             }
@@ -3179,33 +3280,24 @@ namespace Mariana.AVM2.Core {
             //
 
             int len = (int)Math.Min(m_length, (uint)Int32.MaxValue);
-            string[] strings = new string[len];
-            var toLocaleStringName = QName.publicName("toLocaleString");
+            var strings = new string[len];
 
-            var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, m_totalCount);
+            string callToLocaleStringOnElement(ASAny elem) {
+                if (elem.value == null)
+                    return null;
 
-            if (_isDenseArray()) {
-                for (int i = 0; i < valuesSpan.Length; i++) {
-                    ASAny obj = valuesSpan[i].toAny();
-                    if (obj.value != null) {
-                        ASAny result = obj.value.AS_callProperty(toLocaleStringName, ReadOnlySpan<ASAny>.Empty);
-                        strings[i] = ASAny.AS_convertString(result);
-                    }
-                }
+                ASAny result = elem.value.AS_callProperty(QName.publicName("toLocaleString"), ReadOnlySpan<ASAny>.Empty);
+                return ASAny.AS_convertString(result);
+            }
+
+            if (_isDenseArrayWithoutEmptySlots()) {
+                var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, m_totalCount);
+                for (int i = 0; i < valuesSpan.Length; i++)
+                    strings[i] = callToLocaleStringOnElement(valuesSpan[i].toAny());
             }
             else {
-                for (int i = 0; i < valuesSpan.Length; i++) {
-                    ASAny obj = valuesSpan[i].toAny();
-                    if (obj.value == null)
-                        continue;
-
-                    uint key = m_hashLinks[i].key;
-                    if (key >= len)
-                        continue;
-
-                    ASAny result = obj.value.AS_callProperty(toLocaleStringName, ReadOnlySpan<ASAny>.Empty);
-                    strings[(int)key] = ASAny.AS_convertString(result);
-                }
+                for (int i = 0; i < len; i++)
+                    strings[i] = callToLocaleStringOnElement(AS_getElement((uint)i));
             }
 
             return String.Join(CultureInfo.CurrentCulture.TextInfo.ListSeparator, strings);
@@ -3298,12 +3390,12 @@ namespace Mariana.AVM2.Core {
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
         public override bool propertyIsEnumerable(ASAny name = default(ASAny)) {
-            if (ASObject.AS_isUint(name.value))
-                return AS_hasElement((uint)name);
+            if (ASObject.AS_isUint(name.value) && !_getValueAt((uint)name).isEmpty)
+                return true;
 
             string str = (string)name;
-            if (NumberFormatHelper.parseArrayIndex(str, false, out uint index))
-                return AS_hasElement(index);
+            if (NumberFormatHelper.parseArrayIndex(str, false, out uint index) && !_getValueAt(index).isEmpty)
+                return true;
 
             return base.propertyIsEnumerable(name);
         }
