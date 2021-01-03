@@ -927,9 +927,8 @@ namespace Mariana.AVM2.Core {
             uint length = this.length;
 
             if (_isDenseArrayWithoutEmptySlots()) {
-                var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, (int)m_length);
-                for (int i = 0; i < valuesSpan.Length; i++)
-                    yield return converter.convert(valuesSpan[i].toAny());
+                for (int i = 0; i < m_totalCount; i++)
+                    yield return converter.convert(m_values[i].toAny());
             }
             else {
                 for (uint i = 0; i < length; i++)

@@ -139,7 +139,7 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         public static QName fromObject(ASObject obj) {
             if (obj is ASQName qName)
-                return new QName(new Namespace(NamespaceKind.NAMESPACE, qName.uri), qName.localName);
+                return new QName(new Namespace(qName.uri), qName.localName);
 
             if (obj == null)
                 return default(QName);
@@ -188,8 +188,6 @@ namespace Mariana.AVM2.Core {
         /// </item>
         /// <item>If the string has no double colon or period, the entire string is treated as the
         /// local name, with the namespace being the public namespace.</item>
-        /// <item>If the parsed local name is the string "*", it is considered to be
-        /// the "any" name.</item>
         /// </list>
         /// </remarks>
         public static QName parse(string name) {
@@ -201,27 +199,12 @@ namespace Mariana.AVM2.Core {
             if (nameLength == 0)
                 return new QName(Namespace.@public, "");
             if (nameLength == 1 && name[0] == '*')
-                return new QName(Namespace.any, null);
+                return new QName(Namespace.any, "*");
 
-            string localName;
+            int doubleColonPos = name.LastIndexOf("::", StringComparison.Ordinal);
+
             Namespace ns;
-
-            int doubleColonPos = -1, dotPos = -1;
-
-            for (int i = 0; i < nameLength - 1; i++) {
-                char c = name[i];
-                if (c == '.') {
-                    if (name[i + 1] == '<')
-                        break;
-                    dotPos = i;
-                }
-                else if (c == ':') {
-                    if (name[i + 1] == ':') {
-                        doubleColonPos = i;
-                        i++;
-                    }
-                }
-            }
+            string localName;
 
             if (doubleColonPos != -1) {
                 ns = (doubleColonPos == 1 && name[0] == '*')
@@ -229,18 +212,27 @@ namespace Mariana.AVM2.Core {
                     : new Namespace(NamespaceKind.NAMESPACE, name.Substring(0, doubleColonPos));
 
                 localName = (doubleColonPos == nameLength - 2) ? "" : name.Substring(doubleColonPos + 2);
+                return new QName(ns, localName);
             }
-            else if (dotPos != -1) {
+
+            int dotPos = -1;
+            int curPos = name.IndexOf('.');
+            while (curPos != -1) {
+                if ((uint)(curPos + 1) < name.Length && name[curPos + 1] == '<')
+                    break;
+
+                dotPos = curPos;
+                curPos = name.IndexOf('.', curPos + 1);
+            }
+
+            if (dotPos != -1) {
                 ns = new Namespace(NamespaceKind.NAMESPACE, name.Substring(0, dotPos));
-                localName = (dotPos == nameLength) ? "" : name.Substring(dotPos + 1);
+                localName = name.Substring(dotPos + 1);
             }
             else {
                 ns = Namespace.@public;
-                localName = (nameLength == 1 && name[0] == '.') ? "" : name;
+                localName = name;
             }
-
-            if (localName.Length == 1 && localName[0] == '*')
-                localName = null;
 
             return new QName(ns, localName);
         }

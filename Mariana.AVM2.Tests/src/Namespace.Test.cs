@@ -176,15 +176,22 @@ namespace Mariana.AVM2.Tests {
 
         [Theory]
         [MemberData(nameof(equals_shouldCheckForNamespaceEquality_data))]
-        public void equals_shouldCheckForNamespaceEquality(Namespace ns1, Namespace ns2, bool expected) {
-            Assert.Equal(expected, ns1.Equals(ns2));
-            Assert.Equal(expected, ns2.Equals(ns1));
-            Assert.Equal(expected, ns1.Equals((object)ns2));
-            Assert.Equal(expected, ns2.Equals((object)ns1));
-            Assert.Equal(expected, ns1 == ns2);
-            Assert.Equal(expected, ns2 == ns1);
-            Assert.Equal(!expected, ns1 != ns2);
-            Assert.Equal(!expected, ns2 != ns1);
+        public void equals_shouldCheckForNamespaceEquality(Namespace ns1, Namespace ns2, bool areEqual) {
+            Assert.Equal(areEqual, ns1.Equals(ns2));
+            Assert.Equal(areEqual, ns2.Equals(ns1));
+            Assert.Equal(areEqual, ns1.Equals((object)ns2));
+            Assert.Equal(areEqual, ns2.Equals((object)ns1));
+            Assert.Equal(areEqual, ns1 == ns2);
+            Assert.Equal(areEqual, ns2 == ns1);
+            Assert.Equal(!areEqual, ns1 != ns2);
+            Assert.Equal(!areEqual, ns2 != ns1);
+        }
+
+        [Theory]
+        [MemberData(nameof(equals_shouldCheckForNamespaceEquality_data))]
+        public void getHashCode_shouldReturnSameHashCodeForEqual(Namespace ns1, Namespace ns2, bool areEqual) {
+            if (areEqual)
+                Assert.Equal(ns1.GetHashCode(), ns2.GetHashCode());
         }
 
         [Fact]
