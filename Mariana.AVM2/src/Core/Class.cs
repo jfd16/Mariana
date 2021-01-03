@@ -85,7 +85,7 @@ namespace Mariana.AVM2.Core {
             if (type == typeof(ASAny))
                 return null;
 
-            CoreClasses.ensureLoaded();
+            CoreClasses.ensureClassesLoaded();
 
             Class klass = ClassTypeMap.getClass(type);
             if (klass != null)

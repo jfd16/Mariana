@@ -24,11 +24,6 @@ namespace Mariana.AVM2.Core {
     public sealed class ASString : ASObject {
 
         /// <summary>
-        /// The boxed representation of the empty string.
-        /// </summary>
-        private static ASString s_emptyString = new ASString("");
-
-        /// <summary>
         /// The maximum character code for which to cache values for single characters.
         /// </summary>
         private const int SINGLE_CHAR_CACHE_RANGE = 255;
@@ -39,27 +34,26 @@ namespace Mariana.AVM2.Core {
         private static readonly string[] s_singleCharCachedValues = _prepareSingleCharCachedValues();
 
         /// <summary>
+        /// The boxed representation of the empty string.
+        /// </summary>
+        private static LazyInitObject<ASString> s_lazyEmptyString = new LazyInitObject<ASString>(() => new ASString(""));
+
+        /// <summary>
         /// An array of cached one-character strings in boxed form.
         /// </summary>
-        private static readonly ASObject[] s_singleCharCachedObjects = _prepareSingleCharCachedObjects();
+        private static LazyInitObject<ASObject[]> s_lazySingleCharCachedObjects =
+            new LazyInitObject<ASObject[]>(() => _prepareSingleCharCachedObjects());
 
-        private static string[] _prepareSingleCharCachedValues() {
-            var cachedValues = new string[SINGLE_CHAR_CACHE_RANGE + 1];
-            for (int i = 0; i <= SINGLE_CHAR_CACHE_RANGE; i++)
-                cachedValues[i] = String.Intern(new string((char)i, 1));
-            return cachedValues;
-        }
-
-        private static ASObject[] _prepareSingleCharCachedObjects() {
-            var cachedObjects = new ASObject[SINGLE_CHAR_CACHE_RANGE + 1];
-            for (int i = 0; i <= SINGLE_CHAR_CACHE_RANGE; i++)
-                cachedObjects[i] = new ASString(String.Intern(new string((char)i, 1)));
-            return cachedObjects;
-        }
+        private static LazyInitObject<Class> s_lazyClass = new LazyInitObject<Class>(
+            () => Class.fromType(typeof(ASString)),
+            recursionHandling: LazyInitRecursionHandling.RECURSIVE_CALL
+        );
 
         private readonly string m_value;
 
-        private ASString(string value) => m_value = value;
+        private ASString(string value) : base(s_lazyClass.value) {
+            m_value = value;
+        }
 
         /// <summary>
         /// Converts the current instance to a Boolean value.
@@ -715,14 +709,8 @@ namespace Mariana.AVM2.Core {
                 return matchArray;
             }
             else {
-                int oldLastIndex = re.lastIndex;
-                re.lastIndex = 0;
-                try {
-                    return re.exec(s);
-                }
-                finally {
-                    re.lastIndex = oldLastIndex;
-                }
+                int lastIndex = 0;
+                return re.execInternal(s, ref lastIndex);
             }
         }
 
@@ -1362,6 +1350,20 @@ namespace Mariana.AVM2.Core {
             return ASAny.AS_fromString(ASAny.AS_convertString(args[0]));
         }
 
+        private static string[] _prepareSingleCharCachedValues() {
+            var cachedValues = new string[SINGLE_CHAR_CACHE_RANGE + 1];
+            for (int i = 0; i <= SINGLE_CHAR_CACHE_RANGE; i++)
+                cachedValues[i] = String.Intern(new string((char)i, 1));
+            return cachedValues;
+        }
+
+        private static ASObject[] _prepareSingleCharCachedObjects() {
+            var cachedObjects = new ASObject[SINGLE_CHAR_CACHE_RANGE + 1];
+            for (int i = 0; i <= SINGLE_CHAR_CACHE_RANGE; i++)
+                cachedObjects[i] = new ASString(String.Intern(new string((char)i, 1)));
+            return cachedObjects;
+        }
+
         /// <summary>
         /// Creates a boxed object from a string value.
         /// </summary>
@@ -1371,11 +1373,11 @@ namespace Mariana.AVM2.Core {
                 return null;
 
             if ((uint)val.Length <= 0)
-                return s_emptyString;
+                return s_lazyEmptyString.value;
 
             if (val.Length == 1) {
                 char cv = val[0];
-                var cache = s_singleCharCachedObjects;
+                var cache = s_lazySingleCharCachedObjects.value;
                 if ((uint)cv < (uint)cache.Length)
                     return cache[cv];
             }

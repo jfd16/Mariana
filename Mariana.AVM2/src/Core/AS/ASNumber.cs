@@ -66,9 +66,15 @@ namespace Mariana.AVM2.Core {
         [AVM2ExportTrait]
         public const double NEGATIVE_INFINITY = Double.NegativeInfinity;
 
+        private static LazyInitObject<Class> s_lazyClass = new LazyInitObject<Class>(
+            () => Class.fromType(typeof(ASNumber)),
+            recursionHandling: LazyInitRecursionHandling.RECURSIVE_CALL
+        );
         private readonly double m_value;
 
-        private ASNumber(double v) => m_value = v;
+        private ASNumber(double v) : base(s_lazyClass.value) {
+            m_value = v;
+        }
 
         /// <summary>
         /// Converts the uint instance to a Boolean value.

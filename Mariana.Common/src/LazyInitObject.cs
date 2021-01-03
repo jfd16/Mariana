@@ -5,19 +5,19 @@ using System.Runtime.CompilerServices;
 namespace Mariana.Common {
 
     /// <summary>
-    /// The initialisation state of a <see cref="LazyInitObject{T}"/>.
+    /// The initialization state of a <see cref="LazyInitObject{T}"/>.
     /// </summary>
     public enum LazyInitObjectState : byte {
 
         /// <summary>
         /// The object initializer has not bet been called.
         /// </summary>
-        UNINITIALISED,
+        UNINITIALIZED,
 
         /// <summary>
         /// The object's initializer is currently running.
         /// </summary>
-        IN_INITIALISER,
+        IN_INITIALIZER,
 
         /// <summary>
         /// The object's initializer has completed and the object is available.
@@ -64,15 +64,17 @@ namespace Mariana.Common {
     /// <typeparam name="T">The type of the object.</typeparam>
     ///
     /// <remarks>
-    /// <para>This struct provides thread-safe lazy initialisation.</para>
+    /// <para>This struct provides thread-safe lazy initialization.</para>
     /// <para>
     /// The <see cref="LazyInitObject{T}"/> type is a value type intended for internal use
     /// within a class. It should not be returned from a function or passed by value to a
     /// function, as making copies of a <see cref="LazyInitObject{T}"/> may result in unintended
-    /// behaviour, such as the initialisation function being called more than once. (In almost all
+    /// behaviour, such as the initialization function being called more than once. (In almost all
     /// these cases, it is the object, i.e. the <see cref="value"/> property which must be used
     /// and not the <see cref="LazyInitObject{T}"/> instance itself).
     /// </para>
+    /// <para>Do not use this type as the type of a readonly field, as defensive copying
+    /// may result in more than one initialization.</para>
     /// </remarks>
     public struct LazyInitObject<T> {
 
@@ -86,12 +88,12 @@ namespace Mariana.Common {
         /// Constructs a new instance of <see cref="LazyInitObject{T}"/>.
         /// </summary>
         ///
-        /// <param name="initFunc">A delegate that must be called during initialisation to obtain the
+        /// <param name="initFunc">A delegate that must be called during initialization to obtain the
         /// object's value.</param>
         /// <param name="initLock">An object that will be used as a lock to ensure thread safe
-        /// initialisation. If this is null, a lock object is created internally and used.</param>
+        /// initialization. If this is null, a lock object is created internally and used.</param>
         /// <param name="recursionHandling">Specifies how accesses to the object within the
-        /// initialisation function are handled.</param>
+        /// initialization function are handled.</param>
         public LazyInitObject(
             Func<T> initFunc, object initLock = null,
             LazyInitRecursionHandling recursionHandling = LazyInitRecursionHandling.THROW)
@@ -112,11 +114,11 @@ namespace Mariana.Common {
             m_initFunc = initFunc;
             m_initLock = initLock;
             m_recursionHandler = recursionHandling;
-            m_state = LazyInitObjectState.UNINITIALISED;
+            m_state = LazyInitObjectState.UNINITIALIZED;
         }
 
         /// <summary>
-        /// Returns the current initialisation state of the object.
+        /// Returns the current initialization state of the object.
         /// </summary>
         public LazyInitObjectState currentState => m_state;
 
@@ -128,10 +130,10 @@ namespace Mariana.Common {
         /// <list type="bullet">
         /// <item>This property is accessed on a default-initialized instance of type
         /// <see cref="LazyInitObject{T}"/></item>
-        /// <item>This property is accessed within the initialisation function of the object and
+        /// <item>This property is accessed within the initialization function of the object and
         /// recursion handling is set to
         /// <see cref="LazyInitRecursionHandling.THROW" qualifyHint="true"/></item>
-        /// <item>This property is accessed after an exception was thrown by the initialisation
+        /// <item>This property is accessed after an exception was thrown by the initialization
         /// function.</item>
         /// </list>
         /// </exception>
@@ -154,16 +156,16 @@ namespace Mariana.Common {
                 if (state == LazyInitObjectState.COMPLETE)
                     return m_value;
                 if (state == LazyInitObjectState.FAILED)
-                    throw new InvalidOperationException("Cannot access lazy object after initialisation failure.");
+                    throw new InvalidOperationException("Cannot access lazy object after initialization failure.");
 
-                if (state == LazyInitObjectState.IN_INITIALISER) {
+                if (state == LazyInitObjectState.IN_INITIALIZER) {
                     if (m_recursionHandler == LazyInitRecursionHandling.THROW)
                         throw new InvalidOperationException("Cannot access lazy object in initializer.");
                     if (m_recursionHandler == LazyInitRecursionHandling.RETURN_DEFAULT)
                         return default(T);
                 }
 
-                m_state = LazyInitObjectState.IN_INITIALISER;
+                m_state = LazyInitObjectState.IN_INITIALIZER;
                 T value;
                 try {
                     value = m_initFunc();

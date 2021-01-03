@@ -1236,18 +1236,14 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="x">The Boolean value to convert.</param>
         /// <returns>A <see cref="ASAny"/> wrapping the boxed object.</returns>
-        public static implicit operator ASAny(bool x) {
-            return new ASAny(x ? ASBoolean.s_trueVal : ASBoolean.s_falseVal);
-        }
+        public static implicit operator ASAny(bool x) => new ASAny(ASBoolean.box(x));
 
         /// <summary>
         /// Converts a Boolean value to a boxed object wrapped in a <see cref="ASAny"/>.
         /// </summary>
         /// <param name="x">The Boolean value to convert.</param>
         /// <returns>A <see cref="ASAny"/> wrapping the boxed object.</returns>
-        public static ASAny AS_fromBoolean(bool x) {
-            return new ASAny(x ? ASBoolean.s_trueVal : ASBoolean.s_falseVal);
-        }
+        public static ASAny AS_fromBoolean(bool x) => new ASAny(ASBoolean.box(x));
 
         /// <summary>
         /// Converts an integer to a boxed object wrapped in a <see cref="ASAny"/>.

@@ -119,8 +119,7 @@ namespace Mariana.AVM2.Core {
         /// cannot be used as constructors.</para>
         /// </remarks>
         public override bool AS_tryConstruct(ReadOnlySpan<ASAny> args, out ASAny result) {
-            result = new ASObject();
-            result.value.AS_proto = m_prototype;
+            result = ASObject.AS_createWithPrototype(prototype);
             return true;
         }
 
@@ -320,11 +319,7 @@ namespace Mariana.AVM2.Core {
         }
 
         public override bool AS_tryConstruct(ReadOnlySpan<ASAny> args, out ASAny result) {
-            ASObject newObj = new ASObject();
-
-            ASObject prototype = this.prototype;
-            if (prototype != null)
-                newObj.AS_proto = prototype;
+            ASObject newObj = ASObject.AS_createWithPrototype(this.prototype);
 
             ReadOnlySpan<ASAny> argsForCall = _prepareArguments(newObj, args);
             ASAny receiver = m_method.isStatic ? default : newObj;

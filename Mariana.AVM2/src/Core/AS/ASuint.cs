@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using Mariana.AVM2.Native;
+using Mariana.Common;
 
 namespace Mariana.AVM2.Core {
 
@@ -16,7 +17,7 @@ namespace Mariana.AVM2.Core {
     /// primitive <see cref="UInt32"/> argument.
     /// </remarks>
     [AVM2ExportClass(name = "uint", hasPrototypeMethods = true)]
-    [AVM2ExportClassInternal(tag = ClassTag.UINT, primitiveType = typeof(uint))]
+    [AVM2ExportClassInternal(tag = ClassTag.UINT, primitiveType = typeof(uint), usePrototypeOf = typeof(ASNumber))]
     sealed public class ASuint : ASObject {
 
         /// <summary>
@@ -46,7 +47,8 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// The array containing the cached objects.
         /// </summary>
-        private static readonly ASObject[] s_cachedValues = _prepareCachedValues();
+        private static LazyInitObject<ASObject[]> s_lazyCachedValues =
+            new LazyInitObject<ASObject[]>(() => _prepareCachedValues());
 
         /// <summary>
         /// The range of cached strings used when converting integers to strings. Strings for the
@@ -59,9 +61,16 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         private static readonly string[] s_cachedStrings = _prepareCachedStrings();
 
+        private static LazyInitObject<Class> s_lazyClass = new LazyInitObject<Class>(
+            () => Class.fromType(typeof(ASuint)),
+            recursionHandling: LazyInitRecursionHandling.RECURSIVE_CALL
+        );
+
         private readonly uint m_value;
 
-        private ASuint(uint v) => m_value = v;
+        private ASuint(uint v) : base(s_lazyClass.value) {
+            m_value = v;
+        }
 
         /// <summary>
         /// Converts the current instance to a Boolean value.
@@ -337,7 +346,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="x">The value to be boxed.</param>
         internal static ASObject box(uint x) {
-            var cache = s_cachedValues;
+            var cache = s_lazyCachedValues.value;
             return (x < (uint)cache.Length) ? cache[x] : new ASuint(x);
         }
 

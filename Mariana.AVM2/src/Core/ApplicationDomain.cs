@@ -200,7 +200,7 @@ namespace Mariana.AVM2.Core {
 
             while (curDomain != null) {
                 if (curDomain == s_systemDomain)
-                    CoreClasses.ensureLoaded();
+                    CoreClasses.ensureGlobalsLoaded();
 
                 BindStatus bindStatus = curDomain.m_globalTraitTable.tryGetTrait(name, true, out trait);
                 if (bindStatus != BindStatus.NOT_FOUND)
@@ -594,7 +594,7 @@ namespace Mariana.AVM2.Core {
             ApplicationDomain curDomain = this;
             while (curDomain != null) {
                 if (curDomain == s_systemDomain)
-                    CoreClasses.ensureLoaded();
+                    CoreClasses.ensureGlobalsLoaded();
 
                 curDomain.m_globalTraitTable.getTraits(types, TraitScope.STATIC, ref traitList);
                 if (noInherited)
@@ -635,7 +635,7 @@ namespace Mariana.AVM2.Core {
             ApplicationDomain curDomain = this;
             while (curDomain != null) {
                 if (curDomain == s_systemDomain)
-                    CoreClasses.ensureLoaded();
+                    CoreClasses.ensureGlobalsLoaded();
 
                 Trait trait = curDomain.m_globalTraitTable.getTraitByFilter(filter);
                 if (trait != null)
@@ -682,7 +682,7 @@ namespace Mariana.AVM2.Core {
             ApplicationDomain curDomain = this;
             while (curDomain != null) {
                 if (curDomain == s_systemDomain)
-                    CoreClasses.ensureLoaded();
+                    CoreClasses.ensureGlobalsLoaded();
 
                 curDomain.m_globalTraitTable.getTraitsByFilter(filter, ref traitList);
                 if (noInherited)
@@ -746,7 +746,7 @@ namespace Mariana.AVM2.Core {
             if (type.IsConstructedGenericType && type.GetGenericTypeDefinition() == typeof(ASVector<>))
                 throw ErrorHelper.createError(ErrorCode.MARIANA__NATIVE_CLASS_LOAD_VECTOR_EXPLICIT);
 
-            CoreClasses.ensureLoaded();
+            CoreClasses.ensureGlobalsLoaded();
             return NativeClass.createClass(type, this);
         }
 
@@ -786,7 +786,7 @@ namespace Mariana.AVM2.Core {
             if (moduleType == null)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(moduleType));
             if (this == s_systemDomain)
-                CoreClasses.ensureLoaded();
+                CoreClasses.ensureGlobalsLoaded();
             NativeClass.createModule(moduleType, this);
         }
 
@@ -801,7 +801,7 @@ namespace Mariana.AVM2.Core {
             if (assembly == null)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(assembly));
             if (this == s_systemDomain)
-                CoreClasses.ensureLoaded();
+                CoreClasses.ensureGlobalsLoaded();
 
             Type[] types = assembly.GetTypes();
 

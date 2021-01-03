@@ -359,26 +359,46 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
-        public virtual ASArray exec(string str) {
+        public virtual ASObject exec(string str) {
+            int lastIndex = Math.Max(this.lastIndex, 0);
+            ASArray arr = execInternal(str, ref lastIndex);
+            this.lastIndex = lastIndex;
+            return arr;
+        }
 
+        /// <summary>
+        /// Executes the regular expression on the specified target string and returns an array
+        /// containing information about the match. The match starts at the position in the target
+        /// string given by <paramref name="lastIndex"/>.
+        /// </summary>
+        ///
+        /// <param name="str">The target string on which the regular expression must be
+        /// executed.</param>
+        /// <param name="lastIndex">The index in <paramref name="str"/> from which to
+        /// begin searching. This will be updated with the index at which the next match is
+        /// to start, if the global flag is set. If there is no successful match, this will
+        /// be set to 0.</param>
+        ///
+        /// <returns>An array containing information about the match. This includes the string matched
+        /// by the entire pattern as well as each of the capturing groups, and the index in the target
+        /// string at which the match was found.</returns>
+        internal ASArray execInternal(string str, ref int lastIndex) {
             if (str == null)
                 return null;
 
-            int lastIndex = Math.Max(this.lastIndex, 0);
-
             if (lastIndex >= str.Length) {
-                this.lastIndex = 0;
+                lastIndex = 0;
                 return null;
             }
 
             Match match = m_internalRegex.Match(str, lastIndex);
             if (!match.Success) {
-                this.lastIndex = 0;
+                lastIndex = 0;
                 return null;
             }
 
             if (global)
-                this.lastIndex = match.Index + ((match.Length == 0) ? 1 : match.Length);
+                lastIndex = match.Index + ((match.Length == 0) ? 1 : match.Length);
 
             GroupCollection groups = match.Groups;
 
@@ -397,7 +417,6 @@ namespace Mariana.AVM2.Core {
             namedProps["index"] = match.Index;
 
             return groupArray;
-
         }
 
         /// <exclude/>

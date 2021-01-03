@@ -17,7 +17,7 @@ namespace Mariana.AVM2.Core {
     /// <see cref="Int32"/> argument.
     /// </remarks>
     [AVM2ExportClass(name = "int", hasPrototypeMethods = true)]
-    [AVM2ExportClassInternal(tag = ClassTag.INT, primitiveType = typeof(int))]
+    [AVM2ExportClassInternal(tag = ClassTag.INT, primitiveType = typeof(int), usePrototypeOf = typeof(ASNumber))]
     sealed public class ASint : ASObject {
 
         /// <summary>
@@ -41,7 +41,8 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Contains cached boxed instances for common integer values.
         /// </summary>
-        private static readonly ASObject[] s_cachedValues = _prepareCachedValues();
+        private static LazyInitObject<ASObject[]> s_lazyCachedValues =
+            new LazyInitObject<ASObject[]>(() => _prepareCachedValues());
 
         /// <summary>
         /// The maximum absolute value for which cached boxes should be created.
@@ -58,9 +59,14 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         private const int STRING_CACHE_RANGE = 128;
 
+        private static LazyInitObject<Class> s_lazyClass = new LazyInitObject<Class>(
+            () => Class.fromType(typeof(ASint)),
+            recursionHandling: LazyInitRecursionHandling.RECURSIVE_CALL
+        );
+
         private readonly int m_value;
 
-        private ASint(int v) {
+        private ASint(int v) : base(s_lazyClass.value) {
             m_value = v;
         }
 
@@ -351,7 +357,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="x">The value to be boxed.</param>
         internal static ASObject box(int x) {
-            var cache = s_cachedValues;
+            var cache = s_lazyCachedValues.value;
             return ((uint)(x + CACHE_RANGE) < (uint)cache.Length) ? cache[x + CACHE_RANGE] : new ASint(x);
         }
 

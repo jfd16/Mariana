@@ -299,6 +299,13 @@ namespace Mariana.AVM2.Native {
         /// </summary>
         public bool hidesInheritedTraits;
 
+        /// <summary>
+        /// The <see cref="Type"/> representing the class whose prototype is to be used for
+        /// instances of the exported class. If this is not specified, the prototype of the
+        /// exported class itself is used.
+        /// </summary>
+        public Type usePrototypeOf;
+
     }
 
 }

@@ -14,10 +14,7 @@ namespace Mariana.AVM2.Native {
         private bool m_containsProtoMethods;
         private bool m_containsIndexMethods;
         private Class m_vectorElementType;
-
-        public override bool isVectorInstantiation => m_vectorElementType != null;
-
-        public override Class vectorElementType => m_vectorElementType;
+        private NativeClass m_classForProto;
 
         private NativeClass(
             QName name,
@@ -47,6 +44,7 @@ namespace Mariana.AVM2.Native {
             }
 
             setMetadata(_extractMetadata(underlyingType.GetCustomAttributes<TraitMetadataAttribute>()));
+            m_classForProto = this;
         }
 
         /// <summary>
@@ -113,9 +111,13 @@ namespace Mariana.AVM2.Native {
             if (!isDependent)
                 ClassTypeMap.addClass(underlyingType, createdClass);
 
-            if (classInternalAttr != null && classInternalAttr.primitiveType != null)
-                ClassTypeMap.addClass(classInternalAttr.primitiveType, createdClass);
+            if (classInternalAttr != null) {
+                if (classInternalAttr.primitiveType != null)
+                    ClassTypeMap.addClass(classInternalAttr.primitiveType, createdClass);
 
+                if (classInternalAttr.usePrototypeOf != null && classInternalAttr.usePrototypeOf != underlyingType)
+                    createdClass.m_classForProto = (NativeClass)_getDependentClass(classInternalAttr.usePrototypeOf, domain);
+            }
             return createdClass;
         }
 
@@ -236,6 +238,12 @@ namespace Mariana.AVM2.Native {
 
             return _getDependentClass(elementType, domain);
         }
+
+        public override bool isVectorInstantiation => m_vectorElementType != null;
+
+        public override Class vectorElementType => m_vectorElementType;
+
+        internal override ASObject prototypeForInstance => m_classForProto.prototypeObject;
 
         protected private override void initClass() {
             if (underlyingType == typeof(ASVector<>))

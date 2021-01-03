@@ -246,12 +246,21 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
+        /// Returns the prototype object that must be used for instances of this class.
+        /// </summary>
+        /// <returns>The prototype object that must be used for instances of this class.</returns>
+        /// <remarks>
+        /// This is the same as <see cref="prototypeObject"/> in most cases. Exceptions include
+        /// the int and uint classes which use the prototype of Number.
+        /// </remarks>
+        internal virtual ASObject prototypeForInstance => prototypeObject;
+
+        /// <summary>
         /// This method is called internally to define and close the class. It calls the virtual
         /// <see cref="initClass"/> method. This method also closes the class's trait table by
         /// copying parent traits.
         /// </summary>
         private void _internalInitClass() {
-
             // Ensure that this method is called on the parent and interfaces first.
             ClassImpl parent = m_parent;
             if (parent != null)
@@ -267,19 +276,8 @@ namespace Mariana.AVM2.Core {
                 m_classObject = new ASClass(this);
 
             if (m_prototypeObject == null) {
-                m_prototypeObject = new ASObject();
+                m_prototypeObject = ASObject.AS_createWithPrototype(parent?.prototypeObject);
                 m_prototypeObject.AS_dynamicProps["constructor"] = m_classObject;
-            }
-
-            if (parent != null) {
-                // Set the next object in the prototype chain of the class's prototype object to be that
-                // of the parent class.
-                m_prototypeObject.AS_proto = parent.prototypeObject;
-            }
-            else if (m_underlyingType == typeof(ASObject)) {
-                // Special case: The protoype of Object does not have any protoype
-                // chain.
-                m_prototypeObject.AS_proto = null;
             }
 
             if (m_traitTable == null)
@@ -299,7 +297,6 @@ namespace Mariana.AVM2.Core {
 
             if (m_parent != null)
                 m_specials = ClassSpecials.mergeWithParent(m_specials, m_parent.m_specials);
-
         }
 
         public sealed override ReadOnlyArrayView<Class> getImplementedInterfaces() => new ReadOnlyArrayView<Class>(m_interfaces);

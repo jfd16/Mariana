@@ -2360,8 +2360,15 @@ namespace Mariana.AVM2.Compiler {
         private void _visitGetGlobalSlot(ref Instruction instr) {
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.getSetSlot.resolvedPropId);
             var trait = (Trait)resolvedProp.propInfo;
-
             Debug.Assert(trait.isStatic);
+
+            ref DataNode result = ref m_compilation.getDataNode(instr.stackPushedNodeId);
+
+            if (result.isConstant) {
+                _emitPushConstantNode(ref result);
+                return;
+            }
+
             DataNode dummyObject = default;
             dummyObject.id = -1;
             dummyObject.slot = new DataNodeSlot(DataNodeSlotKind.STACK, -1);
@@ -2812,7 +2819,7 @@ namespace Mariana.AVM2.Compiler {
                 EntityHandle classCapturedScopeField = m_compilation.context.getClassCapturedScopeFieldHandle(klass);
                 Span<int> localScopeNodeIds = m_compilation.staticIntArrayPool.getSpan(instr.data.newClass.capturedScopeNodeIds);
 
-                var capturedScopeLocal =_emitCaptureCurrentScope(classCapturedScope, localScopeNodeIds);
+                var capturedScopeLocal = _emitCaptureCurrentScope(classCapturedScope, localScopeNodeIds);
 
                 m_ilBuilder.emit(ILOp.ldloc, capturedScopeLocal);
                 m_ilBuilder.emit(ILOp.stsfld, classCapturedScopeField);
@@ -2829,7 +2836,7 @@ namespace Mariana.AVM2.Compiler {
             CapturedScope funcCapturedScope = m_compilation.context.getFunctionCapturedScope(func);
 
             Span<int> localScopeNodeIds = m_compilation.staticIntArrayPool.getSpan(instr.data.newFunction.capturedScopeNodeIds);
-            var capturedScopeLocal =_emitCaptureCurrentScope(funcCapturedScope, localScopeNodeIds);
+            var capturedScopeLocal = _emitCaptureCurrentScope(funcCapturedScope, localScopeNodeIds);
 
             _emitPushTraitConstant(func);
             m_ilBuilder.emit(ILOp.castclass, typeof(MethodTrait));
@@ -2886,12 +2893,11 @@ namespace Mariana.AVM2.Compiler {
                     getILOpForFloatCompare(instr.opcode, out ilOp, out invIlOp);
                     break;
 
-                case ComparisonType.STRING: {
+                case ComparisonType.STRING:
                     _emitTypeCoerceForStackTop2(ref left, ref right, DataNodeType.STRING, DataNodeType.STRING);
                     m_ilBuilder.emit(ILOp.call, getMethodForStrCompare(instr.opcode));
                     (ilOp, invIlOp) = isNegativeCompare(instr.opcode) ? (ILOp.brfalse, ILOp.brtrue) : (ILOp.brtrue, ILOp.brfalse);
                     break;
-                }
 
                 case ComparisonType.NAMESPACE:
                     Debug.Assert(left.dataType == DataNodeType.NAMESPACE && right.dataType == DataNodeType.NAMESPACE);

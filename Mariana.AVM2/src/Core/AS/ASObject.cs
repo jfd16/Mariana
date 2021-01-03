@@ -1,7 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
 using Mariana.AVM2.Native;
-using Mariana.Common;
 
 namespace Mariana.AVM2.Core {
 
@@ -25,9 +24,6 @@ namespace Mariana.AVM2.Core {
             return locks;
         }
 
-        private static LazyInitObject<ASObject> s_lazyNumberClassProto =
-            new LazyInitObject<ASObject>(() => Class.fromType<ASNumber>().prototypeObject);
-
         /// <summary>
         /// The value of the "length" property of the AS3 Object class.
         /// </summary>
@@ -44,7 +40,7 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// The next object in the prototype chain of this object.
         /// </summary>
-        private ASObject m_proto;
+        private readonly ASObject m_proto;
 
         /// <summary>
         /// The dynamic property table for this object. This is null for instances of non-dynamic
@@ -55,7 +51,29 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Creates a new ActionScript 3 object.
         /// </summary>
-        public ASObject() { }
+        public ASObject() {}
+
+        /// <summary>
+        /// Creates a new ActionScript 3 object.
+        /// </summary>
+        /// <param name="klass">The <see cref="Class"/> representing the object's class. Set to
+        /// null to determine the class from the object type.</param>
+        /// <param name="proto">The first object in the prototype chain of the created object,
+        /// or null to use the class's prototype.</param>
+        protected private ASObject(Class klass, ASObject proto = null) {
+            m_proto = proto;
+            if (klass != null) {
+                m_class = klass;
+                m_dynProps = klass.isDynamic ? new DynamicPropertyCollection() : null;
+            }
+        }
+
+        /// <summary>
+        /// Creates a new ActionScript 3 object with the given prototype.
+        /// </summary>
+        /// <param name="prototype">The first object in the prototype chain of the created object.</param>
+        /// <returns>The created object.</returns>
+        public static ASObject AS_createWithPrototype(ASObject prototype) => new ASObject(null, prototype);
 
         /// <summary>
         /// Gets the <see cref="Class"/> instance representing the object's class.
@@ -88,18 +106,7 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Gets or sets the next object in the object's prototype chain.
         /// </summary>
-        public ASObject AS_proto {
-            get {
-                if (m_class == null)
-                    _initInternalFields();
-                return m_proto;
-            }
-            set {
-                if (m_class == null)
-                    _initInternalFields();
-                m_proto = value;
-            }
-        }
+        public ASObject AS_proto => m_proto ?? AS_class.getClassImpl().prototypeForInstance;
 
         private void _initInternalFields() {
             // To initialize these fields in a thread-safe way, we could create a
@@ -135,12 +142,6 @@ namespace Mariana.AVM2.Core {
                 m_class = klass;
                 if (klass.isDynamic)
                     m_dynProps = new DynamicPropertyCollection();
-
-                if (ClassTagSet.integer.contains(klass.tag))
-                    // int and uint objects are given the Number prototype.
-                    m_proto = s_lazyNumberClassProto.value;
-                else
-                    m_proto = klass.prototypeObject;
             }
         }
 
@@ -1877,14 +1878,14 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="x">The Boolean value to convert to a boxed object.</param>
         /// <returns>The boxed object.</returns>
-        public static implicit operator ASObject(bool x) => x ? ASBoolean.s_trueVal : ASBoolean.s_falseVal;
+        public static implicit operator ASObject(bool x) => ASBoolean.box(x);
 
         /// <summary>
         /// Converts a Boolean value to a boxed object.
         /// </summary>
         /// <param name="x">The Boolean value to convert to a boxed object.</param>
         /// <returns>The boxed object.</returns>
-        public static ASObject AS_fromBoolean(bool x) => x ? ASBoolean.s_trueVal : ASBoolean.s_falseVal;
+        public static ASObject AS_fromBoolean(bool x) => ASBoolean.box(x);
 
         /// <summary>
         /// Converts an integer to a boxed object.
@@ -2400,7 +2401,7 @@ namespace Mariana.AVM2.Core {
                 return false;
 
             if (x is ASString && y is ASString)
-                return String.Compare(AS_coerceString(x), AS_coerceString(y)) < 0;
+                return String.CompareOrdinal(AS_coerceString(x), AS_coerceString(y)) < 0;
 
             return (double)x < (double)y;
         }
