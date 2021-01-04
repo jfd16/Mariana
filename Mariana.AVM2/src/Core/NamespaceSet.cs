@@ -39,7 +39,7 @@ namespace Mariana.AVM2.Core {
         public NamespaceSet(params Namespace[] arr) {
             m_flags = 0;
 
-            if (arr.Length == 0) {
+            if (arr == null || arr.Length == 0) {
                 m_namespaces = null;
                 return;
             }
@@ -92,13 +92,13 @@ namespace Mariana.AVM2.Core {
         public bool contains(NamespaceKind kind) => (m_flags & (1 << (int)kind)) != 0;
 
         /// <summary>
-        /// Returns true if the namespace set contains a namespace with the given name whose kind
+        /// Returns true if the namespace set contains a namespace with the given URI whose kind
         /// is <see cref="NamespaceKind.NAMESPACE"/>.
         /// </summary>
-        /// <param name="nsName">The namespace to check.</param>
-        /// <returns>True if the namespace set contains a namespace whose name is <paramref name="nsName"/>,
+        /// <param name="nsUri">The namespace URI to check.</param>
+        /// <returns>True if the namespace set contains a namespace whose URI is <paramref name="nsUri"/>,
         /// and whose kind is <see cref="NamespaceKind.NAMESPACE"/>, otherwise false.</returns>
-        public bool contains(string nsName) {
+        public bool contains(string nsUri) {
             if ((m_flags & (1 << (int)NamespaceKind.NAMESPACE)) == 0)
                 return false;
 
@@ -109,7 +109,7 @@ namespace Mariana.AVM2.Core {
 
             for (int i = 0; i < namespaces.Length; i++) {
                 Namespace ns = namespaces[i];
-                if (ns.kind == NamespaceKind.NAMESPACE && ns.uri == nsName)
+                if (ns.kind == NamespaceKind.NAMESPACE && ns.uri == nsUri)
                     return true;
             }
 
@@ -125,8 +125,6 @@ namespace Mariana.AVM2.Core {
         public bool contains(in Namespace ns) {
             if ((m_flags & (1 << (int)ns.kind)) == 0)
                 return false;
-            if (ns.kind == NamespaceKind.ANY)
-                return true;
 
             var namespaces = m_namespaces;
 

@@ -270,6 +270,9 @@ namespace Mariana.AVM2.Core {
         /// <param name="radix">The base. This must be between 2 and 36.</param>
         /// <returns>The string representation of the number in the given base.</returns>
         public static string intToString(int num, int radix) {
+            if (num == 0)
+                return "0";
+
             if (s_threadBuffer == null)
                 s_threadBuffer = new char[16];
 
