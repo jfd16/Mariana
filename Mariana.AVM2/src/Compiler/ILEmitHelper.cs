@@ -8,17 +8,19 @@ namespace Mariana.AVM2.Compiler {
 
     internal static class ILEmitHelper {
 
-        private static ConditionalWeakTable<Type, MethodInfo> s_objectCastMethods =
+        private static readonly ConditionalWeakTable<Type, MethodInfo> s_objectCastMethods =
             new ConditionalWeakTable<Type, MethodInfo>();
 
-        private static ConditionalWeakTable<Type, MethodInfo> s_anyCastMethods =
+        private static readonly ConditionalWeakTable<Type, MethodInfo> s_anyCastMethods =
             new ConditionalWeakTable<Type, MethodInfo>();
 
-        private static ConditionalWeakTable<Type, ConstructorInfo> s_optionalParamCtors =
+        private static readonly ConditionalWeakTable<Type, ConstructorInfo> s_optionalParamCtors =
             new ConditionalWeakTable<Type, ConstructorInfo>();
 
-        private static ConditionalWeakTable<Type, FieldInfo> s_optionalParamUnspecified =
+        private static readonly ConditionalWeakTable<Type, FieldInfo> s_optionalParamUnspecified =
             new ConditionalWeakTable<Type, FieldInfo>();
+
+        private static readonly Class s_objectClass = Class.fromType(typeof(ASObject));
 
         /// <summary>
         /// Emits IL instructions to convert the value on top of the stack from one type to another.
@@ -57,7 +59,7 @@ namespace Mariana.AVM2.Compiler {
             // Target type is an object type.
 
             if (fromType == null) {
-                if (toType.underlyingType == (object)typeof(ASObject)) {
+                if (toType == s_objectClass) {
                     emitTypeCoerceToObject(builder, fromType);
                 }
                 else {
@@ -102,6 +104,8 @@ namespace Mariana.AVM2.Compiler {
                     builder.emit(ILOp.call, KnownMembers.boolToAny, 0);
                     break;
                 default:
+                    if (fromType.isInterface)
+                        builder.emit(ILOp.castclass, typeof(ASObject));
                     builder.emit(ILOp.call, KnownMembers.anyFromObject, 0);
                     break;
             }
@@ -331,7 +335,11 @@ namespace Mariana.AVM2.Compiler {
                     builder.emit(ILOp.call, KnownMembers.boolToObject, 0);
                     break;
                 default:
-                    break;  // No-op for everything else
+                    if (fromType.isInterface)
+                        // We assume that AS3 code doesn't need to handle non-AS objects implementing
+                        // interfaces, so use castclass instead of calling AS_cast.
+                        builder.emit(ILOp.castclass, typeof(ASObject));
+                    break;
             }
         }
 

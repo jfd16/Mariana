@@ -116,6 +116,9 @@ namespace Mariana.AVM2.Core {
                         return true;
                 }
             }
+            else if (isInterface) {
+                return klass.parent == null;    // klass is Object
+            }
             else {
                 for (Class p = this; p != null; p = p.parent) {
                     if (p == klass)

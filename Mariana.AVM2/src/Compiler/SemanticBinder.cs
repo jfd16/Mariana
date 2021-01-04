@@ -1425,7 +1425,7 @@ namespace Mariana.AVM2.Compiler {
             _getRuntimeMultinameArgIds(stackPopIds.Slice(1), multiname, out int rtNsNodeId, out int rtNameNodeId);
             _resolveInstancePropertyOnClass(m_compilation.declaringClass.parent, multiname, rtNsNodeId, rtNameNodeId, instr.id, ref resolvedProp);
 
-            if (instr.opcode == ABCOp.getproperty) {
+            if (instr.opcode == ABCOp.getsuper) {
                 ref DataNode resultNode = ref m_compilation.getDataNode(instr.stackPushedNodeId);
                 _resolveGetProperty(ref resolvedProp, ref resultNode);
             }
@@ -3380,8 +3380,13 @@ namespace Mariana.AVM2.Compiler {
             var inputIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
             ref DataNode objectNode = ref m_compilation.getDataNode(inputIds[0]);
 
-            if (!DataNodeTypeHelper.isObjectType(objectNode.dataType))
+            ABCMultiname multiname = m_compilation.abcFile.resolveMultiname(instr.data.coerceOrIsType.multinameId);
+            Class klass = m_compilation.context.getClassByMultiname(multiname);
+
+            if (ClassTagSet.numeric.contains(klass.tag))
                 _requireStackNodeAsType(ref objectNode, DataNodeType.OBJECT, instr.id);
+            else
+                _requireStackNodeObjectOrInterface(ref objectNode, instr.id);
         }
 
         private void _visitIsAsTypeLate(ref Instruction instr) {
@@ -3389,18 +3394,19 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode objectNode = ref m_compilation.getDataNode(inputIds[0]);
             ref DataNode typeNode = ref m_compilation.getDataNode(inputIds[1]);
 
-            if (!DataNodeTypeHelper.isObjectType(objectNode.dataType))
+            Class klass = (typeNode.dataType == DataNodeType.CLASS) ? typeNode.constant.classValue : null;
+            if (klass == null) {
                 _requireStackNodeAsType(ref objectNode, DataNodeType.OBJECT, instr.id);
-
-            if (typeNode.dataType == DataNodeType.CLASS) {
-                ClassTag tag = typeNode.constant.classValue.tag;
-                if (!ClassTagSet.integer.contains(tag)) {
-                    _markStackNodeAsNoPush(ref typeNode);
-                    return;
-                }
+                _requireStackNodeAsType(ref typeNode, DataNodeType.OBJECT, instr.id);
             }
-
-            _requireStackNodeAsType(ref typeNode, DataNodeType.OBJECT, instr.id);
+            else if (ClassTagSet.numeric.contains(klass.tag)) {
+                _requireStackNodeAsType(ref objectNode, DataNodeType.OBJECT, instr.id);
+                _markStackNodeAsNoPush(ref typeNode);
+            }
+            else {
+                _requireStackNodeObjectOrInterface(ref objectNode, instr.id);
+                _markStackNodeAsNoPush(ref typeNode);
+            }
         }
 
         private void _visitUnaryIntegerOp(ref Instruction instr) {
@@ -3510,10 +3516,10 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
-            if (output.isConstant)
+            if (output.isConstant || output.dataType == DataNodeType.THIS || output.dataType == DataNodeType.REST)
                 _markStackNodeAsNoPush(ref input);
-            else
-                _requireStackNodeObjectOrAny(ref input, instr.id);
+            else if (!DataNodeTypeHelper.isAnyOrUndefined(input.dataType))
+                _requireStackNodeObjectOrInterface(ref input, instr.id);
         }
 
         private void _visitDxnsLate(ref Instruction instr) {
@@ -3529,7 +3535,7 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
-            if (output.isConstant)
+            if (output.isConstant || output.dataType == DataNodeType.THIS || output.dataType == DataNodeType.REST)
                 _markStackNodeAsNoPush(ref input);
         }
 
@@ -3537,7 +3543,7 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
-            if (output.isConstant) {
+            if (output.isConstant || output.dataType == DataNodeType.THIS || output.dataType == DataNodeType.REST) {
                 _markStackNodeAsNoPush(ref input);
             }
             else {
@@ -4084,9 +4090,14 @@ namespace Mariana.AVM2.Compiler {
 
             DataNodeType fromType = node.dataType;
 
-            if (fromType == toType
-                || (DataNodeTypeHelper.isObjectType(fromType) && toType == DataNodeType.OBJECT)
-                || (fromType == DataNodeType.UNDEFINED && toType == DataNodeType.ANY))
+            if (fromType == toType && toType != DataNodeType.OBJECT)
+                return;
+            if (fromType == DataNodeType.UNDEFINED && toType == DataNodeType.ANY)
+                return;
+
+            if (toType == DataNodeType.OBJECT
+                && DataNodeTypeHelper.isObjectType(fromType)
+                && (fromType != DataNodeType.OBJECT || !node.constant.classValue.isInterface))
             {
                 return;
             }
@@ -4133,6 +4144,11 @@ namespace Mariana.AVM2.Compiler {
 
         private void _requireStackNodeObjectOrAny(ref DataNode node, int instrId) {
             if (!DataNodeTypeHelper.isAnyOrUndefined(node.dataType))
+                _requireStackNodeAsType(ref node, DataNodeType.OBJECT, instrId);
+        }
+
+        private void _requireStackNodeObjectOrInterface(ref DataNode node, int instrId) {
+            if (!DataNodeTypeHelper.isObjectType(node.dataType))
                 _requireStackNodeAsType(ref node, DataNodeType.OBJECT, instrId);
         }
 
@@ -4611,8 +4627,8 @@ namespace Mariana.AVM2.Compiler {
 
                 case ComparisonType.OBJECT:
                 case ComparisonType.OBJ_REF:
-                    _requireStackNodeAsType(ref left, DataNodeType.OBJECT, instrId);
-                    _requireStackNodeAsType(ref right, DataNodeType.OBJECT, instrId);
+                    _requireStackNodeObjectOrInterface(ref left, instrId);
+                    _requireStackNodeObjectOrInterface(ref right, instrId);
                     break;
 
                 case ComparisonType.NAMESPACE:
@@ -4644,12 +4660,12 @@ namespace Mariana.AVM2.Compiler {
                     break;
 
                 case ComparisonType.OBJ_NULL_L:
-                    _requireStackNodeAsType(ref right, DataNodeType.OBJECT, instrId);
+                    _requireStackNodeObjectOrInterface(ref right, instrId);
                     _markStackNodeAsNoPush(ref left);
                     break;
 
                 case ComparisonType.OBJ_NULL_R:
-                    _requireStackNodeAsType(ref left, DataNodeType.OBJECT, instrId);
+                    _requireStackNodeObjectOrInterface(ref left, instrId);
                     _markStackNodeAsNoPush(ref right);
                     break;
             }
@@ -4827,7 +4843,7 @@ namespace Mariana.AVM2.Compiler {
             if (ClassTagSet.primitive.contains(trait.declaringClass.tag))
                 _requireStackNodeAsType(ref node, DataNodeTypeHelper.getDataTypeOfClass(trait.declaringClass), instrId);
             else
-                _requireStackNodeAsType(ref node, DataNodeType.OBJECT, instrId);
+                _requireStackNodeObjectOrInterface(ref node, instrId);
         }
 
         private void _checkTraitInvokeOrConstructArgs(

@@ -1089,6 +1089,8 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode popped = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
             ref DataNode scope = ref m_compilation.getDataNode(instr.data.pushScope.pushedNodeId);
 
+            bool isCoercedToObject = false;
+
             if (scope.isConstant || scope.dataType == DataNodeType.THIS || scope.dataType == DataNodeType.REST) {
                 if (m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_RUNTIME_SCOPE_STACK)) {
                     if (popped.isNotPushed)
@@ -1104,6 +1106,7 @@ namespace Mariana.AVM2.Compiler {
             if (DataNodeTypeHelper.isAnyOrUndefined(popped.dataType)) {
                 Debug.Assert(scope.dataType == DataNodeType.OBJECT);
                 _emitTypeCoerceForTopOfStack(ref popped, DataNodeType.OBJECT);
+                isCoercedToObject = true;
             }
 
             if (!popped.isNotNull) {
@@ -1135,7 +1138,7 @@ namespace Mariana.AVM2.Compiler {
             m_ilBuilder.emit(ILOp.stloc, _getLocalVarForNode(scope));
 
             void emitPushToRuntimeScope(ref DataNode _popped, ref DataNode _scope) {
-                if (!DataNodeTypeHelper.isObjectType(_scope.dataType))
+                if (!isCoercedToObject)
                     _emitTypeCoerceForTopOfStack(ref _popped, DataNodeType.OBJECT, isForcePushed: true);
 
                 BindOptions bindOpts = BindOptions.SEARCH_TRAITS;
@@ -1906,11 +1909,14 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
-            if (!DataNodeTypeHelper.isObjectType(input.dataType))
-                _emitTypeCoerceForTopOfStack(ref input, DataNodeType.OBJECT);
-
             ABCMultiname multiname = m_compilation.abcFile.resolveMultiname(instr.data.coerceOrIsType.multinameId);
             Class klass = m_compilation.context.getClassByMultiname(multiname);
+
+            if (ClassTagSet.numeric.contains(klass.tag)
+                || !DataNodeTypeHelper.isObjectType(input.dataType))
+            {
+                _emitTypeCoerceForTopOfStack(ref input, DataNodeType.OBJECT);
+            }
 
             _emitIsOrAsType(klass, instr.opcode);
         }
@@ -1925,8 +1931,11 @@ namespace Mariana.AVM2.Compiler {
                 Class klass = typeNode.constant.classValue;
                 _emitDiscardTopOfStack(ref typeNode);
 
-                if (!DataNodeTypeHelper.isObjectType(objNode.dataType))
+                if (ClassTagSet.numeric.contains(klass.tag)
+                    || !DataNodeTypeHelper.isObjectType(objNode.dataType))
+                {
                     _emitTypeCoerceForTopOfStack(ref objNode, DataNodeType.OBJECT);
+                }
 
                 _emitIsOrAsType(klass, instr.opcode);
             }
@@ -3251,11 +3260,13 @@ namespace Mariana.AVM2.Compiler {
 
             if (ClassTagSet.integer.containsAll(tagSet))
                 return true;    // int and uint are trivially convertible to each other.
-
             if (ClassTagSet.primitive.containsAny(tagSet))
                 return false;
-
-            return fromClass.canAssignTo(toClass);
+            if (!fromClass.canAssignTo(toClass))
+                return false;
+            if (fromClass.isInterface && toClass == s_objectClass)
+                return false;
+            return true;
         }
 
         /// <summary>
@@ -3313,19 +3324,16 @@ namespace Mariana.AVM2.Compiler {
             Debug.Assert(isForcePushed || !node.isNotPushed);
             Debug.Assert(node.dataType != DataNodeType.REST || m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_REST_ARRAY));
 
-            Class currentClass;
+            DataNodeType nodeType = usePrePushType ? node.dataType : _getPushedTypeOfNode(node);
             bool needsStringConv = useConvertStr && toType == DataNodeType.STRING && !node.isNotNull;
 
-            if (!usePrePushType && node.onPushCoerceType != DataNodeType.UNKNOWN) {
-                if (node.onPushCoerceType == toType && !needsStringConv)
-                    return;
-                currentClass = DataNodeTypeHelper.getClass(node.onPushCoerceType);
-            }
-            else {
-                if (node.dataType == toType && !needsStringConv)
-                    return;
-                currentClass = m_compilation.getDataNodeClass(node);
-            }
+            // We don't exit early if toType is OBJECT because the node type may be an
+            // interface, and conversion requires a cast to the Object class. ILEmitHelper
+            // will check this and only emit the cast instruction if needed.
+            if (nodeType == toType && toType != DataNodeType.OBJECT && !needsStringConv)
+                return;
+
+            Class currentClass = usePrePushType ? m_compilation.getDataNodeClass(node) : _getPushedClassOfNode(node);
 
             switch (toType) {
                 case DataNodeType.INT:
@@ -3384,23 +3392,24 @@ namespace Mariana.AVM2.Compiler {
         private void _emitTypeCoerceForTopOfStack(ref DataNode node, Class toClass, bool isForcePushed = false) {
             Debug.Assert(isForcePushed || !node.isNotPushed);
 
+            DataNodeType nodeType = _getPushedTypeOfNode(node);
             DataNodeType nodeTypeForClass = DataNodeTypeHelper.getDataTypeOfClass(toClass);
 
             if (nodeTypeForClass != DataNodeType.OBJECT || toClass == s_objectClass) {
                 _emitTypeCoerceForTopOfStack(ref node, nodeTypeForClass, isForcePushed: isForcePushed);
             }
-            else if (DataNodeTypeHelper.isAnyOrUndefined(node.dataType)) {
+            else if (DataNodeTypeHelper.isAnyOrUndefined(nodeType)) {
                 m_ilBuilder.emit(ILOp.call, m_compilation.context.getEntityHandleForAnyCast(toClass), 0);
             }
             else {
-                if (node.dataType == DataNodeType.NULL)
+                if (nodeType == DataNodeType.NULL)
                     return;
 
                 Class nodeClass;
-                if (DataNodeTypeHelper.isObjectType(node.dataType)) {
-                    nodeClass = m_compilation.getDataNodeClass(node);
+                if (DataNodeTypeHelper.isObjectType(nodeType)) {
+                    nodeClass = _getPushedClassOfNode(node);
                 }
-                else if (node.dataType == DataNodeType.REST) {
+                else if (nodeType == DataNodeType.REST) {
                     Debug.Assert(m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_REST_ARRAY));
                     nodeClass = s_arrayClass;
                 }
@@ -5622,8 +5631,13 @@ namespace Mariana.AVM2.Compiler {
             if (DataNodeTypeHelper.isInteger(pushedNodeType))
                 return DataNodeTypeHelper.isInteger(phiNode.dataType);
 
-            if (DataNodeTypeHelper.isObjectType(pushedNodeType))
-                return DataNodeTypeHelper.isObjectType(phiNode.dataType);
+            if (DataNodeTypeHelper.isObjectType(pushedNodeType)) {
+                if (!DataNodeTypeHelper.isObjectType(phiNode.dataType))
+                    return false;
+                if (_getPushedClassOfNode(node).isInterface)
+                    return m_compilation.getDataNodeClass(phiNode).isInterface;
+                return true;
+            }
 
             if (DataNodeTypeHelper.isAnyOrUndefined(pushedNodeType))
                 return DataNodeTypeHelper.isAnyOrUndefined(phiNode.dataType);

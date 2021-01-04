@@ -989,10 +989,33 @@ namespace Mariana.AVM2.Compiler {
             Class parent = klass.parent;
             var declTraits = klass.getTraits(TraitType.ALL, TraitScope.DECLARED);
 
+            Trait getOverriddenTraitOnParent(in QName traitName) {
+                var trait = parent.getTrait(traitName);
+                if (trait != null)
+                    return trait;
+
+                if (traitName.ns != klass.abcClassInfo.protectedNamespace)
+                    return null;
+
+                // If the trait name is in the derived class's protected namespace, check in the protected
+                // namespace(s) of base classes. Since nothing other than a ScriptClass can derive from a
+                // ScriptClass, we can stop when the inheritance chain reaches a non-ScriptClass.
+
+                var curClass = parent as ScriptClass;
+                while (curClass != null) {
+                    QName traitNameInParentNs = new QName(curClass.abcClassInfo.protectedNamespace, traitName.localName);
+                    trait = curClass.getTrait(traitNameInParentNs);
+                    if (trait != null)
+                        return trait;
+                    curClass = curClass.parent as ScriptClass;
+                }
+
+                return null;
+            }
+
             for (int i = 0; i < declTraits.length; i++) {
                 if (declTraits[i] is ScriptMethod method && method.declaringClass == klass && method.isOverride) {
-                    var baseMethod = parent.getTrait(method.name) as MethodTrait;
-
+                    var baseMethod = getOverriddenTraitOnParent(method.name) as MethodTrait;
                     if (!_checkOverrideSignature(method, baseMethod)) {
                         throw ErrorHelper.createError(
                             ErrorCode.ILLEGAL_OVERRIDE, method.name.ToString(), klass.name.ToString());
@@ -1001,7 +1024,7 @@ namespace Mariana.AVM2.Compiler {
                     m_methodTraitData[method].overrideMethodDef = baseMethod;
                 }
                 else if (declTraits[i] is ScriptProperty prop) {
-                    var baseProp = parent.getTrait(prop.name) as PropertyTrait;
+                    var baseProp = getOverriddenTraitOnParent(prop.name) as PropertyTrait;
                     var getter = prop.getter as ScriptMethod;
                     var setter = prop.setter as ScriptMethod;
 
@@ -1076,7 +1099,7 @@ namespace Mariana.AVM2.Compiler {
                             throw ErrorHelper.createError(
                                 ErrorCode.ILLEGAL_OVERRIDE, prop.name.ToString(), klass.name.ToString());
                         }
-                        _addInterfaceMethodImpl(prop.getter, ifaceProp.getter, klass);
+                        _addInterfaceMethodImpl(prop.setter, ifaceProp.setter, klass);
                     }
                 }
             }
@@ -2262,7 +2285,7 @@ namespace Mariana.AVM2.Compiler {
 
                 // Emit code to initialize the field in the constructor.
                 if (ti.fieldHasDefault) {
-                    ASAny defaultVal = ti.fieldDefaultValue;
+                    ASAny defaultVal = _coerceDefaultValue(ti.fieldDefaultValue, fieldType);
                     if (!ILEmitHelper.isImplicitDefault(defaultVal, fieldType)) {
                         ctorIlGen.emit(ILOp.ldarg_0);
 

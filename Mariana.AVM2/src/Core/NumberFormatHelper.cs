@@ -273,11 +273,6 @@ namespace Mariana.AVM2.Core {
             if (num == 0)
                 return "0";
 
-            if (s_threadBuffer == null)
-                s_threadBuffer = new char[16];
-
-            char[] buffer = s_threadBuffer;
-            int bufPos = buffer.Length - 1;
             bool neg = num < 0;
             if (neg) {
                 if (num == Int32.MinValue)
@@ -285,6 +280,9 @@ namespace Mariana.AVM2.Core {
                     return longToString((long)num, radix);
                 num = -num;
             }
+
+            Span<char> buffer = stackalloc char[33];
+            int bufPos = buffer.Length - 1;
 
             int bitShift = -1;
             switch (radix) {
@@ -310,10 +308,6 @@ namespace Mariana.AVM2.Core {
                 while (num != 0) {
                     int num2 = num >> bitShift;
                     num -= num2 << bitShift;
-
-                    if (bufPos < 0)
-                        buffer = _expandBuffer(ref s_threadBuffer, ref bufPos, out _, true);
-
                     buffer[bufPos--] = (char)((num > 9) ? 87 + num : 48 + num);
                     num = num2;
                 }
@@ -323,22 +317,15 @@ namespace Mariana.AVM2.Core {
                 while (num != 0) {
                     int num2 = num / radix;
                     num -= num2 * radix;
-                    if (bufPos < 0)
-                        buffer = _expandBuffer(ref s_threadBuffer, ref bufPos, out _, true);
-
                     buffer[bufPos--] = (char)((num > 9) ? 87 + num : 48 + num);
                     num = num2;
                 }
             }
 
-            if (neg) {
-                if (bufPos < 0)
-                    buffer = _expandBuffer(ref s_threadBuffer, ref bufPos, out _, true);
-
+            if (neg)
                 buffer[bufPos--] = '-';
-            }
 
-            return new string(buffer, bufPos + 1, buffer.Length - bufPos - 1);
+            return new string(buffer.Slice(bufPos + 1));
         }
 
         /// <summary>
