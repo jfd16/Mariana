@@ -43,7 +43,11 @@ namespace Mariana.AVM2.Compiler {
         private int m_constructorToken;
 
         internal VectorInstFromScriptClass(Class elementType)
-            : base(new QName("__AS3__.vec", "Vector.<" + elementType.name.ToString() + ">"), s_vecAnyClass.applicationDomain)
+            : base(
+                new QName("__AS3__.vec", "Vector.<" + elementType.name.ToString() + ">"),
+                s_vecAnyClass.applicationDomain,
+                ClassTag.VECTOR
+            )
         {
             Debug.Assert(elementType.underlyingType == null);
 
