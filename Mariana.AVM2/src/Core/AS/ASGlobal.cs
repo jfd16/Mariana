@@ -347,11 +347,9 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         [AVM2ExportTrait]
         public static double parseInt(string str = null, int radix = 0) {
-
             if (str == null || str.Length == 0)
                 return Double.NaN;
 
-            double num = 0;
             bool neg = false, checkHexPrefix = true;
 
             ReadOnlySpan<char> span = str.AsSpan(NumberFormatHelper.indexOfFirstNonSpace(str));
@@ -380,27 +378,10 @@ namespace Mariana.AVM2.Core {
                 span = span.Slice(2);
             }
 
-            if (span.Length == 0)
+            double num = NumberFormatHelper.stringToDoubleIntRadix(span, radix, out int charsConsumed);
+
+            if (charsConsumed == 0)
                 return Double.NaN;
-
-            double radixd = radix;
-
-            for (int i = 0; i < span.Length; i++) {
-                char ch = span[i];
-                int digit = -1;
-
-                if ((uint)(ch - '0') <= 9)
-                    digit = ch - '0';
-                else if ((uint)(ch - 'A') <= 25)
-                    digit = ch - ('A' - 10);
-                else if ((uint)(ch - 'a') <= 25)
-                    digit = ch - ('a' - 10);
-
-                if ((uint)digit >= (uint)radix)
-                    break;
-
-                num = num * radixd + (double)digit;
-            }
 
             return neg ? -num : num;
         }

@@ -238,6 +238,8 @@ namespace Mariana.Common.Tests {
 
             Assert.Throws<NotImplementedException>(() => enumerator2.Reset());
             Assert.Throws<NotImplementedException>(() => enumerator3.Reset());
+
+            enumerator2.Dispose();
         }
 
         [Theory]
@@ -273,6 +275,23 @@ namespace Mariana.Common.Tests {
             Assert.Throws<ArgumentOutOfRangeException>(() => {
                 (new ReadOnlyArrayView<int>(arr)).slice(start, length);
             });
+        }
+
+        [Fact]
+        public void interface_IReadOnlyList_shouldGetCountAndElements() {
+            int[] arr = new int[100];
+            for (int i = 0; i < 100; i++)
+                arr[i] = i * i + 4 * i + 7;
+
+            IReadOnlyList<int> view = new ReadOnlyArrayView<int>(arr);
+            Assert.Equal(100, view.Count);
+            Assert.Equal(arr[0], view[0]);
+            Assert.Equal(arr[2], view[2]);
+            Assert.Equal(arr[99], view[99]);
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => { _ = view[100]; });
+            Assert.Throws<ArgumentOutOfRangeException>(() => { _ = view[101]; });
+            Assert.Throws<ArgumentOutOfRangeException>(() => { _ = view[-1]; });
         }
 
     }

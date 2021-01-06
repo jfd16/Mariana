@@ -219,6 +219,27 @@ namespace Mariana.Common.Tests {
         }
 
         [Theory]
+        [InlineData("")]
+        [InlineData("0")]
+        [InlineData("f")]
+        [InlineData(":")]
+        [InlineData("/1")]
+        [InlineData("1/")]
+        [InlineData(":1")]
+        [InlineData("1:")]
+        [InlineData("1g")]
+        [InlineData("1-")]
+        [InlineData("AG")]
+        [InlineData("GA")]
+        [InlineData("g3")]
+        [InlineData("3z")]
+        [InlineData("3`")]
+        [InlineData("3@")]
+        public void hexToByte_shouldFail(string str) {
+            Assert.False(URIUtil.hexToByte(str, out _));
+        }
+
+        [Theory]
         [InlineData(0x00, "00")]
         [InlineData(0x05, "05")]
         [InlineData(0x0b, "0B")]

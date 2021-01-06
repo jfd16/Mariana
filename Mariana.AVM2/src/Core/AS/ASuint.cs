@@ -231,7 +231,17 @@ namespace Mariana.AVM2.Core {
         public static string toFixed(uint num, int precision) {
             if ((uint)precision > 20)
                 throw ErrorHelper.createError(ErrorCode.NUMBER_PRECISION_OUT_OF_RANGE);
-            return num.ToString(NumberFormatHelper.getToFixedFormatString(precision), CultureInfo.InvariantCulture);
+
+            Span<char> buffer = stackalloc char[32];
+            num.TryFormat(buffer, out int bufferLength, default, CultureInfo.InvariantCulture);
+
+            if (precision > 0) {
+                buffer[bufferLength] = '.';
+                buffer.Slice(bufferLength + 1, precision).Fill('0');
+                bufferLength += precision + 1;
+            }
+
+            return new string(buffer.Slice(0, bufferLength));
         }
 
         /// <summary>
@@ -250,11 +260,7 @@ namespace Mariana.AVM2.Core {
         /// </item>
         /// </list>
         /// </exception>
-        public static string toExponential(uint num, int precision) {
-            if ((uint)precision > 20)
-                throw ErrorHelper.createError(ErrorCode.NUMBER_PRECISION_OUT_OF_RANGE);
-            return num.ToString(NumberFormatHelper.getToExponentialFormatString(precision), CultureInfo.InvariantCulture);
-        }
+        public static string toExponential(uint num, int precision) => ASNumber.toExponential(num, precision);
 
         /// <summary>
         /// Returns the string representation of the number with a fixed number of significant digits.
@@ -276,23 +282,7 @@ namespace Mariana.AVM2.Core {
         /// </item>
         /// </list>
         /// </exception>
-        public static string toPrecision(uint num, int precision) {
-            if (precision < 1 || precision > 21)
-                throw ErrorHelper.createError(ErrorCode.NUMBER_PRECISION_OUT_OF_RANGE);
-
-            string fmtString;
-            if (num == 0) {
-                fmtString = NumberFormatHelper.getToFixedFormatString(precision - 1);
-            }
-            else {
-                int order = (int)Math.Log10(num);
-                fmtString = (order < precision)
-                    ? NumberFormatHelper.getToFixedFormatString(precision - order - 1)
-                    : NumberFormatHelper.getToExponentialFormatString(precision - 1);
-            }
-
-            return num.ToString(fmtString, CultureInfo.InvariantCulture);
-        }
+        public static string toPrecision(uint num, int precision) => ASNumber.toPrecision(num, precision);
 
         /// <summary>
         /// Returns a string representation of the number in the given base.
@@ -305,7 +295,7 @@ namespace Mariana.AVM2.Core {
                 throw ErrorHelper.createError(ErrorCode.NUMBER_RADIX_OUT_OF_RANGE, radix);
             if (radix == 10 || num == 0)
                 return num.ToString(CultureInfo.InvariantCulture);
-            return NumberFormatHelper.longToString(num, radix);
+            return NumberFormatHelper.uintToString(num, radix);
         }
 
         /// <summary>

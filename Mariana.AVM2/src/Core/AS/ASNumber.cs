@@ -203,37 +203,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="num">The number.</param>
         /// <returns>The string representation of the number in base 10.</returns>
-        public static string AS_convertString(double num) {
-            if (num == 0.0)
-                return "0";
-            if (Double.IsNaN(num))
-                return "NaN";
-            if (Double.IsInfinity(num))
-                return Double.IsNegative(num) ? "-Infinity" : "Infinity";
-
-            var ic = CultureInfo.InvariantCulture;
-
-            int log = (int)Math.Floor(Math.Log10(Math.Abs(num)));
-            if (log < -6 || log > 20)
-                return num.ToString("0.###############e+0", ic);
-            if (log < -4)
-                return num.ToString("0.0000###############", ic);
-
-            int num_i = (int)num;
-            if ((double)num_i == num)
-                return num_i.ToString(ic);
-
-            uint num_u = (uint)num;
-            if ((double)num_u == num)
-                return num_u.ToString(ic);
-
-            if (log > 14)
-                return num.ToString("G21", ic);
-            if (num % 1.0 == 0.0)
-                return num.ToString("F0", ic);
-
-            return num.ToString("R", ic);
-        }
+        public static string AS_convertString(double num) => NumberFormatHelper.doubleToString(num);
 
         /// <summary>
         /// Converts a floating-point number to a 32-bit signed integer.
@@ -302,7 +272,7 @@ namespace Mariana.AVM2.Core {
         public static string toFixed(double num, int precision = 0) {
             if ((uint)precision > 20)
                 throw ErrorHelper.createError(ErrorCode.NUMBER_PRECISION_OUT_OF_RANGE);
-            return num.ToString(NumberFormatHelper.getToFixedFormatString(precision), CultureInfo.InvariantCulture);
+            return NumberFormatHelper.doubleToStringFixedNotation(num, precision);
         }
 
         /// <summary>
@@ -325,7 +295,7 @@ namespace Mariana.AVM2.Core {
         public static string toExponential(double num, int precision = 0) {
             if ((uint)precision > 20)
                 throw ErrorHelper.createError(ErrorCode.NUMBER_PRECISION_OUT_OF_RANGE);
-            return num.ToString(NumberFormatHelper.getToExponentialFormatString(precision), CultureInfo.InvariantCulture);
+            return NumberFormatHelper.doubleToStringExpNotation(num, precision);
         }
 
         /// <summary>
@@ -352,28 +322,7 @@ namespace Mariana.AVM2.Core {
         public static string toPrecision(double num, int precision = 0) {
             if (precision < 1 || precision > 21)
                 throw ErrorHelper.createError(ErrorCode.NUMBER_PRECISION_OUT_OF_RANGE);
-
-            if (!Double.IsFinite(num))
-                return num.ToString(CultureInfo.InvariantCulture);
-            if (num == 0)
-                return num.ToString(NumberFormatHelper.getToFixedFormatString(precision - 1), CultureInfo.InvariantCulture);
-
-            int orderOfMag = (int)Math.Floor(Math.Log10(Math.Abs(num)));
-            int decimalPlaces = precision - orderOfMag - 1;
-            string fmtString;
-
-            if (orderOfMag >= 0) {
-                fmtString = (orderOfMag < precision)
-                    ? NumberFormatHelper.getToFixedFormatString(decimalPlaces)
-                    : NumberFormatHelper.getToExponentialFormatString(precision - 1);
-            }
-            else {
-                fmtString = (decimalPlaces < 21)
-                    ? NumberFormatHelper.getToFixedFormatString(decimalPlaces)
-                    : "F" + ASint.AS_convertString(decimalPlaces);
-            }
-
-            return num.ToString(fmtString, CultureInfo.InvariantCulture);
+            return NumberFormatHelper.doubleToStringPrecision(num, precision);
         }
 
         /// <summary>
@@ -393,18 +342,19 @@ namespace Mariana.AVM2.Core {
         /// </exception>
         ///
         /// <remarks>
-        /// For base 10, very large or small numbers are represented in scientific notation. For other
-        /// bases, only fixed-point notation is used. Numbers with very large magnitude currently
-        /// cannot be converted to bases other than 10 (the limit depends on the base being used).
-        /// Null is returned in such cases.
+        /// For base 10, scientific notation is used for numbers whose magnitude is less than 10^-6
+        /// or greater than or equal to 10^21. For other bases, the number is truncated to an integer
+        /// and scientific notation is never used.
         /// </remarks>
         [AVM2ExportPrototypeMethod]
         public static string toString(double num, int radix = 10) {
             if (radix < 2 || radix > 36)
                 throw ErrorHelper.createError(ErrorCode.NUMBER_RADIX_OUT_OF_RANGE, radix);
-            if (num == 0 || radix == 10 || !Double.IsFinite(num))
-                return AS_convertString(num);
-            return NumberFormatHelper.doubleToString(num, radix);
+
+            if (radix == 10)
+                return NumberFormatHelper.doubleToString(num);
+
+            return NumberFormatHelper.doubleIntegerToStringRadix(num, radix);
         }
 
         /// <summary>

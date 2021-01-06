@@ -103,10 +103,6 @@ namespace Mariana.AVM2.Core {
                 return false;
 
             var namespaces = m_namespaces;
-
-            if (namespaces == null)
-                return false;
-
             for (int i = 0; i < namespaces.Length; i++) {
                 Namespace ns = namespaces[i];
                 if (ns.kind == NamespaceKind.NAMESPACE && ns.uri == nsUri)
@@ -127,10 +123,6 @@ namespace Mariana.AVM2.Core {
                 return false;
 
             var namespaces = m_namespaces;
-
-            if (namespaces == null)
-                return false;
-
             for (int i = 0; i < namespaces.Length; i++) {
                 if (namespaces[i] == ns)
                     return true;

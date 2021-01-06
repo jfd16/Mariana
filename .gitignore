@@ -4,11 +4,10 @@ Directory.Build.targets
 
 */bin
 */obj
-**/TestResults
-**/coverage.json
 **/output.txt
 
-TestApp
+*.Tests/coverage*
 
+TestApp
 flash/
 asconfig.json

@@ -177,6 +177,14 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(!areEqual, y != x);
         }
 
+        [Fact]
+        public void equals_shouldNotEqualOtherObject() {
+            Assert.False(default(QName).Equals(null));
+            Assert.False((new QName("", "a")).Equals(null));
+            Assert.False((new QName("", "a")).Equals(new object()));
+            Assert.False((new QName("", "a")).Equals(new ASQName("", "a")));
+        }
+
         [Theory]
         [MemberData(nameof(equals_shouldCheckForQNameEquality_data))]
         public void getHashCode_shouldReturnSameHashCodeForEqual(QName x, QName y, bool areEqual) {

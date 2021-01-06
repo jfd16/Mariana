@@ -34,15 +34,30 @@ namespace Mariana.Common.Tests {
             Assert.True(w1.Equals(w1));
             Assert.True(w1.Equals((object)w1));
             Assert.True(w1.Equals(s1));
+            Assert.True(w1.Equals((object)s1));
             Assert.True(w2.Equals(w2));
             Assert.True(w2.Equals((object)w2));
             Assert.True(w2.Equals(s2));
+            Assert.True(w2.Equals((object)s2));
             Assert.False(w1.Equals(w2));
             Assert.False(w1.Equals((object)w2));
             Assert.False(w1.Equals(s2));
+            Assert.False(w1.Equals((object)s2));
             Assert.False(w2.Equals(w1));
             Assert.False(w2.Equals((object)w1));
             Assert.False(w2.Equals(s1));
+            Assert.False(w2.Equals((object)s1));
+            Assert.False(w1.Equals(new object()));
+
+            Assert.True(default(RefWrapper<string>).Equals(null));
+            Assert.True(default(RefWrapper<string>).Equals((object)null));
+            Assert.True(default(RefWrapper<string>).Equals((object)default(RefWrapper<string>)));
+            Assert.False(default(RefWrapper<string>).Equals(w1));
+            Assert.False(default(RefWrapper<string>).Equals(w2));
+            Assert.False(w1.Equals(default(RefWrapper<string>)));
+            Assert.False(w1.Equals(default(RefWrapper<string>)));
+            Assert.False(w1.Equals((object)default(RefWrapper<string>)));
+            Assert.False(w1.Equals((object)default(RefWrapper<string>)));
         }
 
         [Fact]
