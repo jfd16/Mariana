@@ -1,4 +1,5 @@
 BenchmarkDotNet.Artifacts
+Directory.Build.targets
 .vscode
 
 */bin

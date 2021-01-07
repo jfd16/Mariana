@@ -242,14 +242,60 @@ namespace Mariana.AVM2.Core {
         /// <returns>The rounded value.</returns>
         [AVM2ExportTrait]
         public static double round(double val) {
-            if (!Double.IsFinite(val) || val == 0.0)
-                return val;
-            double frac = val % 1.0;
-            if (frac > 0.0)
-                return val - frac + ((frac < 0.5) ? 0.0 : 1.0);
-            if (val >= -0.5)
-                return -0.0;
-            return val - frac - ((frac < -0.0) ? 1.0 : 0.0);
+            long bits = BitConverter.DoubleToInt64Bits(val);
+            int exponent = ((int)(bits >> 52) & 0x7FF) - 1023;
+
+            long resultBits;
+
+            const long signMask = unchecked(1L << 63);
+            const long mantissaMask = (1L << 52) - 1;
+            const long mantissaHiddenBit = 1L << 52;
+            const long fullMantissaMask = mantissaMask | mantissaHiddenBit;
+
+            if (exponent < -1) {
+                // Result is zero. (Math.round does not preserve signed zeros)
+                resultBits = 0L;
+            }
+            else if (exponent == -1) {
+                // If exponent is -1:
+                // If the sign is positive the result is 1.
+                // If the value is exactly -0.5 (all mantissa bits zero), the result is 0.
+                // Otherwise if the sign is negative, the result is -1.
+                const long oneBits = 1023L << 52;
+
+                if ((bits & signMask) == 0)
+                    resultBits = oneBits;
+                else if ((bits & mantissaMask) == 0)
+                    resultBits = 0L;
+                else
+                    resultBits = oneBits | signMask;
+            }
+            else if (exponent < 52) {
+                long fractionMask = (1L << (52 - exponent)) - 1;
+                long half = (fractionMask >> 1) + 1;
+                long fractionBits = bits & fractionMask;
+
+                if (fractionBits < half || ((bits & signMask) != 0 && fractionBits == half)) {
+                    // If the fraction is less than 1/2, or if the sign is negative and the
+                    // fraction is exactly 1/2, truncate the fraction (set all bits to zero).
+                    resultBits = bits & ~fractionMask;
+                }
+                else {
+                    // Round up to the next integer value. The exponent may need to be adjusted if
+                    // the integral bits in the mantissa were all 1s (and so incrementing would overflow)
+                    long newMantissa = ((bits & mantissaMask & ~fractionMask) | mantissaHiddenBit) + fractionMask + 1;
+                    if ((newMantissa & ~fullMantissaMask) == 0)
+                        resultBits = (bits & ~mantissaMask) | (newMantissa & mantissaMask);
+                    else
+                        resultBits = (bits & signMask) | (long)(exponent + 1024) << 52 | ((newMantissa >> 1) & mantissaMask);
+                }
+            }
+            else {
+                // The input value is an integer or infinity/NaN, so return the same value.
+                resultBits = bits;
+            }
+
+            return BitConverter.Int64BitsToDouble(resultBits);
         }
 
         /// <summary>
