@@ -21,7 +21,7 @@ namespace Mariana.AVM2.Compiler {
             node.isConstant = true;
             node.isNotNull = true;
 
-            if (Double.IsFinite(value)) {
+            if (Double.IsFinite(value) && (value != 0.0 || !Double.IsNegative(value))) {
                 int ival = (int)value;
                 if ((double)ival == value) {
                     node.dataType = DataNodeType.INT;

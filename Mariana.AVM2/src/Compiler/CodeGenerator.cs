@@ -3494,26 +3494,9 @@ namespace Mariana.AVM2.Compiler {
                     m_ilBuilder.emit(ILOp.ldc_i4, node.constant.intValue);
                     break;
 
-                case DataNodeType.NUMBER: {
-                    double val = node.constant.doubleValue;
-
-                    int ival = (int)val;
-                    if (ival == val) {
-                        m_ilBuilder.emit(ILOp.ldc_i4, ival);
-                        m_ilBuilder.emit(ILOp.conv_r8);
-                        break;
-                    }
-
-                    uint uval = (uint)val;
-                    if (uval == val) {
-                        m_ilBuilder.emit(ILOp.ldc_i4, uval);
-                        m_ilBuilder.emit(ILOp.conv_r_un);
-                        break;
-                    }
-
-                    m_ilBuilder.emit(ILOp.ldc_r8, node.constant.doubleValue);
+                case DataNodeType.NUMBER:
+                    _emitPushDoubleConstant(node.constant.doubleValue);
                     break;
-                }
 
                 case DataNodeType.STRING:
                     m_ilBuilder.emit(ILOp.ldstr, node.constant.stringValue);
@@ -3572,6 +3555,34 @@ namespace Mariana.AVM2.Compiler {
                     Debug.Assert(false);
                     break;
             }
+        }
+
+        private void _emitPushDoubleConstant(double value) {
+            if (value == 0.0) {
+                if (Double.IsNegative(value)) {
+                    m_ilBuilder.emit(ILOp.ldc_r8, value);
+                }
+                else {
+                    m_ilBuilder.emit(ILOp.ldc_i4_0);
+                    m_ilBuilder.emit(ILOp.conv_r8);
+                }
+                return;
+            }
+
+            int ival = (int)value;
+            if (ival == value) {
+                m_ilBuilder.emit(ILOp.ldc_i4, ival);
+                m_ilBuilder.emit(ILOp.conv_r8);
+                return;
+            }
+            uint uval = (uint)value;
+            if (uval == value) {
+                m_ilBuilder.emit(ILOp.ldc_i4, uval);
+                m_ilBuilder.emit(ILOp.conv_r_un);
+                return;
+            }
+
+            m_ilBuilder.emit(ILOp.ldc_r8, value);
         }
 
         private void _emitPushXmlNamespaceConstant(Namespace value) {
