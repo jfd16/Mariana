@@ -1150,11 +1150,10 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="implByClass">The class that implements the interface that declares
         /// <paramref name="ifaceMethod"/> and declares or inherits <paramref name="implMethod"/>.</param>
         private void _addInterfaceMethodImpl(MethodTrait implMethod, MethodTrait ifaceMethod, ScriptClass implByClass) {
-            MethodTraitData methodData = m_methodTraitData[implMethod];
-            if (methodData == null) {
+            ref MethodTraitData methodData = ref m_methodTraitData.getValueRef(implMethod, true);
+            if (methodData == null)
                 methodData = new MethodTraitData();
-                m_methodTraitData[implMethod] = methodData;
-            }
+
             methodData.interfaceMethodImpls.add(new InterfaceMethodImpl(ifaceMethod, implByClass));
         }
 

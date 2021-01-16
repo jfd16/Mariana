@@ -23,19 +23,18 @@ namespace Mariana.AVM2.Native {
             Type underlyingType,
             AVM2ExportClassAttribute classAttr,
             Class vecElementType,
-            bool canHideInheritedTraits
+            bool canHideInheritedTraits,
+            bool dontLoadParentAndInterfaces
         )
             : base(name, domain, tag)
         {
             _checkClass(classAttr, underlyingType);
-
             setUnderlyingType(underlyingType);
 
-            if (!underlyingType.IsInterface && underlyingType != typeof(ASObject))
-                setParent(_getDependentClass(underlyingType.BaseType, domain));
+            if (!dontLoadParentAndInterfaces)
+                _loadParentAndInterfaces();
 
             if (!underlyingType.IsGenericTypeDefinition) {
-                setInterfaces(_makeInterfacesArray(underlyingType, domain));
                 setIsDynamic(classAttr.isDynamic);
                 setIsHidingAllowed(canHideInheritedTraits);
                 m_containsProtoMethods = classAttr.hasPrototypeMethods;
@@ -45,6 +44,13 @@ namespace Mariana.AVM2.Native {
 
             setMetadata(_extractMetadata(underlyingType.GetCustomAttributes<TraitMetadataAttribute>()));
             m_classForProto = this;
+        }
+
+        private void _loadParentAndInterfaces() {
+            if (!underlyingType.IsInterface && underlyingType != typeof(ASObject))
+                setParent(_getDependentClass(underlyingType.BaseType, applicationDomain));
+
+            setInterfaces(_makeInterfacesArray(underlyingType, applicationDomain));
         }
 
         /// <summary>
@@ -73,7 +79,9 @@ namespace Mariana.AVM2.Native {
             return ClassTypeMap.getOrCreateClass(type, t => _internalCreateClass(type, domain, isDependent: true));
         }
 
-        private static NativeClass _internalCreateClass(Type underlyingType, ApplicationDomain domain, bool isDependent) {
+        private static NativeClass _internalCreateClass(
+            Type underlyingType, ApplicationDomain domain, bool isDependent = false, bool dontLoadParentAndInterfaces = false)
+        {
             domain = domain ?? ApplicationDomain.systemDomain;
 
             // When loading a dependent class, we do not need to check if it has already
@@ -100,7 +108,8 @@ namespace Mariana.AVM2.Native {
                 // not, so this must be special-cased here.
                 tag = ClassTag.VECTOR;
 
-            var createdClass = new NativeClass(name, domain, tag, underlyingType, classAttr, vecElementType, canHideInheritedTraits);
+            var createdClass = new NativeClass(
+                name, domain, tag, underlyingType, classAttr, vecElementType, canHideInheritedTraits, dontLoadParentAndInterfaces);
 
             if (!classAttr.hiddenFromGlobal && vecElementType == null) {
                 bool addedToGlobals = domain.tryDefineGlobalTrait(createdClass);
@@ -861,6 +870,41 @@ namespace Mariana.AVM2.Native {
                 throw ErrorHelper.createError(ErrorCode.MARIANA__NATIVE_CLASS_STANDALONE_METHOD_INVALID);
             }
             return _makeMethodTrait(methodInfo, QName.publicName(methodInfo.Name), null, null, null);
+        }
+
+        /// <summary>
+        /// Loads all public types from the given assembly that declare the attributes
+        /// <see cref="AVM2ExportClassAttribute"/> and <see cref="AVM2ExportModuleAttribute"/>
+        /// as native classes and modules in the given application domain.
+        /// </summary>
+        /// <param name="assembly">The <see cref="Assembly"/> instance representing the
+        /// assembly containing the types to load.</param>
+        /// <param name="domain">The application domain in which to define the loaded classes and
+        /// module traits.</param>
+        internal static void createClassesAndModulesFromAssemblyTypes(Assembly assembly, ApplicationDomain domain) {
+            Type[] types = assembly.GetTypes();
+            var createdClasses = new DynamicArray<NativeClass>();
+
+            for (int i = 0; i < types.Length; i++) {
+                Type type = types[i];
+                if ((type.Attributes & TypeAttributes.Public) == 0)
+                    continue;
+
+                if (type.IsDefined(typeof(AVM2ExportClassAttribute), false)) {
+                    // Don't load the base class or interfaces of the class as dependents because
+                    // they may also be available in the same assembly and have not been loaded yet.
+                    // Otherwise, a "class with the underlying type already exists" error may be
+                    // thrown when the dependent class is loaded for the second time.
+                    var klass = _internalCreateClass(type, domain, dontLoadParentAndInterfaces: true);
+                    createdClasses.add(klass);
+                }
+                else if (type.IsDefined(typeof(AVM2ExportModuleAttribute), false)) {
+                    createModule(type, domain);
+                }
+            }
+
+            for (int i = 0; i < createdClasses.length; i++)
+                createdClasses[i]._loadParentAndInterfaces();
         }
 
         /// <summary>

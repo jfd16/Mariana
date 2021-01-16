@@ -1469,19 +1469,6 @@ namespace Mariana.AVM2.Compiler {
 
             if (objectNode.dataType != DataNodeType.THIS || m_compilation.getCurrentConstructor() == null)
                 throw m_compilation.createError(ErrorCode.ILLEGAL_SUPER, instr.id);
-
-            Class parentClass = m_compilation.declaringClass.parent;
-            int argCount = instr.data.constructSuper.argCount;
-
-            if (parentClass == s_objectClass) {
-                if (argCount != 0)
-                    throw ErrorHelper.createError(ErrorCode.ARG_COUNT_MISMATCH, "Object()", 0, argCount);
-            }
-            else {
-                ClassConstructor ctor = parentClass.constructor;
-                if (ctor != null && !_isValidCtorArgCount(ctor, argCount))
-                    throw ErrorHelper.createArgCountMismatchError(ctor, argCount);
-            }
         }
 
         private void _visitGetSetSlot(ref Instruction instr, bool isFirstVisit) {

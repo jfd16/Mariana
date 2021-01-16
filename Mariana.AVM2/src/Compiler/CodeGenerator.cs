@@ -1173,16 +1173,24 @@ namespace Mariana.AVM2.Compiler {
                 _syncLocalWriteWithCatchVars(ref instr, ref local);
             }
             else {
-                if (popped.isNotPushed) {
-                    _emitPushConstantNode(ref popped, ignoreNoPush: true);
-                    _emitTypeCoerceForTopOfStack(ref popped, m_compilation.getDataNodeClass(local), isForcePushed: true);
+                var localVar = _getLocalVarForNode(local);
+
+                if (popped.dataType == DataNodeType.UNDEFINED && local.dataType == DataNodeType.ANY) {
+                    _emitDiscardTopOfStack(ref popped);
+                    m_ilBuilder.emit(ILOp.ldloca, localVar);
+                    m_ilBuilder.emit(ILOp.initobj, typeof(ASAny));
                 }
                 else {
-                    _emitTypeCoerceForTopOfStack(ref popped, m_compilation.getDataNodeClass(local));
+                    if (popped.isNotPushed) {
+                        _emitPushConstantNode(ref popped, ignoreNoPush: true);
+                        _emitTypeCoerceForTopOfStack(ref popped, m_compilation.getDataNodeClass(local), isForcePushed: true);
+                    }
+                    else {
+                        _emitTypeCoerceForTopOfStack(ref popped, m_compilation.getDataNodeClass(local));
+                    }
+                    m_ilBuilder.emit(ILOp.stloc, localVar);
                 }
 
-                var localVar = _getLocalVarForNode(local);
-                m_ilBuilder.emit(ILOp.stloc, localVar);
                 _syncLocalWriteWithCatchVars(ref instr, ref local, localVar);
             }
         }
@@ -2621,9 +2629,11 @@ namespace Mariana.AVM2.Compiler {
             int argCount = instr.data.constructSuper.argCount;
             var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
 
+            if (!checkArgCoundValidAndEmitError())
+                return;
+
             if (parentClass == s_objectClass) {
                 // We need to special-case Object because its constructor is intrinsic.
-                Debug.Assert(argCount == 0);
                 m_ilBuilder.emit(ILOp.call, KnownMembers.objectCtor);
             }
             else if (parentClass.constructor != null) {
@@ -2635,6 +2645,29 @@ namespace Mariana.AVM2.Compiler {
             else {
                 var error = ErrorHelper.createErrorObject(ErrorCode.CLASS_CANNOT_BE_INSTANTIATED, parentClass.name.ToString());
                 ILEmitHelper.emitThrowError(m_ilBuilder, error.GetType(), (ErrorCode)error.errorID, error.message);
+            }
+
+            bool checkArgCoundValidAndEmitError() {
+                ClassConstructor ctor = parentClass.constructor;
+                if (ctor == null && parentClass != s_objectClass)
+                    return true;
+
+                (int requiredParamCount, int paramCount) = (parentClass == s_objectClass)
+                    ? (0, 0)
+                    : (ctor.requiredParamCount, ctor.paramCount);
+
+                if (argCount >= requiredParamCount && argCount <= paramCount)
+                    return true;
+
+                var error = ErrorHelper.createErrorObject(
+                    ErrorCode.ARG_COUNT_MISMATCH,
+                    parentClass.name.ToString(),
+                    requiredParamCount,
+                    argCount
+                );
+                ILEmitHelper.emitThrowError(m_ilBuilder, error.GetType(), (ErrorCode)error.errorID, error.message);
+
+                return false;
             }
         }
 
@@ -5480,9 +5513,17 @@ namespace Mariana.AVM2.Compiler {
                     if (_isScopeOrLocalNodeCompatibleWithPhi(ref node, ref entryNode))
                         continue;
 
-                    _emitLoadScopeOrLocalNode(ref node);
-                    _emitTypeCoerceForTopOfStack(ref node, m_compilation.getDataNodeClass(entryNode));
-                    m_ilBuilder.emit(ILOp.stloc, _getLocalVarForNode(entryNode));
+                    var localVarForEntry = _getLocalVarForNode(entryNode);
+
+                    if (node.dataType == DataNodeType.UNDEFINED && entryNode.dataType == DataNodeType.ANY) {
+                        m_ilBuilder.emit(ILOp.ldloca, localVarForEntry);
+                        m_ilBuilder.emit(ILOp.initobj, typeof(ASAny));
+                    }
+                    else {
+                        _emitLoadScopeOrLocalNode(ref node);
+                        _emitTypeCoerceForTopOfStack(ref node, m_compilation.getDataNodeClass(entryNode));
+                        m_ilBuilder.emit(ILOp.stloc, localVarForEntry);
+                    }
                 }
             }
 

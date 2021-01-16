@@ -803,18 +803,7 @@ namespace Mariana.AVM2.Core {
             if (this == s_systemDomain)
                 CoreClasses.ensureGlobalsLoaded();
 
-            Type[] types = assembly.GetTypes();
-
-            for (int i = 0; i < types.Length; i++) {
-                Type type = types[i];
-                if ((type.Attributes & TypeAttributes.Public) == 0)
-                    continue;
-
-                if (type.IsDefined(typeof(AVM2ExportClassAttribute), false))
-                    NativeClass.createClass(type, this);
-                else if (type.IsDefined(typeof(AVM2ExportModuleAttribute), false))
-                    NativeClass.createModule(type, this);
-            }
+            NativeClass.createClassesAndModulesFromAssemblyTypes(assembly, this);
         }
 
         /// <summary>
