@@ -313,7 +313,11 @@ namespace Mariana.AVM2.Compiler {
                 node.constant = source.constant;
 
                 const DataNodeFlags transferMask =
-                    DataNodeFlags.CONSTANT | DataNodeFlags.NOT_NULL | DataNodeFlags.WITH_SCOPE | DataNodeFlags.ARGUMENT;
+                    DataNodeFlags.CONSTANT
+                    | DataNodeFlags.NOT_NULL
+                    | DataNodeFlags.WITH_SCOPE
+                    | DataNodeFlags.ARGUMENT
+                    | DataNodeFlags.LATE_MULTINAME_BINDING;
 
                 node.flags = (node.flags & ~transferMask) | (source.flags & transferMask);
                 return;
@@ -324,6 +328,8 @@ namespace Mariana.AVM2.Compiler {
 
             node.isNotNull &= source.isNotNull;
             node.isArgument &= source.isArgument;
+
+            node.flags |= source.flags & DataNodeFlags.LATE_MULTINAME_BINDING;
 
             if (nodeType == sourceType) {
                 switch (nodeType) {
@@ -723,8 +729,11 @@ namespace Mariana.AVM2.Compiler {
         private static void _copyDataNodeTypeInfo(ref DataNode source, ref DataNode dest) {
             dest.dataType = source.dataType;
             dest.constant = source.constant;
-            dest.isConstant = source.isConstant;
-            dest.isNotNull = source.isNotNull;
+
+            const DataNodeFlags transferFlags =
+                DataNodeFlags.CONSTANT | DataNodeFlags.NOT_NULL | DataNodeFlags.LATE_MULTINAME_BINDING;
+
+            dest.flags = (dest.flags & ~transferFlags) | (source.flags & transferFlags);
         }
 
         private void _visitGetLocal(ref Instruction instr) {
@@ -923,8 +932,18 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
             if (instr.opcode == ABCOp.coerce_a) {
-                // Consider coerce_a to be a a no-op.
                 _copyDataNodeTypeInfo(ref input, ref output);
+
+                // If the input type is not a final class, then any property binding on the
+                // result of coerce_a with a namespace set must be deferred to runtime, as
+                // the runtime type of the node may be a derived class that declares a trait
+                // having the same name in another namespace of the set (which must be chosen
+                // over the base class trait that compile-time binding would select).
+
+                Class inputClass = m_compilation.getDataNodeClass(input);
+                if (inputClass != null && !inputClass.isFinal)
+                    output.flags |= DataNodeFlags.LATE_MULTINAME_BINDING;
+
                 return;
             }
 
@@ -1978,7 +1997,9 @@ namespace Mariana.AVM2.Compiler {
                     }
                 }
             }
-            else if (ns == null && nsSet == null) {
+            else if ((ns == null && nsSet == null)
+                || (nsSet.GetValueOrDefault().count > 1 && (obj.flags & DataNodeFlags.LATE_MULTINAME_BINDING) != 0))
+            {
                 resolvedProp.propKind = ResolvedPropertyKind.RUNTIME;
             }
             else if (obj.dataType == DataNodeType.GLOBAL) {
@@ -2175,14 +2196,25 @@ namespace Mariana.AVM2.Compiler {
             }
 
             bool search(
-                string _localName, in Namespace? _ns, in NamespaceSet? _nsSet,
-                DataNodeType type, in DataNodeConstant constant, bool isWith,
-                ref ResolvedProperty _resolvedProp, out bool deferToRuntime
+                string _localName,
+                in Namespace? _ns,
+                in NamespaceSet? _nsSet,
+                DataNodeType type,
+                in DataNodeConstant constant,
+                bool isWith,
+                bool lateMultinameBinding,
+                ref ResolvedProperty _resolvedProp,
+                out bool deferToRuntime
             ) {
                 _resolvedProp.objectType = type;
                 _resolvedProp.objectClass = null;
 
                 deferToRuntime = false;
+
+                if (_nsSet.GetValueOrDefault().count > 1 && lateMultinameBinding) {
+                    deferToRuntime = true;
+                    return true;
+                }
 
                 if (type == DataNodeType.GLOBAL) {
                     // Search the global scope (i.e. the application domain)
@@ -2280,8 +2312,15 @@ namespace Mariana.AVM2.Compiler {
             for (int i = curScopeStack.Length - 1; i >= 0; i--) {
                 ref DataNode node = ref dataNodes[curScopeStack[i]];
                 bool stopSearch = search(
-                    localName, ns, nsSet, node.dataType, node.constant, node.isWithScope,
-                    ref resolvedProp, out bool deferToRuntime
+                    localName,
+                    ns,
+                    nsSet,
+                    node.dataType,
+                    node.constant,
+                    node.isWithScope,
+                    (node.flags & DataNodeFlags.LATE_MULTINAME_BINDING) != 0,
+                    ref resolvedProp,
+                    out bool deferToRuntime
                 );
 
                 if (stopSearch) {
@@ -2298,8 +2337,15 @@ namespace Mariana.AVM2.Compiler {
                 var constant = (captured.objClass != null) ? new DataNodeConstant(captured.objClass) : default;
 
                 bool stopSearch = search(
-                    localName, ns, nsSet, captured.dataType, constant, captured.isWithScope,
-                    ref resolvedProp, out bool deferToRuntime
+                    localName,
+                    ns,
+                    nsSet,
+                    captured.dataType,
+                    constant,
+                    captured.isWithScope,
+                    captured.lateMultinameBinding,
+                    ref resolvedProp,
+                    out bool deferToRuntime
                 );
 
                 if (stopSearch) {
@@ -4022,6 +4068,7 @@ namespace Mariana.AVM2.Compiler {
                 DataNodeType nodeType = node.dataType;
                 Class nodeClass = null;
                 bool isWithScope = (node.flags & DataNodeFlags.WITH_SCOPE) != 0;
+                bool lateMultinameBinding = (node.flags & DataNodeFlags.LATE_MULTINAME_BINDING) != 0;
 
                 switch (node.dataType) {
                     case DataNodeType.OBJECT:
@@ -4039,7 +4086,7 @@ namespace Mariana.AVM2.Compiler {
                         break;
                 }
 
-                scope[outerCapture.Length + i] = new CapturedScopeItem(nodeType, nodeClass, isWithScope);
+                scope[outerCapture.Length + i] = new CapturedScopeItem(nodeType, nodeClass, isWithScope, lateMultinameBinding);
             }
 
             return scope;

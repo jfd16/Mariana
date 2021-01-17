@@ -214,7 +214,13 @@ namespace Mariana.AVM2.Compiler {
         /// This is used for local nodes that are a source to a single phi node and have no other
         /// uses.
         /// </summary>
-        LOCAL_WRITE_THROUGH = 2048
+        LOCAL_WRITE_THROUGH = 2048,
+
+        /// <summary>
+        /// Indicates that property binding on the node where the name is a multiname with a
+        /// namespace set must always be deferred to runtime, even when the node type is known.
+        /// </summary>
+        LATE_MULTINAME_BINDING = 4096,
 
     }
 

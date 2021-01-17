@@ -44,7 +44,7 @@ namespace Mariana.AVM2.Compiler {
             else {
                 var newItems = new CapturedScopeItem[items.length + 1];
                 items.asSpan().CopyTo(newItems.AsSpan(0, items.length));
-                newItems[items.length] = new CapturedScopeItem(DataNodeType.CLASS, klass, false);
+                newItems[items.length] = new CapturedScopeItem(DataNodeType.CLASS, klass, false, false);
                 m_hasClass = true;
                 m_items = new CapturedScopeItems(newItems);
             }
@@ -88,6 +88,12 @@ namespace Mariana.AVM2.Compiler {
         public readonly bool isWithScope;
 
         /// <summary>
+        /// True if multiname-based property binding on the captured scope object must always
+        /// be done at runtime.
+        /// </summary>
+        public readonly bool lateMultinameBinding;
+
+        /// <summary>
         /// The <see cref="Class"/> for the type of the captured value (if <see cref="dataType"/>
         /// is <see cref="DataNodeType.OBJECT"/>) or the value of a class constant (if
         /// <see cref="dataType"/> is <see cref="DataNodeType.CLASS"/>).
@@ -104,10 +110,13 @@ namespace Mariana.AVM2.Compiler {
         /// a class constant (if <see cref="dataType"/> is <see cref="DataNodeType.CLASS"/>).</param>
         /// <param name="isWithScope">True if the captured value was pushed onto the scope
         /// stack as a "with" scope.</param>
-        public CapturedScopeItem(DataNodeType dataType, Class objClass, bool isWithScope) {
+        /// <param name="lateMultinameBinding">True if multiname-based property binding on the captured
+        /// scope object must always be done at runtime.</param>
+        public CapturedScopeItem(DataNodeType dataType, Class objClass, bool isWithScope, bool lateMultinameBinding) {
             this.dataType = dataType;
             this.isWithScope = isWithScope;
             this.objClass = objClass;
+            this.lateMultinameBinding = lateMultinameBinding;
         }
 
         /// <summary>

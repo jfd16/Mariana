@@ -104,9 +104,19 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Gets or sets the next object in the object's prototype chain.
+        /// Gets the next object in the object's prototype chain.
         /// </summary>
-        public ASObject AS_proto => m_proto ?? AS_class.getClassImpl().prototypeForInstance;
+        public ASObject AS_proto {
+            get {
+                if (m_proto != null)
+                    return m_proto;
+
+                ASObject classProto = AS_class.getClassImpl().prototypeForInstance;
+                // If this instance is itself the prototype of Object, we must return null.
+                // Otherwise prototype chains would never terminate!
+                return (this == classProto) ? null : classProto;
+            }
+        }
 
         private void _initInternalFields() {
             // To initialize these fields in a thread-safe way, we could create a
