@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Mariana.Common;
 
 namespace Mariana.AVM2.Core {
@@ -35,16 +36,18 @@ namespace Mariana.AVM2.Core {
             ILLEGAL_CHAR_AFTER_SPECIAL,
             INVALID_GROUP_NAME,
             UNTERMINATED_GROUP_NAME,
+            DUPLICATE_GROUP_NAME,
             GROUP_LIMIT_EXCEEDED,
             UNTERMINATED_CHAR_SET,
             EMPTY_CHAR_SET,
             CHAR_SET_REVERSE_RANGE,
+            INVALID_NAMED_REFERENCE,
         }
 
         /// <summary>
         /// The error messages used by the regex preprocessor.
         /// </summary>
-        private static DynamicArray<string> s_errorMessages = new DynamicArray<string>(15, true) {
+        private static DynamicArray<string> s_errorMessages = new DynamicArray<string>(16, true) {
             [(int)Error.UNBALANCED_PAREN] =
                 @"Unbalanced grouping parentheses.",
             [(int)Error.LONE_BACKSLASH] =
@@ -56,7 +59,7 @@ namespace Mariana.AVM2.Core {
             [(int)Error.INVALID_HEX_ESCAPE] =
                 @"Illegal character in hexadecimal escape sequence.",
             [(int)Error.UNEXPECTED_QUANT] =
-                @"Unexpected quantifier character '*', '+' or '?'.",
+                @"Unexpected quantifier '*', '+', '?' or {n,m}.",
             [(int)Error.INVALID_NUMERIC_QUANT] =
                 @"Invalid numeric quantifier.",
             [(int)Error.ILLEGAL_CHAR_AFTER_SPECIAL] =
@@ -65,6 +68,8 @@ namespace Mariana.AVM2.Core {
                 @"Invalid group name. Names can contain only alphabets (A-Z and a-z) and digits (0-9), and must not start with a digit.",
             [(int)Error.UNTERMINATED_GROUP_NAME] =
                 @"Unterminated group name construct (?P<...>).",
+            [(int)Error.DUPLICATE_GROUP_NAME] =
+                @"Named group has duplicate name.",
             [(int)Error.GROUP_LIMIT_EXCEEDED] =
                 @"Capturing group limit of 999 exceeded.",
             [(int)Error.UNTERMINATED_CHAR_SET] =
@@ -73,30 +78,34 @@ namespace Mariana.AVM2.Core {
                 @"Illegal empty character set.",
             [(int)Error.CHAR_SET_REVERSE_RANGE] =
                 @"Illegal reverse range in character set.",
+            [(int)Error.INVALID_NAMED_REFERENCE] =
+                @"Invalid named group reference \k<...>."
         };
 
+        private static readonly char[] s_eolChars = {'\r', '\n'};
+
         /// <summary>
-        /// A numeric reference patch is emitted when parsing a regular expression when a numeric
-        /// escape sequence (such as <c>\123</c>) is encountered, which is later converted into a
-        /// backreference or octal escape at the end of parsing depending on the number of capturing
-        /// groups.
+        /// Represents a backreference construct in the regex pattern being transpiled that can
+        /// only be resolved once the entire pattern has been parsed. These include numeric
+        /// backreferences (which may resolve into backreferences or octal escape sequences)
+        /// and named backreferences.
         /// </summary>
-        private struct NumRefPatch {
+        private struct ForwardRef {
             /// <summary>
-            /// The position in the (unpatched) regex string at which the expression for the patch must be
-            /// inserted.
+            /// The position where the reference should be inserted in the transpiled regular
+            /// expression.
             /// </summary>
             public int position;
 
             /// <summary>
-            /// The number of digits of the numeric reference. (Maximum 3)
+            /// The group number for a numbered backreference.
             /// </summary>
-            public byte nDigits;
+            public int groupNumber;
 
             /// <summary>
-            /// The value of the numeric reference, encoded in binary coded decimal.
+            /// The group name, for a named backreference.
             /// </summary>
-            public ushort bcdDigits;
+            public string name;
         }
 
         /// <summary>
@@ -120,11 +129,6 @@ namespace Mariana.AVM2.Core {
         private int m_bufpos;
 
         /// <summary>
-        /// A list of numeric reference patches generated during parsing.
-        /// </summary>
-        private DynamicArray<NumRefPatch> m_numRefPatches;
-
-        /// <summary>
         /// The number of parentheses in the pattern which are not closed yet.
         /// </summary>
         private int m_parenBalance;
@@ -146,11 +150,19 @@ namespace Mariana.AVM2.Core {
         private string m_transpiledRegex;
 
         /// <summary>
-        /// A list of group names indexed by the corresponding group number. Null values are used for
-        /// unnamed groups. In this table, 0 corresponds to the first group, not 1 (as in the case of
-        /// backreferences and replace strings)
+        /// The number of capturing groups in the regex pattern.
         /// </summary>
-        private DynamicArray<string> m_groupNames;
+        private int m_groupCount;
+
+        /// <summary>
+        /// A dictionary mapping group names to numbers for named groups.
+        /// </summary>
+        private Dictionary<string, int> m_groupNameIndexMap;
+
+        /// <summary>
+        /// The forward references generated during parsing.
+        /// </summary>
+        private DynamicArray<ForwardRef> m_forwardReferences;
 
         /// <summary>
         /// Gets the translated .NET regex string of the pattern transpiled by
@@ -165,12 +177,21 @@ namespace Mariana.AVM2.Core {
         /// <returns>An array containing the group names corresponding to each group number, with the
         /// first group as number 0. If there are no named groups in the pattern, returns
         /// null.</returns>
-        public string[] getGroupNames() => (m_groupNames.length == 0) ? null : m_groupNames.toArray();
+        public string[] getGroupNames() {
+            if (m_groupCount == 0)
+                return null;
+
+            var names = new string[m_groupCount];
+            foreach (var entry in m_groupNameIndexMap)
+                names[entry.Value - 1] = entry.Key;
+
+            return names;
+        }
 
         /// <summary>
         /// Gets the number of capturing groups in the parsed regular expression.
         /// </summary>
-        public int groupCount => m_groupNames.length;
+        public int groupCount => m_groupCount;
 
         /// <summary>
         /// Parses and transpiles an AS3 regex pattern.
@@ -179,24 +200,27 @@ namespace Mariana.AVM2.Core {
         /// <param name="dotall">Set to true if dotall mode is being used.</param>
         /// <param name="extended">Set to true if extended mode is being used.</param>
         public void transpile(string pattern, bool dotall, bool extended) {
-
             m_buffer = new char[pattern.Length];
             m_bufpos = 0;
             m_source = pattern;
             m_srcpos = 0;
-            m_groupNames.clear();
+            m_groupCount = 0;
+            m_forwardReferences.clear();
             m_parenBalance = 0;
             m_isInCharSet = false;
             m_transpiledRegex = null;
 
-            int strlen = pattern.Length;
+            if (m_groupNameIndexMap == null)
+                m_groupNameIndexMap = new Dictionary<string, int>();
+
+            m_groupNameIndexMap.Clear();
 
             if (extended)
                 _goToNextNonSpace();
 
             bool quantifierNotExpected = true;  // Regex cannot begin with a quantifier.
 
-            while (m_srcpos < strlen) {
+            while (m_srcpos < pattern.Length) {
                 char c = pattern[m_srcpos];
 
                 switch (c) {
@@ -215,17 +239,14 @@ namespace Mariana.AVM2.Core {
                         quantifierNotExpected = true;
                         break;
 
-                    case '{':
-                        if (quantifierNotExpected) {
-                            // If there is an opening curly brace where a quantifier is not
-                            // expected, it is a literal and not an error.
-                            _writeCharPair('\\', '{');
-                            m_srcpos++;
-                        }
-                        else {
-                            quantifierNotExpected = _readNumericQuantifier();
-                        }
+                    case '{': {
+                        bool isValidNumericQuantifier = _readNumericQuantifier();
+                        if (isValidNumericQuantifier && quantifierNotExpected)
+                            throw _error(Error.UNEXPECTED_QUANT);
+
+                        quantifierNotExpected = isValidNumericQuantifier;
                         break;
+                    }
 
                     case '}':
                         _writeCharPair('\\', '}');
@@ -263,6 +284,17 @@ namespace Mariana.AVM2.Core {
                         quantifierNotExpected = false;
                         break;
 
+                    case '#': {
+                        if (!extended)
+                            goto default;
+
+                        // This doesn't seem to be documented (docs say only whitespace is ignored),
+                        // but Flash Player does support #-style line comments in extended mode.
+                        int eolPos = pattern.IndexOfAny(s_eolChars, m_srcpos);
+                        m_srcpos = (eolPos != -1) ? eolPos + 1 : pattern.Length;
+                        break;
+                    }
+
                     default:
                         _writeChar(c);
                         m_srcpos++;
@@ -277,7 +309,7 @@ namespace Mariana.AVM2.Core {
             if (m_parenBalance != 0)
                 throw _error(Error.UNBALANCED_PAREN);
 
-            _patchNumericReferences();
+            _resolveForwardReferences();
 
             m_transpiledRegex = new string(m_buffer, 0, m_bufpos);
             m_buffer = null;
@@ -287,7 +319,6 @@ namespace Mariana.AVM2.Core {
         /// Reads a backslashed character or character sequence from the source pattern.
         /// </summary>
         private void _readEscapeSequence() {
-
             int charsLeft = m_source.Length - m_srcpos;
             if (charsLeft < 2)
                 throw _error(Error.LONE_BACKSLASH);
@@ -295,23 +326,22 @@ namespace Mariana.AVM2.Core {
             char escapeChar = m_source[m_srcpos + 1];
             m_srcpos += 2;
 
-            if (!m_isInCharSet) {
-                switch (escapeChar) {
-                    case 'w':
-                    case 'd':
-                    case 's':
-                    case 'W':
-                    case 'D':
-                    case 'S':
-                        // These are special metasequences allowed in AS3 regex syntax, so backslash them.
-                        // Character classes handle their parsing differently, so parse them only in non-class
-                        // regions
-                        _writeCharPair('\\', escapeChar);
-                        return;
-                }
-            }
-
             switch (escapeChar) {
+                case 'w':
+                case 'd':
+                case 's':
+                case 'W':
+                case 'D':
+                case 'S':
+                case 'f':
+                case 'n':
+                case 'r':
+                case 't':
+                case 'v':
+                    // These are special metasequences allowed in AS3 regex syntax, so backslash them.
+                    _writeCharPair('\\', escapeChar);
+                    break;
+
                 case 'b':
                     if (m_isInCharSet)  // '\b' has different meaning inside and outside a character set.
                         _writeHexEscape(0x08);
@@ -319,20 +349,10 @@ namespace Mariana.AVM2.Core {
                         _writeCharPair('\\', 'b');
                     break;
 
-                case 'f':
-                    _writeHexEscape(0x12);
-                    break;
-                case 'n':
-                    _writeHexEscape(0x10);
-                    break;
-                case 'r':
-                    _writeHexEscape(0x13);
-                    break;
-                case 't':
-                    _writeHexEscape(0x09);
-                    break;
-                case 'v':
-                    _writeHexEscape(0x11);
+                case 'k':
+                    // Flash Player supports \k<name> backreferences but this is not documented.
+                    // 'name' cannot be a group number, unlike .NET regex.
+                    _readNamedGroupReference();
                     break;
 
                 case '(':
@@ -489,7 +509,6 @@ namespace Mariana.AVM2.Core {
                     }
                     break;
             }
-
         }
 
         /// <summary>
@@ -524,7 +543,6 @@ namespace Mariana.AVM2.Core {
         /// interpreted as normal regex syntax.
         /// </remarks>
         private bool _readNumericQuantifier() {
-
             string source = m_source;
             int srcpos = m_srcpos + 1;
             int srclen = m_source.Length;
@@ -572,8 +590,14 @@ namespace Mariana.AVM2.Core {
                     if (secondNum != -1 && secondNum < firstNum)
                         throw _error(Error.INVALID_NUMERIC_QUANT);
 
-                    _copyToBuffer(m_source.AsSpan(m_srcpos, charCount + 1));
+                    _appendToBuffer(m_source.AsSpan(m_srcpos, charCount + 1));
                     m_srcpos = srcpos + 1;
+
+                    if (m_srcpos < source.Length && source[m_srcpos] == '?') {
+                        _writeChar('?');
+                        m_srcpos++;
+                    }
+
                     return true;
                 }
                 else {
@@ -588,7 +612,6 @@ namespace Mariana.AVM2.Core {
             _writeCharPair('\\', '{');
             m_srcpos++;
             return false;
-
         }
 
         /// <summary>
@@ -621,22 +644,22 @@ namespace Mariana.AVM2.Core {
         private void _writeChar(char value) {
             if (m_buffer.Length == m_bufpos)
                 DataStructureUtil.resizeArray(ref m_buffer, m_buffer.Length, m_bufpos + 1, false);
+
             m_buffer[m_bufpos++] = value;
             m_charSetLastChar = value;
         }
 
         /// <summary>
-        /// Writes a pair of characters into the buffer.
+        /// Appends space for the given number of characters in the output buffer.
         /// </summary>
-        /// <param name="c1">The first character.</param>
-        /// <param name="c2">The second character.</param>
-        private void _writeCharPair(char c1, char c2) {
-            if (m_buffer.Length - m_bufpos < 2)
-                DataStructureUtil.resizeArray(ref m_buffer, m_buffer.Length, m_bufpos + 2, false);
-            m_buffer[m_bufpos] = c1;
-            m_buffer[m_bufpos + 1] = c2;
-            m_bufpos += 2;
-            m_charSetLastChar = c2;
+        /// <param name="numChars">The number of characters to be written.</param>
+        /// <returns>A span into which the characters can be written.</returns>
+        private Span<char> _appendToBuffer(int numChars) {
+            if (m_buffer.Length - m_bufpos < numChars)
+                DataStructureUtil.resizeArray(ref m_buffer, m_buffer.Length, m_bufpos + numChars, false);
+
+            m_bufpos += numChars;
+            return new Span<char>(m_buffer, m_bufpos - numChars, numChars);
         }
 
         /// <summary>
@@ -648,12 +671,18 @@ namespace Mariana.AVM2.Core {
         /// This method does not update the <see cref="m_charSetLastChar"/> field, even when inside
         /// a character set.
         /// </remarks>
-        private void _copyToBuffer(ReadOnlySpan<char> span) {
-            if (m_buffer.Length - m_bufpos < span.Length)
-                DataStructureUtil.resizeArray(ref m_buffer, m_buffer.Length, m_bufpos + span.Length, false);
+        private void _appendToBuffer(ReadOnlySpan<char> span) => span.CopyTo(_appendToBuffer(span.Length));
 
-            span.CopyTo(m_buffer.AsSpan(m_bufpos));
-            m_bufpos += span.Length;
+        /// <summary>
+        /// Writes a pair of characters into the buffer.
+        /// </summary>
+        /// <param name="c1">The first character.</param>
+        /// <param name="c2">The second character.</param>
+        private void _writeCharPair(char c1, char c2) {
+            var span = _appendToBuffer(2);
+            span[1] = c2;
+            span[0] = c1;
+            m_charSetLastChar = c2;
         }
 
         /// <summary>
@@ -661,19 +690,12 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="code">The character value whose hex sequence to write.</param>
         private void _writeHexEscape(byte code) {
-            if (m_buffer.Length - m_bufpos < 4)
-                DataStructureUtil.resizeArray(ref m_buffer, m_buffer.Length, m_bufpos + 4, false);
-
             int low = code & 15, high = (code >> 4) & 15;
-
-            var span = m_buffer.AsSpan(m_bufpos, 4);
-            m_bufpos += 4;
-
-            span[0] = '\\';
-            span[1] = 'x';
-            span[2] = (high > 9) ? (char)(high + 'A' - 10) : (char)(high + '0');
+            var span = _appendToBuffer(4);
             span[3] = (low > 9) ? (char)(low + 'A' - 10) : (char)(low + '0');
-
+            span[2] = (high > 9) ? (char)(high + 'A' - 10) : (char)(high + '0');
+            span[1] = 'x';
+            span[0] = '\\';
             m_charSetLastChar = (char)code;
         }
 
@@ -686,16 +708,11 @@ namespace Mariana.AVM2.Core {
         /// <param name="c2">The first hexadecimal character, representing the low 4 bits of the
         /// character value.</param>
         private void _writeHexEscapeFromDigits(char c1, char c2) {
-            if (m_buffer.Length - m_bufpos < 4)
-                DataStructureUtil.resizeArray(ref m_buffer, m_buffer.Length, m_bufpos + 4, false);
-
-            var span = m_buffer.AsSpan(m_bufpos, 4);
-            m_bufpos += 4;
-
-            span[0] = '\\';
-            span[1] = 'x';
-            span[2] = c1;
+            var span = _appendToBuffer(4);
             span[3] = c2;
+            span[2] = c1;
+            span[1] = 'x';
+            span[0] = '\\';
 
             if (m_isInCharSet)
                 // Since deducing the actual character from the hex code is required only
@@ -718,21 +735,28 @@ namespace Mariana.AVM2.Core {
         /// <param name="c4">The fourth hexadecimal character, representing bits 1 to 4 of the code
         /// point.</param>
         private void _writeHexEscapeFromDigits(char c1, char c2, char c3, char c4) {
-            if (m_buffer.Length - m_bufpos < 6)
-                DataStructureUtil.resizeArray(ref m_buffer, m_buffer.Length, m_bufpos + 6, false);
-
-            var span = m_buffer.AsSpan(m_bufpos, 6);
-            m_bufpos += 6;
-
-            span[0] = '\\';
-            span[1] = 'u';
-            span[2] = c1;
-            span[3] = c2;
-            span[4] = c3;
+            var span = _appendToBuffer(6);
             span[5] = c4;
+            span[4] = c3;
+            span[3] = c2;
+            span[2] = c1;
+            span[1] = 'u';
+            span[0] = '\\';
 
             if (m_isInCharSet)
                 m_charSetLastChar = (char)(_charToHex(c4) | _charToHex(c3) << 4 | _charToHex(c2) << 8 | _charToHex(c1) << 12);
+        }
+
+        /// <summary>
+        /// Writes a capturing group reference into the buffer whose group number is given.
+        /// </summary>
+        /// <param name="groupNumber">The number of the capturing group reference.</param>
+        private void _writeGroupReference(int groupNumber) {
+            int digit1 = groupNumber / 100;
+            int t = groupNumber - digit1 * 100;
+            int digit2 = t / 10;
+            int digit3 = t - digit2 * 10;
+            _writeGroupReference(digit1, digit2, digit3);
         }
 
         /// <summary>
@@ -752,32 +776,28 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         private void _writeGroupReference(int digit1, int digit2, int digit3) {
             // Use the syntax \k<n> instead of \n to avoid ambiguities with octal escape sequences
-            if (m_buffer.Length - m_bufpos < 7)
-                DataStructureUtil.resizeArray(ref m_buffer, m_buffer.Length, m_bufpos + 7, false);
+            var span = _appendToBuffer(7);
 
-            var span = m_buffer.AsSpan(m_bufpos, 7);
-
-            span[0] = '\\';
-            span[1] = 'k';
             span[2] = '<';
+            span[1] = 'k';
+            span[0] = '\\';
 
             if (digit1 != 0) {
-                span[3] = (char)(digit1 + '0');
-                span[4] = (char)(digit2 + '0');
-                span[5] = (char)(digit3 + '0');
                 span[6] = '>';
-                m_bufpos += 7;
+                span[5] = (char)(digit3 + '0');
+                span[4] = (char)(digit2 + '0');
+                span[3] = (char)(digit1 + '0');
             }
             else if (digit2 != 0) {
-                span[3] = (char)(digit2 + '0');
-                span[4] = (char)(digit3 + '0');
                 span[5] = '>';
-                m_bufpos += 6;
+                span[4] = (char)(digit3 + '0');
+                span[3] = (char)(digit2 + '0');
+                m_bufpos--;
             }
             else {
-                span[3] = (char)(digit3 + '0');
                 span[4] = '>';
-                m_bufpos += 5;
+                span[3] = (char)(digit3 + '0');
+                m_bufpos -= 2;
             }
         }
 
@@ -799,9 +819,9 @@ namespace Mariana.AVM2.Core {
             if (c1 > '7') {
                 // If the first digit is not a valid octal digit, all digits are literal
                 _writeChar(c1);
-                if (c2 != 0)
+                if (c2 != '\0')
                     _writeChar(c2);
-                if (c3 != 0)
+                if (c3 != '\0')
                     _writeChar(c3);
                 return;
             }
@@ -871,23 +891,24 @@ namespace Mariana.AVM2.Core {
                 return;
             }
 
-            NumRefPatch patch;
-            patch.position = m_bufpos;
+            int groupNumber;
 
-            if (c2 == '\0' && c3 == '\0') {
-                patch.nDigits = 1;
-                patch.bcdDigits = (ushort)(c1 - '0');
-            }
-            else if (c3 == '\0') {
-                patch.nDigits = 2;
-                patch.bcdDigits = (ushort)((c1 - '0') << 4 | (c2 - '0'));
+            if (c2 == '\0' && c3 == '\0')
+                groupNumber = c1 - '0';
+            else if (c3 == '\0')
+                groupNumber = (c1 - '0') * 10 + c2 - '0';
+            else
+                groupNumber = (c1 - '0') * 100 + (c2 - '0') * 10 + c3 - '0';
+
+            if (groupNumber <= m_groupCount) {
+                // We know that this is definitely a backreference.
+                _writeGroupReference(groupNumber);
             }
             else {
-                patch.nDigits = 3;
-                patch.bcdDigits = (ushort)((c1 - '0') << 8 | (c2 - '0') << 4 | (c3 - '0'));
+                // This could be a forward group reference or an octal escape sequence. We will
+                // only know when the entire pattern is parsed and the number of groups is known.
+                m_forwardReferences.add(new ForwardRef {position = m_bufpos, groupNumber = groupNumber});
             }
-
-            m_numRefPatches.add(patch);
         }
 
         /// <summary>
@@ -914,14 +935,13 @@ namespace Mariana.AVM2.Core {
             // not available when the ECMAScript option is also set (this implementation of RegExp
             // does use that option), so the dot must be substituted with an equivalent expression
             // during transpilation such as '[\s\S]'.
-
-            if (m_buffer.Length - m_bufpos < 6)
-                DataStructureUtil.resizeArray(ref m_buffer, m_buffer.Length, m_bufpos + 6, false);
-
-            var span = m_buffer.AsSpan(m_bufpos, 6);
-            m_bufpos += 6;
-
-            "[\\s\\S]".AsSpan().CopyTo(span);
+            var span = _appendToBuffer(6);
+            span[5] = ']';
+            span[4] = 'S';
+            span[3] = '\\';
+            span[2] = 's';
+            span[1] = '\\';
+            span[0] = '[';
         }
 
         /// <summary>
@@ -929,11 +949,10 @@ namespace Mariana.AVM2.Core {
         /// non-capturing group, named group, lookahead or lookbehind)
         /// </summary>
         private void _readGroupStart() {
+            m_srcpos++;
 
             string src = m_source;
-            int srcpos = m_srcpos + 1;
-            int srclen = m_source.Length;
-            int charsLeft = src.Length - srcpos;
+            int charsLeft = src.Length - m_srcpos;
 
             if (charsLeft == 0) {
                 // A lone opening parenthesis at the end of the pattern: this is not correct
@@ -942,14 +961,14 @@ namespace Mariana.AVM2.Core {
 
             if (charsLeft == 1) {
                 // If only one character remains, the only possibility is the empty group.
-                if (src[srcpos] != ')')
+                if (src[m_srcpos] != ')')
                     throw _error(Error.UNBALANCED_PAREN);
 
-                if (m_groupNames.length == 999)
+                if (m_groupCount == 999)
                     throw _error(Error.GROUP_LIMIT_EXCEEDED);
-                m_groupNames.add(null);
 
                 _writeCharPair('(', ')');
+                m_groupCount++;
                 m_srcpos++;
 
                 return;
@@ -961,7 +980,7 @@ namespace Mariana.AVM2.Core {
             // All characters of a group start sequence must be continuous without spaces even
             // in extended mode, so we don't call _goToNextNonSpace() here.
 
-            char nextChar = src[srcpos];
+            char nextChar = src[m_srcpos];
 
             if (nextChar == '?') {
                 // Special group
@@ -969,31 +988,31 @@ namespace Mariana.AVM2.Core {
                 if (charsLeft == 2) {
                     // If there are only two characters left, only the question mark will be
                     // part of the group (if followed by a ')'), which is an error if not escaped.
-                    if (src[srcpos + 1] == ')')
+                    if (src[m_srcpos + 1] == ')')
                         throw _error(Error.ILLEGAL_CHAR_AFTER_SPECIAL);
                     else
                         throw _error(Error.UNBALANCED_PAREN);
                 }
 
-                srcpos++;
-                nextChar = src[srcpos];
+                m_srcpos++;
+                nextChar = src[m_srcpos];
 
                 if (nextChar == '=' || nextChar == '!') {
                     // Positive/negative lookahead
                     _writeCharPair('?', nextChar);
-                    m_srcpos = srcpos + 1;
+                    m_srcpos++;
                 }
                 else if (nextChar == '<') {
                     if (charsLeft == 3) {
                         // The expression '(?<)' is also not valid
-                        if (src[srcpos + 1] == ')')
+                        if (src[m_srcpos + 1] == ')')
                             throw _error(Error.ILLEGAL_CHAR_AFTER_SPECIAL);
                         else
                             throw _error(Error.UNBALANCED_PAREN);
                     }
 
-                    srcpos++;
-                    nextChar = src[srcpos];
+                    m_srcpos++;
+                    nextChar = src[m_srcpos];
 
                     if (nextChar == '=' || nextChar == '!') {
                         // Positive/negative lookbehind
@@ -1003,18 +1022,18 @@ namespace Mariana.AVM2.Core {
                     else {
                         throw _error(Error.ILLEGAL_CHAR_AFTER_SPECIAL);
                     }
-                    m_srcpos = srcpos + 1;
+
+                    m_srcpos++;
                 }
                 else if (nextChar == ':') {
                     // No-capture group
                     _writeCharPair('?', ':');
-                    m_srcpos = srcpos + 1;
+                    m_srcpos++;
                 }
                 else if (nextChar == 'P') {
-
                     // Named capture group.
-                    // Valid group names must contain only the letters a-z (both uppercase and lowercase)
-                    // and digits 0-9, and the first character must not be a digit.
+                    // Valid group names must contain only the letters a-z (both uppercase and lowercase),
+                    // digits 0-9 and underscores, and the first character must not be a digit.
 
                     if (charsLeft < 6) {
                         // There must be at least six characters after the opening '(' for the
@@ -1022,44 +1041,47 @@ namespace Mariana.AVM2.Core {
                         throw _error(Error.ILLEGAL_CHAR_AFTER_SPECIAL);
                     }
 
-                    if (src[srcpos + 1] != '<')   // P is followed by something other than '<'
+                    m_srcpos++;
+                    if (src[m_srcpos] != '<')   // P is followed by something other than '<'
                         throw _error(Error.ILLEGAL_CHAR_AFTER_SPECIAL);
 
-                    nextChar = src[srcpos + 2];
-                    int nCharsInName = 1;
+                    m_srcpos++;
 
-                    if (!(nextChar >= 'A' && nextChar <= 'Z') && !(nextChar >= 'a' && nextChar <= 'z'))
-                        _error(Error.INVALID_GROUP_NAME);
+                    if ((uint)(src[m_srcpos] - '0') <= 9)
+                        throw _error(Error.INVALID_GROUP_NAME);
 
-                    srcpos += 3;
+                    int nameStart = m_srcpos, nameLength = 0;
 
                     while (true) {
-                        nextChar = src[srcpos];
+                        nextChar = src[m_srcpos];
+                        m_srcpos++;
+
                         if (nextChar == '>')    // End of group name
                             break;
 
-                        if (!(nextChar >= 'A' && nextChar <= 'Z') && !(nextChar >= 'a' && nextChar <= 'z')
-                            && !(nextChar >= '0' && nextChar <= '9'))
-                        {
+                        if (!_isValidGroupNameChar(nextChar))
                             throw _error(Error.INVALID_GROUP_NAME);
-                        }
 
-                        srcpos++;
-                        nCharsInName++;
-
-                        if (srcpos == srclen)
+                        nameLength++;
+                        if (m_srcpos == src.Length)
                             throw _error(Error.UNTERMINATED_GROUP_NAME);
                     }
 
-                    if (m_groupNames.length == 999) {
+                    if (nameLength == 0)
+                        throw _error(Error.INVALID_GROUP_NAME);
+
+                    if (m_groupCount == 999) {
                         // Capturing groups (incuding named) are limited to 999 because the regex transpiler
                         // currently resolves backreferences of only up to three digits.
                         throw _error(Error.GROUP_LIMIT_EXCEEDED);
                     }
 
-                    m_groupNames.add(src.Substring(srcpos - nCharsInName, nCharsInName));
-                    m_srcpos = srcpos + 1;
+                    string groupName = src.Substring(nameStart, nameLength);
 
+                    if (!m_groupNameIndexMap.TryAdd(groupName, m_groupCount + 1))
+                        throw _error(Error.DUPLICATE_GROUP_NAME);
+
+                    m_groupCount++;
                 }
                 else {
                     // Nothing else may appear after '?' except for the characters above
@@ -1068,173 +1090,193 @@ namespace Mariana.AVM2.Core {
             }
             else {
                 // Unnamed capturing group.
-                if (m_groupNames.length == 999)
+                if (m_groupCount == 999)
                     throw _error(Error.GROUP_LIMIT_EXCEEDED);
-                m_groupNames.add(null);
+
+                m_groupCount++;
+            }
+        }
+
+        /// <summary>
+        /// Returns true if the given character is a valid character in a capturing group name.
+        /// </summary>
+        /// <param name="ch">The character to check.</param>
+        /// <returns>True if the given character is valid in a group name, otherwise false.</returns>
+        private static bool _isValidGroupNameChar(char ch) =>
+            (uint)(ch - '0') <= 9 || (uint)(ch - 'A') <= 'Z' - 'A' || (uint)(ch - 'a') <= 'z' - 'a' || ch == '_';
+
+        private void _readNamedGroupReference() {
+            string src = m_source;
+
+            if (m_srcpos == src.Length || src[m_srcpos] != '<')
+                throw _error(Error.INVALID_NAMED_REFERENCE);
+
+            m_srcpos++;
+            int nameStart = m_srcpos;
+
+            // We don't need to check if the first character is not a digit here. This is because
+            // such a group name will never exist at this point (since it is not valid) and so
+            // this will end up as a forward reference, which will cause an error during the
+            // forward reference resolution phase.
+
+            while (m_srcpos < src.Length) {
+                char ch = src[m_srcpos];
+                if (ch == '>')
+                    break;
+                if (!_isValidGroupNameChar(ch))
+                    throw _error(Error.INVALID_NAMED_REFERENCE);
                 m_srcpos++;
             }
 
+            if (m_srcpos == src.Length || m_srcpos == nameStart)
+                throw _error(Error.INVALID_NAMED_REFERENCE);
+
+            string groupName = src.Substring(nameStart, m_srcpos - nameStart);
+            m_srcpos++;
+
+            if (m_groupNameIndexMap.TryGetValue(groupName, out int groupNumber))
+                _writeGroupReference(groupNumber);
+            else
+                m_forwardReferences.add(new ForwardRef {position = m_bufpos, name = groupName});
         }
 
         /// <summary>
         /// Reads a character class from the source pattern.
         /// </summary>
         private void _readCharSet() {
-
             string src = m_source;
-            int srcpos = m_srcpos + 1, srclen = src.Length;
+            m_srcpos++;
 
-            int charsLeft = srclen - srcpos;
-            if (charsLeft == 0)     // Lone '[' at end of pattern
+            if (src.Length == m_srcpos)     // Lone '[' at end of pattern
                 throw _error(Error.UNTERMINATED_CHAR_SET);
 
-            char c = src[srcpos];
+            char ch = src[m_srcpos];
 
-            if (c == ']')   // Empty character sets ('[]') are not allowed
-                throw _error(Error.EMPTY_CHAR_SET);
+            if (ch == ']') {
+                // Empty character sets are legal, but fail on everything.
+                // An equivalent pattern in .NET regex is (?!)
+                _appendToBuffer("(?!)");
+                m_srcpos++;
+                return;
+            }
 
-            if (charsLeft == 1)     // Only one character left: this indicates an unterminated set
+            if (src.Length - m_srcpos <= 1)     // Only one character left: this indicates an unterminated set
                 _error(Error.UNTERMINATED_CHAR_SET);
 
-            if (c == '^') {
-                if (src[srcpos + 1] == ']') {
-                    // If '^' is the lone character of a set, it is literal, otherwise, if
-                    // it is at the start of the set, it negates the set.
-                    _writeCharPair('\\', '^');
-                    m_srcpos += 3;
+            if (ch == '^') {
+                // If '^' is at the start of the set, it negates the set.
+                // The set [^] matches all characters, and is equivalent to a "dot-all" expression.
+                if (src[m_srcpos + 1] == ']') {
+                    _writeDotAll();
+                    m_srcpos += 2;
                     return;
                 }
-                m_isInCharSet = true;
+                m_srcpos++;
                 _writeCharPair('[', '^');
-                srcpos++;
             }
             else {
-                m_isInCharSet = true;
                 _writeChar('[');
             }
 
+            m_isInCharSet = true;
 
-            int setStartPos = srcpos;
-            bool lastWasDash = false;
-            bool lastWasSubclass = false;
+            bool isInCharRange = false;
+            bool nextDashCreatesRange = false;
+            char curRangeStartChar = '\0';
 
-            while (srcpos < srclen) {
+            while (m_srcpos < src.Length) {
+                ch = src[m_srcpos];
 
-                c = src[srcpos];
-
-                if (c == '\\') {
-                    if (srcpos == srclen - 1)
-                        throw _error(Error.LONE_BACKSLASH);
-
-                    char nextChar = src[srcpos + 1];
-                    switch (nextChar) {
-                        // These are special "subclasses" that can be used within classes. If they are preceded
-                        // or succeeded by a dash character ('-'), the dash is literal.
-                        case 'w':
-                        case 'd':
-                        case 's':
-                        case 'W':
-                        case 'D':
-                        case 'S':
-                            if (lastWasDash) {
-                                _writeCharPair('\\', '-');
-                                lastWasDash = false;
-                            }
-                            _writeCharPair('\\', nextChar);
-                            lastWasSubclass = true;
-                            srcpos += 2;
-                            break;
-
-                        default:
-                            lastWasSubclass = false;
-
-                            if (lastWasDash) {
-                                // If the character is preceded by a dash character ('-'), a check has to be
-                                // made to ensure that the character range is valid (i.e. it is not a reverse range)
-                                char startOfRange = m_charSetLastChar;
-                                _writeChar('-');
-
-                                m_srcpos = srcpos;
-                                _readEscapeSequence();
-                                srcpos = m_srcpos;
-
-                                if (m_charSetLastChar < startOfRange)
-                                    throw _error(Error.CHAR_SET_REVERSE_RANGE);
-
-                                lastWasDash = false;
-                            }
-                            else {
-                                m_srcpos = srcpos;
-                                _readEscapeSequence();
-                                srcpos = m_srcpos;
-                            }
-                            break;
-                    }
-                }
-                else if (c == ']') {
+                if (ch == ']') {
                     // End of class
-                    if (lastWasDash)
-                        _writeCharPair('\\', '-');
-
                     _writeChar(']');
-                    m_srcpos = srcpos + 1;
+                    m_srcpos++;
                     m_isInCharSet = false;
                     return;
                 }
-                else if (c == '-' && !lastWasDash) {
-                    if (lastWasSubclass || srcpos == setStartPos)
-                        // If the '-' is preceded by a subclass (\w, \d etc.), or is at the
-                        // beginning of the set (except for a possible '^'), it is literal.
-                        _writeCharPair('\\', '-');
-                    else
-                        lastWasDash = true;
 
-                    lastWasSubclass = false;
-                    srcpos++;
+                bool maybeEndOfRange = false;
+
+                if (ch == '\\') {
+                    if (src.Length - m_srcpos < 2)
+                        throw _error(Error.LONE_BACKSLASH);
+
+                    char nextChar = src[m_srcpos + 1];
+                    nextDashCreatesRange =
+                        nextChar != 'w' && nextChar != 'W'
+                        && nextChar != 's' && nextChar != 'S'
+                        && nextChar != 'd' && nextChar != 'D';
+
+                    _readEscapeSequence();
+                    maybeEndOfRange = true;
                 }
-                else if (lastWasDash) {
-                    if (c < m_charSetLastChar)
-                        throw _error(Error.CHAR_SET_REVERSE_RANGE);
+                else if (ch == '-') {
+                    bool createsRange = false;
 
-                    if (c == '-' || c == '[') {
-                        // Escape these characters.
+                    if (nextDashCreatesRange && src.Length - m_srcpos > 1) {
+                        char nextChar = src[m_srcpos + 1];
+                        if (nextChar == ']') {
+                            createsRange = false;
+                        }
+                        else if (nextChar != '\\') {
+                            createsRange = true;
+                        }
+                        else if (src.Length - m_srcpos <= 2) {
+                            createsRange = false;
+                        }
+                        else {
+                            nextChar = src[m_srcpos + 2];
+                            createsRange =
+                                nextChar != 'w' && nextChar != 'W'
+                                && nextChar != 's' && nextChar != 'S'
+                                && nextChar != 'd' && nextChar != 'D';
+                        }
+                    }
+
+                    if (createsRange) {
+                        isInCharRange = true;
+                        nextDashCreatesRange = false;
+                        curRangeStartChar = m_charSetLastChar;
                         _writeChar('-');
-                        _writeCharPair('\\', c);
                     }
                     else {
-                        _writeCharPair('-', c);
+                        _writeCharPair('\\', '-');
+                        maybeEndOfRange = true;
+                        nextDashCreatesRange = true;
                     }
 
-                    lastWasDash = false;
-                    lastWasSubclass = false;
-                    srcpos++;
+                    m_srcpos++;
                 }
                 else {
-                    if (c == '[')
+                    if (ch == '[')
                         _writeCharPair('\\', '[');
                     else
-                        _writeChar(c);
+                        _writeChar(ch);
 
-                    srcpos++;
-                    lastWasSubclass = false;
+                    m_srcpos++;
+                    maybeEndOfRange = true;
+                    nextDashCreatesRange = true;
                 }
 
+                if (maybeEndOfRange && isInCharRange) {
+                    if (m_charSetLastChar < curRangeStartChar)
+                        throw _error(Error.CHAR_SET_REVERSE_RANGE);
+
+                    isInCharRange = false;
+                    nextDashCreatesRange = false;
+                }
             }
 
             // No ']', found
             throw _error(Error.UNTERMINATED_CHAR_SET);
-
         }
 
         /// <summary>
-        /// Performs numeric reference patching once the regex string is parsed.
+        /// Performs forward reference patching once the regex string is parsed.
         /// </summary>
-        private void _patchNumericReferences() {
-
-            if (m_numRefPatches.length == 0)
+        private void _resolveForwardReferences() {
+            if (m_forwardReferences.length == 0)
                 return;
-
-            int groupCount = m_groupNames.length;
 
             char[] unpatchedBuffer = m_buffer;
             int unpatchedLength = m_bufpos;
@@ -1242,69 +1284,45 @@ namespace Mariana.AVM2.Core {
 
             // This is just an estimated length; we still need to check bounds on each
             // write and expand the buffer if needed.
-            m_buffer = new char[checked(unpatchedLength + 6 * m_numRefPatches.length)];
+            m_buffer = new char[checked(unpatchedLength + 6 * m_forwardReferences.length)];
             m_bufpos = 0;
 
-            for (int i = 0, n = m_numRefPatches.length; i < n; i++) {
+            for (int i = 0; i < m_forwardReferences.length; i++) {
+                ref ForwardRef forwardRef = ref m_forwardReferences[i];
 
-                NumRefPatch patch = m_numRefPatches[i];
-
-                if (patch.position != lastPatchPosition) {
-                    // Copy the data from the position of the last patch to this one.
-                    _copyToBuffer(unpatchedBuffer.AsSpan(lastPatchPosition, patch.position - lastPatchPosition));
-                    lastPatchPosition = patch.position;
+                if (forwardRef.position != lastPatchPosition) {
+                    // Copy the data from the position of the last forward ref to this one.
+                    _appendToBuffer(unpatchedBuffer.AsSpan(lastPatchPosition, forwardRef.position - lastPatchPosition));
+                    lastPatchPosition = forwardRef.position;
                 }
 
-                if (patch.nDigits == 1) {
-                    if (patch.bcdDigits <= groupCount) {
-                        _writeGroupReference(0, 0, patch.bcdDigits);
-                    }
-                    else {
-                        _writeOctal((char)(patch.bcdDigits + '0'), '\0', '\0');
-                    }
-                }
-                else if (patch.nDigits == 2) {
-                    int digit1 = patch.bcdDigits >> 4,
-                        digit2 = patch.bcdDigits & 0xF;
+                if (forwardRef.name != null) {
+                    if (!m_groupNameIndexMap.TryGetValue(forwardRef.name, out int namedGroupNumber))
+                        throw _error(Error.INVALID_NAMED_REFERENCE);
 
-                    if (digit1 * 10 + digit2 <= groupCount) {
-                        _writeGroupReference(0, digit1, digit2);
-                    }
-                    else if (digit1 <= groupCount) {
-                        _writeGroupReference(0, 0, digit1);
-                        _writeChar((char)(digit2 + '0'));
-                    }
-                    else {
-                        _writeOctal((char)(digit1 + '0'), (char)(digit2 + '0'), '\0');
-                    }
+                    _writeGroupReference(namedGroupNumber);
                 }
-                else if (patch.nDigits == 3) {
-                    int digit1 = patch.bcdDigits >> 8,
-                        digit2 = (patch.bcdDigits >> 4) & 0xF,
-                        digit3 = patch.bcdDigits & 0xF;
+                else if (forwardRef.groupNumber <= groupCount) {
+                    _writeGroupReference(forwardRef.groupNumber);
+                }
+                else {
+                    int digit1 = forwardRef.groupNumber / 100;
+                    int t = forwardRef.groupNumber - digit1 * 100;
+                    int digit2 = t / 10;
+                    int digit3 = t - digit2 * 10;
 
-                    if (digit1 * 100 + digit2 * 10 + digit3 <= groupCount) {
-                        _writeGroupReference(digit1, digit2, digit3);
-                    }
-                    else if (digit1 * 10 + digit2 <= groupCount) {
-                        _writeGroupReference(0, digit1, digit2);
-                        _writeChar((char)(digit3 + '0'));
-                    }
-                    else if (digit1 <= groupCount) {
-                        _writeGroupReference(0, 0, digit1);
-                        _writeCharPair((char)(digit2 + '0'), (char)(digit3 + '0'));
-                    }
-                    else {
+                    if (digit1 == 0 && digit2 == 0)
+                        _writeOctal((char)(digit3 + '0'));
+                    else if (digit1 == 0)
+                        _writeOctal((char)(digit2 + '0'), (char)(digit3 + '0'));
+                    else
                         _writeOctal((char)(digit1 + '0'), (char)(digit2 + '0'), (char)(digit3 + '0'));
-                    }
                 }
-
             }
 
             if (lastPatchPosition != unpatchedLength)
                 // Copy any remaining characters from the unpatched regex.
-                _copyToBuffer(unpatchedBuffer.AsSpan(lastPatchPosition, unpatchedLength - lastPatchPosition));
-
+                _appendToBuffer(unpatchedBuffer.AsSpan(lastPatchPosition, unpatchedLength - lastPatchPosition));
         }
 
         /// <summary>
