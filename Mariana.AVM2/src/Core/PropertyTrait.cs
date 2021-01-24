@@ -63,7 +63,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="getter">Getter.</param>
         /// <param name="setter">Setter.</param>
-        protected void setAccessors(MethodTrait getter, MethodTrait setter) {
+        protected private void setAccessors(MethodTrait getter, MethodTrait setter) {
             m_getter = getter;
             m_setter = setter;
         }

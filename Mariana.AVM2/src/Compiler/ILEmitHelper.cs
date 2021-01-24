@@ -140,6 +140,8 @@ namespace Mariana.AVM2.Compiler {
                     break;
                 default:
                     // Object type.
+                    if (fromType.isInterface)
+                        builder.emit(ILOp.castclass, typeof(ASObject));
                     builder.emit(ILOp.call, KnownMembers.objectToInt, 0);
                     break;
             }
@@ -174,6 +176,8 @@ namespace Mariana.AVM2.Compiler {
                     break;
                 default:
                     // Object type.
+                    if (fromType.isInterface)
+                        builder.emit(ILOp.castclass, typeof(ASObject));
                     builder.emit(ILOp.call, KnownMembers.objectToUint, 0);
                     break;
             }
@@ -211,6 +215,8 @@ namespace Mariana.AVM2.Compiler {
                     break;
                 default:
                     // Object type.
+                    if (fromType.isInterface)
+                        builder.emit(ILOp.castclass, typeof(ASObject));
                     builder.emit(ILOp.call, KnownMembers.objectToNumber, 0);
                     break;
             }
@@ -256,6 +262,8 @@ namespace Mariana.AVM2.Compiler {
                     break;
                 default:
                     // Object type.
+                    if (fromType.isInterface)
+                        builder.emit(ILOp.castclass, typeof(ASObject));
                     builder.emit(ILOp.call, convert ? KnownMembers.objectToStringConvert : KnownMembers.objectToStringCoerce, 0);
                     break;
             }
