@@ -21,9 +21,6 @@ namespace Mariana.AVM2.Core {
         /// the Error class (or a subclass of it), but any AS3 object is allowed to be thrown as an
         /// error.</param>
         public AVM2Exception(ASAny thrownValue) {
-            if (thrownValue.value is ASError err)
-                err.setExceptionForStackTrace(this);
-
             m_thrownValue = thrownValue;
         }
 
@@ -137,9 +134,7 @@ namespace Mariana.AVM2.Core {
             }
 
             if (exception is NullReferenceException nullRefEx) {
-                ASError error = ErrorHelper.createErrorObject(ErrorCode.NULL_REFERENCE_ERROR);
-                error.setExceptionForStackTrace(nullRefEx);
-                thrownValue = error;
+                thrownValue = ErrorHelper.createErrorObject(ErrorCode.NULL_REFERENCE_ERROR);
                 return true;
             }
 

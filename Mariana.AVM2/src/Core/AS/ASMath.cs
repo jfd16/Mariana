@@ -53,7 +53,7 @@ namespace Mariana.AVM2.Core {
         /// value to obtain its base 2 logarithm.
         /// </summary>
         [AVM2ExportTrait]
-        public const double LOG2E = 1.442695040888963387;
+        public const double LOG2E = 1.4426950408889634;
 
         /// <summary>
         /// The value of the square root of 1/2 (0.5).
@@ -223,7 +223,8 @@ namespace Mariana.AVM2.Core {
         /// <param name="y">The power.</param>
         /// <returns>The specified value raized to the specified power.</returns>
         [AVM2ExportTrait]
-        public static double pow(double x, double y) => Math.Pow(x, y);
+        public static double pow(double x, double y) =>
+            (Math.Abs(x) == 1.0 && !Double.IsFinite(y)) ? Double.NaN : Math.Pow(x, y);
 
         /// <summary>
         /// Returns a pseudo-random number in the range [0, 1).
@@ -253,20 +254,20 @@ namespace Mariana.AVM2.Core {
             const long fullMantissaMask = mantissaMask | mantissaHiddenBit;
 
             if (exponent < -1) {
-                // Result is zero. (Math.round does not preserve signed zeros)
-                resultBits = 0L;
+                // Result is zero (of the appropriate sign).
+                resultBits = bits & signMask;
             }
             else if (exponent == -1) {
                 // If exponent is -1:
                 // If the sign is positive the result is 1.
-                // If the value is exactly -0.5 (all mantissa bits zero), the result is 0.
+                // If the value is exactly -0.5 (all mantissa bits zero), the result is -0.
                 // Otherwise if the sign is negative, the result is -1.
                 const long oneBits = 1023L << 52;
 
                 if ((bits & signMask) == 0)
                     resultBits = oneBits;
                 else if ((bits & mantissaMask) == 0)
-                    resultBits = 0L;
+                    resultBits = signMask;
                 else
                     resultBits = oneBits | signMask;
             }

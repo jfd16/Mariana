@@ -17,8 +17,6 @@ namespace Mariana.AVM2.Core {
 
         private bool m_prettyPrint;
 
-        private string m_newline;
-
         private string m_indent1, m_indent2, m_indent4;
 
         private ASXML.DescendantEnumerator m_iterator;
@@ -75,7 +73,6 @@ namespace Mariana.AVM2.Core {
             m_nsInScope.clear();
             m_tagStack.clear();
 
-            m_newline = Environment.NewLine;
             m_nextTempPrefixId = 0;
         }
 
@@ -185,7 +182,7 @@ namespace Mariana.AVM2.Core {
                 return;
 
             if (m_parts.length != 0)
-                m_parts.add(m_newline);
+                m_parts.add("\n");
 
             int curDepth = m_tagStack.length;
 

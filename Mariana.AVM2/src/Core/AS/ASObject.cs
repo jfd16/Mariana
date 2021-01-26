@@ -1853,11 +1853,11 @@ namespace Mariana.AVM2.Core {
         ///
         /// <remarks>
         /// This method should not be overridden by any type other than the primitive types (int,
-        /// uint, Number, String and Boolean). The ABCIL compiler assumes that other types do not
+        /// uint, Number, String and Boolean). The ABC-IL compiler assumes that other types do not
         /// override this method, and overriding will result in inconsistencies between compile-time
         /// and run-time behaviour.
         /// </remarks>
-        protected virtual bool AS_coerceBoolean() => true;
+        protected private virtual bool AS_coerceBoolean() => true;
 
         /// <summary>
         /// Converts the current instance to a floating-point number value.

@@ -70,6 +70,7 @@ namespace Mariana.AVM2.Core {
             () => Class.fromType(typeof(ASNumber)),
             recursionHandling: LazyInitRecursionHandling.RECURSIVE_CALL
         );
+
         private readonly double m_value;
 
         private ASNumber(double v) : base(s_lazyClass.value) {
@@ -80,7 +81,7 @@ namespace Mariana.AVM2.Core {
         /// Converts the uint instance to a Boolean value.
         /// </summary>
         /// <returns>The Boolean value</returns>
-        protected override bool AS_coerceBoolean() => AS_toBoolean(m_value);
+        protected private override bool AS_coerceBoolean() => AS_toBoolean(m_value);
 
         /// <summary>
         /// Converts the current instance to an integer value.
@@ -394,11 +395,8 @@ namespace Mariana.AVM2.Core {
         /// This is a special method that is called from the AVM2 runtime and by code compiled by the
         /// ABCIL compiler. It must not be called from outside code.
         /// </summary>
-        internal static new ASAny __AS_INVOKE(ReadOnlySpan<ASAny> args) {
-            return (args.Length == 0)
-                ? ASAny.AS_fromNumber(0.0)
-                : ASAny.AS_fromNumber(ASAny.AS_toNumber(args[0]));
-        }
+        internal static new ASAny __AS_INVOKE(ReadOnlySpan<ASAny> args) =>
+            ASAny.AS_fromNumber((args.Length == 0) ? 0.0 : ASAny.AS_toNumber(args[0]));
 
         /// <exclude/>
         /// <summary>

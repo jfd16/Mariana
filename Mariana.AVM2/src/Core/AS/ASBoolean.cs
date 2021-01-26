@@ -46,7 +46,7 @@ namespace Mariana.AVM2.Core {
         /// Converts the current instance to a Boolean value.
         /// </summary>
         /// <returns>The Boolean value</returns>
-        protected override bool AS_coerceBoolean() => m_value;
+        protected private override bool AS_coerceBoolean() => m_value;
 
         /// <summary>
         /// Converts the current instance to an integer value.

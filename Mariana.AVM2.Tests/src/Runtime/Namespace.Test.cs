@@ -116,6 +116,16 @@ namespace Mariana.AVM2.Tests {
         }
 
         [Fact]
+        public void privateNamespaceId_shouldGetId() {
+            Assert.Equal(0, Namespace.createPrivate(0).privateNamespaceId);
+            Assert.Equal(10, Namespace.createPrivate(10).privateNamespaceId);
+            Assert.Equal(-1, Namespace.any.privateNamespaceId);
+            Assert.Equal(-1, Namespace.@public.privateNamespaceId);
+            Assert.Equal(-1, (new Namespace("a")).privateNamespaceId);
+            Assert.Equal(-1, (new Namespace(NamespaceKind.PACKAGE_INTERNAL, "a")).privateNamespaceId);
+        }
+
+        [Fact]
         public void createPrivate_shouldThrowWhenIdExceedsMaxValue() {
             AVM2Exception exc;
 

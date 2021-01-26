@@ -17,7 +17,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="id">The error code.</param>
         [AVM2ExportTrait]
         public ASArgumentError(string message = "", int id = 0) : base(message, id) {
-
+            name = "ArgumentError";
         }
 
     }

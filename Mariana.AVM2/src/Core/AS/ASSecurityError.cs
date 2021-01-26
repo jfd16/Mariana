@@ -23,7 +23,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="id">The error code.</param>
         [AVM2ExportTrait]
         public ASSecurityError(string message = "", int id = 0) : base(message, id) {
-
+            name = "SecurityError";
         }
 
     }

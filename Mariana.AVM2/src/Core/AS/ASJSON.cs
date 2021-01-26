@@ -1118,7 +1118,7 @@ namespace Mariana.AVM2.Core {
                 if (m_stack.length != 0)
                     _writeIndent();
                 else if (m_prettyPrint)
-                    m_parts.add(Environment.NewLine);
+                    m_parts.add("\n");
 
                 m_parts.add(isArray ? "]" : "}");
 
@@ -1133,7 +1133,7 @@ namespace Mariana.AVM2.Core {
                 if (level == 0 || !m_prettyPrint)
                     return;
 
-                m_parts.add(Environment.NewLine);
+                m_parts.add("\n");
                 if (m_indentString1 == null)
                     return;
 

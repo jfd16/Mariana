@@ -190,7 +190,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expected, indexOfFirstNonSpace(str));
         }
 
-        private static readonly double s_negzero = BitConverter.Int64BitsToDouble(unchecked((long)0x8000000000000000L));
+        private static readonly double NEG_ZERO = BitConverter.Int64BitsToDouble(unchecked((long)0x8000000000000000L));
 
         public static IEnumerable<object[]> doubleToString_shouldFormatScientific_data = new (double, string)[] {
             (4.9406564584124654e-324, "4.9406564584124654e-324"),
@@ -261,7 +261,7 @@ namespace Mariana.AVM2.Tests {
 
         public static IEnumerable<object[]> doubleToString_shouldFormatFixed_data = new (double, string)[] {
             (0, "0"),
-            (s_negzero, "0"),  // -0
+            (NEG_ZERO, "0"),
             (Double.NaN, "NaN"),
             (Double.PositiveInfinity, "Infinity"),
             (Double.NegativeInfinity, "-Infinity"),
@@ -328,12 +328,12 @@ namespace Mariana.AVM2.Tests {
             ("0000.0000e-500000", 0),
             ("0.0e+1000000000000", 0),
 
-            ("-0", s_negzero),
-            ("-.0", s_negzero),
-            ("-0.", s_negzero),
-            ("-0.0", s_negzero),
-            ("-0e+2", s_negzero),
-            ("-.0e-20", s_negzero),
+            ("-0", NEG_ZERO),
+            ("-.0", NEG_ZERO),
+            ("-0.", NEG_ZERO),
+            ("-0.0", NEG_ZERO),
+            ("-0e+2", NEG_ZERO),
+            ("-.0e-20", NEG_ZERO),
 
             ("Infinity", Double.PositiveInfinity),
             ("+Infinity", Double.PositiveInfinity),
@@ -628,7 +628,7 @@ namespace Mariana.AVM2.Tests {
 
         public static IEnumerable<object[]> stringToDouble_shouldParseHex_data = new (string, double)[] {
             ("0x0", 0),
-            ("-0x0", s_negzero),
+            ("-0x0", NEG_ZERO),
             ("0x1", 1),
             ("0x123456789", 4886718345),
             ("0xabcdef", 11259375),
@@ -1558,9 +1558,9 @@ namespace Mariana.AVM2.Tests {
 
         public static IEnumerable<object[]> doubleToStringFixedNotation_shouldFormat_data = new (double, int, string)[] {
             (0, 0, "0"),
-            (s_negzero, 0, "0"),
+            (NEG_ZERO, 0, "0"),
             (0, 2, "0.00"),
-            (s_negzero, 2, "0.00"),
+            (NEG_ZERO, 2, "0.00"),
             (0, 20, "0.00000000000000000000"),
             (0, 21, "0.000000000000000000000"),
             (1, 0, "1"),
@@ -1659,9 +1659,9 @@ namespace Mariana.AVM2.Tests {
 
         public static IEnumerable<object[]> doubleToStringExpNotation_shouldFormat_data = new (double, int, string)[] {
             (0, 0, "0e+0"),
-            (s_negzero, 0, "0e+0"),
+            (NEG_ZERO, 0, "0e+0"),
             (0, 2, "0.00e+0"),
-            (s_negzero, 2, "0.00e+0"),
+            (NEG_ZERO, 2, "0.00e+0"),
             (0, 20, "0.00000000000000000000e+0"),
             (1, 0, "1e+0"),
             (-1, 0, "-1e+0"),
@@ -1753,9 +1753,9 @@ namespace Mariana.AVM2.Tests {
 
         public static IEnumerable<object[]> doubleToStringPrecision_shouldFormat_data = new (double, int, string)[] {
             (0, 1, "0"),
-            (s_negzero, 1, "0"),
+            (NEG_ZERO, 1, "0"),
             (0, 2, "0.0"),
-            (s_negzero, 2, "0.0"),
+            (NEG_ZERO, 2, "0.0"),
             (0, 21, "0.00000000000000000000"),
             (1, 1, "1"),
             (-1, 1, "-1"),
@@ -1957,7 +1957,7 @@ namespace Mariana.AVM2.Tests {
         public static IEnumerable<object[]> doubleToStringPow2Radix_shouldFormat_data =
             new (double, string, string, string, string, string)[] {
                 (0.0, "0", "0", "0", "0", "0"),
-                (s_negzero, "0", "0", "0", "0", "0"),
+                (NEG_ZERO, "0", "0", "0", "0", "0"),
                 (1.0, "1", "1", "1", "1", "1"),
                 (-1.0, "-1", "-1", "-1", "-1", "-1"),
                 (2.0, "10", "2", "2", "2", "2"),
@@ -2255,12 +2255,12 @@ namespace Mariana.AVM2.Tests {
             (0.0, 28, "0"),
             (0.0, 30, "0"),
             (0.0, 33, "0"),
-            (s_negzero, 2, "0"),
-            (s_negzero, 15, "0"),
-            (s_negzero, 20, "0"),
-            (s_negzero, 28, "0"),
-            (s_negzero, 30, "0"),
-            (s_negzero, 33, "0"),
+            (NEG_ZERO, 2, "0"),
+            (NEG_ZERO, 15, "0"),
+            (NEG_ZERO, 20, "0"),
+            (NEG_ZERO, 28, "0"),
+            (NEG_ZERO, 30, "0"),
+            (NEG_ZERO, 33, "0"),
             (1.0, 5, "1"),
             (1.0, 10, "1"),
             (1.0, 18, "1"),
@@ -2557,6 +2557,40 @@ namespace Mariana.AVM2.Tests {
             (2821170326977.0, 36, "1000zz001"),
             (59401356089.0, 3, "12200022210010112200112"),
             (4177248169401010.0, 11, "aaaaaaaaaaa0000"),
+
+            (0.1, 2, "0"),
+            (0.3, 12, "0"),
+            (0.7, 18, "0"),
+            (0.000461, 23, "0"),
+            (0.999999, 19, "0"),
+            (-0.948113, 32, "0"),
+            (-0.000581, 7, "0"),
+            (Double.Epsilon, 4, "0"),
+            (Double.Epsilon, 7, "0"),
+            (-Double.Epsilon, 8, "0"),
+            (-Double.Epsilon, 29, "0"),
+
+            (1.2, 5, "1"),
+            (1.7, 9, "1"),
+            (-1.6, 13, "-1"),
+
+            (745531.0000382, 2, "10110110000000111011"),
+            (745531.8562113, 4, "2312000323"),
+            (745531.7562114, 5, "142324111"),
+            (745531.9483316, 8, "2660073"),
+            (745531.0039210, 11, "46a146"),
+            (-745531.6327455, 16, "-b603b"),
+            (-745531.9974116, 19, "-5dd39"),
+            (-745531.5732884, 20, "-4d3gb"),
+            (-745531.9871123, 32, "-mo1r"),
+            (-745531.6981994, 36, "-fz97"),
+
+            (4294967295.65421, 5, "32244002423140"),
+            (4294967295.09414, 6, "1550104015503"),
+            (4294967295.78931, 9, "12068657453"),
+            (4294967295.33672, 21, "281d55i3"),
+            (-4294967295.00007, 30, "-5qmcpqf"),
+            (-4294967295.99992, 32, "-3vvvvvv"),
 
             (Double.PositiveInfinity, 2, "Infinity"),
             (Double.PositiveInfinity, 5, "Infinity"),

@@ -52,15 +52,15 @@ namespace Mariana.AVM2.Core {
         public string message;
 
         /// <summary>
-        /// The <see cref="Exception"/> object that is used to retrieve the error's stack trace.
+        /// The <see cref="StackTrace"/> representing the call stack at the time of the error's construction.
         /// </summary>
-        private Exception m_exForStackTrace;
+        private StackTrace m_stackTrace;
 
         /// <summary>
         /// A string providing information about the state of the call stack at the time the error was
-        /// thrown. This is lazily initialized when <see cref="getStackTrace"/> is called.
+        /// constructed. This is lazily initialized when <see cref="getStackTrace"/> is called.
         /// </summary>
-        private LazyInitObject<string> m_lazyStackTrace;
+        private LazyInitObject<string> m_lazyStackTraceString;
 
         /// <summary>
         /// Creates a new <see cref="ASError"/> object.
@@ -69,12 +69,11 @@ namespace Mariana.AVM2.Core {
         /// <param name="id">The error ID.</param>
         [AVM2ExportTrait]
         public ASError(string message = "", int id = 0) {
-            Class klass = AS_class;
-
             this.m_errorID = id;
             this.message = message;
-            this.name = (klass != null) ? AS_class.name.localName : "Error";
-            this.m_lazyStackTrace = new LazyInitObject<string>(_initStackTrace);
+            this.name = "Error";
+            this.m_stackTrace = new StackTrace(1, false);
+            this.m_lazyStackTraceString = new LazyInitObject<string>(_initStackTrace);
         }
 
         /// <summary>
@@ -91,21 +90,22 @@ namespace Mariana.AVM2.Core {
         /// error was thrown.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
-        public virtual string getStackTrace() => (m_exForStackTrace == null) ? null : m_lazyStackTrace.value;
+        public virtual string getStackTrace() => m_lazyStackTraceString.value;
 
         /// <summary>
         /// Function for lazy initialisation of the stacktrace.
         /// </summary>
         private string _initStackTrace() {
-            StackFrame[] frames = (new StackTrace(m_exForStackTrace, false)).GetFrames();
+            StackFrame[] frames = m_stackTrace.GetFrames();
 
             var sb = new StringBuilder();
             sb.Append(AS_convertString(this));
 
-            void sbAppendClassName(Class klass) {
-                if (!klass.name.ns.isPublic)
-                    sb.Append(klass.name.ns.uri).Append("::");
-                sb.Append(klass.name.localName);
+            void sbAppendName(in QName qname) {
+                if (qname.ns.kind == NamespaceKind.NAMESPACE && !qname.ns.isPublic)
+                    sb.Append(qname.ns.uri).Append("::");
+
+                sb.Append(qname.localName);
             }
 
             for (int i = 0; i < frames.Length; i++) {
@@ -121,14 +121,16 @@ namespace Mariana.AVM2.Core {
                     if (trait == null)
                         continue;
 
-                    sb.AppendLine().Append("    at").Append(trait.name.localName).Append("()");
+                    sb.Append("\n    at global/");
+                    sbAppendName(trait.name);
+                    sb.Append("()");
                 }
                 else if (method is ConstructorInfo ctor) {
                     if ((object)klass.constructor.underlyingConstructorInfo != ctor)
                         continue;
 
-                    sb.AppendLine().Append("    at");
-                    sbAppendClassName(klass);
+                    sb.Append("\n    at ");
+                    sbAppendName(klass.name);
                     sb.Append("()");
                 }
                 else {
@@ -136,9 +138,11 @@ namespace Mariana.AVM2.Core {
                     if (trait == null)
                         continue;
 
-                    sb.AppendLine().Append("    at");
-                    sbAppendClassName(klass);
-                    sb.Append('/').Append(trait.name.localName).Append("()");
+                    sb.Append("\n    at ");
+                    sbAppendName(klass.name);
+                    sb.Append('/');
+                    sbAppendName(trait.name);
+                    sb.Append("()");
                 }
             }
 
@@ -158,21 +162,8 @@ namespace Mariana.AVM2.Core {
         //[AVM2ExportTrait(name = "toString", nsName = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod(name = "toString")]
         public virtual new string AS_toString() {
-            if (message == null || message.Length == 0)
-                return name;
-            return name + ": " + message;
-        }
-
-        /// <summary>
-        /// Sets the <see cref="Exception"/> instance for providing the stack trace when the
-        /// <see cref="getStackTrace"/> method is called.
-        /// </summary>
-        /// <param name="ex">An exception object.</param>
-        internal void setExceptionForStackTrace(Exception ex) {
-            if (m_exForStackTrace == null)
-                // Only set the exception if it has not been set yet so that stack traces
-                // are preserved when rethrowing.
-                m_exForStackTrace = ex;
+            string name = ASObject.AS_convertString(this.name);
+            return (message == null || message.Length == 0) ? name : name + ": " + message;
         }
 
     }

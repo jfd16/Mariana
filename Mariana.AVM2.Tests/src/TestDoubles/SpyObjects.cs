@@ -70,7 +70,7 @@ namespace Mariana.AVM2.Tests.TestDoubles {
         public string stringValue;
         public bool boolValue;
 
-        protected override bool AS_coerceBoolean() => boolValue;
+        protected private override bool AS_coerceBoolean() => boolValue;
         protected override int AS_coerceInt() => intValue;
         protected override uint AS_coerceUint() => uintValue;
         protected override double AS_coerceNumber() => numberValue;
