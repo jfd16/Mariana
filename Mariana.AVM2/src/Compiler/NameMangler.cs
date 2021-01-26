@@ -9,34 +9,20 @@ namespace Mariana.AVM2.Compiler {
     /// <summary>
     /// Generates mangled names for dynamic types and members emitted by the compiler.
     /// </summary>
-    internal static class NameMangler {
+    internal class NameMangler {
 
         private static char[] s_localNameSpecialChars = {'.', ':', '{', '\\', '\0'};
 
         private static char[] s_namesapceSpecialChars = {'{', '\\', '\0'};
 
-        [ThreadStatic]
-        private static StringBuilder s_threadStringBuilder;
-
-        /// <summary>
-        /// Returns the thread-static string builder used by the name mangler.
-        /// </summary>
-        /// <returns>A thread-static instance of <see cref="StringBuilder"/>.</returns>
-        private static StringBuilder _getStringBuilder() {
-            StringBuilder sb = s_threadStringBuilder;
-
-            if (sb == null)
-                sb = s_threadStringBuilder = new StringBuilder();
-
-            return sb;
-        }
+        private StringBuilder m_stringBuilder;
 
         /// <summary>
         /// Creates a mangled name from the given <see cref="QName"/>.
         /// </summary>
         /// <returns>The mangled name string.</returns>
         /// <param name="name">The qualified name from which to create a mangled name.</param>
-        public static string createName(in QName name) {
+        public string createName(in QName name) {
             string nsStr = _mangleNamespace(name.ns);
             string localStr = _mangleLocalName(name.localName);
             return (nsStr.Length == 0) ? localStr : nsStr + localStr;
@@ -47,7 +33,7 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         /// <returns>The mangled <see cref="TypeName"/>.</returns>
         /// <param name="name">The qualified name from which to create a mangled type name.</param>
-        public static TypeName createTypeName(in QName name) {
+        public TypeName createTypeName(in QName name) {
             string nsStr = _mangleNamespace(name.ns, true);
             string localStr = _mangleLocalName(name.localName);
             return (nsStr.Length == 0) ? new TypeName(localStr) : new TypeName(nsStr, localStr);
@@ -59,7 +45,7 @@ namespace Mariana.AVM2.Compiler {
         /// <returns>The mangled name string.</returns>
         /// <param name="propName">The qualified name of the property from which to create a
         /// mangled name for the getter.</param>
-        public static string createGetterName(QName propName) {
+        public string createGetterName(QName propName) {
             string nsStr = _mangleNamespace(propName.ns);
             string localStr = "get{" + _mangleLocalName(propName.localName) + "}";
             return (nsStr.Length == 0) ? localStr : nsStr + localStr;
@@ -71,7 +57,7 @@ namespace Mariana.AVM2.Compiler {
         /// <returns>The mangled name string.</returns>
         /// <param name="propName">The qualified name of the property from which to create a
         /// mangled name for the setter.</param>
-        public static string createSetterName(QName propName) {
+        public string createSetterName(QName propName) {
             string nsstr = _mangleNamespace(propName.ns);
             string localStr = "set{" + _mangleLocalName(propName.localName) + "}";
             return (nsstr.Length == 0) ? localStr : nsstr + localStr;
@@ -83,7 +69,7 @@ namespace Mariana.AVM2.Compiler {
         /// <returns>The mangled qualified name for the getter.</returns>
         /// <param name="propName">The qualified name of the property from which to create a
         /// mangled name for the getter.</param>
-        public static QName createGetterQualifiedName(QName propName) {
+        public QName createGetterQualifiedName(QName propName) {
             string localStr = "get{" + _mangleLocalName(propName.localName) + "}";
             return new QName(propName.ns, localStr);
         }
@@ -94,7 +80,7 @@ namespace Mariana.AVM2.Compiler {
         /// <returns>The mangled qualified name for the setter.</returns>
         /// <param name="propName">The qualified name of the property from which to create a
         /// mangled name for the setter.</param>
-        public static QName createSetterQualifiedName(QName propName) {
+        public QName createSetterQualifiedName(QName propName) {
             string localStr = "set{" + _mangleLocalName(propName.localName) + "}";
             return new QName(propName.ns, localStr);
         }
@@ -104,35 +90,28 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         /// <returns>The mangled name for the script initializer.</returns>
         /// <param name="uid">A unique identifier for the script.</param>
-        public static string createScriptInitName(int uid) => "scriptinit{" + uid.ToString(CultureInfo.InvariantCulture) + "}";
+        public string createScriptInitName(int uid) => "scriptinit{" + uid.ToString(CultureInfo.InvariantCulture) + "}";
 
         /// <summary>
         /// Creates a mangled name for a catch scope class.
         /// </summary>
         /// <returns>The mangled name for the catch scope class.</returns>
         /// <param name="uid">A unique identifier for the catch scope.</param>
-        public static string createCatchScopeClassName(int uid) => "__CatchScope{" + uid.ToString(CultureInfo.InvariantCulture) + "}";
+        public string createCatchScopeClassName(int uid) => "__CatchScope{" + uid.ToString(CultureInfo.InvariantCulture) + "}";
 
         /// <summary>
         /// Creates a mangled name for an activation class of a method.
         /// </summary>
         /// <returns>The mangled name for the activation class.</returns>
         /// <param name="uid">A unique identifier for the activation object.</param>
-        public static string createActivationClassName(int uid) => "__Activation{" + uid.ToString(CultureInfo.InvariantCulture) + "}";
-
-        /// <summary>
-        /// Creates a mangled name for a captured scope container class.
-        /// </summary>
-        /// <returns>The mangled name for the captured scope container class.</returns>
-        /// <param name="uid">A unique identifier for the captured scope container.</param>
-        public static string createScopeContainerName(int uid) => "__Scope{" + uid.ToString(CultureInfo.InvariantCulture) + "}";
+        public string createActivationClassName(int uid) => "__Activation{" + uid.ToString(CultureInfo.InvariantCulture) + "}";
 
         /// <summary>
         /// Creates a mangled name for an anonymous function.
         /// </summary>
         /// <returns>The mangled name for the anonymous function.</returns>
         /// <param name="uid">A unique identifier for the anonymous function.</param>
-        public static string createAnonFunctionName(int uid) => "function{" + uid.ToString(CultureInfo.InvariantCulture) + "}";
+        public string createAnonFunctionName(int uid) => "function{" + uid.ToString(CultureInfo.InvariantCulture) + "}";
 
         /// <summary>
         /// Creates a name for an interface method stub.
@@ -140,30 +119,36 @@ namespace Mariana.AVM2.Compiler {
         /// <returns>The name for the interface method stub.</returns>
         /// <param name="ifaceMangledName">The mangled name of the interface.</param>
         /// <param name="methodMangledName">The mangled name of the method being implemented.</param>
-        public static string createMethodImplStubName(string ifaceMangledName, string methodMangledName) =>
+        public string createMethodImplStubName(string ifaceMangledName, string methodMangledName) =>
             "IS:" + ifaceMangledName + ":{" + methodMangledName + "}";
 
-        private static string _mangleLocalName(string str) {
+        private string _mangleLocalName(string str) {
             if (str.Length == 0)
                 return "{}";
 
             int curIndex = 0;
-            StringBuilder sb = null;
+            bool usesStringBuilder = false;
+            StringBuilder sb = m_stringBuilder;
 
             while (curIndex < str.Length) {
                 int index = str.IndexOfAny(s_localNameSpecialChars, curIndex);
                 if (index == -1)
                     break;
 
-                if (sb == null)
-                    sb = _getStringBuilder();
+                if (!usesStringBuilder) {
+                    if (sb == null)
+                        sb = m_stringBuilder = new StringBuilder();
+                    sb.Clear();
+                    usesStringBuilder = true;
+                }
+
                 sb.Append(str, curIndex, index - curIndex);
                 sb.Append('\\');
                 sb.Append((str[index] == '\0') ? '0' : str[index]);
                 curIndex = index + 1;
             }
 
-            if (sb != null) {
+            if (usesStringBuilder) {
                 sb.Append(str, curIndex, str.Length - curIndex);
                 return sb.ToString();
             }
@@ -171,7 +156,7 @@ namespace Mariana.AVM2.Compiler {
             return str;
         }
 
-        private static string _mangleNamespace(Namespace ns, bool noNameSeparator = false) {
+        private string _mangleNamespace(Namespace ns, bool noNameSeparator = false) {
             string str = (ns.kind == NamespaceKind.PRIVATE)
                 ? ns.privateNamespaceId.ToString(CultureInfo.InvariantCulture)
                 : ns.uri;
@@ -183,22 +168,28 @@ namespace Mariana.AVM2.Compiler {
                 return "";
 
             int curIndex = 0;
-            StringBuilder sb = null;
+            bool usesStringBuilder = false;
+            StringBuilder sb = m_stringBuilder;
 
             while (curIndex < str.Length) {
                 int index = str.IndexOfAny(s_namesapceSpecialChars, curIndex);
                 if (index == -1)
                     break;
 
-                if (sb == null)
-                    sb = _getStringBuilder();
+                if (!usesStringBuilder) {
+                    if (sb == null)
+                        sb = m_stringBuilder = new StringBuilder();
+                    sb.Clear();
+                    usesStringBuilder = true;
+                }
+
                 sb.Append(str, curIndex, index - curIndex);
                 sb.Append('\\');
                 sb.Append((str[index] == '\0') ? '0' : str[index]);
                 curIndex = index + 1;
             }
 
-            if (sb != null) {
+            if (usesStringBuilder) {
                 sb.Append(str, curIndex, str.Length - curIndex);
                 str = sb.ToString();
             }

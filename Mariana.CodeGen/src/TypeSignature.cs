@@ -746,57 +746,67 @@ namespace Mariana.CodeGen {
     internal sealed class TypeSignatureBuilder {
 
         [ThreadStatic]
-        private static TypeSignatureBuilder m_instance;
+        private static TypeSignatureBuilder s_threadInstance;
 
-        private byte[] m_bytes = new byte[32];
+        private byte[] m_initialBuffer;
+        private byte[] m_currentBuffer;
         private int m_pos = 0;
 
-        public static TypeSignatureBuilder getInstance() {
-            if (m_instance == null)
-                m_instance = new TypeSignatureBuilder();
-            m_instance.clear();
-            return m_instance;
+        private TypeSignatureBuilder() {
+            m_initialBuffer = new byte[64];
+            _clear();
         }
 
-        public void clear() {
+        public static TypeSignatureBuilder getInstance() {
+            ref var inst = ref s_threadInstance;
+            if (inst == null)
+                inst = new TypeSignatureBuilder();
+
+            return inst;
+        }
+
+        private void _clear() {
+            m_currentBuffer = m_initialBuffer;
             m_pos = 0;
         }
 
         public void appendByte(byte value) {
-            if (m_pos == m_bytes.Length)
-                DataStructureUtil.resizeArray(ref m_bytes, m_pos, m_pos + 1, false);
+            if (m_pos == m_currentBuffer.Length)
+                DataStructureUtil.resizeArray(ref m_currentBuffer, m_pos, m_pos + 1, false);
 
-            m_bytes[m_pos++] = value;
+            m_currentBuffer[m_pos++] = value;
         }
 
         public void appendSignature(in TypeSignature sig) {
             int sigLength = sig.byteLength;
 
-            if (m_pos > m_bytes.Length - sigLength)
-                DataStructureUtil.resizeArray(ref m_bytes, m_pos, m_pos + sigLength, false);
+            if (m_pos > m_currentBuffer.Length - sigLength)
+                DataStructureUtil.resizeArray(ref m_currentBuffer, m_pos, m_pos + sigLength, false);
 
-            sig.writeToSpan(m_bytes.AsSpan(m_pos, sigLength));
+            sig.writeToSpan(m_currentBuffer.AsSpan(m_pos, sigLength));
             m_pos += sigLength;
         }
 
         public void appendCompressedUnsignedInt(int value) {
-            if (m_pos > m_bytes.Length - 4)
-                DataStructureUtil.resizeArray(ref m_bytes, m_pos, m_pos + 4, false);
+            if (m_pos > m_currentBuffer.Length - 4)
+                DataStructureUtil.resizeArray(ref m_currentBuffer, m_pos, m_pos + 4, false);
+
+            Span<byte> span = m_currentBuffer.AsSpan(m_pos, 4);
 
             if ((value & ~0x7F) == 0) {
-                m_bytes[m_pos] = (byte)value;
+                span[0] = (byte)value;
                 m_pos++;
             }
             else if ((value & ~0x3FFF) == 0) {
-                m_bytes[m_pos] = (byte)(value >> 8 | 0x80);
-                m_bytes[m_pos + 1] = (byte)value;
+                span[1] = (byte)value;
+                span[0] = (byte)(value >> 8 | 0x80);
                 m_pos += 2;
             }
             else if ((value & ~0x1FFFFFFF) == 0) {
-                m_bytes[m_pos] = (byte)(value >> 24 | 0xC0);
-                m_bytes[m_pos + 1] = (byte)(value >> 16);
-                m_bytes[m_pos + 2] = (byte)(value >> 8);
-                m_bytes[m_pos + 3] = (byte)value;
+                span[3] = (byte)value;
+                span[2] = (byte)(value >> 8);
+                span[1] = (byte)(value >> 16);
+                span[0] = (byte)(value >> 24 | 0xC0);
                 m_pos += 4;
             }
             else {
@@ -805,26 +815,28 @@ namespace Mariana.CodeGen {
         }
 
         public void appendCompressedSignedInt(int value) {
-            if (m_pos > m_bytes.Length - 4)
-                DataStructureUtil.resizeArray(ref m_bytes, m_pos, m_pos + 4, false);
+            if (m_pos > m_currentBuffer.Length - 4)
+                DataStructureUtil.resizeArray(ref m_currentBuffer, m_pos, m_pos + 4, false);
 
-            if (value >= -0x40 && value < 0x40) {
+            Span<byte> span = m_currentBuffer.AsSpan(m_pos, 4);
+
+            if ((uint)(value + 0x40) < 0x80) {
                 value = ((value << 1) & 0x7F) | ((value >> 6) & 1);
-                m_bytes[m_pos] = (byte)value;
+                span[0] = (byte)value;
                 m_pos++;
             }
-            else if (value >= -0x2000 && value < 0x2000) {
+            else if ((uint)(value + 0x2000) < 0x4000) {
                 value = ((value << 1) & 0x3FFF) | ((value >> 13) & 1);
-                m_bytes[m_pos] = (byte)(value >> 8 | 0x80);
-                m_bytes[m_pos + 1] = (byte)value;
+                span[1] = (byte)value;
+                span[0] = (byte)(value >> 8 | 0x80);
                 m_pos += 2;
             }
-            else if (value >= -0x10000000 && value < 0x10000000) {
+            else if ((uint)(value + 0x10000000) < 0x20000000) {
                 value = ((value << 1) & 0x1FFFFFFF) | ((value >> 28) & 1);
-                m_bytes[m_pos] = (byte)(value >> 24 | 0xC0);
-                m_bytes[m_pos + 1] = (byte)(value >> 16);
-                m_bytes[m_pos + 2] = (byte)(value >> 8);
-                m_bytes[m_pos + 3] = (byte)value;
+                span[3] = (byte)value;
+                span[2] = (byte)(value >> 8);
+                span[1] = (byte)(value >> 16);
+                span[0] = (byte)(value >> 24 | 0xC0);
                 m_pos += 4;
             }
             else {
@@ -832,18 +844,28 @@ namespace Mariana.CodeGen {
             }
         }
 
-        public byte[] makeByteArray() => m_bytes.AsSpan(0, m_pos).ToArray();
+        public byte[] makeByteArray() {
+            var array = m_currentBuffer.AsSpan(0, m_pos).ToArray();
+            _clear();
+            return array;
+        }
 
         public TypeSignature makeSignature() {
+            TypeSignature signature;
+
             if (m_pos <= 7) {
                 long compactSig = (long)m_pos << 56;
                 for (int i = 0, shift = 0; i < m_pos; i++, shift += 8)
-                    compactSig |= (long)m_bytes[i] << shift;
-                return new TypeSignature(compactSig);
+                    compactSig |= (long)m_currentBuffer[i] << shift;
+
+                signature = new TypeSignature(compactSig);
             }
             else {
-                return new TypeSignature(m_bytes.AsSpan(0, m_pos).ToArray());
+                signature = new TypeSignature(m_currentBuffer.AsSpan(0, m_pos).ToArray());
             }
+
+            _clear();
+            return signature;
         }
 
     }

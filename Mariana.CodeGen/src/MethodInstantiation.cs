@@ -9,9 +9,6 @@ namespace Mariana.CodeGen {
     /// </summary>
     public readonly struct MethodInstantiation : IEquatable<MethodInstantiation> {
 
-        [ThreadStatic]
-        private static BlobBuilder s_blobBuilder;
-
         private readonly EntityHandle m_handle;
         private readonly byte[] m_signature;
 
@@ -31,20 +28,44 @@ namespace Mariana.CodeGen {
             if (typeArguments.Length == 0)
                 throw new ArgumentException("Number of type arguments must not be zero.", nameof(typeArguments));
 
-            BlobBuilder blobBuilder = s_blobBuilder;
-            if (blobBuilder == null)
-                blobBuilder = s_blobBuilder = new BlobBuilder();
-
-            blobBuilder.Clear();
-
-            blobBuilder.WriteByte(0x0A);
-            blobBuilder.WriteCompressedInteger(typeArguments.Length);
-
-            for (int i = 0; i < typeArguments.Length; i++)
-                typeArguments[i].writeToBlobBuilder(blobBuilder);
-
             m_handle = definition;
-            m_signature = blobBuilder.ToArray();
+            m_signature = _createSignature(typeArguments);
+        }
+
+        /// <summary>
+        /// Creates the signature for a MethodSpec from the given type arguments.
+        /// </summary>
+        /// <param name="typeArguments">The signatures of the type arguments used to instantiate the method.</param>
+        /// <returns>A byte array containing the binary MethodSpec signature.</returns>
+        private static byte[] _createSignature(ReadOnlySpan<TypeSignature> typeArguments) {
+            int typeArgsByteLength = 0;
+            for (int i = 0; i < typeArguments.Length; i++)
+                typeArgsByteLength += typeArguments[i].byteLength;
+
+            if (typeArguments.Length <= 127 && typeArgsByteLength <= 254) {
+                Span<byte> buffer = stackalloc byte[typeArgsByteLength + 2];
+                buffer[0] = 0x0A;
+                buffer[1] = (byte)typeArguments.Length;
+
+                Span<byte> curSpan = buffer.Slice(2);
+                for (int i = 0; i < typeArguments.Length; i++) {
+                    typeArguments[i].writeToSpan(curSpan);
+                    curSpan = curSpan.Slice(typeArguments[i].byteLength);
+                }
+
+                return buffer.ToArray();
+            }
+            else {
+                var blobBuilder = new BlobBuilder();
+
+                blobBuilder.WriteByte(0x0A);
+                blobBuilder.WriteCompressedInteger(typeArguments.Length);
+
+                for (int i = 0; i < typeArguments.Length; i++)
+                    typeArguments[i].writeToBlobBuilder(blobBuilder);
+
+                return blobBuilder.ToArray();
+            }
         }
 
         /// <summary>

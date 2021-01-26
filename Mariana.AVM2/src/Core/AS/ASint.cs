@@ -303,10 +303,7 @@ namespace Mariana.AVM2.Core {
         public static string toString(int num, int radix) {
             if (radix < 2 || radix > 36)
                 throw ErrorHelper.createError(ErrorCode.NUMBER_RADIX_OUT_OF_RANGE, radix);
-
-            return (radix == 10)
-                ? num.ToString(CultureInfo.InvariantCulture)
-                : NumberFormatHelper.intToString(num, radix);
+            return (radix == 10) ? AS_convertString(num) : NumberFormatHelper.intToString(num, radix);
         }
 
         /// <summary>
@@ -329,11 +326,8 @@ namespace Mariana.AVM2.Core {
         /// This is a special method that is called from the AVM2 runtime and by code compiled by the
         /// ABCIL compiler. It must not be called from outside code.
         /// </summary>
-        internal static new ASAny __AS_INVOKE(ReadOnlySpan<ASAny> args) {
-            if (args.Length == 0)
-                return ASAny.AS_fromInt(0);
-            return ASAny.AS_fromInt(ASAny.AS_toInt(args[0]));
-        }
+        internal static new ASAny __AS_INVOKE(ReadOnlySpan<ASAny> args) =>
+            ASAny.AS_fromInt((args.Length == 0) ? 0 : ASAny.AS_toInt(args[0]));
 
         /// <exclude/>
         /// <summary>

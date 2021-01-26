@@ -140,6 +140,8 @@ namespace Mariana.AVM2.Compiler {
 
         private CapturedScopeFactory m_capturedScopeFactory;
 
+        private readonly NameMangler m_nameMangler = new NameMangler();
+
         private readonly IncrementCounter m_scriptInitCounter = new IncrementCounter();
 
         private readonly IncrementCounter m_catchScopeCounter = new IncrementCounter();
@@ -354,7 +356,7 @@ namespace Mariana.AVM2.Compiler {
                 if (prop.getter != null)
                     throw ErrorHelper.createError(ErrorCode.ALREADY_DEFINED, traitInfo.name.ToString());
 
-                QName getterName = NameMangler.createGetterQualifiedName(traitInfo.name);
+                QName getterName = m_nameMangler.createGetterQualifiedName(traitInfo.name);
                 var getter = new ScriptMethod(
                     traitInfo.methodInfo, getterName, declClass, m_domain,
                     isStatic, isFinal, isOverride, traitInfo.metadata
@@ -369,7 +371,7 @@ namespace Mariana.AVM2.Compiler {
                 if (prop.setter != null)
                     throw ErrorHelper.createError(ErrorCode.ALREADY_DEFINED, traitInfo.name.ToString());
 
-                QName setterName = NameMangler.createSetterQualifiedName(traitInfo.name);
+                QName setterName = m_nameMangler.createSetterQualifiedName(traitInfo.name);
                 var setter = new ScriptMethod(
                     traitInfo.methodInfo, setterName, declClass, m_domain,
                     isStatic, isFinal, isOverride, traitInfo.metadata
@@ -512,7 +514,7 @@ namespace Mariana.AVM2.Compiler {
             else if (scriptClass.isFinal)
                 typeAttrs |= TypeAttributes.Sealed;
 
-            TypeBuilder tb = m_assemblyBuilder.defineType(NameMangler.createTypeName(scriptClass.name), typeAttrs);
+            TypeBuilder tb = m_assemblyBuilder.defineType(m_nameMangler.createTypeName(scriptClass.name), typeAttrs);
             classData.typeBuilder = tb;
             m_traitEntityHandles[scriptClass] = tb.handle;
 
@@ -538,7 +540,7 @@ namespace Mariana.AVM2.Compiler {
                 ABCScriptInfo si = scriptInfo[i];
                 ScriptData scriptData = m_abcScriptDataByIndex[i];
 
-                string initName = NameMangler.createScriptInitName(m_scriptInitCounter.next());
+                string initName = m_nameMangler.createScriptInitName(m_scriptInitCounter.next());
 
                 var initMethod = new ScriptMethod(
                     si.initMethod, QName.publicName(initName), null, m_domain, true, true, false, null);
@@ -1246,7 +1248,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="typeBuilder">The <see cref="TypeBuilder"/> into which to emit the field.</param>
         /// <param name="mangleName">Set this to true if the field's name must be mangled.</param>
         private void _emitFieldBuilder(ScriptField field, TypeBuilder typeBuilder, bool mangleName) {
-            string fieldBldrName = mangleName ? NameMangler.createName(field.name) : field.name.ToString();
+            string fieldBldrName = mangleName ? m_nameMangler.createName(field.name) : field.name.ToString();
             FieldAttributes fieldBldrAttrs = FieldAttributes.Public;
             if (field.isStatic)
                 fieldBldrAttrs |= FieldAttributes.Static;
@@ -1305,13 +1307,13 @@ namespace Mariana.AVM2.Compiler {
             string methodBldrName;
             switch (nameMangleMode) {
                 case MethodNameMangleMode.METHOD:
-                    methodBldrName = NameMangler.createName(name);
+                    methodBldrName = m_nameMangler.createName(name);
                     break;
                 case MethodNameMangleMode.GETTER:
-                    methodBldrName = NameMangler.createGetterName(name);
+                    methodBldrName = m_nameMangler.createGetterName(name);
                     break;
                 case MethodNameMangleMode.SETTER:
-                    methodBldrName = NameMangler.createSetterName(name);
+                    methodBldrName = m_nameMangler.createSetterName(name);
                     break;
                 default:
                     methodBldrName = name.ToString();
@@ -1429,7 +1431,7 @@ namespace Mariana.AVM2.Compiler {
                 return;
 
             var propBuilder = typeBuilder.defineProperty(
-                NameMangler.createName(prop.name),
+                m_nameMangler.createName(prop.name),
                 PropertyAttributes.None,
                 prop.isStatic,
                 getTypeSignature(prop.propertyType)
@@ -1484,7 +1486,7 @@ namespace Mariana.AVM2.Compiler {
             TypeSignature retType = _getReturnTypeSignature(baseMethod);
             TypeSignature[] paramTypes = _getParamTypeSignatures(baseMethod);
 
-            string stubMethodName = NameMangler.createMethodImplStubName(
+            string stubMethodName = m_nameMangler.createMethodImplStubName(
                 _getUnderlyingTypeName(baseMethod.declaringClass).ToString(),
                 _getUnderlyingMethodName(baseMethod)
             );
@@ -2172,7 +2174,7 @@ namespace Mariana.AVM2.Compiler {
                 }
             }
 
-            string classMangledName = NameMangler.createCatchScopeClassName(m_catchScopeCounter.next());
+            string classMangledName = m_nameMangler.createCatchScopeClassName(m_catchScopeCounter.next());
 
             var syntheticClassInfo = new ABCClassInfo(
                 abcIndex: -1,
@@ -2213,7 +2215,7 @@ namespace Mariana.AVM2.Compiler {
                 klass.tryDefineTrait(field);
                 klass.defineTraitSlot(field, 1);
 
-                var fb = typeBuilder.defineField(NameMangler.createName(propName), getTypeSignature(catchType), FieldAttributes.Public);
+                var fb = typeBuilder.defineField(m_nameMangler.createName(propName), getTypeSignature(catchType), FieldAttributes.Public);
                 m_traitEntityHandles[field] = fb.handle;
             }
 
@@ -2227,7 +2229,7 @@ namespace Mariana.AVM2.Compiler {
         /// representing the fields of the activation object.</param>
         /// <returns>The created class.</returns>
         public ScriptClass createActivationClass(ReadOnlyArrayView<ABCTraitInfo> traits) {
-            string classMangledName = NameMangler.createActivationClassName(m_activationCounter.next());
+            string classMangledName = m_nameMangler.createActivationClassName(m_activationCounter.next());
 
             var syntheticClassInfo = new ABCClassInfo(
                 abcIndex: -1,
@@ -2278,7 +2280,7 @@ namespace Mariana.AVM2.Compiler {
                     klass.defineTraitSlot(field, slotId);
 
                 var fieldBuilder = typeBuilder.defineField(
-                    NameMangler.createName(field.name), getTypeSignature(field.fieldType), FieldAttributes.Public);
+                    m_nameMangler.createName(field.name), getTypeSignature(field.fieldType), FieldAttributes.Public);
 
                 m_traitEntityHandles[field] = fieldBuilder.handle;
 
@@ -2399,7 +2401,7 @@ namespace Mariana.AVM2.Compiler {
             if (methodInfoData.methodOrCtor != null)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_NEWFUNCTION_INVALID_METHOD, methodInfo.abcIndex);
 
-            string mangledName = NameMangler.createAnonFunctionName(m_newFunctionCounter.atomicNext());
+            string mangledName = m_nameMangler.createAnonFunctionName(m_newFunctionCounter.atomicNext());
 
             ScriptMethod funcMethod = new ScriptMethod(
                 methodInfo, QName.publicName(mangledName), null, m_domain,

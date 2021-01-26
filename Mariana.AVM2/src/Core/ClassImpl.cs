@@ -443,8 +443,9 @@ namespace Mariana.AVM2.Core {
         }
 
         public sealed override BindStatus tryInvoke(ASAny target, ASAny receiver, ReadOnlySpan<ASAny> args, out ASAny result) {
-            if (m_specials?.specialInvokeDelegate != null) {
-                result = m_specials.specialInvokeDelegate(args);
+            var specialInvokeDelegate = classSpecials?.specialInvokeDelegate;
+            if (specialInvokeDelegate != null) {
+                result = specialInvokeDelegate(args);
                 return BindStatus.SUCCESS;
             }
 
@@ -460,8 +461,9 @@ namespace Mariana.AVM2.Core {
         }
 
         public sealed override BindStatus tryConstruct(ASAny target, ReadOnlySpan<ASAny> args, out ASAny result) {
-            if (m_specials?.specialConstructDelegate != null) {
-                result = m_specials.specialConstructDelegate(args);
+            var specialConstructDelegate = classSpecials?.specialConstructDelegate;
+            if (specialConstructDelegate != null) {
+                result = specialConstructDelegate(args);
                 return BindStatus.SUCCESS;
             }
 

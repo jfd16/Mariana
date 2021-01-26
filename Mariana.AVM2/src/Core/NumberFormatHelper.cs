@@ -60,11 +60,12 @@ namespace Mariana.AVM2.Core {
             return -1;
         }
 
-        private static ref char[] _getThreadStaticBuffer() {
+        private static char[] _getThreadStaticBuffer() {
             ref char[] buffer = ref s_threadBuffer;
             if (buffer == null)
-                buffer = new char[32];
-            return ref buffer;
+                buffer = new char[64];
+
+            return buffer;
         }
 
         /// <summary>
@@ -462,7 +463,7 @@ namespace Mariana.AVM2.Core {
             mantissa <<= 12 - radixBits + exponentAlign;
             exponent -= exponentAlign;
 
-            ref char[] buffer = ref _getThreadStaticBuffer();
+            char[] buffer = _getThreadStaticBuffer();
             int bufPos = 0;
 
             if (num < 0.0)
@@ -526,7 +527,7 @@ namespace Mariana.AVM2.Core {
             bool isNegative = num < 0.0;
             num = Math.Abs(num);
 
-            ref char[] buffer = ref _getThreadStaticBuffer();
+            char[] buffer = _getThreadStaticBuffer();
             int bufPos = 0;
 
             // We are using a big-endian bigint here because we divide by the radix to get

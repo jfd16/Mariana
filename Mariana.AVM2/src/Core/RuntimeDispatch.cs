@@ -42,13 +42,21 @@ namespace Mariana.AVM2.Core {
         [ThreadStatic]
         private static ILBuilder s_threadIlBuilder;
 
-        private static ILBuilder _getILBuilder(DynamicILInfo dynamicILInfo) {
+        private static ILBuilder _getILBuilder(DynamicILInfo dynamicILInfo, int paramCount = 0) {
             ref DynamicMethodTokenProvider tokenProvider = ref s_threadTokenProvider;
 
             if (tokenProvider == null)
                 tokenProvider = new DynamicMethodTokenProvider(dynamicILInfo);
             else
                 tokenProvider.setDynamicILInfo(dynamicILInfo);
+
+            if (paramCount > 10) {
+                // We don't use the thread-static ILBuilder when there are a large number of
+                // parameters so that it doesn't leak a large amount of memory. Functions with
+                // these many parameters are usually rare so the additional allocations are not
+                // much of an issue.
+                return new ILBuilder(tokenProvider);
+            }
 
             ref ILBuilder builder = ref s_threadIlBuilder;
             if (builder == null)
@@ -120,7 +128,7 @@ namespace Mariana.AVM2.Core {
 
             var dynMethod = new DynamicMethod(methodName, returnType, paramTypes, method.underlyingMethodInfo.DeclaringType);
             var dynILInfo = dynMethod.GetDynamicILInfo();
-            var ilBuilder = _getILBuilder(dynILInfo);
+            var ilBuilder = _getILBuilder(dynILInfo, method.paramCount);
 
             Class recvType = method.isStatic ? null : method.declaringClass;
 
@@ -145,7 +153,7 @@ namespace Mariana.AVM2.Core {
 
             var dynMethod = new DynamicMethod(methodName, returnType, paramTypes, ctor.declaringClass.underlyingType);
             var dynILInfo = dynMethod.GetDynamicILInfo();
-            var ilBuilder = _getILBuilder(dynILInfo);
+            var ilBuilder = _getILBuilder(dynILInfo, ctor.paramCount);
 
             _generateMethodStubInternal(
                 ctor.underlyingConstructorInfo,

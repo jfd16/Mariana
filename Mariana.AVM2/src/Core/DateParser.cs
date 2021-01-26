@@ -157,7 +157,7 @@ namespace Mariana.AVM2.Core {
         };
 
         /// <summary>
-        /// The <see cref="DateParser"/> instance for the current thread.
+        /// A thread-static <see cref="DateParser"/> instance for the current thread.
         /// </summary>
         [ThreadStatic]
         private static DateParser s_threadInstance;
@@ -253,7 +253,9 @@ namespace Mariana.AVM2.Core {
         /// <see cref="ASDate"/> for further information.
         /// </remarks>
         internal static bool tryParse(string str, out long timestamp) {
-            return s_threadInstance._parse(str, out timestamp);
+            DateParser newInst = default;
+            ref DateParser inst = ref ((str != null && str.Length > 80) ? ref newInst : ref s_threadInstance);
+            return inst._parse(str, out timestamp);
         }
 
         /// <summary>
@@ -288,7 +290,6 @@ namespace Mariana.AVM2.Core {
         /// new string.
         /// </summary>
         private void _resetState() {
-
             if (m_buffer == null)
                 m_buffer = new char[20];
 
@@ -309,7 +310,6 @@ namespace Mariana.AVM2.Core {
 
             m_tokenTypes.clear();
             m_tokenData.clear();
-
         }
 
         /// <summary>

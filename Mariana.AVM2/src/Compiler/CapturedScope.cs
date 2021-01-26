@@ -154,7 +154,6 @@ namespace Mariana.AVM2.Compiler {
     internal sealed class CapturedScopeFactory {
 
         private class _KeyComparer : IEqualityComparer<CapturedScopeItems> {
-
             public static _KeyComparer instance = new _KeyComparer();
 
             public bool Equals(CapturedScopeItems x, CapturedScopeItems y) {
@@ -190,7 +189,6 @@ namespace Mariana.AVM2.Compiler {
                 }
                 return hash;
             }
-
         }
 
         private readonly Dictionary<CapturedScopeItems, CapturedScopeContainerType> m_cachedContainers;
@@ -244,7 +242,8 @@ namespace Mariana.AVM2.Compiler {
             CapturedScopeContainerType container;
 
             if (!m_cachedContainers.TryGetValue(scopeItems, out container)) {
-                string containerName = NameMangler.createScopeContainerName(m_counter.next());
+                string containerName = "__Scope{" + m_counter.next().ToString(CultureInfo.InvariantCulture) + "}";
+
                 container = new CapturedScopeContainerType(scopeItems, containerName, m_context, m_ilBuilder);
                 m_cachedContainers.Add(scopeItems, container);
             }
