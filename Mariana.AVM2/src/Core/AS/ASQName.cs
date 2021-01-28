@@ -23,7 +23,7 @@ namespace Mariana.AVM2.Core {
         /// If this name for matching XML elements or attributes, it specifies that all elements or
         /// attributes must match irrespective of their name.
         /// </remarks>
-        public static readonly ASQName any = new ASQName(ASNamespace.any, "*");
+        public static readonly ASQName any = new ASQName((ASNamespace)null, "*");
 
         /// <summary>
         /// The URI of the namespace of the XML name.
@@ -53,29 +53,27 @@ namespace Mariana.AVM2.Core {
         /// will be set to the default XML namespace.</param>
         public ASQName(string localName) {
             if (localName != null && localName.Length == 1 && localName[0] == '*') {
-                this.uri = null;
-                this.prefix = null;
+                (uri, prefix) = (null, null);
             }
             else {
                 ASNamespace defaultNS = ASNamespace.getDefault();
-                this.uri = defaultNS.uri;
-                this.prefix = defaultNS.prefix;
+                (uri, prefix) = (defaultNS.uri, defaultNS.prefix);
             }
+
             this.localName = ASString.AS_convertString(localName);
         }
 
         /// <summary>
         /// Creates a new <see cref="ASQName"/> object from a namespace and a local name.
         /// </summary>
-        /// <param name="ns">The namespace of the XML name.</param>
-        /// <param name="localName">The local name of the XML name. This is the name of the XML
-        /// element or attribute without the namespace. If this is the string "*", the QName will
-        /// match XML elements and attributes with any local name.</param>
+        /// <param name="ns">The namespace of the XML name. If this is null, the QName will match
+        /// XML elements and attributes in any namespace.</param>
+        /// <param name="localName">The local name of the XML name. If this is the string "*",
+        /// the QName will match XML elements and attributes with any local name.</param>
         public ASQName(ASNamespace ns, string localName) {
-            if (ns != null) {
-                this.uri = ns.uri;
-                this.prefix = ns.prefix;
-            }
+            if (ns != null)
+                (uri, prefix) = (ns.uri, ns.prefix);
+
             this.localName = ASString.AS_convertString(localName);
         }
 
@@ -86,9 +84,8 @@ namespace Mariana.AVM2.Core {
         ///
         /// <param name="uri">The URI of the namespace of the XML name. If this is null, the QName
         /// will match XML elements and attributes in any namespace.</param>
-        /// <param name="localName">The local name of the XML name. This is the name of the XML
-        /// element or attribute without the namespace. If this is the string "*", the QName will
-        /// match XML elements and attributes with any local name.</param>
+        /// <param name="localName">The local name of the XML name. If this is the string "*",
+        /// the QName will match XML elements and attributes with any local name.</param>
         public ASQName(string uri, string localName) {
             this.prefix = (uri != null && uri.Length == 0) ? "" : null;
             this.uri = uri;
@@ -101,10 +98,10 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         ///
         /// <param name="prefix">The prefix of the namespace of the XML name.</param>
-        /// <param name="uri">The URI of the namespace of the XML name. If this is null the QName will
-        /// match XML elements and attributes in any namespace.</param>
+        /// <param name="uri">The URI of the namespace of the XML name. If this is null, the QName will
+        /// match XML elements and attributes in any namespace and <paramref name="prefix"/> is ignored.</param>
         /// <param name="localName">The local name of the XML name. This is the name of the XML
-        /// element or attribute without the namespace. If this is null or the string "*", the QName
+        /// element or attribute without the namespace. If this is the string "*", the QName
         /// will match XML elements and attributes with any local name.</param>
         ///
         /// <exception cref="AVM2Exception">
@@ -112,40 +109,46 @@ namespace Mariana.AVM2.Core {
         /// <item>
         /// <term>TypeError #1098</term>
         /// <description>If <paramref name="uri"/> is the empty string, but
-        /// <paramref name="prefix"/> is a non-null, non-empty string.</description>
+        /// <paramref name="prefix"/> is not the empty string.</description>
         /// </item>
         /// </list>
         /// </exception>
-        public ASQName(string prefix, string uri, string localName)
-            : this(prefix, uri, localName, false) {}
-
-        internal ASQName(string prefix, string uri, string localName, bool disableChecks) {
-            if (disableChecks) {
-                this.prefix = prefix;
-                this.uri = uri;
-                this.localName = localName;
-                return;
-            }
-
+        ///
+        /// <remarks>
+        /// If <paramref name="prefix"/> is null, the QName will not have a prefix. This differs from
+        /// the behaviour of the <see cref="ASNamespace(String,String)"/> constructor, which converts
+        /// a null prefix to the string "null".
+        /// </remarks>
+        public ASQName(string prefix, string uri, string localName) {
             if (uri == null) {
-                this.uri = null;
-                this.prefix = null;
+                (this.uri, this.prefix) = (null, null);
             }
             else if (uri.Length == 0) {
                 if (prefix != null && prefix.Length != 0)
                     throw ErrorHelper.createError(ErrorCode.XML_ILLEGAL_PREFIX_PUBLIC_NAMESPACE, prefix);
-                this.uri = "";
-                this.prefix = "";
+                (this.uri, this.prefix) = ("", "");
             }
             else {
-                this.prefix = null;
-                if (prefix != null && (prefix.Length == 0 || XMLHelper.isValidName(prefix)))
-                    this.prefix = prefix;
-                this.uri = uri;
+                bool isValidPrefix = prefix == null || prefix.Length == 0 || XMLHelper.isValidName(prefix);
+                (this.uri, this.prefix) = (uri, isValidPrefix ? prefix : null);
             }
 
             this.localName = ASString.AS_convertString(localName);
         }
+
+        private ASQName(string prefix, string uri, string localName, bool _unsafeMarker) =>
+            (this.prefix, this.uri, this.localName) = (prefix, uri, localName);
+
+        /// <summary>
+        /// Use for creating a new QName internally when all arguments are known to be valid.
+        /// This does not check the validity of arguments, use with caution!
+        /// </summary>
+        /// <param name="prefix">The namespace prefix.</param>
+        /// <param name="uri">The namespace URI.</param>
+        /// <param name="localName">The local name.</param>
+        /// <returns>The created <see cref="ASQName"/> instance.</returns>
+        internal static ASQName unsafeCreate(string prefix, string uri, string localName) =>
+            new ASQName(prefix, uri, localName, true);
 
         /// <summary>
         /// Returns a string representation of the object.
@@ -196,28 +199,17 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Gets a value indicating whether the current QName represents a fully qualified name.
-        /// </summary>
-        /// <returns>A fully qualified name is one that has a non-null local name and a namespace that
-        /// is not the "any" namespace.</returns>
-        public bool isFullyQualified => uri != null && localName != null;
-
-        /// <summary>
-        /// Gets a value indicating whether the current QName matches any local name.
-        /// </summary>
-        public bool hasAnyLocalName => localName.Length == 1 && localName[0] == '*';
-
-        /// <summary>
         /// Returns a Namespace object representing the namespace of this QName.
         /// </summary>
-        /// <returns>A <see cref="ASNamespace"/> instance.</returns>
+        /// <returns>A <see cref="ASNamespace"/> instance. If the QName has the "any" namespace,
+        /// returns null.</returns>
         ///
         /// <remarks>
         /// A call to this method will create a new <see cref="ASNamespace"/> object. The namespace
         /// of this QName can also be accessed directly, without allocating a new object, through the
         /// <see cref="prefix"/> and <see cref="uri"/> fields.
         /// </remarks>
-        public ASNamespace getNamespace() => new ASNamespace(prefix, uri, disableChecks: true);
+        public ASNamespace getNamespace() => (uri == null) ? null : ASNamespace.unsafeCreate(prefix, uri);
 
         /// <summary>
         /// Returns a hash code for the <see cref="ASQName"/> object.
@@ -228,12 +220,10 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         internal int internalGetHashCode() {
             int hash = 0;
-
             hash += (uri == null) ? 0 : uri.GetHashCode();
             hash *= 1194163;
-            hash += (localName == null) ? 0 : localName.GetHashCode();
+            hash += localName.GetHashCode();
             hash *= 5598379;
-
             return hash;
         }
 
@@ -246,31 +236,36 @@ namespace Mariana.AVM2.Core {
         ///
         /// <remarks>
         /// If the string contains an '::', the part before it is taken as the namespace URI (the
-        /// prefix not being set), and the part after it is taken as the local name. Otherwise, the
-        /// entire string is taken as the local name, with the namespace being set to the default
-        /// namespace.
+        /// prefix not being set), and the part after it is taken as the local name. If the string
+        /// is "*", <see cref="ASQName.any"/> is returned. Otherwise, the entire string is taken as
+        /// the local name, with the namespace being set to the default namespace.
         /// </remarks>
         public static ASQName parse(string s) {
-            if (s == null)
-                return new ASQName(null);
-
-            if (s.Length > 1) {
-                for (int i = s.Length - 1; i > 0; i--) {
-                    if (s[i] != ':' || s[i - 1] != ':')
-                        continue;
-
-                    string uri = s.Substring(0, i - 1), local = s.Substring(i + 1);
-                    if (i == 2 && uri[0] == '*')
-                        uri = null;
-                    return new ASQName(uri, local);
-                }
-            }
-
-            if (s.Length == 1 && s[0] == '*')
+            if (s == null || (s.Length == 1 && s[0] == '*'))
                 return any;
+
+            int separatorPos = s.LastIndexOf("::", StringComparison.Ordinal);
+            if (separatorPos != -1) {
+                string uri = s.Substring(0, separatorPos);
+                string localName = s.Substring(separatorPos + 2);
+
+                if (uri.Length == 1 && uri[0] == '*')
+                    uri = null;
+
+                return new ASQName(uri, localName);
+            }
 
             return new ASQName(s);
         }
+
+        /// <summary>
+        /// Returns a <see cref="ASQName"/> that matches XML element and attribute names in any
+        /// namespace with the given local name.
+        /// </summary>
+        /// <param name="localName">The local name of the XML name. If this is the string "*", the
+        /// QName will match elements and attributes with any local name.</param>
+        /// <returns>An <see cref="ASQName"/> instance.</returns>
+        public static ASQName anyNamespace(string localName) => new ASQName((ASNamespace)null, localName);
 
         /// <exclude/>
         ///
@@ -291,38 +286,28 @@ namespace Mariana.AVM2.Core {
         /// constructor overloads.
         /// </summary>
         internal static new ASAny __AS_CONSTRUCT(ReadOnlySpan<ASAny> args) {
-            if (args.Length == 0) {
+            if (args.Length == 0)
                 return new ASQName("", "");
-            }
-            else if (args.Length == 1) {
-                if (args[0].value is ASQName qname)
-                    return qname;
 
-                if (args[0].value is ASNamespace ns)
-                    return new ASQName(ns, "");
+            if (args.Length == 1)
+                return XMLHelper.objectToQName(args[0], isAttr: false);
 
-                string localName = args[0].isDefined ? AS_convertString(args[0].value) : "";
-                return new ASQName(localName);
-            }
-            else {
-                string localName;
+            string localName;
+            ASNamespace ns;
 
-                if (args[1].value is ASQName qname)
-                    localName = qname.localName;
-                else
-                    localName = args[1].isDefined ? AS_convertString(args[1].value) : "";
+            if (args[1].value is ASQName qname)
+                localName = qname.localName;
+            else
+                localName = args[1].isDefined ? AS_convertString(args[1].value) : "";
 
-                if (!args[0].isDefined)
-                    return new ASQName(localName);
+            if (args[0].isUndefined)
+                ns = ASNamespace.getDefault();
+            else if (args[0].isNull)
+                ns = null;
+            else
+                ns = XMLHelper.objectToNamespace(args[0]);
 
-                if (args[0].value == null)
-                    return new ASQName(ASNamespace.any, localName);
-
-                if (args[0].value is ASNamespace ns)
-                    return new ASQName(ns, localName);
-
-                return new ASQName(ASAny.AS_convertString(args[0]), localName);
-            }
+            return new ASQName(ns, localName);
         }
 
     }

@@ -2212,11 +2212,11 @@ namespace Mariana.AVM2.Core {
 
             ASAny result;
             result = obj.AS_callProperty(QName.publicName("toString"), Array.Empty<ASAny>());
-            if (result.value == null || ClassTagSet.primitive.contains(result.value.AS_class.tag))
+            if (result.value == null || ClassTagSet.primitive.contains(result.AS_class.tag))
                 return result;
 
             result = obj.AS_callProperty(QName.publicName("valueOf"), Array.Empty<ASAny>());
-            if (result.value == null || ClassTagSet.primitive.contains(result.value.AS_class.tag))
+            if (result.value == null || ClassTagSet.primitive.contains(result.AS_class.tag))
                 return result;
 
             throw ErrorHelper.createError(ErrorCode.CANNOT_CONVERT_OBJECT_TO_PRIMITIVE);
@@ -2249,11 +2249,11 @@ namespace Mariana.AVM2.Core {
 
             ASAny result;
             result = obj.AS_callProperty(QName.publicName("valueOf"), Array.Empty<ASAny>());
-            if (result.value == null || ClassTagSet.primitive.contains(result.value.AS_class.tag))
+            if (result.value == null || ClassTagSet.primitive.contains(result.AS_class.tag))
                 return result;
 
             result = obj.AS_callProperty(QName.publicName("toString"), Array.Empty<ASAny>());
-            if (result.value == null || ClassTagSet.primitive.contains(result.value.AS_class.tag))
+            if (result.value == null || ClassTagSet.primitive.contains(result.AS_class.tag))
                 return result;
 
             throw ErrorHelper.createError(ErrorCode.CANNOT_CONVERT_OBJECT_TO_PRIMITIVE);
@@ -2519,9 +2519,9 @@ namespace Mariana.AVM2.Core {
 
             tagSet = default;
             if (prim1.value != null)
-                tagSet = tagSet.add(prim1.value.AS_class.tag);
+                tagSet = tagSet.add(prim1.AS_class.tag);
             if (prim2.value != null)
-                tagSet = tagSet.add(prim2.value.AS_class.tag);
+                tagSet = tagSet.add(prim2.AS_class.tag);
 
             if (ClassTagSet.numericOrBool.containsAll(tagSet))
                 return (double)prim1 + (double)prim2;

@@ -89,7 +89,7 @@ namespace Mariana.AVM2.Core {
         /// <returns>A <see cref="BindStatus"/> indicating the result of the operation.</returns>
         /// <exception cref="AVM2Exception">An error occurs during the operation.</exception>
         public override BindStatus tryGetValue(ASAny target, out ASAny value) {
-            if (!target.isDefined && !isStatic)
+            if (target.isUndefined && !isStatic)
                 throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
             value = m_lazyRuntimeDispatch.value(target, default(ASAny), false);
             return BindStatus.SUCCESS;
@@ -104,7 +104,7 @@ namespace Mariana.AVM2.Core {
         /// <returns>A <see cref="BindStatus"/> indicating the result of the operation.</returns>
         /// <exception cref="AVM2Exception">An error occurs during the operation.</exception>
         public override BindStatus trySetValue(ASAny target, ASAny value) {
-            if (!target.isDefined && !isStatic)
+            if (target.isUndefined && !isStatic)
                 throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
             if (isReadOnly)
                 return BindStatus.FAILED_READONLY;
@@ -122,7 +122,7 @@ namespace Mariana.AVM2.Core {
         /// <returns>A <see cref="BindStatus"/> indicating the result of the operation.</returns>
         /// <exception cref="AVM2Exception">An error occurs during the operation.</exception>
         public override BindStatus tryInvoke(ASAny target, ASAny receiver, ReadOnlySpan<ASAny> args, out ASAny result) {
-            if (!target.isDefined && !isStatic)
+            if (target.isUndefined && !isStatic)
                 throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
 
             ASObject f = m_lazyRuntimeDispatch.value(target, default(ASAny), false).value;
@@ -143,7 +143,7 @@ namespace Mariana.AVM2.Core {
         /// <returns>A <see cref="BindStatus"/> indicating the result of the operation.</returns>
         /// <exception cref="AVM2Exception">An error occurs during the operation.</exception>
         public override BindStatus tryConstruct(ASAny target, ReadOnlySpan<ASAny> args, out ASAny result) {
-            if (!target.isDefined && !isStatic)
+            if (target.isUndefined && !isStatic)
                 throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
 
             ASObject f = m_lazyRuntimeDispatch.value(target, default(ASAny), false).value;

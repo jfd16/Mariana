@@ -237,7 +237,7 @@ namespace Mariana.AVM2.Core {
         /// <see cref="NamespaceKind.NAMESPACE" qualifyHint="true"/> and its name set to the XML
         /// namespace URI.
         /// </remarks>
-        public static Namespace fromASNamespace(ASNamespace ns) => (ns == null) ? Namespace.any : new Namespace(ns.uri);
+        public static Namespace fromASNamespace(ASNamespace ns) => (ns == null) ? any : new Namespace(ns.uri);
 
         /// <summary>
         /// Converts a string to a namespace. The type of the namespace created will be

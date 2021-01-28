@@ -48,23 +48,48 @@ namespace Mariana.AVM2.Core {
         private readonly ASObject m_internalValue;
 
         /// <summary>
-        /// Initialises a new instance of the <see cref="ASAny"/> struct with a defined value.
+        /// Creates a new instance of the <see cref="ASAny"/> struct with a defined value.
         /// </summary>
-        /// <param name="value">The object value.</param>
+        /// <param name="value">The object value (which may be null).</param>
         public ASAny(ASObject value) {
             m_internalValue = value ?? s_internalNull;
         }
 
         /// <summary>
-        /// Gets the object value of the <see cref="ASAny"/> instance.
+        /// Gets the object value of the <see cref="ASAny"/> instance. If this instance is the
+        /// undefined or null value, returns null.
         /// </summary>
         public ASObject value => (m_internalValue == s_internalNull) ? null : m_internalValue;
 
         /// <summary>
-        /// Gets a Boolean value indicating whether the <see cref="ASAny"/> object represents a
-        /// defined value (which may be null).
+        /// Gets a Boolean value indicating whether the <see cref="ASAny"/> instance is not
+        /// equal to the undefined value.
         /// </summary>
         public bool isDefined => m_internalValue != null;
+
+        /// <summary>
+        /// Gets a Boolean value indicating whether the <see cref="ASAny"/> instance is
+        /// equal to the undefined value.
+        /// </summary>
+        public bool isUndefined => m_internalValue == null;
+
+        /// <summary>
+        /// Gets a Boolean value indicating whether the <see cref="ASAny"/> instance is
+        /// equal to the null value.
+        /// </summary>
+        public bool isNull => m_internalValue == s_internalNull;
+
+         /// <summary>
+        /// Gets a Boolean value indicating whether the <see cref="ASAny"/> instance is
+        /// equal to the undefined or null value.
+        /// </summary>
+        public bool isUndefinedOrNull => m_internalValue == null || m_internalValue == s_internalNull;
+
+        /// <summary>
+        /// Gets the <see cref="Class"/> instance representing the object's class. If this
+        /// <see cref="ASAny"/> instance is null or undefined, returns null.
+        /// </summary>
+        public Class AS_class => (m_internalValue == null || m_internalValue == s_internalNull) ? null : m_internalValue.AS_class;
 
         #region PropertyBinding
 
@@ -1669,7 +1694,7 @@ namespace Mariana.AVM2.Core {
         public static bool AS_lessThan(ASAny x, ASAny y) {
             ASObject v1 = x.value, v2 = y.value;
 
-            if (v1 == v2 || !x.isDefined || !y.isDefined)
+            if (v1 == v2 || x.isUndefined || y.isUndefined)
                 // Equal by reference, or one of the values is undefined
                 return false;
 
@@ -1768,9 +1793,9 @@ namespace Mariana.AVM2.Core {
         public static ASObject AS_add(ASAny x, ASAny y) {
             ClassTagSet tagSet = default;
             if (x.value != null)
-                tagSet.add(x.value.AS_class.tag);
+                tagSet.add(x.AS_class.tag);
             if (y.value != null)
-                tagSet.add(y.value.AS_class.tag);
+                tagSet.add(y.AS_class.tag);
 
             if (ClassTagSet.numericOrBool.containsAll(tagSet))
                 return (double)x + (double)y;
@@ -1786,9 +1811,9 @@ namespace Mariana.AVM2.Core {
 
             tagSet = default;
             if (x.value != null)
-                tagSet.add(p1.value.AS_class.tag);
+                tagSet.add(p1.AS_class.tag);
             if (y.value != null)
-                tagSet.add(p2.value.AS_class.tag);
+                tagSet.add(p2.AS_class.tag);
 
             if (ClassTagSet.numericOrBool.containsAll(tagSet))
                 return (double)p1 + (double)p2;

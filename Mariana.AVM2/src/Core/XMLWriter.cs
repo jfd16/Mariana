@@ -327,7 +327,7 @@ namespace Mariana.AVM2.Core {
                 if (mayConflict)
                     continue;
 
-                m_nsInScope.add(new ASNamespace(tmpPrefix, qname.uri, true));
+                m_nsInScope.add(ASNamespace.unsafeCreate(tmpPrefix, qname.uri));
                 return tmpPrefix;
             }
         }

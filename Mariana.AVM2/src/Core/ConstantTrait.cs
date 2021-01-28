@@ -110,14 +110,14 @@ namespace Mariana.AVM2.Core {
             sb.Append("const ");
             sb.Append(name.ToString());
 
-            if (!constantValue.isDefined) {
+            if (constantValue.isUndefined) {
                 sb.Append(":* = undefined");
             }
-            else if (constantValue.value == null) {
+            else if (constantValue.isNull) {
                 sb.Append(":Object = null");
             }
             else {
-                Class valType = constantValue.value.AS_class;
+                Class valType = constantValue.AS_class;
                 sb.Append(':').Append(' ').Append(valType.name.ToString()).Append(" = ");
                 if (valType.tag == ClassTag.STRING) {
                     string strval = constantValue.ToString().Replace("\\", "\\\\").Replace("\"", "\\\"");

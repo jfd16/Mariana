@@ -2927,7 +2927,7 @@ namespace Mariana.AVM2.Compiler {
                     else if (argCount == 1) {
                         ref DataNode arg = ref m_compilation.getDataNode(argsOnStackIds[0]);
 
-                        if (arg.dataType == DataNodeType.NAMESPACE) {
+                        if (arg.dataType == DataNodeType.NAMESPACE && arg.isNotNull) {
                             result.isConstant = arg.isConstant;
                             result.constant = arg.constant;
                             return Intrinsic.NAMESPACE_NEW_1;
@@ -2937,14 +2937,6 @@ namespace Mariana.AVM2.Compiler {
                                 result.isConstant = true;
                                 result.constant = new DataNodeConstant(new Namespace(arg.constant.stringValue));
                             }
-                            return Intrinsic.NAMESPACE_NEW_1;
-                        }
-                        else if (arg.dataType == DataNodeType.NULL) {
-                            result.isConstant = arg.isConstant;
-                            result.constant = new DataNodeConstant(Namespace.any);
-                            return Intrinsic.NAMESPACE_NEW_1;
-                        }
-                        else if (arg.dataType == DataNodeType.QNAME) {
                             return Intrinsic.NAMESPACE_NEW_1;
                         }
                     }
@@ -2977,7 +2969,7 @@ namespace Mariana.AVM2.Compiler {
                             return Intrinsic.QNAME_NEW_1;
                         }
 
-                        if (arg.dataType == DataNodeType.QNAME) {
+                        if (arg.dataType == DataNodeType.QNAME && arg.isNotNull) {
                             if (arg.isConstant) {
                                 result.isConstant = true;
                                 result.constant = arg.constant;

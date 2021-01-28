@@ -887,7 +887,6 @@ namespace Mariana.AVM2.Core {
         /// <param name="index">The index.</param>
         /// <param name="value">The value to assign to the given index.</param>
         private void _internalSetPropIndex(int index, ASAny value) {
-
             ASXML resolvedValue = null;
             ASXML appendAfterNode = null;
             string assignText = null;
@@ -992,9 +991,7 @@ namespace Mariana.AVM2.Core {
                         resolvedValue.internalInsertChildAfter(appendAfterNode, newElem, false);
                         m_items.add(newElem);
                     }
-
                 }
-
             }
 
             if (index < m_items.length && m_items[index].nodeType == XMLNodeType.ATTRIBUTE) {
@@ -1012,7 +1009,6 @@ namespace Mariana.AVM2.Core {
                 _internalAssignIndexXMLList(index, valueXmlList, resolvedValue, appendAfterNode);
             else
                 _internalAssignIndexXML(index, (ASXML)value.value, resolvedValue, appendAfterNode);
-
         }
 
         private ASObject _internalResolveValue() {
@@ -1061,9 +1057,7 @@ namespace Mariana.AVM2.Core {
             baseObj.AS_setProperty(qname, "", bindOptions);
             target = baseObj.AS_getProperty(qname, bindOptions).value as ASXMLList;
 
-            return (target != null && target.m_items.length == 1)
-                ? target.m_items[0]
-                : (ASObject)target;
+            return (target != null && target.m_items.length == 1) ? target.m_items[0] : (ASObject)target;
         }
 
         /// <summary>
@@ -1758,8 +1752,8 @@ namespace Mariana.AVM2.Core {
         /// Gets the namespace of this node's name, or a namespace declaration with the given prefix.
         /// This method can only be called on an XMLList containing exactly one item.
         /// </summary>
-        /// <param name="prefix">A namespace prefix, or null to get the namespace of this node's
-        /// name.</param>
+        /// <param name="prefix">If specified, returns the namespace associated with the given prefix,
+        /// otherwise returns the namespace of the node's name.</param>
         ///
         /// <returns>
         /// Returns the namespace declared with the given prefix on the node or any of its ancestors,
@@ -1781,10 +1775,10 @@ namespace Mariana.AVM2.Core {
         /// <seealso cref="ASXML.@namespace" qualifyHint="true" />
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
-        public ASAny @namespace(string prefix = null) {
+        public ASAny @namespace(OptionalParam<ASAny> prefix = default) {
             if (m_items.length != 1)
                 throw ErrorHelper.createError(ErrorCode.XML_LIST_METHOD_ONE_ITEM_ONLY, nameof(@namespace));
-            return m_items[0].@namespace();
+            return m_items[0].@namespace(prefix);
         }
 
         /// <summary>
@@ -1845,7 +1839,6 @@ namespace Mariana.AVM2.Core {
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
         public ASXMLList normalize() {
-
             DynamicArray<string> tempList = new DynamicArray<string>();
             bool mustCompact = false;
 
@@ -1911,7 +1904,6 @@ namespace Mariana.AVM2.Core {
             }
 
             return this;
-
         }
 
         /// <summary>

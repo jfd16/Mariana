@@ -489,16 +489,16 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="value">The constant. This must be of one of the following types: int, uint,
         /// Number, String, Boolean or Namespace, or the value null or undefined.</param>
         public static void emitPushConstant(ILBuilder builder, ASAny value) {
-            if (!value.isDefined) {
+            if (value.isUndefined) {
                 builder.emit(ILOp.ldsfld, KnownMembers.undefinedField);
                 return;
             }
-            if (value.value == null) {
+            if (value.isNull) {
                 builder.emit(ILOp.ldnull);
                 return;
             }
 
-            switch (value.value.AS_class.tag) {
+            switch (value.AS_class.tag) {
                 case ClassTag.INT:
                 case ClassTag.UINT:
                     builder.emit(ILOp.ldc_i4, (int)value);
@@ -530,12 +530,12 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="value">The constant. This must be of one of the following types: int, uint,
         /// Number, String, Boolean or Namespace, or the value null or undefined.</param>
         public static void emitPushConstantAsObject(ILBuilder builder, ASAny value) {
-            if (!value.isDefined || value.value == null) {
+            if (value.isUndefinedOrNull) {
                 builder.emit(ILOp.ldnull);
                 return;
             }
 
-            switch (value.value.AS_class.tag) {
+            switch (value.AS_class.tag) {
                 case ClassTag.INT:
                     builder.emit(ILOp.ldc_i4, (int)value);
                     builder.emit(ILOp.call, KnownMembers.intToObject, 0);
@@ -575,12 +575,12 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="value">The constant. This must be of one of the following types: int, uint,
         /// Number, String or Boolean, or the value null or undefined.</param>
         public static void emitPushConstantAsAny(ILBuilder builder, ASAny value) {
-            if (!value.isDefined || value.value == null) {
+            if (value.isUndefinedOrNull) {
                 builder.emit(ILOp.ldsfld, KnownMembers.undefinedField);
                 return;
             }
 
-            switch (value.value.AS_class.tag) {
+            switch (value.AS_class.tag) {
                 case ClassTag.INT:
                     builder.emit(ILOp.ldc_i4, (int)value);
                     builder.emit(ILOp.call, KnownMembers.intToAny, 0);
@@ -621,7 +621,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="type">The type of the field or variable.</param>
         public static bool isImplicitDefault(ASAny value, Class type) {
             if (type == null)
-                return !value.isDefined;
+                return value.isUndefined;
 
             switch (type.tag) {
                 case ClassTag.INT:

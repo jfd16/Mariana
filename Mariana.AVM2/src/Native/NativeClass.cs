@@ -709,10 +709,10 @@ namespace Mariana.AVM2.Native {
                         defaultVal = (bool)defaultVal;
                         break;
                     default:
-                        if (!defaultVal.isDefined) {
+                        if (defaultVal.isUndefined) {
                             defaultVal = ASAny.@null;
                         }
-                        else if (defaultVal.value != null && paramType.underlyingType != typeof(ASObject)) {
+                        else if (!defaultVal.isNull && paramType.underlyingType != typeof(ASObject)) {
                             throw ErrorHelper.createError(
                                 ErrorCode.MARIANA__NATIVE_CLASS_METHOD_INVALID_DEFAULT,
                                 traitName, (declClass == null) ? "<global>" : declClass.name.ToString());

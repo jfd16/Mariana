@@ -62,14 +62,14 @@ namespace Mariana.AVM2.Core {
                 if (!p.hasDefault)
                     continue;
 
-                if (!p.defaultValue.isDefined) {
+                if (p.defaultValue.isUndefined) {
                     sb.Append(" = undefined");
                 }
-                else if (p.defaultValue.value == null) {
+                else if (p.defaultValue.isNull) {
                     sb.Append(" = null");
                 }
                 else {
-                    Class valType = p.defaultValue.value.AS_class;
+                    Class valType = p.defaultValue.AS_class;
                     sb.Append(" = ");
                     if (valType.tag == ClassTag.STRING) {
                         string strval = p.defaultValue.ToString().Replace("\\", "\\\\").Replace("\"", "\\\"");

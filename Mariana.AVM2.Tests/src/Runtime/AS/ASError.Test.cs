@@ -102,6 +102,12 @@ namespace Mariana.AVM2.Tests {
                 return domain;
             });
 
+            ErrorStackTraceTestClass.createdError = new ASError("Hello");
+            Assert.Equal(
+                "Error: Hello",
+                ErrorStackTraceTestClass.createdError.getStackTrace()
+            );
+
             ErrorStackTraceTestModule.method1();
             Assert.Equal(
                 "Error: Hello\n" +

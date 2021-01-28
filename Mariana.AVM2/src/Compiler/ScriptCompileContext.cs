@@ -975,7 +975,7 @@ namespace Mariana.AVM2.Compiler {
             else {
                 // In all other cases, the types must have an exact match, or the field
                 // type must be the "any" or Object type.
-                if (type != null && type.underlyingType != typeof(ASObject) && val.value.AS_class != type)
+                if (type != null && type.underlyingType != typeof(ASObject) && val.AS_class != type)
                     throw ErrorHelper.createError(ErrorCode.ILLEGAL_DEFAULT_VALUE, type.name);
                 return val;
             }

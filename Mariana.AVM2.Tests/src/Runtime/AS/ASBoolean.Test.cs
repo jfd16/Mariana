@@ -138,7 +138,7 @@ namespace Mariana.AVM2.Tests {
 
             void check(ASAny o, bool value) {
                 Assert.IsType<ASBoolean>(o.value);
-                Assert.Same(s_booleanClass, o.value.AS_class);
+                Assert.Same(s_booleanClass, o.AS_class);
                 Assert.Equal(value, ASObject.AS_toBoolean(o.value));
             }
         }

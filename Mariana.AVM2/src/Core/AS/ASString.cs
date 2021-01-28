@@ -26,7 +26,7 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// The maximum character code for which to cache values for single characters.
         /// </summary>
-        private const int SINGLE_CHAR_CACHE_RANGE = 255;
+        private const int SINGLE_CHAR_CACHE_RANGE = 127;
 
         /// <summary>
         /// An array of cached one-character strings.

@@ -466,7 +466,7 @@ namespace Mariana.AVM2.Tests {
 
             void check(ASAny o, int value) {
                 Assert.IsType<ASint>(o.value);
-                Assert.Same(s_intClass, o.value.AS_class);
+                Assert.Same(s_intClass, o.AS_class);
                 Assert.Equal(value, ASObject.AS_toInt(o.value));
             }
         }

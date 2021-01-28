@@ -873,12 +873,12 @@ namespace Mariana.AVM2.Core {
             string attrValue = _readAttributeValue();
 
             if (prefix == null && localName == "xmlns") {
-                _addNamespaceDecl(new ASNamespace("", attrValue, true));
+                _addNamespaceDecl(ASNamespace.unsafeCreate("", attrValue));
             }
             else if (prefix == "xmlns") {
                 if (attrValue.Length == 0)
                     throw ErrorHelper.createError(ErrorCode.XML_ILLEGAL_PREFIX_PUBLIC_NAMESPACE, localName);
-                _addNamespaceDecl(new ASNamespace(localName, attrValue, true));
+                _addNamespaceDecl(ASNamespace.unsafeCreate(localName, attrValue));
             }
             else {
                 // Attribute nodes canot be created at this point; this is because their prefixes

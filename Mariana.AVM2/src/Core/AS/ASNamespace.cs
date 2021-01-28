@@ -38,21 +38,8 @@ namespace Mariana.AVM2.Core {
         public static readonly ASNamespace @public = new ASNamespace("", "");
 
         /// <summary>
-        /// The <see cref="ASNamespace"/> instance representing the "any" namespace.
-        /// </summary>
-        /// <remarks>
-        /// If this namespace is used in a QName for matching XML elements or attributes, it specifies
-        /// that the namespace URI of the element or attribute must be ignored for the matching.
-        /// </remarks>
-        public static readonly ASNamespace any = new ASNamespace(null);
-
-        /// <summary>
         /// The URI of the XML namespace.
         /// </summary>
-        /// <remarks>
-        /// The "any" namespace (which can match XML elements and attributes in any namespace) has a
-        /// null URI.
-        /// </remarks>
         [AVM2ExportTrait]
         public readonly string uri;
 
@@ -69,31 +56,28 @@ namespace Mariana.AVM2.Core {
         public readonly string prefix;
 
         /// <summary>
-        /// Creates a new <see cref="ASNamespace"/> with only a URI
+        /// Creates a new <see cref="ASNamespace"/> with a URI and no prefix.
         /// </summary>
-        /// <param name="uri">The URI of the namespace. If this is null, this constructor returns the
-        /// "any" namespace/</param>
+        /// <param name="uri">The URI of the namespace.</param>
         /// <remarks>
         /// The prefix of the namespace will not be set (i.e. is set to null), except when the URI is
         /// the empty string, in which case the prefix will be set to the empty string.
         /// </remarks>
         public ASNamespace(string uri) {
-            this.uri = uri;
-            this.prefix = (uri != null && uri.Length == 0) ? "" : null;
+            this.uri = ASString.AS_convertString(uri);
+            this.prefix = (this.uri.Length == 0) ? "" : null;
         }
 
         /// <summary>
         /// Creates a new <see cref="ASNamespace"/> with a URI and a prefix.
         /// </summary>
         ///
-        /// <param name="prefix">The prefix of the namespace. If this is not a valid XML name (or
-        /// null), the namespace is considered to be prefixless and cannot be used with methods
-        /// requiring prefixed namespaces.</param>
+        /// <param name="prefix">The prefix of the namespace. If this is not a valid XML name, the
+        /// namespace is considered to be prefixless and cannot be used with methods requiring prefixed
+        /// namespaces.</param>
         /// <param name="uri">
-        /// The URI of the namespace. If this is the empty string, the prefix must be either null or
-        /// the empty string (otherwise an error is thrown), and in this case the prefix of the
-        /// namespace is always set to the empty string, even if the prefix parameter is null. If this
-        /// is null (which represents the "any" namespace), the prefix will always be set to null.
+        /// The URI of the namespace. If this is the empty string, the prefix must be
+        /// the empty string, otherwise an error is thrown.
         /// </param>
         ///
         /// <exception cref="AVM2Exception">
@@ -101,69 +85,36 @@ namespace Mariana.AVM2.Core {
         /// <item>
         /// <term>TypeError #1098</term>
         /// <description>If <paramref name="uri"/> is the empty string, but
-        /// <paramref name="prefix"/> is a non-null, non-empty string.</description>
+        /// <paramref name="prefix"/> is not the empty string.</description>
         /// </item>
         /// </list>
         /// </exception>
-        public ASNamespace(string prefix, string uri) : this(prefix, uri, false) { }
-
-        /// <summary>
-        /// Creates a new <see cref="ASNamespace"/> with a URI and a prefix, optionally disabling
-        /// validation.
-        /// </summary>
-        ///
-        /// <param name="prefix">The prefix of the namespace. If this is not a valid XML identifier
-        /// (or null), the namespace is considered to be prefixless and cannot be used with methods
-        /// requiring prefixed namespaces.</param>
-        /// <param name="uri">
-        /// The URI of the namespace. If this is the empty string, the prefix must be either null or
-        /// the empty string (otherwise an error is thrown), and in this case the prefix of the
-        /// namespace is always set to the empty string, even if the prefix parameter is null. If this
-        /// is null or the string "*" (which stands for the any namespace), the prefix will always be
-        /// set to null.
-        /// </param>
-        /// <param name="disableChecks">If this is set to true, all parameter validation is disabled
-        /// and the prefix and URI are set directly, with no exceptions being thrown for invalid
-        /// parameters. Set this to true only for prefixes and URIs that are guaranteed to be valid,
-        /// such as those obtained from the XML parser which validates them.</param>
-        ///
-        /// <exception cref="AVM2Exception">
-        /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1098</term>
-        /// <description>If <paramref name="uri"/> is the empty string, but
-        /// <paramref name="prefix"/> is a non-null, non-empty string (and
-        /// <paramref name="disableChecks"/> is false).</description>
-        /// </item>
-        /// </list>
-        /// </exception>
-        internal ASNamespace(string prefix, string uri, bool disableChecks) {
-            if (disableChecks) {
-                this.prefix = prefix;
-                this.uri = uri;
-                return;
-            }
-
-            if (uri == null) {
-                this.uri = null;
-                this.prefix = null;
-                return;
-            }
+        public ASNamespace(string prefix, string uri) {
+            prefix = ASString.AS_convertString(prefix);
+            uri = ASString.AS_convertString(uri);
 
             if (uri.Length == 0) {
-                if (prefix != null && prefix.Length != 0)
+                if (prefix.Length != 0)
                     throw ErrorHelper.createError(ErrorCode.XML_ILLEGAL_PREFIX_PUBLIC_NAMESPACE, prefix);
-                this.uri = "";
-                this.prefix = "";
-                return;
+                (this.prefix, this.uri) = ("", "");
             }
-
-            this.prefix = null;
-            if (prefix != null && (prefix.Length == 0 || XMLHelper.isValidName(prefix)))
-                this.prefix = prefix;
-
-            this.uri = uri;
+            else {
+                this.prefix = (prefix.Length == 0 || XMLHelper.isValidName(prefix)) ? prefix : null;
+                this.uri = uri;
+            }
         }
+
+        private ASNamespace(string prefix, string uri, bool _unsafeMarker) =>
+            (this.prefix, this.uri) = (prefix, uri);
+
+        /// <summary>
+        /// Use for creating a new Namespace internally when all arguments are known to be valid.
+        /// This does not check the validity of arguments, use with caution!
+        /// </summary>
+        /// <param name="prefix">The namespace prefix.</param>
+        /// <param name="uri">The namespace URI.</param>
+        /// <returns>The created <see cref="ASNamespace"/> instance.</returns>
+        internal static ASNamespace unsafeCreate(string prefix, string uri) => new ASNamespace(prefix, uri, true);
 
         /// <summary>
         /// Returns the prefix of this namespace, or undefined if the namespace has no prefix.
@@ -173,7 +124,7 @@ namespace Mariana.AVM2.Core {
 
         /// <summary>
         /// Returns a string representation of the object. For the Namespace class, this method
-        /// returns the namespace URI (or "*" for the any namespace).
+        /// returns the namespace URI.
         /// </summary>
         /// <returns>The string representation of the object.</returns>
         ///
@@ -205,7 +156,7 @@ namespace Mariana.AVM2.Core {
         /// <remarks>
         /// Two Namespace instances are equal if their URIs are equal. Prefixes are ignored.
         /// </remarks>
-        public static bool AS_equals(ASNamespace ns1, ASNamespace ns2) => ns1.uri == ns2.uri;
+        public static bool AS_equals(ASNamespace ns1, ASNamespace ns2) => ns1?.uri == ns2?.uri;
 
         /// <summary>
         /// Gets the default XML namespace for the current thread.
@@ -242,12 +193,12 @@ namespace Mariana.AVM2.Core {
         /// threads.</para>
         /// </remarks>
         public static void setDefault(ASNamespace ns) {
-            if (ns == null || ns.uri == null)
+            if (ns == null)
                 s_defaultNS = @public;
             else if (ns.prefix != null && ns.prefix.Length == 0)
                 s_defaultNS = ns;
             else
-                s_defaultNS = new ASNamespace("", ns.uri);
+                s_defaultNS = unsafeCreate("", ns.uri);
         }
 
         /// <exclude/>
@@ -273,35 +224,21 @@ namespace Mariana.AVM2.Core {
                 // No arguments: Return the public namespace.
                 return @public;
             }
-            else if (args.Length == 1) {
-                if (args[0].value is ASNamespace ns)
-                    return ns;
 
-                if (args[0].value is ASQName qname)
-                    return qname.getNamespace();
+            if (args.Length == 1)
+                return XMLHelper.objectToNamespace(args[0]);
 
-                string nsURI = ASAny.AS_convertString(args[0]);
+            string prefix = ASAny.AS_coerceString(args[0]);
+            string uri;
 
-                if (nsURI != null && nsURI.Length == 0)
-                    return @public;
-                if (nsURI.Length == 1 && nsURI[0] == '*')
-                    return any;
+            if (args[1].value is ASQName qname && qname.uri != null)
+                uri = qname.uri;
+            else if (args[1].value is ASNamespace ns)
+                uri = ns.uri;
+            else
+                uri = ASAny.AS_convertString(args[1]);
 
-                return new ASNamespace(nsURI);
-            }
-            else {
-                string prefix = ASAny.AS_coerceString(args[0]);
-                string uri;
-
-                if (args[1].value is ASQName qname)
-                    uri = qname.uri;
-                else if (args[1].value is ASNamespace ns)
-                    uri = ns.uri;
-                else
-                    uri = ASAny.AS_convertString(args[1]);
-
-                return new ASNamespace(prefix, uri);
-            }
+            return (prefix == null) ? new ASNamespace(uri) : new ASNamespace(prefix, uri);
         }
 
     }

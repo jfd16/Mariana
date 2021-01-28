@@ -214,7 +214,6 @@ namespace Mariana.AVM2.Tests {
         [Fact]
         public void fromASNamespace_shouldCreateNamespaceWithSameUri() {
             Assert.Equal(Namespace.any, Namespace.fromASNamespace(null));
-            Assert.Equal(Namespace.any, Namespace.fromASNamespace(new ASNamespace(null)));
             Assert.Equal(Namespace.@public, Namespace.fromASNamespace(new ASNamespace("")));
             Assert.Equal(new Namespace("hello"), Namespace.fromASNamespace(new ASNamespace("hello")));
             Assert.Equal(new Namespace("hello"), Namespace.fromASNamespace(new ASNamespace("p", "hello")));

@@ -209,7 +209,7 @@ namespace Mariana.AVM2.Core {
         /// </list>
         /// </exception>
         public override BindStatus tryInvoke(ASAny target, ASAny receiver, ReadOnlySpan<ASAny> args, out ASAny result) {
-            if (!target.isDefined && !isStatic)
+            if (target.isUndefined && !isStatic)
                 throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
 
             if (args.Length < m_requiredArgCount || (!m_hasRest && args.Length > m_params.Length))

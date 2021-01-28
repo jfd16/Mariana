@@ -292,7 +292,7 @@ namespace Mariana.AVM2.Tests {
 
             void check(ASAny o, double value) {
                 Assert.IsType<ASNumber>(o.value);
-                Assert.Same(s_numberClass, o.value.AS_class);
+                Assert.Same(s_numberClass, o.AS_class);
                 assertNumberEqual(value, ASObject.AS_toNumber(o.value));
             }
         }

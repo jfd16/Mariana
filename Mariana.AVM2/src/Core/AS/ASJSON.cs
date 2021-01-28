@@ -449,7 +449,7 @@ namespace Mariana.AVM2.Core {
                     m_reviverArgs[1] = obj;
                     ASAny reviverReturn = m_reviver.AS_invoke(ASAny.@null, m_reviverArgs);
 
-                    if (!reviverReturn.isDefined && !m_curLevelIsArray)
+                    if (reviverReturn.isUndefined && !m_curLevelIsArray)
                         discard = true;
 
                     obj = reviverReturn.value;
@@ -831,7 +831,7 @@ namespace Mariana.AVM2.Core {
                     ASObject parentObj = (m_stack.length == 0) ? null : m_stack[m_stack.length - 1].obj;
                     ASAny replaced = m_replacer.AS_invoke(parentObj, m_replacerArgs);
 
-                    if (!replaced.isDefined && !parentIsArray) {
+                    if (replaced.isUndefined && !parentIsArray) {
                         // Skip properties that return undefined from the replacer.
                         // Except when the parent is an array/vector, in which case null is written.
                         m_curState = _State.NEXT;
@@ -844,7 +844,7 @@ namespace Mariana.AVM2.Core {
                 if (m_curObject.value != null) {
                     // Attempt to call toJSON.
                     if (_tryCallToJSON(out ASAny result)) {
-                        if (!result.isDefined && !parentIsArray) {
+                        if (result.isUndefined && !parentIsArray) {
                             m_curState = _State.NEXT;
                             return;
                         }
@@ -917,7 +917,7 @@ namespace Mariana.AVM2.Core {
             }
 
             private bool _tryCallToJSON(out ASAny result) {
-                ClassTag tag = m_curObject.value.AS_class.tag;
+                ClassTag tag = m_curObject.AS_class.tag;
                 ASObject func = null;
 
                 if (ClassTagSet.numeric.contains(tag))

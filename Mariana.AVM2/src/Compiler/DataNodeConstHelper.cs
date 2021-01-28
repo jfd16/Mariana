@@ -100,14 +100,14 @@ namespace Mariana.AVM2.Compiler {
         public static void setToConstant(ref DataNode node, ASAny constantValue) {
             node.constant = default;
 
-            if (!constantValue.isDefined) {
+            if (constantValue.isUndefined) {
                 node.dataType = DataNodeType.UNDEFINED;
             }
-            else if (constantValue.value == null) {
+            else if (constantValue.isNull) {
                 node.dataType = DataNodeType.NULL;
             }
             else {
-                switch (constantValue.value.AS_class.tag) {
+                switch (constantValue.AS_class.tag) {
                     case ClassTag.INT:
                         node.dataType = DataNodeType.INT;
                         node.constant = new DataNodeConstant((int)constantValue.value);

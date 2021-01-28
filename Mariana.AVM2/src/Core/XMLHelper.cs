@@ -393,19 +393,15 @@ namespace Mariana.AVM2.Core {
         /// <returns>The namespace.</returns>
         /// <param name="obj">The <see cref="ASAny"/> instance to convert to a namespace.</param>
         public static ASNamespace objectToNamespace(ASAny obj) {
-            if (obj.value is ASNamespace nameSpace)
-                return nameSpace;
+            var ns = obj.value as ASNamespace;
+            if (ns == null && obj.value is ASQName qname)
+                ns = qname.getNamespace();
 
-            if (obj.value is ASQName qname)
-                return qname.getNamespace();
+            if (ns != null)
+                return ns;
 
             string uri = ASAny.AS_convertString(obj);
-
-            if (uri == null || (uri.Length == 1 && uri[0] == '*'))
-                return ASNamespace.any;
-            if (uri.Length == 0)
-                return ASNamespace.@public;
-            return new ASNamespace(uri);
+            return (uri.Length == 0) ? ASNamespace.@public : new ASNamespace(uri);
         }
 
         /// <summary>
@@ -426,10 +422,7 @@ namespace Mariana.AVM2.Core {
             if (localName.Length == 1 && localName[0] == '*')
                 return ASQName.any;
 
-            if (isAttr)
-                return new ASQName(ASNamespace.@public, localName);
-
-            return new ASQName(localName);
+            return new ASQName(isAttr ? ASNamespace.@public : ASNamespace.getDefault(), localName);
         }
 
         /// <summary>
@@ -537,7 +530,7 @@ namespace Mariana.AVM2.Core {
 
             if (xmlList1 != null) {
                 if (xmlList1.length() == 0)
-                    return !o2.isDefined;
+                    return o2.isUndefined;
                 else if (xmlList1.length() == 1)
                     xml1 = xmlList1[0];
                 else
@@ -545,7 +538,7 @@ namespace Mariana.AVM2.Core {
             }
             else if (xmlList2 != null) {
                 if (xmlList2.length() == 0)
-                    return !o1.isDefined;
+                    return o1.isUndefined;
                 else if (xmlList2.length() == 1)
                     xml2 = xmlList2[0];
                 else

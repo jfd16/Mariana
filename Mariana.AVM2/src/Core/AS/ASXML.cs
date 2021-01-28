@@ -837,33 +837,27 @@ namespace Mariana.AVM2.Core {
         internal static ASXML internalCreateElement(
             ASQName name, ReadOnlySpan<ASXML> attrs, ReadOnlySpan<ASXML> children, ASNamespace[] nsDecls)
         {
-            ASXML firstAttr = null, firstChild = null, lastChild = null;
+            ASXML firstAttr = null, firstChild = null;
+            ref ASXML attrTail = ref firstAttr;
+            ref ASXML childTail = ref firstChild;
 
-            if (attrs.Length != 0) {
-                ASXML curAttr = attrs[0];
-                firstAttr = curAttr;
-                for (int i = 1; i < attrs.Length; i++) {
-                    ASXML nextAttr = attrs[i];
-                    curAttr.m_next = nextAttr;
-                    curAttr = nextAttr;
-                }
+            for (int i = 0; i < attrs.Length; i++) {
+                attrTail = attrs[i];
+                attrTail = ref attrTail.m_next;
             }
 
-            if (children.Length != 0) {
-                ASXML curChild = children[0];
-                firstChild = curChild;
-                for (int i = 1; i < children.Length; i++) {
-                    ASXML nextChild = children[i];
-                    curChild.m_next = nextChild;
-                    curChild = nextChild;
-                }
-                lastChild = curChild;
+            for (int i = 0; i < children.Length; i++) {
+                childTail = children[i];
+                childTail = ref childTail.m_next;
             }
 
-            _ElementNode elem = new _ElementNode(name, null, firstAttr, firstChild, lastChild, nsDecls);
+            ASXML lastChild = (children.Length > 0) ? children[children.Length - 1] : null;
+
+            var elem = new _ElementNode(name, null, firstAttr, firstChild, lastChild, nsDecls);
 
             for (int i = 0; i < attrs.Length; i++)
                 attrs[i].m_parent = elem;
+
             for (int i = 0; i < children.Length; i++)
                 children[i].m_parent = elem;
 
@@ -916,7 +910,7 @@ namespace Mariana.AVM2.Core {
         /// with the prefix <paramref name="prefix"/> was found.</returns>
         private static int _findNamespaceByPrefix(ReadOnlySpan<ASNamespace> span, string prefix) {
             for (int i = 0; i < span.Length; i++) {
-                if (span[i] != null && span[i].prefix == prefix)
+                if (span[i]?.prefix == prefix)
                     return i;
             }
             return -1;
@@ -2048,7 +2042,7 @@ namespace Mariana.AVM2.Core {
             if (prefix == null)
                 return name;
 
-            name = new ASQName(prefix, name.uri, name.localName, true);
+            name = ASQName.unsafeCreate(prefix, name.uri, name.localName);
 
             System.Threading.Thread.MemoryBarrier();
             m_name = name;
@@ -2058,8 +2052,8 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Gets the namespace of this node's name, or a namespace declaration with the given prefix.
         /// </summary>
-        /// <param name="prefix">A namespace prefix, or null to get the namespace of this node's
-        /// name.</param>
+        /// <param name="prefix">If specified, returns the namespace associated with the given prefix,
+        /// otherwise returns the namespace of the node's name.</param>
         ///
         /// <returns>
         /// Returns the namespace declared with the given prefix on the node or any of its ancestors,
@@ -2070,8 +2064,8 @@ namespace Mariana.AVM2.Core {
         /// </returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
-        public virtual ASAny @namespace(string prefix = null) {
-            if (prefix != null)
+        public virtual ASAny @namespace(OptionalParam<ASAny> prefix = default) {
+            if (prefix.isSpecified)
                 return m_parent.@namespace(prefix);
 
             return (m_nodeType != XMLNodeType.ELEMENT && m_nodeType != XMLNodeType.ATTRIBUTE)
@@ -2319,7 +2313,7 @@ namespace Mariana.AVM2.Core {
             if (!XMLHelper.isValidName(newLocalName))
                 return;
 
-            ASQName newName = new ASQName(m_name.prefix, m_name.uri, newLocalName, disableChecks: true);
+            var newName = ASQName.unsafeCreate(m_name.prefix, m_name.uri, newLocalName);
 
             if (m_nodeType == XMLNodeType.ATTRIBUTE
                 && m_parent != null && !m_parent._checkAttributeName(newName, this))
@@ -2424,9 +2418,6 @@ namespace Mariana.AVM2.Core {
             }
 
             ASNamespace nameSpace = XMLHelper.objectToNamespace(ns);
-
-            if (nameSpace.uri == null)
-                return;
 
             if (m_nodeType != XMLNodeType.ATTRIBUTE) {
                 m_name = new ASQName(nameSpace, m_name.localName);
@@ -2686,12 +2677,14 @@ namespace Mariana.AVM2.Core {
                 return null;
             }
 
-            public override ASAny @namespace(string prefix = null) {
-                if (prefix == null)
+            public override ASAny @namespace(OptionalParam<ASAny> prefix = default) {
+                if (!prefix.isSpecified)
                     return name().getNamespace();
 
+                string prefixStr = ASAny.AS_convertString(prefix.value);
+
                 for (_ElementNode cur = this; cur != null; cur = cur.m_parent) {
-                    int nsIndex = _findNamespaceByPrefix(cur.m_nsdecls.asSpan(), prefix);
+                    int nsIndex = _findNamespaceByPrefix(cur.m_nsdecls.asSpan(), prefixStr);
                     if (nsIndex != -1)
                         return cur.m_nsdecls[nsIndex];
                 }
@@ -2710,17 +2703,15 @@ namespace Mariana.AVM2.Core {
                 // Add declarations from ancestor nodes.
                 for (cur = cur.m_parent; cur != null; cur = cur.m_parent) {
                     var prefixesToCheck = nsList.asSpan();
-                    for (int i = 0; i < cur.m_nsdecls.length; i++) {
-                        if (_findNamespaceByPrefix(prefixesToCheck, cur.m_nsdecls[i].prefix) == -1)
-                            nsList.add(cur.m_nsdecls[i]);
+                    var newNamespaces = cur.m_nsdecls.asSpan();
+
+                    for (int i = 0; i < newNamespaces.Length; i++) {
+                        if (_findNamespaceByPrefix(prefixesToCheck, newNamespaces[i].prefix) == -1)
+                            nsList.add(newNamespaces[i]);
                     }
                 }
 
-                ASArray array = new ASArray(nsList.length);
-                for (int i = 0; i < nsList.length; i++)
-                    array[(uint)i] = nsList[i];
-
-                return array;
+                return ASArray.fromObjectSpan<ASNamespace>(nsList.asSpan());
             }
 
             public override ASArray namespaceDeclarations() {
@@ -2731,29 +2722,28 @@ namespace Mariana.AVM2.Core {
 
                 // Make a copy of the namespace array because namespaces that are declared
                 // by ancestors need to be removed.
-                int thisNodeNSDeclsCount = m_nsdecls.length;
-                ASNamespace[] thisNodeNSDecls = m_nsdecls.toArray(true);
+                ASNamespace[] thisNodeDecls = m_nsdecls.toArray(true);
+                bool isAnyDeclRemoved = false;
 
                 // Check for declarations of ancestor nodes and remove them.
                 for (cur = cur.m_parent; cur != null; cur = cur.m_parent) {
-                    for (int i = 0; i < cur.m_nsdecls.length; i++) {
-                        int nsIndex = _findNamespaceByPrefix(thisNodeNSDecls, cur.m_nsdecls[i].prefix);
+                    var ancestorDecls = cur.m_nsdecls.asSpan();
 
-                        if (nsIndex != -1 && thisNodeNSDecls[nsIndex].uri == cur.m_nsdecls[i].uri) {
-                            thisNodeNSDecls[nsIndex] = null;
-                            thisNodeNSDeclsCount--;
+                    for (int i = 0; i < ancestorDecls.Length; i++) {
+                        int nsIndex = _findNamespaceByPrefix(thisNodeDecls, ancestorDecls[i].prefix);
+
+                        if (nsIndex != -1 && thisNodeDecls[nsIndex].uri == ancestorDecls[i].uri) {
+                            thisNodeDecls[nsIndex] = null;
+                            isAnyDeclRemoved = true;
                         }
                     }
                 }
 
-                ASArray array = new ASArray(thisNodeNSDeclsCount);
+                int thisNodeDeclCount = thisNodeDecls.Length;
+                if (isAnyDeclRemoved)
+                    thisNodeDeclCount = DataStructureUtil.compactArray(thisNodeDecls, thisNodeDeclCount);
 
-                for (int i = 0, j = 0; i < thisNodeNSDecls.Length; i++) {
-                    if (thisNodeNSDecls[i] != null)
-                        array[(uint)(j++)] = thisNodeNSDecls[i];
-                }
-
-                return array;
+                return ASArray.fromObjectSpan<ASNamespace>(thisNodeDecls.AsSpan(0, thisNodeDeclCount));
             }
 
             /// <summary>
@@ -2818,14 +2808,12 @@ namespace Mariana.AVM2.Core {
                     return new _TextNode(node.m_name, parent, node.m_nodeType, node.nodeText);
 
                 _ElementNode newElem = new _ElementNode(node.m_name, parent);
+                ref ASXML newElemAttrTail = ref newElem.m_firstAttr;
 
-                for (ASXML attr = elem.m_firstAttr, copyAttr = null; attr != null; attr = attr.m_next) {
+                for (ASXML attr = elem.m_firstAttr; attr != null; attr = attr.m_next) {
                     ASXML newAttr = new _TextNode(attr.m_name, newElem, XMLNodeType.ATTRIBUTE, attr.nodeText);
-                    if (newElem.m_firstAttr == null)
-                        newElem.m_firstAttr = newAttr;
-                    else
-                        copyAttr.m_next = newAttr;
-                    copyAttr = newAttr;
+                    newElemAttrTail = newAttr;
+                    newElemAttrTail = ref newAttr.m_next;
                 }
 
                 newElem.m_nsdecls = new DynamicArray<ASNamespace>(elem.m_nsdecls.toArray(true), elem.m_nsdecls.length);
@@ -2834,7 +2822,6 @@ namespace Mariana.AVM2.Core {
             }
 
             private void _getAssignTargetAndClear(in XMLGenName genName, out ASXML target, out ASXML prev) {
-
                 ASXML first = genName.isAttr ? m_firstAttr : m_firstChild;
                 bool isMulti = genName.isMultiname;
                 string uri = genName.uri;
@@ -2848,8 +2835,7 @@ namespace Mariana.AVM2.Core {
 
                 if (!isMulti && uri == null && genName.localName == null) {
                     // Special case for the "any" name.
-                    prev = null;
-                    target = first;
+                    (prev, target) = (null, first);
                     if (first != null) {
                         while (first.m_next != null)
                             _detachNode(first.m_next, first, genName.isAttr);
@@ -2857,43 +2843,31 @@ namespace Mariana.AVM2.Core {
                     return;
                 }
 
-                prev = null;
-                target = null;
+                (prev, target) = (null, null);
                 ASXML cur = first, curPrev = null;
 
                 while (cur != null) {
                     if (cur.m_name.localName != genName.localName || cur.m_nodeType != targetType) {
-                        curPrev = cur;
-                        cur = cur.m_next;
-                        continue;
+                        (curPrev, cur) = (cur, cur.m_next);
                     }
-
-                    if ((isMulti ? !genName.nsSet.contains(cur.m_name.uri) : uri != null) && cur.m_name.uri != uri) {
-                        curPrev = cur;
-                        cur = cur.m_next;
-                        continue;
+                    else if ((isMulti ? !genName.nsSet.contains(cur.m_name.uri) : uri != null) && cur.m_name.uri != uri) {
+                        (curPrev, cur) = (cur, cur.m_next);
                     }
-
-                    if (target == null) {
-                        target = cur;
-                        prev = curPrev;
-                        if (singleOnly)
-                            return;
-
-                        curPrev = cur;
-                        cur = cur.m_next;
-                    }
-                    else {
+                    else if (target != null) {
                         cur = _detachNode(cur, prev, genName.isAttr);
                     }
+                    else {
+                        (target, prev) = (cur, curPrev);
+                        (curPrev, cur) = (cur, cur.m_next);
+                        if (singleOnly)
+                            return;
+                    }
                 }
-
             }
 
             public override ASXML createChildNode(
                 XMLNodeType nodeType, ASQName nodeName = null, string nodeText = null)
             {
-
                 if (nodeType == XMLNodeType.ATTRIBUTE || nodeType == XMLNodeType.ELEMENT
                     || nodeType == XMLNodeType.PROCESSING_INSTRUCTION)
                 {
@@ -2919,7 +2893,7 @@ namespace Mariana.AVM2.Core {
                          && ((nodeName.prefix.Length == 0 && nodeName.uri.Length != 0)
                              || nodeName.prefix == "xmlns"))
                     {
-                        nodeName = new ASQName(null, nodeName.uri, nodeName.localName, true);
+                        nodeName = ASQName.unsafeCreate(null, nodeName.uri, nodeName.localName);
                     }
                 }
                 else {
@@ -2969,7 +2943,6 @@ namespace Mariana.AVM2.Core {
                 }
 
                 return newNode;
-
             }
 
             internal override void internalSetPropGenName(in XMLGenName genName, ASAny value) {
@@ -2989,20 +2962,17 @@ namespace Mariana.AVM2.Core {
                         // Create a new attribute.
                         string uri = genName.uri, prefix = genName.prefix;
 
-                        if (!XMLHelper.isValidName(genName.localName)
-                            || (genName.localName == "xmlns" && uri.Length == 0))
-                        {
-                            return;
-                        }
-
                         if (genName.isMultiname || uri == null)
                             uri = "";
+
+                        if (!XMLHelper.isValidName(genName.localName) || (genName.localName == "xmlns" && uri.Length == 0))
+                            return;
 
                         if (prefix != null && ((prefix.Length == 0 && uri.Length != 0) || prefix == "xmlns"))
                             // Invalid prefix for attribute.
                             prefix = null;
 
-                        ASQName qname = new ASQName(prefix, uri, genName.localName, true);
+                        var qname = ASQName.unsafeCreate(prefix, uri, genName.localName);
                         attribute = new _TextNode(qname, this, XMLNodeType.ATTRIBUTE, null);
                         attribute.m_next = m_firstAttr;
                         m_firstAttr = attribute;
@@ -3047,8 +3017,7 @@ namespace Mariana.AVM2.Core {
                             primitiveString = ASAny.AS_convertString(value);
                         }
                         else if (valueXml != null &&
-                            (valueXml.m_nodeType == XMLNodeType.TEXT
-                             || valueXml.m_nodeType == XMLNodeType.ATTRIBUTE))
+                            (valueXml.m_nodeType == XMLNodeType.TEXT || valueXml.m_nodeType == XMLNodeType.ATTRIBUTE))
                         {
                             primitiveString = valueXml.nodeText;
                         }
@@ -3061,12 +3030,14 @@ namespace Mariana.AVM2.Core {
                         // a new element with the property name and append it. ([[Put]] step 12b)
 
                         if (target == null) {
-                            string uri = genName.uri;
+                            string uri = genName.uri, prefix = genName.prefix;
 
-                            if (genName.isMultiname || uri == null)
-                                uri = ASNamespace.getDefault().uri;
+                            if (genName.isMultiname || uri == null) {
+                                var defaultNs = ASNamespace.getDefault();
+                                (uri, prefix) = (defaultNs.uri, defaultNs.prefix);
+                            }
 
-                            ASQName nodeName = new ASQName(genName.prefix, uri, genName.localName);
+                            ASQName nodeName = ASQName.unsafeCreate(prefix, uri, genName.localName);
                             target = new _ElementNode(nodeName, this);
                             internalInsertChildAfter(m_lastChild, target, false);
 
@@ -3108,7 +3079,6 @@ namespace Mariana.AVM2.Core {
                         var rest = valueXmlList.getItems().slice(1, valueXmlList.length() - 1);
                         _insertChildrenAfter(newNode, rest, true);
                     }
-
                 }
             }
 
@@ -3135,20 +3105,16 @@ namespace Mariana.AVM2.Core {
                 ASXML prev = null, cur = first;
                 while (cur != null) {
                     if (cur.m_name.localName != genName.localName || cur.m_nodeType != targetType) {
-                        prev = cur;
-                        cur = cur.m_next;
-                        continue;
+                        (prev, cur) = (cur, cur.m_next);
                     }
-
-                    if ((isMulti ? !genName.nsSet.contains(cur.m_name.uri) : uri != null) && cur.m_name.uri != uri) {
-                        prev = cur;
-                        cur = cur.m_next;
-                        continue;
+                    else if ((isMulti ? !genName.nsSet.contains(cur.m_name.uri) : uri != null) && cur.m_name.uri != uri) {
+                        (prev, cur) = (cur, cur.m_next);
                     }
-
-                    cur = _detachNode(cur, prev, genName.isAttr);
-                    if (singleOnly)
-                        break;
+                    else {
+                        cur = _detachNode(cur, prev, genName.isAttr);
+                        if (singleOnly)
+                            break;
+                    }
                 }
             }
 
@@ -3257,7 +3223,6 @@ namespace Mariana.AVM2.Core {
             }
 
             public override ASXML addNamespace(ASAny ns) {
-
                 ASNamespace nameSpace = XMLHelper.objectToNamespace(ns);
 
                 if (nameSpace == null || nameSpace.prefix == null)
@@ -3276,7 +3241,7 @@ namespace Mariana.AVM2.Core {
                     for (_ElementNode p = m_parent; p != null; p = p.m_parent) {
                         int nsIndex = _findNamespaceByPrefix(p.m_nsdecls.asSpan(), prefix);
                         if (nsIndex != -1) {
-                            foundHidingPrefix = (p.m_nsdecls[nsIndex].uri != nameSpace.uri);
+                            foundHidingPrefix = p.m_nsdecls[nsIndex].uri != nameSpace.uri;
                             break;
                         }
                     }
@@ -3289,6 +3254,7 @@ namespace Mariana.AVM2.Core {
                     if (m_nsdecls[oldIndex].uri == nameSpace.uri)
                         // The namespace declaration already exists.
                         return this;
+
                     m_nsdecls[oldIndex] = nameSpace;
                 }
 
@@ -3307,22 +3273,20 @@ namespace Mariana.AVM2.Core {
                     }
 
                     if (cur.m_name.prefix == prefix && cur.m_name.uri.Length != 0)
-                        cur.m_name = new ASQName(null, cur.m_name.uri, cur.m_name.localName, true);
+                        cur.m_name = ASQName.unsafeCreate(null, cur.m_name.uri, cur.m_name.localName);
 
                     if (prefix.Length != 0) {
                         for (ASXML attr = cur.m_firstAttr; attr != null; attr = attr.m_next) {
                             if (attr.m_name.prefix == prefix)
-                                attr.m_name = new ASQName(null, attr.m_name.uri, attr.m_name.localName, true);
+                                attr.m_name = ASQName.unsafeCreate(null, attr.m_name.uri, attr.m_name.localName);
                         }
                     }
                 }
 
                 return this;
-
             }
 
             public override ASXML copy() {
-
                 ASXML cur = this;
                 ASXML copyCur = _makeShallowCopy(this, null);
 
@@ -3362,7 +3326,7 @@ namespace Mariana.AVM2.Core {
                 }
 
                 // Copy namespace declarations from ancestors.
-                _ElementNode copyElement = (_ElementNode)copyCur;
+                var copyElement = (_ElementNode)copyCur;
 
                 for (_ElementNode p = m_parent; p != null; p = p.m_parent) {
                     for (int i = 0; i < p.m_nsdecls.length; i++) {
@@ -3373,11 +3337,9 @@ namespace Mariana.AVM2.Core {
                 }
 
                 return copyElement;
-
             }
 
             public override ASXML normalize() {
-
                 DynamicArray<string> tempList = new DynamicArray<string>();
                 DescendantEnumerator iterator = getDescendantEnumerator(true);
 
@@ -3436,19 +3398,16 @@ namespace Mariana.AVM2.Core {
 
                     if (!hasSubElement)
                         iterator.stepOverCurrentNode();
-
                 }
 
                 return this;
-
             }
 
             public override ASXML removeNamespace(ASAny ns) {
-
                 ASNamespace nameSpace = XMLHelper.objectToNamespace(ns);
 
-                if (nameSpace.uri == null || nameSpace.uri.Length == 0)
-                    // We can't remove these namespaces.
+                if (nameSpace.uri.Length == 0)
+                    // We can't remove this namespace.
                     return this;
 
                 string prefix = nameSpace.prefix;
@@ -3487,18 +3446,17 @@ namespace Mariana.AVM2.Core {
                     }
 
                     if (curNode.m_name.prefix == prefix)
-                        curNode.m_name = new ASQName(null, curNode.m_name.uri, curNode.m_name.localName, true);
+                        curNode.m_name = ASQName.unsafeCreate(null, curNode.m_name.uri, curNode.m_name.localName);
 
                     if (prefix.Length != 0) {
                         for (ASXML attr = curNode.m_firstAttr; attr != null; attr = attr.m_next) {
                             if (attr.m_name.prefix == prefix)
-                                attr.m_name = new ASQName(null, attr.m_name.uri, attr.m_name.localName, true);
+                                attr.m_name = ASQName.unsafeCreate(null, attr.m_name.uri, attr.m_name.localName);
                         }
                     }
                 }
 
                 return this;
-
             }
 
             public override ASXML replace(ASAny name, ASAny newValue) {
@@ -3508,12 +3466,10 @@ namespace Mariana.AVM2.Core {
                 ASXML target, prev;
                 if (genName.isIndex) {
                     int index = 0;
-                    prev = null;
-                    target = m_firstChild;
+                    (prev, target) = (null, m_firstChild);
                     while (target != null && index < genName.index) {
                         index++;
-                        prev = target;
-                        target = target.m_next;
+                        (prev, target) = (target, target.m_next);
                     }
                 }
                 else {
@@ -3533,12 +3489,8 @@ namespace Mariana.AVM2.Core {
 
                 bool mustCopy = true;
 
-                if (!(newValue.value is ASXML newNode)) {
-                    if (valueXmlList != null)
-                        newNode = valueXmlList[0];
-                    else
-                        newNode = XMLHelper.objectToNode(newValue, out mustCopy);
-                }
+                if (!(newValue.value is ASXML newNode))
+                    newNode = (valueXmlList != null) ? valueXmlList[0] : XMLHelper.objectToNode(newValue, out mustCopy);
 
                 if (mustCopy)
                     newNode = newNode.copy();
@@ -3554,7 +3506,6 @@ namespace Mariana.AVM2.Core {
                 }
 
                 return this;
-
             }
 
         }

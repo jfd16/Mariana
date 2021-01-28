@@ -5087,9 +5087,7 @@ namespace Mariana.AVM2.Compiler {
                     }
                     else if (arg1.dataType == DataNodeType.NAMESPACE) {
                         // No-op
-                    }
-                    else if (arg1.dataType == DataNodeType.QNAME) {
-                        m_ilBuilder.emit(ILOp.callvirt, KnownMembers.xmlNsFromQname, 0);
+                        Debug.Assert(arg1.isNotNull);
                     }
                     else {
                         Debug.Assert(false);
@@ -5102,6 +5100,7 @@ namespace Mariana.AVM2.Compiler {
                     }
                     else if (arg1.dataType == DataNodeType.QNAME) {
                         // No-op
+                        Debug.Assert(arg1.isNotNull);
                     }
                     else {
                         Debug.Assert(false);
