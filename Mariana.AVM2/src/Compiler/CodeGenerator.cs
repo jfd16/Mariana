@@ -167,9 +167,9 @@ namespace Mariana.AVM2.Compiler {
 
                 _emitHeader();
 
-                var instructions = m_compilation.getInstructions();
-                for (int i = 0; i < instructions.Length; i++)
-                    _visitInstruction(ref instructions[i]);
+                var rpo = m_compilation.getBasicBlockReversePostorder();
+                for (int i = 0; i < rpo.Length; i++)
+                    _visitBasicBlock(ref m_compilation.getBasicBlock(rpo[i]));
 
                 _emitTrailer();
             }
@@ -217,7 +217,7 @@ namespace Mariana.AVM2.Compiler {
                 var entryPoints = m_compilation.cfgNodeRefArrayPool.getSpan(bb.entryPoints);
                 for (int i = 0; i < entryPoints.Length; i++) {
                     CFGNodeRef ep = entryPoints[i];
-                    if (ep.isCatch || (ep.isBlock && m_compilation.getBasicBlock(ep.id).firstInstrId >= bb.firstInstrId))
+                    if (ep.isCatch || (ep.isBlock && m_compilation.getBasicBlock(ep.id).postorderIndex <= bb.postorderIndex))
                         return true;
                 }
                 return false;
@@ -384,6 +384,13 @@ namespace Mariana.AVM2.Compiler {
             }
 
             _emitInitFieldsToDefaultValues();
+
+            // In the rare case where the entry point of the method is not the first basic
+            // block that will be emitted (based on reverse postorder index), emit a jump
+            // to the entry point.
+            ref BasicBlock firstBlock = ref m_compilation.getBasicBlockOfInstruction(0);
+            if (firstBlock.postorderIndex != m_compilation.getBasicBlocks().Length - 1)
+                m_ilBuilder.emit(ILOp.br, m_blockEmitInfo[firstBlock.id].forwardLabel);
         }
 
         /// <summary>
@@ -695,23 +702,15 @@ namespace Mariana.AVM2.Compiler {
             m_ilBuilder.emit(ILOp.ret);
         }
 
-        private void _visitInstruction(ref Instruction instr) {
-            if (instr.blockId == -1)
-                return;     // Unreachable instruction
+        private void _visitBasicBlock(ref BasicBlock block) {
+            _emitBasicBlockHeader(ref block);
 
-            if ((instr.flags & InstructionFlags.STARTS_BASIC_BLOCK) != 0)
-                _emitBasicBlockHeader(ref m_compilation.getBasicBlockOfInstruction(instr));
+            var instructions = m_compilation.getInstructionsInBasicBlock(block);
+            for (int i = 0; i < instructions.Length; i++)
+                _visitInstruction(ref instructions[i]);
 
-            _visitInstructionCore(ref instr);
-
-            if (instr.stackPushedNodeId != -1)
-                _emitOnPushTypeCoerce(ref m_compilation.getDataNode(instr.stackPushedNodeId));
-
-            if ((instr.flags & InstructionFlags.ENDS_BASIC_BLOCK) != 0) {
-                ref BasicBlock block = ref m_compilation.getBasicBlockOfInstruction(instr);
-                if (block.exitType == BasicBlockExitType.JUMP)
-                    _emitJumpFromBasicBlock(ref block);
-            }
+            if (block.exitType == BasicBlockExitType.JUMP)
+                _emitJumpFromBasicBlock(ref block);
         }
 
         private void _emitBasicBlockHeader(ref BasicBlock block) {
@@ -756,7 +755,7 @@ namespace Mariana.AVM2.Compiler {
             }
         }
 
-        private void _visitInstructionCore(ref Instruction instr) {
+        private void _visitInstruction(ref Instruction instr) {
             switch (instr.opcode) {
                 case ABCOp.getlocal:
                     _visitGetLocal(ref instr);
@@ -1058,6 +1057,9 @@ namespace Mariana.AVM2.Compiler {
                     _visitLookupSwitch(ref instr);
                     break;
             }
+
+            if (instr.stackPushedNodeId != -1)
+                _emitOnPushTypeCoerce(ref m_compilation.getDataNode(instr.stackPushedNodeId));
         }
 
         private void _visitGetLocal(ref Instruction instr) {
@@ -2179,14 +2181,22 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode def = ref m_compilation.getDataNode(stackPopIds[0]);
             var argIds = stackPopIds.Slice(stackPopIds.Length - instr.data.applyType.argCount);
 
-            var argsLocal = _emitCollectStackArgsIntoArray(argIds);
+            ILBuilder.Local argsLocal = default;
+            if (argIds.Length > 0)
+                argsLocal = _emitCollectStackArgsIntoArray(argIds);
+
             _emitTypeCoerceForTopOfStack(ref def, DataNodeType.OBJECT);
 
-            m_ilBuilder.emit(ILOp.ldloc, argsLocal);
-            m_ilBuilder.emit(ILOp.newobj, KnownMembers.roSpanOfAnyFromArray, 0);
-            m_ilBuilder.emit(ILOp.call, KnownMembers.applyType, -1);
+            if (argIds.Length > 0) {
+                m_ilBuilder.emit(ILOp.ldloc, argsLocal);
+                m_ilBuilder.emit(ILOp.newobj, KnownMembers.roSpanOfAnyFromArray, 0);
+                m_ilBuilder.releaseTempLocal(argsLocal);
+            }
+            else {
+                m_ilBuilder.emit(ILOp.call, KnownMembers.roSpanOfAnyEmpty, 1);
+            }
 
-            m_ilBuilder.releaseTempLocal(argsLocal);
+            m_ilBuilder.emit(ILOp.call, KnownMembers.applyType, -1);
         }
 
         private void _visitGetProperty(ref Instruction instr) {
@@ -2472,7 +2482,10 @@ namespace Mariana.AVM2.Compiler {
             else if (resolvedProp.propKind == ResolvedPropertyKind.RUNTIME) {
                 Debug.Assert(!obj.isNotPushed);
 
-                var argsLocal = _emitCollectStackArgsIntoArray(argIds);
+                ILBuilder.Local argsLocal = default;
+                if (argIds.Length > 0)
+                    argsLocal = _emitCollectStackArgsIntoArray(argIds);
+
                 _emitPrepareRuntimeBinding(
                     multiname, rtNsNodeId, rtNameNodeId, _getPushedClassOfNode(obj), false, out var bindingKind);
 
@@ -2488,9 +2501,15 @@ namespace Mariana.AVM2.Compiler {
                 if (isLex)
                     bindOpts |= BindOptions.NULL_RECEIVER;
 
-                m_ilBuilder.emit(ILOp.ldloc, argsLocal);
-                m_ilBuilder.releaseTempLocal(argsLocal);
-                m_ilBuilder.emit(ILOp.newobj, KnownMembers.roSpanOfAnyFromArray, 0);
+                if (argIds.Length > 0) {
+                    m_ilBuilder.emit(ILOp.ldloc, argsLocal);
+                    m_ilBuilder.emit(ILOp.newobj, KnownMembers.roSpanOfAnyFromArray, 0);
+                    m_ilBuilder.releaseTempLocal(argsLocal);
+                }
+                else {
+                    m_ilBuilder.emit(ILOp.call, KnownMembers.roSpanOfAnyEmpty, 1);
+                }
+
                 m_ilBuilder.emit(ILOp.ldc_i4, (int)bindOpts);
                 m_ilBuilder.emit(isObjAny ? ILOp.call : ILOp.callvirt, method);
 
@@ -2541,7 +2560,9 @@ namespace Mariana.AVM2.Compiler {
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.callOrConstruct.resolvedPropId);
 
             if (resolvedProp.propKind == ResolvedPropertyKind.RUNTIME) {
-                var argsLocal = _emitCollectStackArgsIntoArray(argIds);
+                ILBuilder.Local argsLocal = default;
+                if (argIds.Length > 0)
+                    argsLocal = _emitCollectStackArgsIntoArray(argIds);
 
                 ILBuilder.Local receiverLocal = default;
                 if (receiverId != -1) {
@@ -2569,9 +2590,14 @@ namespace Mariana.AVM2.Compiler {
                     m_ilBuilder.releaseTempLocal(receiverLocal);
                 }
 
-                m_ilBuilder.emit(ILOp.ldloc, argsLocal);
-                m_ilBuilder.emit(ILOp.newobj, KnownMembers.roSpanOfAnyFromArray, 0);
-                m_ilBuilder.releaseTempLocal(argsLocal);
+                if (argIds.Length > 0) {
+                    m_ilBuilder.emit(ILOp.ldloc, argsLocal);
+                    m_ilBuilder.emit(ILOp.newobj, KnownMembers.roSpanOfAnyFromArray, 0);
+                    m_ilBuilder.releaseTempLocal(argsLocal);
+                }
+                else {
+                    m_ilBuilder.emit(ILOp.call, KnownMembers.roSpanOfAnyEmpty, 1);
+                }
 
                 m_ilBuilder.emit((func.dataType == DataNodeType.ANY) ? ILOp.call : ILOp.callvirt, method);
                 if (resultId == -1)
@@ -4518,7 +4544,9 @@ namespace Mariana.AVM2.Compiler {
         private void _emitCallOrConstructTraitAtRuntime(
             Trait trait, int objectId, ReadOnlySpan<int> argIds, bool isConstruct, bool nullReceiver, bool noReturn)
         {
-            ILBuilder.Local argsLocal = _emitCollectStackArgsIntoArray(argIds);
+            ILBuilder.Local argsLocal = default;
+            if (argIds.Length > 0)
+                argsLocal = _emitCollectStackArgsIntoArray(argIds);
 
             if (trait.isStatic && objectId != -1)
                 _emitDiscardTopOfStack(objectId);
@@ -4600,9 +4628,14 @@ namespace Mariana.AVM2.Compiler {
                 }
             }
 
-            m_ilBuilder.emit(ILOp.ldloc, argsLocal);
-            m_ilBuilder.emit(ILOp.newobj, KnownMembers.roSpanOfAnyFromArray, 0);
-            m_ilBuilder.releaseTempLocal(argsLocal);
+            if (argIds.Length > 0) {
+                m_ilBuilder.emit(ILOp.ldloc, argsLocal);
+                m_ilBuilder.emit(ILOp.newobj, KnownMembers.roSpanOfAnyFromArray, 0);
+                m_ilBuilder.releaseTempLocal(argsLocal);
+            }
+            else {
+                m_ilBuilder.emit(ILOp.call, KnownMembers.roSpanOfAnyEmpty, 1);
+            }
 
             MethodInfo method;
 
@@ -4625,7 +4658,9 @@ namespace Mariana.AVM2.Compiler {
             IndexProperty indexProperty, ref DataNode obj, ref DataNode name, ReadOnlySpan<int> argIds,
             bool isConstruct, bool nullReceiver, bool noReturn)
         {
-            var argsLocal = _emitCollectStackArgsIntoArray(argIds);
+            ILBuilder.Local argsLocal = default;
+            if (argIds.Length > 0)
+                argsLocal = _emitCollectStackArgsIntoArray(argIds);
 
             ILBuilder.Local objLocal = default;
             if (!isConstruct && !nullReceiver) {
@@ -4663,9 +4698,14 @@ namespace Mariana.AVM2.Compiler {
                 }
             }
 
-            m_ilBuilder.emit(ILOp.ldloc, argsLocal);
-            m_ilBuilder.emit(ILOp.newobj, KnownMembers.roSpanOfAnyFromArray, 0);
-            m_ilBuilder.releaseTempLocal(argsLocal);
+            if (argIds.Length > 0) {
+                m_ilBuilder.emit(ILOp.ldloc, argsLocal);
+                m_ilBuilder.emit(ILOp.newobj, KnownMembers.roSpanOfAnyFromArray, 0);
+                m_ilBuilder.releaseTempLocal(argsLocal);
+            }
+            else {
+                m_ilBuilder.emit(ILOp.call, KnownMembers.roSpanOfAnyEmpty, 1);
+            }
 
             MethodInfo method = isConstruct ? KnownMembers.anyConstruct : KnownMembers.anyInvoke;
             m_ilBuilder.emit(ILOp.call, method);
@@ -4889,14 +4929,9 @@ namespace Mariana.AVM2.Compiler {
         /// the created array. This must be released using <see cref="ILBuilder.releaseTempLocal"/>
         /// after using it.</returns>
         private ILBuilder.Local _emitCollectStackArgsIntoArray(ReadOnlySpan<int> argsOnStack) {
+            Debug.Assert(argsOnStack.Length > 0);
+
             var arrLocal = m_ilBuilder.acquireTempLocal(typeof(ASAny[]));
-
-            if (argsOnStack.Length == 0) {
-                m_ilBuilder.emit(ILOp.call, KnownMembers.emptyArrayOfAny, 1);
-                m_ilBuilder.emit(ILOp.stloc, arrLocal);
-                return arrLocal;
-            }
-
             var elemLocal = m_ilBuilder.acquireTempLocal(typeof(ASAny));
 
             m_ilBuilder.emit(ILOp.ldc_i4, argsOnStack.Length);
@@ -5176,11 +5211,16 @@ namespace Mariana.AVM2.Compiler {
                     break;
 
                 case IntrinsicName.ARRAY_NEW: {
-                    var argsLocal = _emitCollectStackArgsIntoArray(argsOnStack);
-                    m_ilBuilder.emit(ILOp.ldloc, argsLocal);
-                    m_ilBuilder.releaseTempLocal(argsLocal);
-                    m_ilBuilder.emit(ILOp.newobj, KnownMembers.roSpanOfAnyFromArray, 0);
-                    m_ilBuilder.emit(ILOp.newobj, KnownMembers.arrayCtorWithSpan, 0);
+                    if (argsOnStack.Length > 0) {
+                        var argsLocal = _emitCollectStackArgsIntoArray(argsOnStack);
+                        m_ilBuilder.emit(ILOp.ldloc, argsLocal);
+                        m_ilBuilder.emit(ILOp.newobj, KnownMembers.roSpanOfAnyFromArray, 0);
+                        m_ilBuilder.releaseTempLocal(argsLocal);
+                        m_ilBuilder.emit(ILOp.newobj, KnownMembers.arrayCtorWithSpan, 0);
+                    }
+                    else {
+                        m_ilBuilder.emit(ILOp.newobj, KnownMembers.arrayCtorWithNoArgs, 1);
+                    }
                     break;
                 }
 
@@ -5361,10 +5401,9 @@ namespace Mariana.AVM2.Compiler {
             ref BasicBlock fromBlock, ref BasicBlock trueBlock, ref BasicBlock falseBlock, ILOp opcode, ILOp inverseOpcode)
         {
             bool isTrueBlockTransitionRequired = _isBlockTransitionRequired(ref fromBlock, ref trueBlock);
+            bool isFalseBlockTransitionRequired = _isBlockTransitionRequired(ref fromBlock, ref falseBlock);
 
             if (isTrueBlockTransitionRequired) {
-                bool isFalseBlockTransitionRequired = _isBlockTransitionRequired(ref fromBlock, ref falseBlock);
-
                 if (isFalseBlockTransitionRequired) {
                     var label = m_ilBuilder.createLabel();
                     m_ilBuilder.emit(opcode, label);
@@ -5383,6 +5422,9 @@ namespace Mariana.AVM2.Compiler {
                     if (!_isBasicBlockImmediatelyBefore(fromBlock, trueBlock))
                         m_ilBuilder.emit(ILOp.br, _getLabelForJumpToBlock(fromBlock, trueBlock));
                 }
+            }
+            else if (_isBasicBlockImmediatelyBefore(fromBlock, trueBlock) && !isFalseBlockTransitionRequired) {
+                m_ilBuilder.emit(inverseOpcode, _getLabelForJumpToBlock(fromBlock, falseBlock));
             }
             else {
                 m_ilBuilder.emit(opcode, _getLabelForJumpToBlock(fromBlock, trueBlock));
@@ -5403,7 +5445,7 @@ namespace Mariana.AVM2.Compiler {
         /// <returns>An instance of <see cref="ILBuilder.Label"/> representing the label to
         /// be used when emitting the jump/branch/switch instruction.</returns>
         private ILBuilder.Label _getLabelForJumpToBlock(in BasicBlock fromBlock, in BasicBlock toBlock) {
-            bool isBackward = fromBlock.firstInstrId >= toBlock.firstInstrId;
+            bool isBackward = fromBlock.postorderIndex <= toBlock.postorderIndex;
             ref BlockEmitInfo toBlockEmitInfo = ref m_blockEmitInfo[toBlock.id];
             return isBackward ? toBlockEmitInfo.backwardLabel : toBlockEmitInfo.forwardLabel;
         }
@@ -5419,7 +5461,7 @@ namespace Mariana.AVM2.Compiler {
         /// basic block from which control is being transferred to from <paramref name="fromBlock"/>.</param>
         /// <returns>True if transition code is required, otherwise false.</returns>
         private bool _isBlockTransitionRequired(ref BasicBlock fromBlock, ref BasicBlock toBlock) {
-            if (fromBlock.firstInstrId >= toBlock.firstInstrId
+            if (fromBlock.postorderIndex <= toBlock.postorderIndex
                 && m_compilation.staticIntArrayPool.getLength(toBlock.stackAtEntry) > 0)
             {
                 // A backward jump with a non-empty stack definitely requires a transition.
@@ -5469,7 +5511,7 @@ namespace Mariana.AVM2.Compiler {
         /// basic block from which control is being transferred to from <paramref name="fromBlock"/>.</param>
         private void _emitBlockTransition(ref BasicBlock fromBlock, ref BasicBlock toBlock) {
             bool isBackwardJumpWithNonEmptyStack =
-                fromBlock.firstInstrId >= toBlock.firstInstrId
+                fromBlock.postorderIndex <= toBlock.postorderIndex
                 && m_compilation.staticIntArrayPool.getLength(toBlock.stackAtEntry) != 0;
 
             if ((toBlock.flags & BasicBlockFlags.DEFINES_PHI_NODES) == 0 && !isBackwardJumpWithNonEmptyStack)
@@ -5751,9 +5793,7 @@ namespace Mariana.AVM2.Compiler {
 
         /// <summary>
         /// Returns true if the basic block <paramref name="first"/> is immediately before the
-        /// basic block <paramref name="second"/>. That is, control will flow naturally from
-        /// <paramref name="first"/> to <paramref name="second"/> if there are no jump or branch
-        /// instructions.
+        /// basic block <paramref name="second"/> in the order in which the blocks are emitted in IL.
         /// </summary>
         /// <param name="first">A reference to a <see cref="BasicBlock"/> representing the first
         /// basic block.</param>
@@ -5762,26 +5802,11 @@ namespace Mariana.AVM2.Compiler {
         /// <returns>True if <paramref name="first"/> is immediately before <paramref name="second"/>,
         /// otherwise false.</returns>
         private bool _isBasicBlockImmediatelyBefore(in BasicBlock first, in BasicBlock second) {
-            int firstEndInstrId = first.firstInstrId + first.instrCount;
-            int secondStartInstrId = second.firstInstrId;
-
-            if (secondStartInstrId < firstEndInstrId)
+            if (first.postorderIndex - 1 != second.postorderIndex)
                 return false;
 
-            // Check for any unreachable instructions between the two blocks.
-            if (secondStartInstrId > firstEndInstrId) {
-                Span<Instruction> inBetweenInstructions =
-                    m_compilation.getInstructions().Slice(firstEndInstrId, secondStartInstrId - firstEndInstrId);
-
-                for (int i = 0; i < inBetweenInstructions.Length; i++) {
-                    if (inBetweenInstructions[i].blockId != -1)
-                        return false;
-                }
-            }
-
             if (m_blockEmitInfo[second.id].needsStackStashAndRestore)
-                // We'll need to jump over the stack restore code for a forward jump, so a
-                // jump instruction is needed.
+                // A jump instruction is needed for skipping the stack restore code in the forward case.
                 return false;
 
             return true;

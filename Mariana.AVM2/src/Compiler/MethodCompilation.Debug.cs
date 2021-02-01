@@ -566,10 +566,11 @@ namespace Mariana.AVM2.Compiler {
             sb.Append(' ', indentSpaces);
             sb.AppendFormat(
                 ic,
-                "Basic block #{0} [Range: {1}-{2}]",
+                "Basic block #{0} [Range: {1}-{2}, PostorderIndex: {3}]",
                 bb.id,
                 bb.firstInstrId,
-                bb.firstInstrId + bb.instrCount - 1
+                bb.firstInstrId + bb.instrCount - 1,
+                bb.postorderIndex
             );
             sb.AppendLine();
 
