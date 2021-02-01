@@ -93,8 +93,7 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         public RuntimeScopeStack clone() {
             var copy = new RuntimeScopeStack(m_items.length, m_parentScope);
-            copy.m_items.addDefault(m_items.length);
-            m_items.asSpan().CopyTo(copy.m_items.asSpan(0, m_items.length));
+            m_items.asSpan().CopyTo(copy.m_items.addDefault(m_items.length));
             return copy;
         }
 

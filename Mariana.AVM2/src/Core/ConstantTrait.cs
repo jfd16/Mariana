@@ -111,10 +111,10 @@ namespace Mariana.AVM2.Core {
             sb.Append(name.ToString());
 
             if (constantValue.isUndefined) {
-                sb.Append(":* = undefined");
+                sb.Append(": * = undefined");
             }
             else if (constantValue.isNull) {
-                sb.Append(":Object = null");
+                sb.Append(": Object = null");
             }
             else {
                 Class valType = constantValue.AS_class;

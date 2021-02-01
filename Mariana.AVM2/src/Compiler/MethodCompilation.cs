@@ -546,9 +546,8 @@ namespace Mariana.AVM2.Compiler {
             if (!m_basicBlockReversePostorderDirty)
                 return m_basicBlockReversePostorder.asSpan();
 
-            m_basicBlockReversePostorder.clearAndAddDefault(m_basicBlocks.length);
             var blocks = m_basicBlocks.asSpan();
-            var rpo = m_basicBlockReversePostorder.asSpan();
+            var rpo = m_basicBlockReversePostorder.clearAndAddUninitialized(m_basicBlocks.length);
 
             for (int i = 0; i < blocks.Length; i++)
                 rpo[blocks.Length - blocks[i].postorderIndex - 1] = i;
@@ -664,8 +663,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _createInitialLocalDataNodes() {
-            m_initialLocalNodeIds.addDefault(m_currentMethodBodyInfo.localCount);
-            Span<int> nodeIds = m_initialLocalNodeIds.asSpan();
+            Span<int> nodeIds = m_initialLocalNodeIds.addUninitialized(m_currentMethodBodyInfo.localCount);
 
             for (int i = 0; i < nodeIds.Length; i++) {
                 ref DataNode node = ref createDataNode();
@@ -746,12 +744,9 @@ namespace Mariana.AVM2.Compiler {
         /// <see cref="getInstruction"/>.
         /// </remarks>
         public ref Instruction addInstruction() {
-            m_instructions.add(new Instruction());
-
-            int id = m_instructions.length - 1;
-            ref Instruction instr = ref m_instructions[id];
-            instr.id = id;
-
+            ref Instruction instr = ref m_instructions.addUninitialized(1)[0];
+            instr = default;
+            instr.id = m_instructions.length - 1;
             return ref instr;
         }
 
@@ -766,14 +761,10 @@ namespace Mariana.AVM2.Compiler {
         /// <see cref="getBasicBlock"/>.
         /// </remarks>
         public ref BasicBlock addBasicBlock() {
-            m_basicBlocks.add(new BasicBlock());
-
-            int id = m_basicBlocks.length - 1;
-            ref BasicBlock bb = ref m_basicBlocks[id];
-            bb.id = id;
-
+            ref BasicBlock bb = ref m_basicBlocks.addUninitialized(1)[0];
+            bb = default;
+            bb.id = m_basicBlocks.length - 1;
             m_basicBlockReversePostorderDirty = true;
-
             return ref bb;
         }
 
@@ -788,12 +779,9 @@ namespace Mariana.AVM2.Compiler {
         /// <see cref="getExceptionHandler"/>.
         /// </remarks>
         public ref ExceptionHandler addExceptionHandler() {
-            m_excHandlers.add(new ExceptionHandler());
-
-            int id = m_excHandlers.length - 1;
-            ref ExceptionHandler handler = ref m_excHandlers[id];
-            handler.id = id;
-
+            ref ExceptionHandler handler = ref m_excHandlers.addUninitialized(1)[0];
+            handler = default;
+            handler.id = m_excHandlers.length - 1;
             return ref handler;
         }
 
@@ -809,12 +797,9 @@ namespace Mariana.AVM2.Compiler {
         /// <see cref="getDataNode"/>.
         /// </remarks>
         public ref DataNode createDataNode() {
-            m_dataNodes.add(new DataNode());
-
-            int id = m_dataNodes.length - 1;
-            ref DataNode node = ref m_dataNodes[id];
-            node.id = id;
-
+            ref DataNode node = ref m_dataNodes.addUninitialized(1)[0];
+            node = default;
+            node.id = m_dataNodes.length - 1;
             return ref node;
         }
 
@@ -830,12 +815,9 @@ namespace Mariana.AVM2.Compiler {
         /// from their ids using methods such as <see cref="getResolvedProperty"/>.
         /// </remarks>
         public ref ResolvedProperty createResolvedProperty() {
-            m_resolvedProperties.add(new ResolvedProperty());
-
-            int id = m_resolvedProperties.length - 1;
-            ref ResolvedProperty prop = ref m_resolvedProperties[id];
-            prop.id = id;
-
+            ref ResolvedProperty prop = ref m_resolvedProperties.addUninitialized(1)[0];
+            prop = default;
+            prop.id = m_resolvedProperties.length - 1;
             return ref prop;
         }
 

@@ -797,9 +797,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="outList">A <see cref="DynamicArray{T}"/> to which to append the
         /// traits.</param>
         public void getTraits(ref DynamicArray<Trait> outList) {
-            int startIndex = outList.length;
-            outList.addDefault(m_count);
-            m_slots.CopyTo(outList.asSpan(startIndex, m_count));
+            m_slots.CopyTo(outList.addDefault(m_count));
         }
 
         /// <summary>

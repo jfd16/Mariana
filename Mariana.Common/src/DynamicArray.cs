@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 
 namespace Mariana.Common {
 
@@ -28,6 +29,9 @@ namespace Mariana.Common {
         /// <paramref name="initialCapacity"/> with the default value of <typeparamref name="T"/>.
         /// This will set the size of the array to <paramref name="initialCapacity"/>. Otherwise, the
         /// initial size of the array is zero.</param>
+        ///
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="initialCapacity"/> is a
+        /// negative value.</exception>
         public DynamicArray(int initialCapacity, bool fillWithDefault = false) {
             if (initialCapacity < 0)
                 throw new ArgumentOutOfRangeException(nameof(initialCapacity));
@@ -45,14 +49,24 @@ namespace Mariana.Common {
         /// <summary>
         /// Creates a new <see cref="DynamicArray{T}"/> with the given underlying array.
         /// </summary>
+        ///
         /// <param name="underlyingArray">The array that will be used as the storage for this
         /// <see cref="DynamicArray{T}"/>. The created instance holds a reference to the array,
         /// no copy is made. The reference to this array will be lost if a reallocation is
-        /// triggered by the <see cref="setCapacity"/>, <see cref="add(T)"/>, <see cref="add(in T)"/> or
-        /// <see cref="addDefault"/> methods.</param>
+        /// triggered by methods such as <see cref="setCapacity"/>, <see cref="add(T)"/>.</param>
         /// <param name="initialSize">The initial size of the created <see cref="DynamicArray{T}"/>.
         /// This must not be negative, or greater than the length of <paramref name="underlyingArray"/>.
         /// </param>
+        ///
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="initialSize"/> is a
+        /// negative value or greater than the length of <paramref name="underlyingArray"/>.</exception>
+        ///
+        /// <remarks>
+        /// If <typeparamref name="T"/> is a reference type or a value type containing references
+        /// and <paramref name="initialSize"/> is less than the length of <paramref name="underlyingArray"/>,
+        /// any excess elements in <paramref name="underlyingArray"/> will be set to the default value
+        /// of <typeparamref name="T"/>.
+        /// </remarks>
         public DynamicArray(T[] underlyingArray, int initialSize) {
             if (underlyingArray == null)
                 throw new ArgumentNullException(nameof(underlyingArray));
@@ -61,17 +75,22 @@ namespace Mariana.Common {
 
             m_array = underlyingArray;
             m_length = initialSize;
+
+            if (initialSize < underlyingArray.Length && RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+                underlyingArray.AsSpan(initialSize).Clear();
         }
 
         /// <summary>
         /// Changes the capacity of the array.
         /// </summary>
-        /// <param name="newCapacity">The new capacity. If this is less than the current size of the
-        /// array, does nothing.</param>
+        /// <param name="newCapacity">The new capacity.</param>
+        ///
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="newCapacity"/> is less than the current
+        /// size of the array.</exception>
         public void setCapacity(int newCapacity) {
-            if (newCapacity < 0)
+            if (newCapacity < m_length)
                 throw new ArgumentOutOfRangeException(nameof(newCapacity));
-            if (newCapacity < m_length || newCapacity == m_array.Length)
+            if (m_array != null && newCapacity == m_array.Length)
                 return;
             _setCapacityInternal(newCapacity);
         }
@@ -82,6 +101,7 @@ namespace Mariana.Common {
         /// </summary>
         /// <param name="capacity">The new capacity of the array. If this is not greater than the
         /// current capacity, this method does nothing.</param>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="capacity"/> is negative.</exception>
         public void ensureCapacity(int capacity) {
             if (capacity < 0)
                 throw new ArgumentOutOfRangeException(nameof(capacity));
@@ -94,8 +114,9 @@ namespace Mariana.Common {
         /// Removes all elements from the array.
         /// </summary>
         public void clear() {
-            if (m_array != null && m_length != 0)
+            if (m_array != null && m_length != 0 && RuntimeHelpers.IsReferenceOrContainsReferences<T>())
                 asSpan().Clear();
+
             m_length = 0;
         }
 
@@ -134,19 +155,48 @@ namespace Mariana.Common {
         /// <typeparamref name="T"/>.
         /// </summary>
         /// <param name="count">The number of elements to add.</param>
-        public void addDefault(int count) {
+        /// <returns>A span containing the added elements.</returns>
+        ///
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="count"/> is a negative value.</exception>
+        public Span<T> addDefault(int count) => _addElements(count, true);
+
+        /// <summary>
+        /// Adds the given number of elements to the array. The values of the added elements
+        /// are not specified, except when <typeparamref name="T"/> is a reference type or a
+        /// value type containing references, in which case the elements will be initialized
+        /// to the default value of <typeparamref name="T"/>.
+        /// </summary>
+        /// <param name="count">The number of elements to add.</param>
+        /// <returns>A span containing the added elements.</returns>
+        ///
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="count"/> is a negative value.</exception>
+        public Span<T> addUninitialized(int count) => _addElements(count, false);
+
+        private Span<T> _addElements(int count, bool zeroInit) {
+            if (count < 0)
+                throw new ArgumentOutOfRangeException(nameof(count));
             if (count == 0)
-                return;
+                return Span<T>.Empty;
+
+            bool isReallocated = false;
 
             if (m_array == null) {
                 _setCapacityInternal(count);
+                isReallocated = true;
             }
             else if (m_array.Length - m_length < count) {
                 int newCapacity = DataStructureUtil.getNextArraySize(m_length, m_length + count);
                 _setCapacityInternal(newCapacity);
+                isReallocated = true;
             }
 
+            Span<T> span = m_array.AsSpan(length, count);
+
+            if (zeroInit && !isReallocated && !RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+                m_array.AsSpan(m_length, count).Clear();
+
             m_length += count;
+            return span;
         }
 
         /// <summary>
@@ -155,13 +205,45 @@ namespace Mariana.Common {
         /// </summary>
         /// <param name="count">The number of elements to add, after removing the existing
         /// elements.</param>
-        public void clearAndAddDefault(int count) {
-            if (m_array == null || count > m_array.Length)
+        /// <returns>A span containing the added elements.</returns>
+        ///
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="count"/> is a negative value.</exception>
+        public Span<T> clearAndAddDefault(int count) => _clearAndAddElements(count, true);
+
+        /// <summary>
+        /// Removes all existing elements from the array, then adds the given number of elements.
+        /// The values of the added elements are not specified, except when <typeparamref name="T"/>
+        /// is a reference type or a value type containing references, in which case the elements
+        /// will be initialized to the default value of <typeparamref name="T"/>.
+        /// </summary>
+        /// <param name="count">The number of elements to add, after removing the existing
+        /// elements.</param>
+        /// <returns>A span containing the added elements.</returns>
+        ///
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="count"/> is a negative value.</exception>
+        public Span<T> clearAndAddUninitialized(int count) => _clearAndAddElements(count, false);
+
+        private Span<T> _clearAndAddElements(int count, bool zeroInit) {
+            if (count < 0)
+                throw new ArgumentOutOfRangeException(nameof(count));
+
+            if (count == 0) {
+                clear();
+                return Span<T>.Empty;
+            }
+
+            if (m_array == null || count > m_array.Length) {
                 m_array = new T[DataStructureUtil.getNextArraySize(m_length, count)];
-            else
-                asSpan().Clear();
+            }
+            else if (RuntimeHelpers.IsReferenceOrContainsReferences<T>()) {
+                m_array.AsSpan(0, m_length).Clear();
+            }
+            else if (zeroInit) {
+                m_array.AsSpan(0, count).Clear();
+            }
 
             m_length = count;
+            return m_array.AsSpan(0, count);
         }
 
         /// <summary>
@@ -169,6 +251,10 @@ namespace Mariana.Common {
         /// </summary>
         /// <param name="start">The index of the first element in the range to be removed.</param>
         /// <param name="count">The number of elements to remove.</param>
+        ///
+        /// <exception cref="ArgumentOutOfRangeException">The range defined by <paramref name="start"/>
+        /// and <paramref name="count"/> is not within the bounds of this <see cref="DynamicArray{T}"/>
+        /// instance.</exception>
         public void removeRange(int start, int count) {
             if ((uint)start > (uint)m_length)
                 throw new ArgumentOutOfRangeException(nameof(start));
@@ -181,10 +267,12 @@ namespace Mariana.Common {
             if (start + count != m_length)
                 (new ReadOnlySpan<T>(m_array, start + count, m_length - start - count)).CopyTo(m_array.AsSpan(start));
 
-            if (count == 1)
-                m_array[m_length - 1] = default(T);
-            else
-                m_array.AsSpan(m_length - count, count).Clear();
+            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>()) {
+                if (count == 1)
+                    m_array[m_length - 1] = default(T);
+                else
+                    m_array.AsSpan(m_length - count, count).Clear();
+            }
 
             m_length -= count;
         }
@@ -196,7 +284,13 @@ namespace Mariana.Common {
         /// This can be used as a "pop" function when using a <see cref="DynamicArray{T}"/> as a
         /// stack.
         /// </remarks>
-        public void removeLast() => m_array[--m_length] = default(T);
+        ///
+        /// <exception cref="InvalidOperationException">The length of the current array is zero.</exception>
+        public void removeLast() {
+            if (m_length == 0)
+                throw new InvalidOperationException("Cannot remove from an empty list.");
+            m_array[--m_length] = default(T);
+        }
 
         /// <summary>
         /// Gets a span that provides read-only access to the underlying memory of this array.
@@ -239,7 +333,7 @@ namespace Mariana.Common {
         /// with legacy APIs that don't accept spans.</para>
         /// <para>The underlying array may change when methods such as <see cref="add(T)"/> and
         /// <see cref="setCapacity"/> are called. Any assignment made to an element of this
-        /// array (of any field of it, if <typeparamref name="T"/> is a value type) after that will
+        /// array (or any field of it, if <typeparamref name="T"/> is a value type) after that will
         /// not be visible in this <see cref="DynamicArray{T}"/>.</para>
         /// <para>If the array is empty, the value of this property may be null.</para>
         /// <para>The length of this array (if not null) is equal to the capacity of the dynamic
@@ -305,10 +399,15 @@ namespace Mariana.Common {
         }
 
         private void _setCapacityInternal(int newCapacity) {
-            T[] newArray = new T[newCapacity];
-            if (m_array != null)
-                (new ReadOnlySpan<T>(m_array, 0, m_length)).CopyTo(newArray);
-            m_array = newArray;
+            if (newCapacity == 0) {
+                m_array = null;
+            }
+            else {
+                T[] newArray = new T[newCapacity];
+                if (m_array != null)
+                    (new ReadOnlySpan<T>(m_array, 0, m_length)).CopyTo(newArray);
+                m_array = newArray;
+            }
         }
 
     }

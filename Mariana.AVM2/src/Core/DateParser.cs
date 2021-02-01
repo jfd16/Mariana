@@ -318,7 +318,6 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="str">The date string to parse.</param>
         private void _tokenizeString(string str) {
-
             m_str = str;
             m_strpos = 0;
 
@@ -404,12 +403,10 @@ namespace Mariana.AVM2.Core {
                         _continueNumGroup4Token();
                         break;
                 }
-
             }
 
             // Write the last token.
             _writeToken();
-
         }
 
         private void _parseWhiteSpace() {
@@ -480,7 +477,6 @@ namespace Mariana.AVM2.Core {
         /// token must begin.
         /// </remarks>
         private void _continueWordToken() {
-
             char c = m_str[m_strpos];
 
             if (c >= 'A' && c <= 'Z') {
@@ -541,7 +537,6 @@ namespace Mariana.AVM2.Core {
                     m_strpos++;
                 }
             }
-
         }
 
         /// <summary>
@@ -555,7 +550,6 @@ namespace Mariana.AVM2.Core {
         /// token must begin.
         /// </remarks>
         private void _continueNumberToken() {
-
             char c = m_str[m_strpos];
 
             if (c >= '0' && c <= '9') {
@@ -607,7 +601,6 @@ namespace Mariana.AVM2.Core {
             else {
                 _writeToken();
             }
-
         }
 
         /// <summary>
@@ -621,7 +614,6 @@ namespace Mariana.AVM2.Core {
         /// token must begin.
         /// </remarks>
         private void _continueNumGroup2Token() {
-
             char c = m_str[m_strpos];
 
             if (c >= '0' && c <= '9') {
@@ -703,7 +695,6 @@ namespace Mariana.AVM2.Core {
             else {
                 _writeToken();
             }
-
         }
 
         /// <summary>
@@ -717,7 +708,6 @@ namespace Mariana.AVM2.Core {
         /// token must begin.
         /// </remarks>
         private void _continueNumGroup3Token() {
-
             char c = m_str[m_strpos];
 
             if (c >= '0' && c <= '9') {
@@ -807,7 +797,6 @@ namespace Mariana.AVM2.Core {
             else {
                 _writeToken();
             }
-
         }
 
         /// <summary>
@@ -821,7 +810,6 @@ namespace Mariana.AVM2.Core {
         /// token must begin.
         /// </remarks>
         private void _continueNumGroup4Token() {
-
             char c = m_str[m_strpos];
 
             if (c >= '0' && c <= '9') {
@@ -876,7 +864,6 @@ namespace Mariana.AVM2.Core {
             else {
                 _writeToken();
             }
-
         }
 
         /// <summary>
@@ -884,7 +871,6 @@ namespace Mariana.AVM2.Core {
         /// clears the parse buffer so that a new token can be started.
         /// </summary>
         private void _writeToken() {
-
             TokenType tkType = m_curTokenType;
 
             if (tkType == TokenType.NONE || m_bufferpos == 0) {
@@ -893,7 +879,6 @@ namespace Mariana.AVM2.Core {
             }
 
             switch (tkType) {
-
                 case TokenType.NUMBER: {
                     int bufReadPos = 0;
                     int data = _parsePackedInt(ref bufReadPos);
@@ -930,12 +915,10 @@ namespace Mariana.AVM2.Core {
                 case TokenType.WORD:
                     _writeWordToken();
                     break;
-
             }
 
             m_curTokenType = TokenType.NONE;
             m_bufferpos = 0;
-
         }
 
         /// <summary>
@@ -946,7 +929,6 @@ namespace Mariana.AVM2.Core {
         /// <returns>The encoded PackedInt. Use the <see cref="PackedInt(Int32)"/> constructor to
         /// decode it.</returns>
         private int _parsePackedInt(ref int bufReadPos) {
-
             char[] buf = m_buffer;
             int bufSize = m_bufferpos;
             int readPos = bufReadPos;
@@ -996,7 +978,6 @@ namespace Mariana.AVM2.Core {
 
             bufReadPos = readPos;
             return (new PackedInt(sign, val, readPos - startPos)).encode();
-
         }
 
         /// <summary>
@@ -1022,7 +1003,6 @@ namespace Mariana.AVM2.Core {
         /// token type based on the word's meaning (month name, weekday name etc.).
         /// </summary>
         private void _writeWordToken() {
-
             char[] buf = m_buffer;
             int bufSize = m_bufferpos;
 
@@ -1062,7 +1042,6 @@ namespace Mariana.AVM2.Core {
             m_tokenTypes.add(tkType);
             if (tkType != TokenType.INVALID_WORD && tkData != -1)
                 m_tokenData.add(tkData);
-
         }
 
         /// <summary>

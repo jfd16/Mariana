@@ -182,7 +182,7 @@ namespace Mariana.AVM2.Compiler {
 
         private void _createBlockEmitInfo() {
             Span<BasicBlock> blocks = m_compilation.getBasicBlocks();
-            m_blockEmitInfo.clearAndAddDefault(blocks.Length);
+            m_blockEmitInfo.clearAndAddUninitialized(blocks.Length);
 
             for (int i = 0; i < blocks.Length; i++) {
                 ref BasicBlock block = ref blocks[i];
@@ -204,6 +204,7 @@ namespace Mariana.AVM2.Compiler {
 
                 if (!mustStashAndRestoreStack) {
                     emitInfo.backwardLabel = emitInfo.forwardLabel;
+                    emitInfo.needsStackStashAndRestore = false;
                 }
                 else {
                     emitInfo.backwardLabel = m_ilBuilder.createLabel();
@@ -3176,9 +3177,7 @@ namespace Mariana.AVM2.Compiler {
 
             ref BasicBlock defaultBlock = ref m_compilation.getBasicBlock(exitBlockIds[0]);
             var caseBlockIds = exitBlockIds.Slice(1);
-
-            m_tempLabelArray.clearAndAddDefault(caseBlockIds.Length);
-            var caseLabels = m_tempLabelArray.asSpan();
+            var caseLabels = m_tempLabelArray.clearAndAddUninitialized(caseBlockIds.Length);
 
             for (int i = 0; i < caseBlockIds.Length; i++) {
                 ref BasicBlock caseBlock = ref m_compilation.getBasicBlock(caseBlockIds[i]);
@@ -4811,8 +4810,7 @@ namespace Mariana.AVM2.Compiler {
                 Class recvType,
                 Class recvExpectedType
             ) {
-                m_tempLocalArray.clearAndAddDefault(argsToPrepare.Length);
-                Span<ILBuilder.Local> argStashLocals = m_tempLocalArray.asSpan();
+                Span<ILBuilder.Local> argStashLocals = m_tempLocalArray.clearAndAddDefault(argsToPrepare.Length);
 
                 var mdContext = m_compilation.metadataContext;
 
@@ -5484,8 +5482,7 @@ namespace Mariana.AVM2.Compiler {
             var entryScope = m_compilation.staticIntArrayPool.getSpan(toBlock.scopeStackAtEntry);
             var entryLocals = m_compilation.staticIntArrayPool.getSpan(toBlock.localsAtEntry);
 
-            m_tempIntArray.clearAndAddDefault(entryStack.Length);
-            var exitStackForConversion = m_tempIntArray.asSpan();
+            var exitStackForConversion = m_tempIntArray.clearAndAddUninitialized(entryStack.Length);
             exitStackForConversion.Fill(-1);
 
             for (int i = 0; i < phiSourceNodeIds.Length; i++) {
@@ -5574,8 +5571,7 @@ namespace Mariana.AVM2.Compiler {
             exitStackForFixing = exitStackForFixing.Slice(firstStackIndexToFix);
             entryStack = entryStack.Slice(firstStackIndexToFix);
 
-            m_tempLocalArray.clearAndAddDefault(exitStackForFixing.Length);
-            var stashVars = m_tempLocalArray.asSpan();
+            var stashVars = m_tempLocalArray.clearAndAddDefault(exitStackForFixing.Length);
 
             for (int i = exitStackForFixing.Length - 1; i >= 0; i--) {
                 Class entryNodeClass = m_compilation.getDataNodeClass(entryStack[i]);
@@ -5622,9 +5618,7 @@ namespace Mariana.AVM2.Compiler {
             // converted stack values in another set of temporary variables and then copy
             // them to the stash variables used for backward jumping once we are done.
 
-            m_tempLocalArray.clearAndAddDefault(exitStackForFixing.Length);
-            var convertVars = m_tempLocalArray.asSpan();
-
+            var convertVars = m_tempLocalArray.clearAndAddDefault(exitStackForFixing.Length);
             int stackCount = exitStackForFixing.Length;
 
             for (int i = stackCount - 1; i >= 0; i--) {

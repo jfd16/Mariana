@@ -596,8 +596,7 @@ namespace Mariana.AVM2.Compiler {
 
             // The assignment procedure followed requires the basic blocks to be sorted
             // by their instruction ids.
-            m_tempIntArray.clearAndAddDefault(basicBlocks.Length);
-            var blockLinearOrdering = m_tempIntArray.asSpan();
+            var blockLinearOrdering = m_tempIntArray.clearAndAddUninitialized(basicBlocks.Length);
             DataStructureUtil.getSpanSortPermutation(
                 basicBlocks,
                 blockLinearOrdering,

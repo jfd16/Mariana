@@ -60,13 +60,9 @@ namespace Mariana.AVM2.Compiler {
         private void _initDefNodeArrays() {
             var cfgNodeRefArrPool = m_compilation.cfgNodeRefArrayPool;
 
-            m_stackDefNodeSets.clearAndAddDefault(m_compilation.maxStackSize);
-            m_scopeStackDefNodeSets.clearAndAddDefault(m_compilation.maxScopeStackSize);
-            m_localDefNodeSets.clearAndAddDefault(m_compilation.localCount);
-
-            var stackDefNodes = m_stackDefNodeSets.asSpan();
-            var scopeStackDefNodes = m_scopeStackDefNodeSets.asSpan();
-            var localDefNodes = m_localDefNodeSets.asSpan();
+            var stackDefNodes = m_stackDefNodeSets.clearAndAddUninitialized(m_compilation.maxStackSize);
+            var scopeStackDefNodes = m_scopeStackDefNodeSets.clearAndAddUninitialized(m_compilation.maxScopeStackSize);
+            var localDefNodes = m_localDefNodeSets.clearAndAddUninitialized(m_compilation.localCount);
 
             for (int i = 0; i < stackDefNodes.Length; i++)
                 stackDefNodes[i] = cfgNodeRefArrPool.allocate(0);
@@ -387,11 +383,8 @@ namespace Mariana.AVM2.Compiler {
             var intArrayPool = m_compilation.intArrayPool;
             var cfgNodeRefArrayPool = m_compilation.cfgNodeRefArrayPool;
 
-            m_blockNodeDFsFast.clearAndAddDefault(blocks.Length);
-            var blockNodeDFs = m_blockNodeDFsFast.asSpan();
-
-            m_catchNodeDFsFast.clearAndAddDefault(excHandlers.Length);
-            var catchNodeDFs = m_catchNodeDFsFast.asSpan();
+            var blockNodeDFs = m_blockNodeDFsFast.clearAndAddDefault(blocks.Length);
+            var catchNodeDFs = m_catchNodeDFsFast.clearAndAddDefault(excHandlers.Length);
 
             ReadOnlySpan<int> rpo = m_compilation.getBasicBlockReversePostorder();
 
@@ -534,11 +527,8 @@ namespace Mariana.AVM2.Compiler {
             var intArrayPool = m_compilation.intArrayPool;
             var cfgNodeRefArrayPool = m_compilation.cfgNodeRefArrayPool;
 
-            m_blockNodeDFsSlow.clearAndAddDefault(blocks.Length);
-            var blockNodeDFs = m_blockNodeDFsSlow.asSpan();
-
-            m_catchNodeDFsSlow.clearAndAddDefault(excHandlers.Length);
-            var catchNodeDFs = m_catchNodeDFsSlow.asSpan();
+            var blockNodeDFs = m_blockNodeDFsSlow.clearAndAddDefault(blocks.Length);
+            var catchNodeDFs = m_catchNodeDFsSlow.clearAndAddDefault(excHandlers.Length);
 
             ReadOnlySpan<int> rpo = m_compilation.getBasicBlockReversePostorder();
 
@@ -706,11 +696,11 @@ namespace Mariana.AVM2.Compiler {
             Span<BasicBlock> blocks = m_compilation.getBasicBlocks();
             ref BasicBlock firstBlock = ref m_compilation.getBasicBlockOfInstruction(0);
 
-            m_curStackNodeIds.clearAndAddDefault(m_computedMaxStack);
-            m_curScopeNodeIds.clearAndAddDefault(m_computedMaxScope);
-            m_curLocalNodeIds.clearAndAddDefault(m_compilation.localCount);
+            m_curStackNodeIds.clearAndAddUninitialized(m_computedMaxStack);
+            m_curScopeNodeIds.clearAndAddUninitialized(m_computedMaxScope);
+            m_curLocalNodeIds.clearAndAddUninitialized(m_compilation.localCount);
 
-            m_tryRegionLocalNodeSets.clearAndAddDefault(m_compilation.getExceptionHandlers().Length);
+            m_tryRegionLocalNodeSets.clearAndAddUninitialized(m_compilation.getExceptionHandlers().Length);
             for (int i = 0; i < m_tryRegionLocalNodeSets.length; i++)
                 m_tryRegionLocalNodeSets[i] = new PooledIntegerSet(m_compilation.intArrayPool);
 

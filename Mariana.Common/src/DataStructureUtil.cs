@@ -14,12 +14,13 @@ namespace Mariana.Common {
         /// before calculating a prime number after it, which may be an expensive operation.
         /// </summary>
         private static readonly int[] s_primes = {
-            3, 7, 11, 17, 23, 29, 37, 47, 59, 71, 89, 107, 131, 163, 197, 239, 293, 353, 431, 521, 631,
-            761, 919, 1103, 1327, 1597, 1931, 2333, 2801, 3371, 4049, 4861, 5839, 7013, 8419, 10103,
-            12143, 14591, 17519, 21023, 25229, 30293, 36353, 43627, 52361, 62851, 75431, 90523, 108631,
-            130363, 156437, 187751, 225307, 270371, 324449, 389357, 467237, 560689, 672827, 807403,
-            968897, 1162687, 1395263, 1674319, 2009191, 2411033, 2893249, 3471899, 4166287, 4999559,
-            5999471, 7199369
+            // This table is taken from the .NET Core source
+            // https://source.dot.net/#System.Collections/HashHelpers.cs
+            3, 7, 11, 17, 23, 29, 37, 47, 59, 71, 89, 107, 131, 163, 197, 239, 293, 353, 431, 521, 631, 761, 919,
+            1103, 1327, 1597, 1931, 2333, 2801, 3371, 4049, 4861, 5839, 7013, 8419, 10103, 12143, 14591,
+            17519, 21023, 25229, 30293, 36353, 43627, 52361, 62851, 75431, 90523, 108631, 130363, 156437,
+            187751, 225307, 270371, 324449, 389357, 467237, 560689, 672827, 807403, 968897, 1162687, 1395263,
+            1674319, 2009191, 2411033, 2893249, 3471899, 4166287, 4999559, 5999471, 7199369
         };
 
         /// <summary>
@@ -37,17 +38,22 @@ namespace Mariana.Common {
                 return (searchIndex >= 0) ? min : primes[~searchIndex];
             }
 
-            for (int i = min | 1; i < Int32.MaxValue - 1; i += 2) {
+            for (int i = min | 1; (uint)i < (uint)Int32.MaxValue; i += 2) {
                 int j = 3;
                 long jsq = 9;
+                bool isNonPrime = false;
+
                 while (jsq <= (long)i) {
-                    if (i % j == 0)
-                        goto __nextNum;
+                    if (i % j == 0) {
+                        isNonPrime = true;
+                        break;
+                    }
                     j += 2;
                     jsq += (long)(j + 1) << 2;
                 }
-                return i;
-            __nextNum:;
+
+                if (!isNonPrime)
+                    return i;
             }
 
             return min;
@@ -57,8 +63,11 @@ namespace Mariana.Common {
         /// Returns the power of two that is greater than and closest to the given number.
         /// </summary>
         /// <param name="n">The number.</param>
-        /// <returns>The power of two that is greater than and closest to the given number.</returns>
+        /// <returns>The positive power of two that is greater than and closest to the given number.</returns>
         public static int nextPowerOf2(int n) {
+            if (n < 1)
+                return 1;
+
             n--;
             n |= n >> 1;
             n |= n >> 2;
@@ -73,12 +82,14 @@ namespace Mariana.Common {
         /// Resizes the specified array to the new length.
         /// </summary>
         ///
-        /// <param name="arr">The array. This must not be null.</param>
-        /// <param name="length">The initial length of the array.</param>
+        /// <param name="arr">The array. This must not be null. If a new array is allocated,
+        /// it will be written to this argument.</param>
+        /// <param name="length">The current length. This must be a positive value less
+        /// than or equal to the length of <paramref name="arr"/>.</param>
         /// <param name="newLength">The new length to resize the array to.</param>
-        /// <param name="exact">If set to true, use the exact value of <paramref name="newLength"/>
-        /// as the new array size, otherwise a new array size is determined automatically (which is
-        /// always greater than or equal to newLength).</param>
+        /// <param name="exact">If set to true (and <paramref name="newLength"/> is greater than the
+        /// length of <paramref name="arr"/>), use the exact value of <paramref name="newLength"/>
+        /// as the length of the new array to be allocated.</param>
         ///
         /// <typeparam name="T">The type of the array.</typeparam>
         ///
@@ -86,30 +97,39 @@ namespace Mariana.Common {
         /// <list type="bullet">
         /// <item>
         /// If <paramref name="newLength"/> is less than <paramref name="length"/>, all elements
-        /// after the index <c>newLength - 1</c> are set to the default value of the array type.
+        /// in the range [<paramref name="newLength"/>, <paramref name="length"/> - 1] are set to the
+        /// default value of <typeparamref name="T"/>.
         /// Note that this is different from the <see cref="Array.Resize" qualifyHint="true"/>
         /// method, which creates a new array of a smaller size.
         /// </item>
-        /// <item>If <paramref name="newLength"/> is less than <c>arr.Length</c> but not less
-        /// than <paramref name="length"/>, the method does not modify the array.</item>
+        /// <item>If <paramref name="newLength"/> is less than or equal to the length of <paramref name="arr"/>
+        /// but not less than <paramref name="length"/>, all elements in the range
+        /// [<paramref name="length"/>, <paramref name="newLength"/> - 1] are set to the
+        /// default value of <typeparamref name="T"/>.</item>
         /// <item>
         /// Otherwise, a new array is created. If <paramref name="exact"/> is true, the length of
         /// the new array is equal to <paramref name="newLength"/>. If <paramref name="exact"/> is
-        /// false, the length of the new array will be calculated using the
-        /// <see cref="getNextArraySize"/> method. The elements of the <paramref name="arr"/>
-        /// array will be copied to the new array. The new array is then assigned to the
-        /// <paramref name="arr"/> parameter.
+        /// false, the length of the new array is calculated using the <see cref="getNextArraySize"/> method.
+        /// The elements of <paramref name="arr"/> from index 0 to <paramref name="length"/> - 1 will be
+        /// copied to the new array. The new array will be assigned to the <paramref name="arr"/> argument.
         /// </item>
         /// </list>
         /// </remarks>
         public static void resizeArray<T>(ref T[] arr, int length, int newLength, bool exact) {
-            if (newLength < arr.Length) {
+            if (arr == null)
+                throw new ArgumentNullException(nameof(arr));
+            if ((uint)length > (uint)arr.Length || newLength < 0)
+                throw new ArgumentOutOfRangeException(nameof(length));
+
+            if (newLength <= arr.Length) {
                 if (newLength < length)
                     arr.AsSpan(newLength, length - newLength).Clear();
+                else
+                    arr.AsSpan(length, newLength - length).Clear();
             }
             else {
                 T[] temp = new T[exact ? newLength : getNextArraySize(length, newLength)];
-                arr.AsSpan(0, length).CopyTo(temp);
+                (new ReadOnlySpan<T>(arr, 0, length)).CopyTo(temp);
                 arr = temp;
             }
         }
@@ -125,7 +145,16 @@ namespace Mariana.Common {
         /// <returns>A number greater than or equal to <paramref name="newSizeHint"/> suitable for
         /// use as the new length of an enlarged array of initial size
         /// <paramref name="currentSize"/>.</returns>
+        ///
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="newSizeHint"/> is not
+        /// greater than <paramref name="currentSize"/>, or <paramref name="currentSize"/> is
+        /// a negative value.</exception>
         public static int getNextArraySize(int currentSize, int newSizeHint) {
+            if (currentSize < 0)
+                throw new ArgumentOutOfRangeException(nameof(currentSize));
+            if (newSizeHint <= currentSize)
+                throw new ArgumentOutOfRangeException(nameof(newSizeHint));
+
             if (currentSize == 0)
                 return Math.Max(newSizeHint, 4);
 
@@ -133,11 +162,11 @@ namespace Mariana.Common {
             if (currentSize > 0x40000000) {
                 // Increase length linearly after 2^30 to reduce chance of hitting
                 // maximum size (2^31-1) or out-of-memory error
-                computedNewSize = currentSize + 0x8000000;
+                computedNewSize = Math.Max(currentSize + 0x8000000, Int32.MaxValue);
             }
             else {
                 computedNewSize = currentSize;
-                while (computedNewSize < newSizeHint)
+                while ((uint)computedNewSize < (uint)newSizeHint)
                     computedNewSize *= 2;
             }
 
@@ -145,29 +174,26 @@ namespace Mariana.Common {
         }
 
         /// <summary>
-        /// Compacts an array by removing null values. The ordering of non-null elements
-        /// in the array is preserved.
+        /// Compacts the given span of object references by removing nulls, preserving the order of non-null
+        /// references.
         /// </summary>
-        /// <returns>The size of the array after compacting. This is the number of non-null elements.</returns>
-        /// <param name="arr">The array to be compacted.</param>
-        /// <param name="count">The number of elements of the range of <paramref name="arr"/>,
-        /// starting at index 0, to be compacted.</param>
-        /// <typeparam name="T">The type of the array. This must be a class type.</typeparam>
-        public static int compactArray<T>(T[] arr, int count) where T : class {
+        /// <returns>The compacted span. This will be a slice of <paramref name="span"/> that
+        /// starts at the same location as <paramref name="span"/>.</returns>
+        /// <param name="span">The span to be compacted.</param>
+        /// <typeparam name="T">The element type of the span. This must be a class type.</typeparam>
+        public static Span<T> compactNulls<T>(Span<T> span) where T : class {
             int newCount = 0;
 
-            for (int i = 0; i < count; i++) {
-                if (arr[i] == null)
+            for (int i = 0; i < span.Length; i++) {
+                if (span[i] == null)
                     continue;
                 if (i != newCount)
-                    arr[newCount] = arr[i];
+                    span[newCount] = span[i];
                 newCount++;
             }
 
-            for (int i = newCount; i < count; i++)
-                arr[i] = null;
-
-            return newCount;
+            span.Slice(newCount).Clear();
+            return span.Slice(0, newCount);
         }
 
         /// <summary>
@@ -187,6 +213,8 @@ namespace Mariana.Common {
         /// <param name="span">The span to sort.</param>
         /// <param name="comparer">A comparison function to use for sorting.</param>
         /// <typeparam name="T">The element type of the span to sort.</typeparam>
+        ///
+        /// <exception cref="ArgumentNullException"><paramref name="comparer"/> is null.</exception>
         public static void sortSpan<T>(Span<T> span, SortComparer<T> comparer) {
             if (comparer == null)
                 throw new ArgumentNullException(nameof(comparer));
@@ -245,14 +273,19 @@ namespace Mariana.Common {
         /// <param name="span">The span containing the elements for which to compute the sorted
         /// permutation.</param>
         /// <param name="permutation">A span into which the indices of the sorted permutation will
-        /// be written. The length of this span must not be less than that of <paramref name="span"/>.</param>
+        /// be written. The length of this span must be equal to that of <paramref name="span"/>.</param>
         /// <param name="comparer">A comparison function to use for sorting.</param>
         /// <typeparam name="T">The element type of the span.</typeparam>
+        ///
+        /// <exception cref="ArgumentNullException"><paramref name="comparer"/> is null.</exception>
+        /// <exception cref="ArgumentException"><paramref name="permutation"/> does not have the same length
+        /// as <paramref name="span"/>.</exception>
         public static void getSpanSortPermutation<T>(ReadOnlySpan<T> span, Span<int> permutation, SortComparer<T> comparer) {
             if (comparer == null)
                 throw new ArgumentNullException(nameof(comparer));
+            if (permutation.Length != span.Length)
+                throw new ArgumentException("The permutation span must have the same number of elements as the data span.", nameof(permutation));
 
-            permutation = permutation.Slice(0, span.Length);
             for (int i = 0; i < span.Length; i++)
                 permutation[i] = i;
 

@@ -2739,11 +2739,11 @@ namespace Mariana.AVM2.Core {
                     }
                 }
 
-                int thisNodeDeclCount = thisNodeDecls.Length;
+                Span<ASNamespace> thisNodeDeclsSpan = thisNodeDecls;
                 if (isAnyDeclRemoved)
-                    thisNodeDeclCount = DataStructureUtil.compactArray(thisNodeDecls, thisNodeDeclCount);
+                    thisNodeDeclsSpan = DataStructureUtil.compactNulls(thisNodeDeclsSpan);
 
-                return ASArray.fromObjectSpan<ASNamespace>(thisNodeDecls.AsSpan(0, thisNodeDeclCount));
+                return ASArray.fromObjectSpan<ASNamespace>(thisNodeDeclsSpan);
             }
 
             /// <summary>

@@ -123,7 +123,7 @@ namespace Mariana.AVM2.Compiler {
             try {
                 var blocks = m_compilation.getBasicBlocks();
 
-                m_basicBlockEntrySnapshots.clearAndAddDefault(blocks.Length);
+                m_basicBlockEntrySnapshots.clearAndAddUninitialized(blocks.Length);
 
                 m_curScopeStackNodeIds.clear();
                 m_curScopeStackNodeIds.ensureCapacity(m_compilation.computedMaxScopeSize);
@@ -186,7 +186,7 @@ namespace Mariana.AVM2.Compiler {
 
             block.flags |= BasicBlockFlags.VISITED;
 
-            m_curScopeStackNodeIds.clearAndAddDefault(scopeAtEntry.Length);
+            m_curScopeStackNodeIds.clearAndAddUninitialized(scopeAtEntry.Length);
             scopeAtEntry.CopyTo(m_curScopeStackNodeIds.asSpan());
 
             Span<Instruction> instructions = m_compilation.getInstructionsInBasicBlock(block.id);

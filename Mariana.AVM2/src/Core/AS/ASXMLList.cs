@@ -1899,8 +1899,8 @@ namespace Mariana.AVM2.Core {
             }
 
             if (mustCompact) {
-                int newSize = DataStructureUtil.compactArray(m_items.getUnderlyingArray(), m_items.length);
-                m_items = new DynamicArray<ASXML>(m_items.getUnderlyingArray(), newSize);
+                Span<ASXML> compacted = DataStructureUtil.compactNulls(m_items.asSpan());
+                m_items = new DynamicArray<ASXML>(m_items.getUnderlyingArray(), compacted.Length);
             }
 
             return this;
