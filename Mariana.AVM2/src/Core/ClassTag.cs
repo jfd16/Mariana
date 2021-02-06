@@ -138,6 +138,12 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         public static readonly ClassTagSet arrayLike = new ClassTagSet(ClassTag.ARRAY, ClassTag.VECTOR);
 
+        /// <summary>
+        /// Contains all types for which the strict equality (===) operation is not the same as
+        /// reference equality.
+        /// </summary>
+        public static readonly ClassTagSet specialStrictEquality = primitive.add(new ClassTagSet(ClassTag.NAMESPACE, ClassTag.QNAME));
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private ClassTagSet(int mask) => m_mask = mask;
 

@@ -20,6 +20,8 @@ namespace Mariana.AVM2.Tests {
         private const double NEG_EPSILON = -Double.Epsilon;
         private const double NAN = Double.NaN;
 
+        private static readonly double TEST_EPSILON = Math.ScaleB(1, -50);
+
         private static void assertPositiveZero(double value) => Assert.Equal(0L, BitConverter.DoubleToInt64Bits(value));
         private static void assertNegativeZero(double value) => Assert.Equal(NEG_ZERO_BITS, BitConverter.DoubleToInt64Bits(value));
 
@@ -27,6 +29,14 @@ namespace Mariana.AVM2.Tests {
         private static void assertNegativeInfinity(double value) => Assert.Equal(NEG_INF, value);
 
         private static void assertNaN(double value) => Assert.True(Double.IsNaN(value));
+
+        private static void assertEpsilonEqual(double expected, double value) {
+            Assert.True((expected < 0) == (value < 0),
+                $"Expected {value:R} to have the same sign as {expected:R}.");
+
+            Assert.True(Math.Abs(value - expected) <= TEST_EPSILON * Math.Abs(expected),
+                $"Expected {value:R} to be close to {expected:R}.");
+        }
 
         [Fact]
         public void absTest() {
@@ -50,10 +60,10 @@ namespace Mariana.AVM2.Tests {
 
         [Fact]
         public void acosTest() {
-            Assert.Equal(PI, acos(-1.0));
-            Assert.Equal(PI / 2, acos(0.0));
-            Assert.Equal(1.0471975511965979, acos(0.5));
-            Assert.Equal(2.0943951023931957, acos(-0.5));
+            assertEpsilonEqual(PI, acos(-1.0));
+            assertEpsilonEqual(PI / 2, acos(0.0));
+            assertEpsilonEqual(1.0471975511965979, acos(0.5));
+            assertEpsilonEqual(2.0943951023931957, acos(-0.5));
 
             assertPositiveZero(acos(1.0));
 
@@ -68,10 +78,10 @@ namespace Mariana.AVM2.Tests {
 
         [Fact]
         public void asinTest() {
-            Assert.Equal(-PI / 2, asin(-1.0));
-            Assert.Equal(PI / 2, asin(1.0));
-            Assert.Equal(-0.5235987755982989, asin(-0.5));
-            Assert.Equal(0.5235987755982989, asin(0.5));
+            assertEpsilonEqual(-PI / 2, asin(-1.0));
+            assertEpsilonEqual(PI / 2, asin(1.0));
+            assertEpsilonEqual(-0.5235987755982989, asin(-0.5));
+            assertEpsilonEqual(0.5235987755982989, asin(0.5));
 
             assertPositiveZero(asin(0.0));
             assertNegativeZero(asin(NEG_ZERO));
@@ -90,15 +100,15 @@ namespace Mariana.AVM2.Tests {
             assertPositiveZero(atan(0.0));
             assertNegativeZero(atan(NEG_ZERO));
 
-            Assert.Equal(0.7853981633974483, atan(1.0));
-            Assert.Equal(-0.7853981633974483, atan(-1.0));
-            Assert.Equal(0.4636476090008061, atan(0.5));
-            Assert.Equal(-0.4636476090008061, atan(-0.5));
-            Assert.Equal(1.1071487177940904, atan(2.0));
-            Assert.Equal(-1.1071487177940904, atan(-2.0));
+            assertEpsilonEqual(0.7853981633974483, atan(1.0));
+            assertEpsilonEqual(-0.7853981633974483, atan(-1.0));
+            assertEpsilonEqual(0.4636476090008061, atan(0.5));
+            assertEpsilonEqual(-0.4636476090008061, atan(-0.5));
+            assertEpsilonEqual(1.1071487177940904, atan(2.0));
+            assertEpsilonEqual(-1.1071487177940904, atan(-2.0));
 
-            Assert.Equal(-PI / 2, atan(NEG_INF));
-            Assert.Equal(PI / 2, atan(POS_INF));
+            assertEpsilonEqual(-PI / 2, atan(NEG_INF));
+            assertEpsilonEqual(PI / 2, atan(POS_INF));
 
             assertNaN(atan(NAN));
         }
@@ -109,12 +119,12 @@ namespace Mariana.AVM2.Tests {
             assertNaN(atan2(0.0, NAN));
             assertNaN(atan2(NAN, NAN));
 
-            Assert.Equal(PI / 2, atan2(POS_EPSILON, 0.0));
-            Assert.Equal(PI / 2, atan2(POS_EPSILON, NEG_ZERO));
-            Assert.Equal(PI / 2, atan2(1.0, 0.0));
-            Assert.Equal(PI / 2, atan2(1.0, NEG_ZERO));
-            Assert.Equal(PI / 2, atan2(POS_INF, 0.0));
-            Assert.Equal(PI / 2, atan2(POS_INF, NEG_ZERO));
+            assertEpsilonEqual(PI / 2, atan2(POS_EPSILON, 0.0));
+            assertEpsilonEqual(PI / 2, atan2(POS_EPSILON, NEG_ZERO));
+            assertEpsilonEqual(PI / 2, atan2(1.0, 0.0));
+            assertEpsilonEqual(PI / 2, atan2(1.0, NEG_ZERO));
+            assertEpsilonEqual(PI / 2, atan2(POS_INF, 0.0));
+            assertEpsilonEqual(PI / 2, atan2(POS_INF, NEG_ZERO));
 
             assertPositiveZero(atan2(0.0, POS_EPSILON));
             assertPositiveZero(atan2(0.0, 1.0));
@@ -122,10 +132,10 @@ namespace Mariana.AVM2.Tests {
 
             assertPositiveZero(atan2(0.0, 0.0));
 
-            Assert.Equal(PI, atan2(0.0, NEG_ZERO));
-            Assert.Equal(PI, atan2(0.0, NEG_EPSILON));
-            Assert.Equal(PI, atan2(0.0, -1.0));
-            Assert.Equal(PI, atan2(0.0, NEG_INF));
+            assertEpsilonEqual(PI, atan2(0.0, NEG_ZERO));
+            assertEpsilonEqual(PI, atan2(0.0, NEG_EPSILON));
+            assertEpsilonEqual(PI, atan2(0.0, -1.0));
+            assertEpsilonEqual(PI, atan2(0.0, NEG_INF));
 
             assertNegativeZero(atan2(NEG_ZERO, POS_EPSILON));
             assertNegativeZero(atan2(NEG_ZERO, 1.0));
@@ -133,51 +143,51 @@ namespace Mariana.AVM2.Tests {
 
             assertNegativeZero(atan2(NEG_ZERO, 0.0));
 
-            Assert.Equal(-PI, atan2(NEG_ZERO, NEG_ZERO));
-            Assert.Equal(-PI, atan2(NEG_ZERO, NEG_EPSILON));
-            Assert.Equal(-PI, atan2(NEG_ZERO, -1.0));
-            Assert.Equal(-PI, atan2(NEG_ZERO, NEG_INF));
+            assertEpsilonEqual(-PI, atan2(NEG_ZERO, NEG_ZERO));
+            assertEpsilonEqual(-PI, atan2(NEG_ZERO, NEG_EPSILON));
+            assertEpsilonEqual(-PI, atan2(NEG_ZERO, -1.0));
+            assertEpsilonEqual(-PI, atan2(NEG_ZERO, NEG_INF));
 
-            Assert.Equal(-PI / 2, atan2(NEG_EPSILON, 0.0));
-            Assert.Equal(-PI / 2, atan2(NEG_EPSILON, NEG_ZERO));
-            Assert.Equal(-PI / 2, atan2(-1.0, 0.0));
-            Assert.Equal(-PI / 2, atan2(-1.0, NEG_ZERO));
-            Assert.Equal(-PI / 2, atan2(NEG_INF, 0.0));
-            Assert.Equal(-PI / 2, atan2(NEG_INF, NEG_ZERO));
+            assertEpsilonEqual(-PI / 2, atan2(NEG_EPSILON, 0.0));
+            assertEpsilonEqual(-PI / 2, atan2(NEG_EPSILON, NEG_ZERO));
+            assertEpsilonEqual(-PI / 2, atan2(-1.0, 0.0));
+            assertEpsilonEqual(-PI / 2, atan2(-1.0, NEG_ZERO));
+            assertEpsilonEqual(-PI / 2, atan2(NEG_INF, 0.0));
+            assertEpsilonEqual(-PI / 2, atan2(NEG_INF, NEG_ZERO));
 
             assertPositiveZero(atan2(POS_EPSILON, POS_INF));
             assertPositiveZero(atan2(1.0, POS_INF));
-            Assert.Equal(PI, atan2(POS_EPSILON, NEG_INF));
-            Assert.Equal(PI, atan2(1.0, NEG_INF));
+            assertEpsilonEqual(PI, atan2(POS_EPSILON, NEG_INF));
+            assertEpsilonEqual(PI, atan2(1.0, NEG_INF));
 
             assertNegativeZero(atan2(NEG_EPSILON, POS_INF));
             assertNegativeZero(atan2(-1.0, POS_INF));
-            Assert.Equal(-PI, atan2(NEG_EPSILON, NEG_INF));
-            Assert.Equal(-PI, atan2(-1.0, NEG_INF));
+            assertEpsilonEqual(-PI, atan2(NEG_EPSILON, NEG_INF));
+            assertEpsilonEqual(-PI, atan2(-1.0, NEG_INF));
 
-            Assert.Equal(PI / 2, atan2(POS_INF, 0.0));
-            Assert.Equal(PI / 2, atan2(POS_INF, NEG_ZERO));
-            Assert.Equal(PI / 2, atan2(POS_INF, POS_EPSILON));
-            Assert.Equal(PI / 2, atan2(POS_INF, NEG_EPSILON));
-            Assert.Equal(PI / 2, atan2(POS_INF, 1.0));
-            Assert.Equal(PI / 2, atan2(POS_INF, -1.0));
+            assertEpsilonEqual(PI / 2, atan2(POS_INF, 0.0));
+            assertEpsilonEqual(PI / 2, atan2(POS_INF, NEG_ZERO));
+            assertEpsilonEqual(PI / 2, atan2(POS_INF, POS_EPSILON));
+            assertEpsilonEqual(PI / 2, atan2(POS_INF, NEG_EPSILON));
+            assertEpsilonEqual(PI / 2, atan2(POS_INF, 1.0));
+            assertEpsilonEqual(PI / 2, atan2(POS_INF, -1.0));
 
-            Assert.Equal(-PI / 2, atan2(NEG_INF, 0.0));
-            Assert.Equal(-PI / 2, atan2(NEG_INF, NEG_ZERO));
-            Assert.Equal(-PI / 2, atan2(NEG_INF, POS_EPSILON));
-            Assert.Equal(-PI / 2, atan2(NEG_INF, NEG_EPSILON));
-            Assert.Equal(-PI / 2, atan2(NEG_INF, 1.0));
-            Assert.Equal(-PI / 2, atan2(NEG_INF, -1.0));
+            assertEpsilonEqual(-PI / 2, atan2(NEG_INF, 0.0));
+            assertEpsilonEqual(-PI / 2, atan2(NEG_INF, NEG_ZERO));
+            assertEpsilonEqual(-PI / 2, atan2(NEG_INF, POS_EPSILON));
+            assertEpsilonEqual(-PI / 2, atan2(NEG_INF, NEG_EPSILON));
+            assertEpsilonEqual(-PI / 2, atan2(NEG_INF, 1.0));
+            assertEpsilonEqual(-PI / 2, atan2(NEG_INF, -1.0));
 
-            Assert.Equal(PI / 4, atan2(POS_INF, POS_INF));
-            Assert.Equal(-PI / 4, atan2(NEG_INF, POS_INF));
-            Assert.Equal(PI * 0.75, atan2(POS_INF, NEG_INF));
-            Assert.Equal(-PI * 0.75, atan2(NEG_INF, NEG_INF));
+            assertEpsilonEqual(PI / 4, atan2(POS_INF, POS_INF));
+            assertEpsilonEqual(-PI / 4, atan2(NEG_INF, POS_INF));
+            assertEpsilonEqual(PI * 0.75, atan2(POS_INF, NEG_INF));
+            assertEpsilonEqual(-PI * 0.75, atan2(NEG_INF, NEG_INF));
 
-            Assert.Equal(0.7853981633974483, atan2(1.0, 1.0));
-            Assert.Equal(-0.7853981633974483, atan2(-1.0, 1.0));
-            Assert.Equal(2.356194490192345, atan2(1.0, -1.0));
-            Assert.Equal(-2.356194490192345, atan2(-1.0, -1.0));
+            assertEpsilonEqual(0.7853981633974483, atan2(1.0, 1.0));
+            assertEpsilonEqual(-0.7853981633974483, atan2(-1.0, 1.0));
+            assertEpsilonEqual(2.356194490192345, atan2(1.0, -1.0));
+            assertEpsilonEqual(-2.356194490192345, atan2(-1.0, -1.0));
         }
 
         [Fact]
@@ -212,16 +222,16 @@ namespace Mariana.AVM2.Tests {
             assertNaN(cos(POS_INF));
             assertNaN(cos(NEG_INF));
 
-            Assert.Equal(1.0, cos(0.0));
-            Assert.Equal(1.0, cos(NEG_ZERO));
+            assertEpsilonEqual(1.0, cos(0.0));
+            assertEpsilonEqual(1.0, cos(NEG_ZERO));
 
-            Assert.Equal(0.5403023058681398, cos(1.0));
-            Assert.Equal(0.5403023058681398, cos(-1.0));
-            Assert.Equal(-0.4161468365471424, cos(2.0));
-            Assert.Equal(-0.4161468365471424, cos(-2.0));
+            assertEpsilonEqual(0.5403023058681398, cos(1.0));
+            assertEpsilonEqual(0.5403023058681398, cos(-1.0));
+            assertEpsilonEqual(-0.4161468365471424, cos(2.0));
+            assertEpsilonEqual(-0.4161468365471424, cos(-2.0));
 
-            Assert.Equal(-1.0, cos(PI));
-            Assert.Equal(-1.0, cos(-PI));
+            assertEpsilonEqual(-1.0, cos(PI));
+            assertEpsilonEqual(-1.0, cos(-PI));
         }
 
         [Fact]
@@ -231,14 +241,14 @@ namespace Mariana.AVM2.Tests {
             assertPositiveInfinity(exp(POS_INF));
             assertPositiveZero(exp(NEG_INF));
 
-            Assert.Equal(1.0, exp(0.0));
-            Assert.Equal(1.0, exp(NEG_ZERO));
+            assertEpsilonEqual(1.0, exp(0.0));
+            assertEpsilonEqual(1.0, exp(NEG_ZERO));
 
-            Assert.Equal(E, exp(1.0));
-            Assert.Equal(1.0 / E, exp(-1.0));
+            assertEpsilonEqual(E, exp(1.0));
+            assertEpsilonEqual(1.0 / E, exp(-1.0));
 
-            Assert.Equal(-1.0, cos(PI));
-            Assert.Equal(-1.0, cos(-PI));
+            assertEpsilonEqual(-1.0, cos(PI));
+            assertEpsilonEqual(-1.0, cos(-PI));
         }
 
         [Fact]
@@ -279,10 +289,10 @@ namespace Mariana.AVM2.Tests {
             assertNaN(log(-1.0));
             assertNaN(log(NEG_INF));
 
-            Assert.Equal(1.0, log(E));
-            Assert.Equal(-1.0, log(1.0 / E));
-            Assert.Equal(LN2, log(2.0));
-            Assert.Equal(LN10, log(10.0));
+            assertEpsilonEqual(1.0, log(E));
+            assertEpsilonEqual(-1.0, log(1.0 / E));
+            assertEpsilonEqual(LN2, log(2.0));
+            assertEpsilonEqual(LN10, log(10.0));
         }
 
         [Fact]
@@ -567,14 +577,15 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(-0.125, pow(-0.5, 3.0));
             Assert.Equal(-0.125, pow(-2.0, -3.0));
 
-            Assert.Equal(SQRT2, pow(2.0, 0.5));
-            Assert.Equal(SQRT2, pow(0.5, -0.5));
-            Assert.Equal(SQRT1_2, pow(2.0, -0.5));
-            Assert.Equal(SQRT1_2, pow(0.5, 0.5));
+            assertEpsilonEqual(SQRT2, pow(2.0, 0.5));
+            assertEpsilonEqual(SQRT2, pow(0.5, -0.5));
+            assertEpsilonEqual(SQRT1_2, pow(2.0, -0.5));
+            assertEpsilonEqual(SQRT1_2, pow(0.5, 0.5));
 
             Assert.Equal(9007199254740992, pow(2, 53));
             Assert.Equal(8.98846567431158e+307, pow(2, 1023));
             Assert.Equal(-8.98846567431158e+307, pow(-2, 1023));
+
             Assert.Equal(POS_EPSILON, pow(2, -1074));
             Assert.Equal(POS_EPSILON, pow(0.5, 1074));
             Assert.Equal(POS_EPSILON, pow(-2, -1074));
@@ -593,13 +604,13 @@ namespace Mariana.AVM2.Tests {
             assertPositiveZero(sin(0.0));
             assertNegativeZero(sin(NEG_ZERO));
 
-            Assert.Equal(0.8414709848078965, sin(1.0));
-            Assert.Equal(-0.8414709848078965, sin(-1.0));
-            Assert.Equal(0.9092974268256817, sin(2.0));
-            Assert.Equal(-0.9092974268256817, sin(-2.0));
+            assertEpsilonEqual(0.8414709848078965, sin(1.0));
+            assertEpsilonEqual(-0.8414709848078965, sin(-1.0));
+            assertEpsilonEqual(0.9092974268256817, sin(2.0));
+            assertEpsilonEqual(-0.9092974268256817, sin(-2.0));
 
-            Assert.Equal(1.0, sin(PI / 2));
-            Assert.Equal(-1.0, sin(-PI / 2));
+            assertEpsilonEqual(1.0, sin(PI / 2));
+            assertEpsilonEqual(-1.0, sin(-PI / 2));
         }
 
         [Fact]
@@ -732,10 +743,10 @@ namespace Mariana.AVM2.Tests {
             assertPositiveZero(tan(0.0));
             assertNegativeZero(tan(NEG_ZERO));
 
-            Assert.Equal(1.5574077246549023, tan(1.0));
-            Assert.Equal(-1.5574077246549023, tan(-1.0));
-            Assert.Equal(-2.185039863261519, tan(2.0));
-            Assert.Equal(2.185039863261519, tan(-2.0));
+            assertEpsilonEqual(1.5574077246549023, tan(1.0));
+            assertEpsilonEqual(-1.5574077246549023, tan(-1.0));
+            assertEpsilonEqual(-2.185039863261519, tan(2.0));
+            assertEpsilonEqual(2.185039863261519, tan(-2.0));
         }
 
         [Fact]

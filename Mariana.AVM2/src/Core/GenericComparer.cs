@@ -609,21 +609,33 @@ namespace Mariana.AVM2.Core {
 
         internal sealed class Object<T> : GenericComparer<T> where T : ASObject {
 
-            /// <summary>
-            /// This is true if object equality can be compared by references only, i.e. the type has no
-            /// special definition of strict equality.
-            /// </summary>
-            private static readonly bool s_canUseRefEquals =
-                !(typeof(T) == typeof(ASObject) || typeof(T) == typeof(ASXML) || typeof(T) == typeof(ASXMLList));
+            private static readonly bool s_typeHasSpecialStrictEq = typeof(T) == typeof(ASObject);
 
-            public override bool Equals(T x, T y) => s_canUseRefEquals ? x == y : ASObject.AS_strictEq(x, y);
+            public override bool Equals(T x, T y) => s_typeHasSpecialStrictEq ? x == y : ASObject.AS_strictEq(x, y);
             public override int Compare(T x, T y) => Equals(x, y) ? 0 : (ASObject.AS_lessThan(x, y) ? -1 : 1);
             public override int GetHashCode(T x) => x.GetHashCode();
 
             public override int indexOf(ReadOnlySpan<T> span, T item) {
-                if (s_canUseRefEquals) {
+                if (item == null
+                    || !s_typeHasSpecialStrictEq
+                    || !ClassTagSet.specialStrictEquality.contains(item.AS_class.tag))
+                {
                     for (int i = 0; i < span.Length; i++) {
                         if (span[i] == item)
+                            return i;
+                    }
+                }
+                else if (ASObject.AS_isNumeric(item)) {
+                    double itemVal = ASObject.AS_toNumber(item);
+                    for (int i = 0; i < span.Length; i++) {
+                        if (ASObject.AS_isNumeric(span[i]) && ASObject.AS_toNumber(span[i]) == itemVal)
+                            return i;
+                    }
+                }
+                else if (item is ASString) {
+                    string itemVal = ASObject.AS_coerceString(item);
+                    for (int i = 0; i < span.Length; i++) {
+                        if (span[i] is ASString && ASObject.AS_coerceString(span[i]) == itemVal)
                             return i;
                     }
                 }
@@ -637,9 +649,26 @@ namespace Mariana.AVM2.Core {
             }
 
             public override int lastIndexOf(ReadOnlySpan<T> span, T item) {
-                if (s_canUseRefEquals) {
+                if (item == null
+                    || !s_typeHasSpecialStrictEq
+                    || !ClassTagSet.specialStrictEquality.contains(item.AS_class.tag))
+                {
                     for (int i = span.Length - 1; i >= 0; i--) {
                         if (span[i] == item)
+                            return i;
+                    }
+                }
+                else if (ASObject.AS_isNumeric(item)) {
+                    double itemVal = ASObject.AS_toNumber(item);
+                    for (int i = span.Length - 1; i >= 0; i--) {
+                        if (ASObject.AS_isNumeric(span[i]) && ASObject.AS_toNumber(span[i]) == itemVal)
+                            return i;
+                    }
+                }
+                else if (item is ASString) {
+                    string itemVal = ASObject.AS_coerceString(item);
+                    for (int i = span.Length - 1; i >= 0; i--) {
+                        if (span[i] is ASString && ASObject.AS_coerceString(span[i]) == itemVal)
                             return i;
                     }
                 }
@@ -656,7 +685,7 @@ namespace Mariana.AVM2.Core {
                 if (span1.Length != span2.Length)
                     return false;
 
-                if (s_canUseRefEquals) {
+                if (!s_typeHasSpecialStrictEq) {
                     for (int i = 0; i < span1.Length; i++) {
                         if (span1[i] != span2[i])
                             return false;
@@ -682,16 +711,11 @@ namespace Mariana.AVM2.Core {
         /// ASObject.
         /// </summary>
         internal sealed class ObjectInterface<T> : GenericComparer<T> where T : class {
+            // We can use reference equality here since no types that have a special definition
+            // of strict equality (the primitive types, Namespace and QName) implement any
+            // interfaces.
 
-            /// <summary>
-            /// This is true if object equality can be compared by references only, i.e. the type has no
-            /// special definition of equality. Since no interface type (or any of their implementations)
-            /// currently have a special definition of equality, this is always true.
-            /// </summary>
-            private static readonly bool s_canUseRefEquals = true;
-
-            public override bool Equals(T x, T y) =>
-                s_canUseRefEquals ? x == y : ASObject.AS_strictEq((ASObject)(object)x, (ASObject)(object)y);
+            public override bool Equals(T x, T y) => x == y;
 
             public override int Compare(T x, T y) =>
                 Equals(x, y) ? 0 : (ASObject.AS_lessThan((ASObject)(object)x, (ASObject)(object)y) ? -1 : 1);
@@ -699,35 +723,17 @@ namespace Mariana.AVM2.Core {
             public override int GetHashCode(T x) => x.GetHashCode();
 
             public override int indexOf(ReadOnlySpan<T> span, T item) {
-                if (s_canUseRefEquals) {
-                    for (int i = 0; i < span.Length; i++) {
-                        if (span[i] == item)
-                            return i;
-                    }
-                }
-                else {
-                    ASObject itemObj = (ASObject)(object)item;
-                    for (int i = 0; i < span.Length; i++) {
-                        if (ASObject.AS_strictEq((ASObject)(object)span[i], itemObj))
-                            return i;
-                    }
+                for (int i = 0; i < span.Length; i++) {
+                    if (span[i] == item)
+                        return i;
                 }
                 return -1;
             }
 
             public override int lastIndexOf(ReadOnlySpan<T> span, T item) {
-                if (s_canUseRefEquals) {
-                    for (int i = span.Length - 1; i >= 0; i--) {
-                        if (span[i] == item)
-                            return i;
-                    }
-                }
-                else {
-                    ASObject itemObj = (ASObject)(object)item;
-                    for (int i = span.Length - 1; i >= 0; i--) {
-                        if (ASObject.AS_strictEq((ASObject)(object)span[i], itemObj))
-                            return i;
-                    }
+                for (int i = span.Length - 1; i >= 0; i--) {
+                    if (span[i] == item)
+                        return i;
                 }
                 return -1;
             }
@@ -736,17 +742,9 @@ namespace Mariana.AVM2.Core {
                 if (span1.Length != span2.Length)
                     return false;
 
-                if (s_canUseRefEquals) {
-                    for (int i = 0; i < span1.Length; i++) {
-                        if (span1[i] != span2[i])
-                            return false;
-                    }
-                }
-                else {
-                    for (int i = 0; i < span1.Length; i++) {
-                        if (!ASObject.AS_strictEq((ASObject)(object)span1[i], (ASObject)(object)span2[i]))
-                            return false;
-                    }
+                for (int i = 0; i < span1.Length; i++) {
+                    if (span1[i] != span2[i])
+                        return false;
                 }
 
                 return true;
@@ -761,17 +759,65 @@ namespace Mariana.AVM2.Core {
             public override int GetHashCode(ASAny x) => x.GetHashCode();
 
             public override int indexOf(ReadOnlySpan<ASAny> span, ASAny item) {
-                for (int i = 0; i < span.Length; i++) {
-                    if (ASAny.AS_strictEq(span[i], item))
-                        return i;
+                if (item.isUndefinedOrNull
+                    || !ClassTagSet.specialStrictEquality.contains(item.AS_class.tag))
+                {
+                    for (int i = 0; i < span.Length; i++) {
+                        if (span[i] == item)
+                            return i;
+                    }
+                }
+                else if (ASObject.AS_isNumeric(item.value)) {
+                    double itemVal = (double)item.value;
+                    for (int i = 0; i < span.Length; i++) {
+                        if (ASObject.AS_isNumeric(span[i].value) && (double)span[i] == itemVal)
+                            return i;
+                    }
+                }
+                else if (item.value is ASString) {
+                    string itemVal = (string)item.value;
+                    for (int i = 0; i < span.Length; i++) {
+                        if (span[i].value is ASString && (string)span[i] == itemVal)
+                            return i;
+                    }
+                }
+                else {
+                    for (int i = 0; i < span.Length; i++) {
+                        if (ASAny.AS_strictEq(span[i], item))
+                            return i;
+                    }
                 }
                 return -1;
             }
 
             public override int lastIndexOf(ReadOnlySpan<ASAny> span, ASAny item) {
-                for (int i = span.Length - 1; i >= 0; i--) {
-                    if (ASAny.AS_strictEq(span[i], item))
-                        return i;
+                if (item.isUndefinedOrNull
+                    || !ClassTagSet.specialStrictEquality.contains(item.AS_class.tag))
+                {
+                    for (int i = span.Length - 1; i >= 0; i--) {
+                        if (span[i] == item)
+                            return i;
+                    }
+                }
+                else if (ASObject.AS_isNumeric(item.value)) {
+                    double itemVal = (double)item.value;
+                    for (int i = span.Length - 1; i >= 0; i--) {
+                        if (ASObject.AS_isNumeric(span[i].value) && (double)span[i] == itemVal)
+                            return i;
+                    }
+                }
+                else if (item.value is ASString) {
+                    string itemVal = (string)item.value;
+                    for (int i = span.Length - 1; i >= 0; i--) {
+                        if (span[i].value is ASString && (string)span[i] == itemVal)
+                            return i;
+                    }
+                }
+                else {
+                    for (int i = span.Length - 1; i >= 0; i--) {
+                        if (ASAny.AS_strictEq(span[i], item))
+                            return i;
+                    }
                 }
                 return -1;
             }

@@ -51,6 +51,8 @@ namespace Mariana.AVM2.Core {
 
             public bool isEmptyOrUndefined => m_obj == null || m_obj == undef.m_obj;
 
+            public bool isReferenceEqual(Value other) => m_obj == other.m_obj;
+
             public ASAny toAny() {
                 if (m_obj == null || m_obj == undef.m_obj)
                     return default(ASAny);
@@ -2137,9 +2139,37 @@ namespace Mariana.AVM2.Core {
                     return -1.0;
 
                 var valuesSpan = new ReadOnlySpan<Value>(m_values, (int)fromIndexU, m_totalCount - (int)fromIndexU);
-                for (int i = 0; i < valuesSpan.Length; i++) {
-                    if (ASAny.AS_strictEq(searchElement, valuesSpan[i].toAny()))
-                        return (double)i;
+
+                if (searchElement.isUndefinedOrNull
+                    || !ClassTagSet.specialStrictEquality.contains(searchElement.AS_class.tag))
+                {
+                    Value searchVal = Value.fromAny(searchElement);
+                    for (int i = 0; i < valuesSpan.Length; i++) {
+                        if (valuesSpan[i].isReferenceEqual(searchVal))
+                            return (double)i;
+                    }
+                }
+                else if (ASObject.AS_isNumeric(searchElement.value)) {
+                    double searchVal = (double)searchElement;
+                    for (int i = 0; i < valuesSpan.Length; i++) {
+                        ASObject obj = valuesSpan[i].toAny().value;
+                        if (ASObject.AS_isNumeric(obj) && (double)obj == searchVal)
+                            return (double)i;
+                    }
+                }
+                else if (searchElement.value is ASString) {
+                    string searchVal = (string)searchElement;
+                    for (int i = 0; i < valuesSpan.Length; i++) {
+                        ASObject strObj = valuesSpan[i].toAny().value as ASString;
+                        if (strObj != null && (string)strObj == searchVal)
+                            return (double)i;
+                    }
+                }
+                else {
+                    for (int i = 0; i < valuesSpan.Length; i++) {
+                        if (ASAny.AS_strictEq(searchElement, valuesSpan[i].toAny()))
+                            return (double)i;
+                    }
                 }
             }
             else {
@@ -2210,9 +2240,37 @@ namespace Mariana.AVM2.Core {
 
             if (_isDenseArrayWithoutEmptySlots()) {
                 var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, (int)Math.Min(fromIndexU, (uint)m_totalCount));
-                for (int i = valuesSpan.Length - 1; i >= 0; i--) {
-                    if (ASAny.AS_strictEq(searchElement, valuesSpan[i].toAny()))
-                        return (double)i;
+
+                if (searchElement.isUndefinedOrNull
+                    || !ClassTagSet.specialStrictEquality.contains(searchElement.AS_class.tag))
+                {
+                    Value searchVal = Value.fromAny(searchElement);
+                    for (int i = valuesSpan.Length - 1; i >= 0; i--) {
+                        if (valuesSpan[i].isReferenceEqual(searchVal))
+                            return (double)i;
+                    }
+                }
+                else if (ASObject.AS_isNumeric(searchElement.value)) {
+                    double searchVal = (double)searchElement;
+                    for (int i = valuesSpan.Length - 1; i >= 0; i--) {
+                        ASObject obj = valuesSpan[i].toAny().value;
+                        if (ASObject.AS_isNumeric(obj) && (double)obj == searchVal)
+                            return (double)i;
+                    }
+                }
+                else if (searchElement.value is ASString) {
+                    string searchVal = (string)searchElement;
+                    for (int i = valuesSpan.Length - 1; i >= 0; i--) {
+                        ASObject strObj = valuesSpan[i].toAny().value as ASString;
+                        if (strObj != null && (string)strObj == searchVal)
+                            return (double)i;
+                    }
+                }
+                else {
+                    for (int i = valuesSpan.Length - 1; i >= 0; i--) {
+                        if (ASAny.AS_strictEq(searchElement, valuesSpan[i].toAny()))
+                            return (double)i;
+                    }
                 }
             }
             else {

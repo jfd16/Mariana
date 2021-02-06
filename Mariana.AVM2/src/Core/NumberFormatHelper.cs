@@ -581,9 +581,8 @@ namespace Mariana.AVM2.Core {
                 // and updates the buffer with the quotient. Simple grammar-school division.
 
                 ulong remainder = 0;
-                int i = 0;
 
-                for (; (uint)i < (uint)sp.Length; i++) {
+                for (int i = 0; i < sp.Length; i++) {
                     remainder = remainder << 32 | sp[i];
                     if (remainder < (ulong)rdx) {
                         sp[i] = 0;
@@ -766,12 +765,16 @@ namespace Mariana.AVM2.Core {
             bool isExcessNonZero = false;
 
             // Skip leading zeroes
-            for (; (uint)i < (uint)span.Length; i++) {
-                if (span[i] != '0')
+            while (true) {
+                if ((uint)i >= (uint)span.Length || span[i] != '0')
                     break;
+                i++;
             }
 
-            for (; (uint)i < (uint)span.Length; i++) {
+            while (true) {
+                if ((uint)i >= (uint)span.Length)
+                    break;
+
                 int digit = _getDigitValue(span[i]);
                 if ((uint)digit >= radix)
                     break;
@@ -784,6 +787,8 @@ namespace Mariana.AVM2.Core {
                     nExcessBits += nRadixBits;
                     isExcessNonZero |= digit != 0;
                 }
+
+                i++;
             }
 
             charsRead = i;
@@ -851,7 +856,10 @@ namespace Mariana.AVM2.Core {
             long maxLongDivRadix = (radix == 10) ? Int64.MaxValue / 10 : Int64.MaxValue / radix;
             bool fitsInLong = true;
 
-            for (; (uint)i < (uint)span.Length; i++) {
+            while (true) {
+                if ((uint)i  >= (uint)span.Length)
+                    break;
+
                 int digit = _getDigitValue(span[i]);
                 if ((uint)digit >= radix)
                     break;
@@ -866,6 +874,7 @@ namespace Mariana.AVM2.Core {
                     break;
                 }
                 longValue = newLongVal;
+                i++;
             }
 
             if (fitsInLong) {
@@ -876,9 +885,10 @@ namespace Mariana.AVM2.Core {
             // The number does not fit into a long integer and we need to use bignum arithmetic.
             // If the base is 10, we use Double.Parse as that seems to be more optimized.
             if (radix == 10) {
-                for (; (uint)i < (uint)span.Length; i++) {
-                    if ((uint)(span[i] - '0') > 9)
+                while (true) {
+                    if ((uint)i >= (uint)span.Length || (uint)(span[i] - '0') > 9)
                         break;
+                    i++;
                 }
                 charsRead = i;
                 return Double.Parse(span.Slice(0, charsRead));
@@ -893,7 +903,10 @@ namespace Mariana.AVM2.Core {
             int curSize = 2;
             bool overflow = false;
 
-            for (; (uint)i < (uint)span.Length; i++) {
+            while (true) {
+                if ((uint)i >= (uint)span.Length)
+                    break;
+
                 int digit = _getDigitValue(span[i]);
                 if ((uint)digit >= radix)
                     break;
@@ -904,6 +917,8 @@ namespace Mariana.AVM2.Core {
 
                 if (!overflow)
                     overflow = !pushDigit(bigint, ref curSize, radix, digit);
+
+                i++;
             }
 
             charsRead = i;
