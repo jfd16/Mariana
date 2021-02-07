@@ -10,77 +10,85 @@ namespace Mariana.Common {
 
         private struct Slot {
             internal string value;
+            internal int hash;
             internal int next;
         }
 
-        // This array consists of 53 chain start points. Chains are based on the first
-        // character of each string: chains 0 to 25 are used for uppercase letters,
-        // 26 to 51 are used for lowercase letters and path 52 is used
-        // for strings starting with any character other than a letter.
-        private int[] m_chains;
-
-        private Slot[] m_slots;
+        private const int DEFAULT_INITIAL_CAPACITY = 8;
 
         private int m_count;
+        private Slot[] m_slots;
+        private int[] m_chains;
 
         /// <summary>
-        /// Creates a new NamePool instance.
+        /// Creates a new instance of <see cref="NamePool"/>.
         /// </summary>
-        public NamePool() {
-            m_slots = new Slot[8];
-            m_chains = new int[53];
-            Array.Fill(m_chains, -1);
+        /// <param name="initialCapacity">The initial capacity of the name pool.</param>
+        public NamePool(int initialCapacity = DEFAULT_INITIAL_CAPACITY) {
+            if (initialCapacity < 0)
+                throw new ArgumentOutOfRangeException(nameof(initialCapacity));
+
+            m_slots = new Slot[DataStructureUtil.nextPrime(initialCapacity)];
+            m_chains = new int[m_slots.Length];
+            m_chains.AsSpan().Fill(-1);
         }
-
-        private int _getChain(char c) {
-            if (c >= 97 && c <= 122)
-                return c - 71;
-            if (c >= 65 && c <= 90)
-                return c - 65;
-            return 52;
-        }
-
-        /// <summary>
-        /// Returns the string in the name pool having the same sequence of characters as the given string.
-        /// If no such string exists, it is added to the pool.
-        /// </summary>
-        ///
-        /// <param name="str">A string to compare against the strings in the pool.</param>
-        /// <returns>The string in the name pool equivalent to the span <paramref name="str"/>.</returns>
-        public string getPooledValue(string str) => _getPooledValueInternal(str, str);
-
 
         /// <summary>
         /// Returns the string in the name pool having the same sequence of characters as the given span.
         /// If no such string exists, a new one is created from the span and added to the pool.
         /// </summary>
         ///
-        /// <param name="str">A span to compare against the strings in the pool.</param>
-        /// <returns>The string in the name pool equivalent to the span <paramref name="str"/>.</returns>
-        public string getPooledValue(ReadOnlySpan<char> str) => _getPooledValueInternal(str, null);
+        /// <param name="span">A span to compare against the strings in the pool.</param>
+        /// <returns>The string in the name pool equivalent to the span <paramref name="span"/>.</returns>
+        public string getPooledValue(ReadOnlySpan<char> span) {
+            int hash = _getHashCodeOfSpan(span) & 0x7FFFFFFF;
+            int chain = hash % m_chains.Length;
+            int i = m_chains[chain];
 
-        private string _getPooledValueInternal(ReadOnlySpan<char> span, string originalString) {
-            if (span.Length == 0)
-                return "";
-
-            int chain = _getChain(span[0]);
-
-            for (int i = m_chains[chain]; i != -1; i = m_slots[i].next) {
-                string slotval = m_slots[i].value;
-                if (span.Equals(slotval, StringComparison.Ordinal))
-                    return slotval;
+            while (i != -1) {
+                ref Slot slot = ref m_slots[i];
+                if (slot.hash == hash && span.Equals(slot.value, StringComparison.Ordinal))
+                    return slot.value;
+                i = slot.next;
             }
 
-            Slot newSlot;
-            newSlot.next = m_chains[chain];
-            newSlot.value = originalString ?? new String(span);
-            m_chains[chain] = m_count;
+            if (m_count == m_slots.Length) {
+                int newSize = DataStructureUtil.nextPrime(m_count * 2);
 
-            if (m_slots.Length == m_count)
-                DataStructureUtil.resizeArray(ref m_slots, m_count, m_count + 1, false);
+                Slot[] newSlots = new Slot[newSize];
+                m_slots.AsSpan(0, m_count).CopyTo(newSlots);
 
-            m_slots[m_count++] = newSlot;
+                int[] newChains = new int[newSize];
+                newChains.AsSpan().Fill(-1);
+
+                for (int j = 0; j < m_count; j++) {
+                    int newChain = newSlots[j].hash % newSize;
+                    newSlots[j].next = newChains[newChain];
+                    newChains[newChain] = j;
+                }
+
+                m_slots = newSlots;
+                m_chains = newChains;
+                chain = hash % newSize;
+            }
+
+            ref Slot newSlot = ref m_slots[m_count];
+            ref int chainStart = ref m_chains[chain];
+
+            newSlot.hash = hash;
+            newSlot.value = new string(span);
+            newSlot.next = chainStart;
+            chainStart = m_count;
+
+            m_count++;
             return newSlot.value;
+        }
+
+        private static int _getHashCodeOfSpan(ReadOnlySpan<char> span) {
+            int value = 1362874787;
+            for (int i = 0; i < span.Length; i++)
+                value = (value + span[i]) * 464739103;
+            return value;
         }
 
     }

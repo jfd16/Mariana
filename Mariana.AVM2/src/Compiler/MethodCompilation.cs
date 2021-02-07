@@ -365,10 +365,10 @@ namespace Mariana.AVM2.Compiler {
                 if (use == currentUse)
                     return;
 
-                DataNodeDUInfo.uses(ref flow) = m_dataNodeOrInstrRefArrayPool.allocate(2, out Span<DataNodeOrInstrRef> nodeDefs);
+                DataNodeDUInfo.uses(ref flow) = m_dataNodeOrInstrRefArrayPool.allocate(2, out Span<DataNodeOrInstrRef> nodeUses);
 
-                nodeDefs[0] = currentUse;
-                nodeDefs[1] = use;
+                nodeUses[0] = currentUse;
+                nodeUses[1] = use;
                 node.flags &= ~DataNodeFlags.HAS_SINGLE_USE;
             }
             else if (DataNodeDUInfo.uses(ref flow).isDefault) {

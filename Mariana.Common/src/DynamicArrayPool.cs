@@ -22,8 +22,6 @@ namespace Mariana.Common {
 
             public Span<T> getSpan(int index, int length) => m_storage.asSpan(index, length);
 
-            public T getItemAt(int index) => m_storage[index];
-
             public void setItemAt(int index, T value) => m_storage[index] = value;
 
             public int allocNewSegment() {
@@ -34,7 +32,7 @@ namespace Mariana.Common {
                 }
                 else {
                     index = m_storage.length;
-                    m_storage.addDefault(segmentSize);
+                    m_storage.addUninitialized(segmentSize);
                 }
 
                 return index;
@@ -45,7 +43,8 @@ namespace Mariana.Common {
                     m_storage.removeRange(index, segmentSize);
                 }
                 else {
-                    m_storage.asSpan(index, segmentSize).Clear();
+                    if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+                        m_storage.asSpan(index, segmentSize).Clear();
                     m_freeList.add(index);
                 }
             }
@@ -140,6 +139,11 @@ namespace Mariana.Common {
         /// <param name="span">An output parameter into which a <see cref="Span{T}"/> that provides
         /// access to the allocated memory will be written.</param>
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="length"/> is less than 0.</exception>
+        ///
+        /// <remarks>
+        /// The allocated memory is guaranteed to be zero-initialized if <typeparamref name="T"/> is
+        /// a reference type or a value type containing references.
+        /// </remarks>
         public DynamicArrayPoolToken<T> allocate(int length, out Span<T> span) {
             if (length < 0)
                 throw new ArgumentOutOfRangeException(nameof(length));
@@ -172,6 +176,11 @@ namespace Mariana.Common {
         /// <returns>A <see cref="DynamicArrayPoolToken{T}"/> instance representing the allocated array.</returns>
         /// <param name="length">The size of the array required.</param>
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="length"/> is less than 0.</exception>
+        ///
+        /// <remarks>
+        /// The allocated memory is guaranteed to be zero-initialized if <typeparamref name="T"/> is
+        /// a reference type or a value type containing references.
+        /// </remarks>
         public DynamicArrayPoolToken<T> allocate(int length) => allocate(length, out _);
 
         /// <summary>
@@ -206,6 +215,13 @@ namespace Mariana.Common {
         /// <exception cref="ArgumentException"><paramref name="token"/> is the default value of
         /// <see cref="DynamicArrayPoolToken{T}"/>.</exception>
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="newLength"/> is less than 0.</exception>
+        ///
+        /// <remarks>
+        /// If <typeparamref name="T"/> is a reference type or a value type containing references
+        /// and <paramref name="newLength"/> is greater than the length of the array represented
+        /// by <paramref name="token"/>, all excess elements in the new array are guaranteed to
+        /// be zero-initialized.
+        /// </remarks>
         public void resize(DynamicArrayPoolToken<T> token, int newLength, out Span<T> span) {
             if (token.m_id == 0)
                 throw new ArgumentException("Token must not be the default value.", nameof(token));
@@ -222,7 +238,7 @@ namespace Mariana.Common {
             }
 
             if (newLength < bucket.segmentSize && newLength >= (bucket.segmentSize >> 1)) {
-                if (newLength < segment.length) {
+                if (newLength < segment.length && RuntimeHelpers.IsReferenceOrContainsReferences<T>()) {
                     span = bucket.getSpan(segment.index, segment.length);
                     span.Slice(newLength).Clear();
                     span = span.Slice(0, newLength);

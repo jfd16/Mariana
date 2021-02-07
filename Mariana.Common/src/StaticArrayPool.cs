@@ -35,6 +35,11 @@ namespace Mariana.Common {
         /// <param name="length">The length of the array.</param>
         /// <returns>A <see cref="StaticArrayPoolToken{T}"/> that can be passed to the
         /// <see cref="getSpan"/> method to access the allocated memory.</returns>
+        ///
+        /// <remarks>
+        /// The allocated memory is guaranteed to be zero-initialized if <typeparamref name="T"/> is
+        /// a reference type or a value type containing references.
+        /// </remarks>
         public StaticArrayPoolToken<T> allocate(int length) => allocate(length, out _);
 
         /// <summary>
@@ -45,6 +50,11 @@ namespace Mariana.Common {
         /// memory will be written.</param>
         /// <returns>A <see cref="StaticArrayPoolToken{T}"/> that can be passed to the
         /// <see cref="getSpan"/> method to access the allocated memory.</returns>
+        ///
+        /// <remarks>
+        /// The allocated memory is guaranteed to be zero-initialized if <typeparamref name="T"/> is
+        /// a reference type or a value type containing references.
+        /// </remarks>
         public StaticArrayPoolToken<T> allocate(int length, out Span<T> span) {
             if (length < 0)
                 throw new ArgumentOutOfRangeException(nameof(length));
@@ -57,7 +67,7 @@ namespace Mariana.Common {
             int itemId = m_indices.length;
             int storageStart = m_indices[itemId - 1];
             m_indices.add(storageStart + length);
-            m_storage.addDefault(length);
+            m_storage.addUninitialized(length);
 
             span = m_storage.asSpan(storageStart, length);
             return new StaticArrayPoolToken<T>(itemId);

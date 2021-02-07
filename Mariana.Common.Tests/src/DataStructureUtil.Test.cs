@@ -8,7 +8,7 @@ namespace Mariana.Common.Tests {
     public class DataStructureUtilTest {
 
         public static IEnumerable<object[]> nextPrimeTest_data = new int[] {
-            1, 2, 3, 4, 6, 8, 12, 18, 25, 30, 43, 50, 60, 70, 80, 89, 90,
+            0, 1, 2, 3, 4, 6, 8, 12, 18, 25, 30, 43, 50, 60, 70, 80, 89, 90,
             100, 150, 200, 300, 373, 500, 787, 1000, 1500, 2000, 5000, 10000,
             50000, 100000, 500000, 1000000, 5000000, 7199369, 7199370, 10000000,
             50000000, 50000017, 100000000, 150000000, 167833927, 200000000,
@@ -19,6 +19,7 @@ namespace Mariana.Common.Tests {
         [MemberData(nameof(nextPrimeTest_data))]
         public void nextPrimeTest(int num) {
             int nextPrime = DataStructureUtil.nextPrime(num);
+            Assert.True(nextPrime > 1, $"Expected {nextPrime} to be > 1.");
             Assert.True(nextPrime >= num, $"Expected {nextPrime} to be >= {num}.");
 
             for (int i = 2; (long)i * i <= (long)nextPrime; i++)
