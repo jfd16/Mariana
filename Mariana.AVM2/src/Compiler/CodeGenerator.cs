@@ -1069,8 +1069,23 @@ namespace Mariana.AVM2.Compiler {
             if (pushed.isNotPushed)
                 return;
 
-            if (pushed.isConstant)
+            if (pushed.isConstant) {
                 _emitPushConstantNode(ref pushed);
+                return;
+            }
+
+            // Check if a dup instruction can be used.
+            bool canUseDup = false;
+            if (instr.id != 0) {
+                ref Instruction prevInstr = ref m_compilation.getInstruction(instr.id - 1);
+                canUseDup = prevInstr.blockId == instr.blockId
+                    && prevInstr.opcode == ABCOp.getlocal
+                    && prevInstr.data.getSetLocal.nodeId == instr.data.getSetLocal.nodeId
+                    && m_compilation.getDataNode(prevInstr.stackPushedNodeId).onPushCoerceType == DataNodeType.UNKNOWN;
+            }
+
+            if (canUseDup)
+                m_ilBuilder.emit(ILOp.dup);
             else
                 _emitLoadScopeOrLocalNode(ref local);
         }
@@ -3546,6 +3561,11 @@ namespace Mariana.AVM2.Compiler {
             if (node.isNotPushed && !ignoreNoPush)
                 return;
 
+            if (_canUseDupForConstantNode(ref node)) {
+                m_ilBuilder.emit(ILOp.dup);
+                return;
+            }
+
             switch (node.dataType) {
                 case DataNodeType.INT:
                 case DataNodeType.UINT:
@@ -3613,6 +3633,62 @@ namespace Mariana.AVM2.Compiler {
                     Debug.Assert(false);
                     break;
             }
+        }
+
+        /// <summary>
+        /// Checks if a constant value can be pushed onto the IL stack using a dup instruction.
+        /// </summary>
+        /// <param name="node">A reference to the data node that represents the constant value pushed
+        /// onto the stack.</param>
+        /// <returns>True if a dup instruction can be used, otherwise false.</returns>
+        private bool _canUseDupForConstantNode(ref DataNode node) {
+            if (node.isPhi || node.slot.kind != DataNodeSlotKind.STACK)
+                return false;
+
+            if (!DataNodeTypeHelper.isNumeric(node.dataType) && node.dataType != DataNodeType.STRING)
+                return false;
+
+            if (DataNodeTypeHelper.isInteger(node.dataType)
+                && node.constant.intValue >= -1 && node.constant.intValue <= 8)
+            {
+                // There are no size savings for emitting a dup instruction for these constants,
+                // as they have single-byte IL opcodes.
+                return false;
+            }
+
+            var nodeDefs = m_compilation.getDataNodeDefs(ref node);
+            Debug.Assert(nodeDefs.Length == 1 && nodeDefs[0].isInstruction);
+
+            ref Instruction pushInstr = ref m_compilation.getInstruction(nodeDefs[0].instrOrNodeId);
+            if (pushInstr.id == 0)
+                return false;
+
+            // Is the instruction preceding the one that has pushed the constant in the same
+            // basic block, and has it also pushed something?
+            ref Instruction prevInstr = ref m_compilation.getInstruction(pushInstr.id - 1);
+            if (prevInstr.blockId != pushInstr.blockId || prevInstr.stackPushedNodeId == -1)
+                return false;
+
+            // Has the preceding instruction pushed a constant of the same type and value,
+            // and has that value been pushed onto the IL stack with no type conversion?
+            ref DataNode prevInstrPushedNode = ref m_compilation.getDataNode(prevInstr.stackPushedNodeId);
+            if (!prevInstrPushedNode.isConstant
+                || prevInstrPushedNode.isNotPushed
+                || prevInstrPushedNode.dataType != node.dataType
+                || prevInstrPushedNode.constant != node.constant
+                || prevInstrPushedNode.onPushCoerceType != DataNodeType.UNKNOWN)
+            {
+                return false;
+            }
+
+            // Has the instruction that has pushed the node not popped anything from the IL stack?
+            var poppedNodeIds = m_compilation.getInstructionStackPoppedNodes(ref pushInstr);
+            for (int i = 0; i < poppedNodeIds.Length; i++) {
+                if (!m_compilation.getDataNode(poppedNodeIds[i]).isNotPushed)
+                    return false;
+            }
+
+            return true;
         }
 
         private void _emitPushDoubleConstant(double value) {

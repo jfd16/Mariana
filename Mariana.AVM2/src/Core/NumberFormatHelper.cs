@@ -857,7 +857,7 @@ namespace Mariana.AVM2.Core {
             bool fitsInLong = true;
 
             while (true) {
-                if ((uint)i  >= (uint)span.Length)
+                if ((uint)i >= (uint)span.Length)
                     break;
 
                 int digit = _getDigitValue(span[i]);
@@ -951,6 +951,7 @@ namespace Mariana.AVM2.Core {
 
                 if (size >= sp.Length)
                     return false;
+
                 sp[size++] = carry;
                 return true;
             }

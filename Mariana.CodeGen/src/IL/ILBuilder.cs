@@ -658,10 +658,9 @@ namespace Mariana.CodeGen.IL {
         private DynamicArray<_RelocationInfo> m_relocations;
 
         /// <summary>
-        /// The position in the IL stream at which the last instruction other than a dup instruction
-        /// was emitted. Used for code size optimisations.
+        /// The position in the IL stream at which the last instruction was emitted.
         /// </summary>
-        private int m_lastNonDupInstrPos = -1;
+        private int m_lastEmittedInstrPos = -1;
 
         /// <summary>
         /// This is true if a localloc instruction has been emitted.
@@ -691,7 +690,7 @@ namespace Mariana.CodeGen.IL {
         /// </summary>
         public void reset() {
             m_position = 0;
-            m_lastNonDupInstrPos = -1;
+            m_lastEmittedInstrPos = -1;
             m_currentStackSize = 0;
             m_maxStackSize = 0;
             m_hasLocAlloc = false;
@@ -754,18 +753,17 @@ namespace Mariana.CodeGen.IL {
         }
 
         /// <summary>
-        /// Gets the opcode of the instruction that was last emitted in the <see cref="ILBuilder"/>
-        /// (other than a dup instruction).
+        /// Gets the opcode of the instruction that was last emitted in the <see cref="ILBuilder"/>.
         /// </summary>
         /// <returns>The last opcode. If this is called before the first instruction is emitted, or
         /// after a call to <see cref="markLabel"/> and before any instruction is emitted after it,
         /// the value 0xFFFF is returned.</returns>
-        private ILOp _getLastNonDupOpcode() {
-            if (m_lastNonDupInstrPos == -1)
+        private ILOp _getLastEmittedOpcode() {
+            if (m_lastEmittedInstrPos == -1)
                 return (ILOp)0xFFFF;
-            int op = m_codeBuffer[m_lastNonDupInstrPos];
+            int op = m_codeBuffer[m_lastEmittedInstrPos];
             return (op == 0xFE)
-                ? (ILOp)((op << 8) | m_codeBuffer[m_lastNonDupInstrPos + 1])
+                ? (ILOp)((op << 8) | m_codeBuffer[m_lastEmittedInstrPos + 1])
                 : (ILOp)op;
         }
 
@@ -1014,7 +1012,7 @@ namespace Mariana.CodeGen.IL {
             if (labelInfo.stackSize != -1 && m_currentStackSize < labelInfo.stackSize)
                 m_currentStackSize = labelInfo.stackSize;
 
-            m_lastNonDupInstrPos = -1;
+            m_lastEmittedInstrPos = -1;
         }
 
         /// <summary>
@@ -1096,7 +1094,7 @@ namespace Mariana.CodeGen.IL {
                     if (!catchType.IsNil)
                         throw new ArgumentException("A filtered exception handler must not have a catch type.", nameof(catchType));
 
-                    if (_getLastNonDupOpcode() != ILOp.endfilter)
+                    if (_getLastEmittedOpcode() != ILOp.endfilter)
                         emit(ILOp.endfilter);
                 }
                 else {
@@ -1230,7 +1228,7 @@ namespace Mariana.CodeGen.IL {
 
             if ((excHandler.clauseType == ExceptionRegionKind.Fault
                     || excHandler.clauseType == ExceptionRegionKind.Finally)
-                && _getLastNonDupOpcode() != ILOp.endfinally)
+                && _getLastEmittedOpcode() != ILOp.endfinally)
             {
                 emit(ILOp.endfinally);
             }
@@ -1267,7 +1265,7 @@ namespace Mariana.CodeGen.IL {
             if (handler.clauseType == ExceptionRegionKind.Fault
                 || handler.clauseType == ExceptionRegionKind.Finally)
             {
-                if (_getLastNonDupOpcode() != ILOp.endfinally)
+                if (_getLastEmittedOpcode() != ILOp.endfinally)
                     emit(ILOp.endfinally);
                 sharedTryAllowed = false;
             }
@@ -1297,7 +1295,7 @@ namespace Mariana.CodeGen.IL {
         /// </summary>
         /// <param name="handler">The handler whose end is to be used as the leave target.</param>
         private void _emitLeaveAtEndOfBlock(_ExceptionHandler handler) {
-            ILOp lastOp = _getLastNonDupOpcode();
+            ILOp lastOp = _getLastEmittedOpcode();
             if (lastOp != ILOp.leave && lastOp != ILOp.@throw && lastOp != ILOp.rethrow)
                 emit(ILOp.leave, handler.handlerEndLabel);
         }
@@ -1354,8 +1352,7 @@ namespace Mariana.CodeGen.IL {
         /// </summary>
         /// <param name="opcode">The opcode.</param>
         private void _writeOpcode(ILOp opcode) {
-            if (opcode != ILOp.dup)
-                m_lastNonDupInstrPos = m_position;
+            m_lastEmittedInstrPos = m_position;
 
             if (((int)opcode & 0xFF00) == 0) {
                 m_codeBuffer[m_position] = (byte)opcode;
@@ -1394,24 +1391,6 @@ namespace Mariana.CodeGen.IL {
                 opcode = (ILOp)((int)opcode + 0xFDFB);  // Convert short form to long form
             }
 
-            if ((opcode == ILOp.ldarg || opcode == ILOp.ldloc) && localId >= 4) {
-                // Check if this can be optimized to a dup instruction.
-                ILOp lastOpcode = _getLastNonDupOpcode();
-                bool canUseDup = false;
-
-                if (opcode == lastOpcode && localId == ReadInt16LittleEndian(m_codeBuffer.AsSpan(m_lastNonDupInstrPos + 2, 2)))
-                    canUseDup = true;
-
-                else if ((int)opcode == (int)lastOpcode + 0xFDFB && localId == m_codeBuffer[m_lastNonDupInstrPos + 1])
-                    canUseDup = true;
-
-                if (canUseDup) {
-                    _ensureCodeBufferSpace(1);
-                    _writeOpcode(ILOp.dup);
-                    return;
-                }
-            }
-
             if (localId < 4) {
                 // Use single-byte forms wherever possible
                 if (opcode == ILOp.ldarg) {
@@ -1431,7 +1410,7 @@ namespace Mariana.CodeGen.IL {
             if (localId != -1 && localId < 256)
                 opcode = (ILOp)((int)opcode - 0xFDFB);  // Convert back to short form
 
-            m_lastNonDupInstrPos = m_position;
+            m_lastEmittedInstrPos = m_position;
             _ensureCodeBufferSpace(4);
 
             if ((int)opcode < 256) {
@@ -1526,18 +1505,6 @@ namespace Mariana.CodeGen.IL {
                             // Use single-byte opcodes for these values.
                             _ensureCodeBufferSpace(1);
                             _writeOpcode((ILOp)((int)ILOp.ldc_i4_0 + arg));
-                            _updateStack(opcode);
-                            break;
-                        }
-
-                        // Try to reduce code size by using dup instructions wherever possible.
-                        // This is not done for integers from -1 to 8, as they all have single-byte opcodes.
-                        ILOp lastOpcode = _getLastNonDupOpcode();
-                        if ((lastOpcode == ILOp.ldc_i4_s && (sbyte)m_codeBuffer[m_lastNonDupInstrPos + 1] == arg)
-                            || (lastOpcode == ILOp.ldc_i4 && ReadInt32LittleEndian(m_codeBuffer.AsSpan(m_lastNonDupInstrPos + 1, 4)) == arg))
-                        {
-                            _ensureCodeBufferSpace(1);
-                            _writeOpcode(ILOp.dup);
                             _updateStack(opcode);
                             break;
                         }
@@ -1685,13 +1652,8 @@ namespace Mariana.CodeGen.IL {
             if (operandType == _OperandKind.INT64) {
                 bool isMorphed = false;
 
-                if (opcode == ILOp.ldc_i8 && _getLastNonDupOpcode() == ILOp.ldc_i8) {
-                    if (ReadInt64LittleEndian(m_codeBuffer.AsSpan(m_lastNonDupInstrPos + 1, 8)) == arg) {
-                        _ensureCodeBufferSpace(1);
-                        _writeOpcode(ILOp.dup);
-                        isMorphed = true;
-                    }
-                    else if (arg >= -1 && arg <= 8) {
+                if (opcode == ILOp.ldc_i8) {
+                    if (arg >= -1 && arg <= 8) {
                         _ensureCodeBufferSpace(2);
                         _writeOpcode((ILOp)((int)ILOp.ldc_i4_0 + (int)arg));
                         _writeOpcode(ILOp.conv_i8);
@@ -1810,52 +1772,29 @@ namespace Mariana.CodeGen.IL {
         /// </remarks>
         public void emit(ILOp opcode, double arg) {
 
-            if (opcode == ILOp.ldc_r8 && !Double.IsNaN(arg) && (Double.IsInfinity(arg) || (double)(float)arg == arg))
+            if (opcode == ILOp.ldc_r8 && !Double.IsNaN(arg) && (Double.IsInfinity(arg) || (double)(float)arg == arg)) {
                 // Since float and double constants are indistinguishable in IL,
                 // we can optimize code size here. (Not sure if this affects JIT output)
                 // But don't do this to NaNs so that their binary representation is preserved.
                 opcode = ILOp.ldc_r4;
-
-            ILOp lastOpcode = _getLastNonDupOpcode();
-            bool useDup = false;
+            }
 
             if (opcode == ILOp.ldc_r8) {
                 // Double
-                long argBitsAsLong = BitConverter.DoubleToInt64Bits(arg);
-                if (lastOpcode == ILOp.ldc_r8
-                    && ReadInt64LittleEndian(m_codeBuffer.AsSpan(m_lastNonDupInstrPos + 1, 8)) == argBitsAsLong)
-                {
-                    useDup = true;
-                }
-                else {
-                    _ensureCodeBufferSpace(9);
-                    _writeOpcode(ILOp.ldc_r8);
-                    WriteInt64LittleEndian(m_codeBuffer.AsSpan(m_position, 8), argBitsAsLong);
-                    m_position += 8;
-                }
+                _ensureCodeBufferSpace(9);
+                _writeOpcode(ILOp.ldc_r8);
+                WriteInt64LittleEndian(m_codeBuffer.AsSpan(m_position, 8), BitConverter.DoubleToInt64Bits(arg));
+                m_position += 8;
             }
             else if (opcode == ILOp.ldc_r4) {
                 // Float
-                int argBitsAsInt = BitConverter.SingleToInt32Bits((float)arg);
-                if (lastOpcode == ILOp.ldc_r4
-                    && ReadInt32LittleEndian(m_codeBuffer.AsSpan(m_lastNonDupInstrPos + 1, 4)) == argBitsAsInt)
-                {
-                    useDup = true;
-                }
-                else {
-                    _ensureCodeBufferSpace(5);
-                    _writeOpcode(ILOp.ldc_r4);
-                    WriteInt32LittleEndian(m_codeBuffer.AsSpan(m_position, 4), argBitsAsInt);
-                    m_position += 4;
-                }
+                _ensureCodeBufferSpace(5);
+                _writeOpcode(ILOp.ldc_r4);
+                WriteInt32LittleEndian(m_codeBuffer.AsSpan(m_position, 4), BitConverter.SingleToInt32Bits((float)arg));
+                m_position += 4;
             }
             else {
                 throw new ArgumentException("Opcode '" + opcode + "' cannot be used with a float argument.", nameof(opcode));
-            }
-
-            if (useDup) {
-                _ensureCodeBufferSpace(1);
-                _writeOpcode(ILOp.dup);
             }
 
             _updateStack(opcode);
@@ -1902,18 +1841,11 @@ namespace Mariana.CodeGen.IL {
                 throw new ArgumentException("Opcode '" + opcode + "' cannot be used with a string argument.", nameof(opcode));
 
             int token = MetadataTokens.GetToken(arg);
-            if (_getLastNonDupOpcode() == ILOp.ldstr
-                && ReadInt32LittleEndian(m_codeBuffer.AsSpan(m_lastNonDupInstrPos + 1, 4)) == token)
-            {
-                _ensureCodeBufferSpace(1);
-                _writeOpcode(ILOp.dup);
-            }
-            else {
-                _ensureCodeBufferSpace(5);
-                _writeOpcode(ILOp.ldstr);
-                WriteInt32LittleEndian(m_codeBuffer.AsSpan(m_position, 4), token);
-                m_position += 4;
-            }
+
+            _ensureCodeBufferSpace(5);
+            _writeOpcode(ILOp.ldstr);
+            WriteInt32LittleEndian(m_codeBuffer.AsSpan(m_position, 4), token);
+            m_position += 4;
 
             _updateStack(opcode);
         }
