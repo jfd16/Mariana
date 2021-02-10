@@ -890,7 +890,10 @@ namespace Mariana.AVM2.Compiler {
             }
 
             ABCMultiname multiname = m_compilation.abcFile.resolveMultiname(instr.data.coerceOrIsType.multinameId);
-            Class coerceToClass = m_compilation.context.getClassByMultiname(multiname);
+
+            Class coerceToClass;
+            using (var lockedContext = m_compilation.getContext())
+                coerceToClass = lockedContext.value.getClassByMultiname(multiname);
 
             switch (coerceToClass.tag) {
                 case ClassTag.INT:
@@ -1069,7 +1072,10 @@ namespace Mariana.AVM2.Compiler {
                 return;
 
             ABCMultiname mn = m_compilation.abcFile.resolveMultiname(instr.data.coerceOrIsType.multinameId);
-            Class targetClass = m_compilation.context.getClassByMultiname(mn);
+
+            Class targetClass;
+            using (var lockedContext = m_compilation.getContext())
+                targetClass = lockedContext.value.getClassByMultiname(mn);
 
             if (ClassTagSet.primitive.contains(targetClass.tag))
                 targetClass = s_objectClass;
@@ -1106,7 +1112,7 @@ namespace Mariana.AVM2.Compiler {
 
             int inputTypeBits = 1 << (int)input1.dataType | 1 << (int)input2.dataType;
 
-            if (m_compilation.context.compileOptions.integerArithmeticMode == IntegerArithmeticMode.AGGRESSIVE
+            if (m_compilation.compileOptions.integerArithmeticMode == IntegerArithmeticMode.AGGRESSIVE
                 && input1.dataType == input2.dataType
                 && DataNodeTypeHelper.isInteger(input1.dataType))
             {
@@ -1151,7 +1157,7 @@ namespace Mariana.AVM2.Compiler {
                 output.dataType = (opcode == ABCOp.urshift) ? DataNodeType.UINT : DataNodeType.INT;
             }
             else {
-                var integerMode = m_compilation.context.compileOptions.integerArithmeticMode;
+                var integerMode = m_compilation.compileOptions.integerArithmeticMode;
 
                 bool areInputsIntegersOfSameType =
                     DataNodeTypeHelper.isInteger(input1.dataType)
@@ -1523,7 +1529,9 @@ namespace Mariana.AVM2.Compiler {
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.getSetSlot.resolvedPropId);
 
             int slotId = instr.data.getSetSlot.slotId;
-            Trait slotTrait = m_compilation.context.getScriptTraitSlot(m_compilation.currentScriptInfo, slotId);
+            Trait slotTrait;
+            using (var lockedContext = m_compilation.getContext())
+                slotTrait = lockedContext.value.getScriptTraitSlot(m_compilation.currentScriptInfo, slotId);
 
             if (slotTrait == null)
                 throw m_compilation.createError(ErrorCode.ILLEGAL_EARLY_BINDING, instr.id, "global");
@@ -1616,9 +1624,12 @@ namespace Mariana.AVM2.Compiler {
             }
             else {
                 // callstatic
-                method = m_compilation.context.getMethodOrCtorForMethodInfo(methodId) as MethodTrait;
-                if (method == null || m_compilation.context.isMethodUsedAsFunction(method))
-                    throw m_compilation.createError(ErrorCode.MARIANA__ABC_CALLSTATIC_METHOD_NOT_SUPPORTED, instr.id, methodId);
+                using (var lockedContext = m_compilation.getContext()) {
+                    method = lockedContext.value.getMethodOrCtorForMethodInfo(methodId) as MethodTrait;
+
+                    if (method == null || lockedContext.value.isMethodUsedAsFunction(method))
+                        throw m_compilation.createError(ErrorCode.MARIANA__ABC_CALLSTATIC_METHOD_NOT_SUPPORTED, instr.id, methodId);
+                }
             }
 
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.callMethod.resolvedPropId);
@@ -1705,7 +1716,9 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode baseClassNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
             ref DataNode pushed = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
-            Class klass = m_compilation.context.getClassFromClassInfo(instr.data.newClass.classInfoId);
+            Class klass;
+            using (var lockedContext = m_compilation.getContext())
+                klass = lockedContext.value.getClassFromClassInfo(instr.data.newClass.classInfoId);
 
             bool isCorrectBaseClass = klass.isInterface
                 ? baseClassNode.dataType == DataNodeType.NULL
@@ -2004,7 +2017,7 @@ namespace Mariana.AVM2.Compiler {
             }
             else if (obj.dataType == DataNodeType.GLOBAL) {
                 // Search the global scope (i.e. the application domain)
-                var domain = m_compilation.context.applicationDomain;
+                var domain = m_compilation.applicationDomain;
 
                 Trait trait;
                 BindStatus status = (nsSet != null)
@@ -2132,7 +2145,10 @@ namespace Mariana.AVM2.Compiler {
             resolvedProp.propKind = ResolvedPropertyKind.UNKNOWN;
 
             if (obj.dataType == DataNodeType.GLOBAL) {
-                Trait trait = m_compilation.context.getScriptTraitSlot(m_compilation.currentScriptInfo, slotId);
+                Trait trait;
+                using (var lockedContext = m_compilation.getContext())
+                    trait = lockedContext.value.getScriptTraitSlot(m_compilation.currentScriptInfo, slotId);
+
                 if (trait != null) {
                     resolvedProp.propKind = ResolvedPropertyKind.TRAIT;
                     resolvedProp.propInfo = trait;
@@ -2218,7 +2234,7 @@ namespace Mariana.AVM2.Compiler {
 
                 if (type == DataNodeType.GLOBAL) {
                     // Search the global scope (i.e. the application domain)
-                    var domain = m_compilation.context.applicationDomain;
+                    var domain = m_compilation.applicationDomain;
 
                     Trait trait;
                     BindStatus status = (_nsSet != null)
@@ -2466,8 +2482,11 @@ namespace Mariana.AVM2.Compiler {
                         return false;
 
                     if (trait.declaringClass == null) {
-                        return m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCRIPT_INIT)
-                            && m_compilation.context.getExportingScript(trait) == m_compilation.currentScriptInfo;
+                        if (!m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCRIPT_INIT))
+                            return false;
+
+                        using (var lockedContext = m_compilation.getContext())
+                            return lockedContext.value.getExportingScript(trait) == m_compilation.currentScriptInfo;
                     }
                     else if (trait.isStatic) {
                         return m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_STATIC_INIT)
@@ -2478,12 +2497,17 @@ namespace Mariana.AVM2.Compiler {
                             && trait.declaringClass == m_compilation.declaringClass;
                     }
 
-                case TraitType.CLASS:
-                    return isInit
-                        && m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCRIPT_INIT)
-                        && m_compilation.context.getExportingScript(trait) == m_compilation.currentScriptInfo
-                        && value.dataType == DataNodeType.CLASS
-                        && value.constant.classValue == trait;
+                case TraitType.CLASS: {
+                    if (!m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCRIPT_INIT)
+                        || value.dataType != DataNodeType.CLASS
+                        || value.constant.classValue != trait)
+                    {
+                        return false;
+                    }
+
+                    using (var lockedContext = m_compilation.getContext())
+                        return lockedContext.value.getExportingScript(trait) == m_compilation.currentScriptInfo;
+                }
 
                 case TraitType.CONSTANT:
                 case TraitType.METHOD:
@@ -3406,7 +3430,10 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode objectNode = ref m_compilation.getDataNode(inputIds[0]);
 
             ABCMultiname multiname = m_compilation.abcFile.resolveMultiname(instr.data.coerceOrIsType.multinameId);
-            Class klass = m_compilation.context.getClassByMultiname(multiname);
+
+            Class klass;
+            using (var lockedContext = m_compilation.getContext())
+                klass = lockedContext.value.getClassByMultiname(multiname);
 
             if (ClassTagSet.numeric.contains(klass.tag))
                 _requireStackNodeAsType(ref objectNode, DataNodeType.OBJECT, instr.id);
@@ -4020,30 +4047,34 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode baseClassNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
             _markStackNodeAsNoPush(ref baseClassNode);
 
-            ScriptClass klass = m_compilation.context.getClassFromClassInfo(instr.data.newClass.classInfoId);
+            using (var lockedContext = m_compilation.getContext()) {
+                ScriptClass klass = lockedContext.value.getClassFromClassInfo(instr.data.newClass.classInfoId);
 
-            if (!m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCRIPT_INIT)
-                || m_compilation.context.getExportingScript(klass) != m_compilation.currentScriptInfo)
-            {
-                throw m_compilation.createError(ErrorCode.MARIANA__ABC_NEWCLASS_SCRIPT_INIT, instr.id);
+                if (!m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCRIPT_INIT)
+                    || lockedContext.value.getExportingScript(klass) != m_compilation.currentScriptInfo)
+                {
+                    throw m_compilation.createError(ErrorCode.MARIANA__ABC_NEWCLASS_SCRIPT_INIT, instr.id);
+                }
+
+                if (lockedContext.value.getClassCapturedScope(klass) != null) {
+                    // If a captured scope has already been set, it means that we are "creating"
+                    // the class a second time.
+                    throw m_compilation.createError(ErrorCode.MARIANA__ABC_NEWCLASS_ONCE, instr.id);
+                }
+
+                var captured = m_compilation.staticIntArrayPool.getSpan(instr.data.newClass.capturedScopeNodeIds);
+                lockedContext.value.setClassCapturedScope(klass, _createCapturedScope(captured));
             }
-
-            if (m_compilation.context.getClassCapturedScope(klass) != null) {
-                // If a captured scope has already been set, it means that we are "creating"
-                // the class a second time.
-                throw m_compilation.createError(ErrorCode.MARIANA__ABC_NEWCLASS_ONCE, instr.id);
-            }
-
-            var captured = m_compilation.staticIntArrayPool.getSpan(instr.data.newClass.capturedScopeNodeIds);
-            m_compilation.context.setClassCapturedScope(klass, _createCapturedScope(captured));
         }
 
         private void _visitNewFunction(ref Instruction instr) {
             var methodInfo = m_compilation.abcFile.resolveMethodInfo(instr.data.newFunction.methodInfoId);
             var captured = m_compilation.staticIntArrayPool.getSpan(instr.data.newFunction.capturedScopeNodeIds);
 
-            m_compilation.context.createNewFunction(
-                methodInfo, m_compilation.currentScriptInfo, _createCapturedScope(captured));
+            using (var lockedContext = m_compilation.getContext()) {
+                lockedContext.value.createNewFunction(
+                    methodInfo, m_compilation.currentScriptInfo, _createCapturedScope(captured));
+            }
         }
 
         private CapturedScopeItem[] _createCapturedScope(ReadOnlySpan<int> innerCaptureIds) {
@@ -4286,7 +4317,7 @@ namespace Mariana.AVM2.Compiler {
 
         private bool _checkForFloatToIntegerOp(ref DataNode node, DataNodeType targetType) {
             if (!DataNodeTypeHelper.isInteger(targetType)
-                || m_compilation.context.compileOptions.integerArithmeticMode == IntegerArithmeticMode.EXPLICIT_ONLY
+                || m_compilation.compileOptions.integerArithmeticMode == IntegerArithmeticMode.EXPLICIT_ONLY
                 || m_compilation.getDataNodeUseCount(ref node) > 1)
             {
                 return false;

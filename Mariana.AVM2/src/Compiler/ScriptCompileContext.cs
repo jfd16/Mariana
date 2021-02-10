@@ -1,14 +1,18 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Reflection;
+using System.Reflection.Metadata;
+using System.Runtime.ExceptionServices;
+using System.Threading;
+using System.Threading.Tasks;
+
 using Mariana.AVM2.ABC;
 using Mariana.AVM2.Core;
 using Mariana.CodeGen;
 using Mariana.CodeGen.IL;
 using Mariana.Common;
-using System.Reflection.Metadata;
-using System.IO;
 
 namespace Mariana.AVM2.Compiler {
 
@@ -76,9 +80,18 @@ namespace Mariana.AVM2.Compiler {
             public SlotMap slotMap;
         }
 
+        private struct MethodCompilationParams {
+            public object methodOrCtor;
+            public MethodBuilder methodBuilder;
+            public CapturedScope capturedScope;
+            public MethodCompilationFlags initFlags;
+        }
+
         private static readonly IncrementCounter s_dynamicAssemblyCounter = new IncrementCounter();
 
         private static readonly Class s_objectClass = Class.fromType<ASObject>();
+
+        private object m_lockObj = new object();
 
         private ScriptCompileOptions m_options;
 
@@ -180,6 +193,15 @@ namespace Mariana.AVM2.Compiler {
         /// constant pool for this compilation.
         /// </summary>
         public EmitConstantData emitConstData => m_emitConstantData;
+
+        /// <summary>
+        /// Returns a <see cref="LockedObject{ScriptCompileContext}"/> instance that provides thread-safe
+        /// locked access to this context when parallel method compilation is enabled. To release the lock,
+        /// call Dispose on the returned instance. No lock is taken if parallel compilation is not enabled.
+        /// </summary>
+        /// <returns>A <see cref="LockedObject{ScriptCompileContext}"/> instance</returns>
+        public LockedObject<ScriptCompileContext> getLocked() =>
+            new LockedObject<ScriptCompileContext>(this, (m_options.numParallelCompileThreads > 1) ? m_lockObj : null);
 
         /// <summary>
         /// Compiles an ABC file in this context.
@@ -610,6 +632,7 @@ namespace Mariana.AVM2.Compiler {
             }
             else if (traitInfo.kind == ABCTraitFlags.Method) {
                 ScriptMethod method = new ScriptMethod(traitInfo, null, m_domain, true);
+                _setMethodForMethodInfo(traitInfo.methodInfo, method);
                 trait = method;
                 m_methodTraitData[method] = new MethodTraitData();
                 _createMethodTraitSig(method);
@@ -670,7 +693,9 @@ namespace Mariana.AVM2.Compiler {
                 _createClassTraitsIfInContext(ifaces[i]);
 
             if (!scriptClass.isInterface) {
-                var instanceCtor = new ScriptClassConstructor(scriptClass.abcClassInfo.instanceInitMethod, scriptClass);
+                var instanceInitMethodInfo = scriptClass.abcClassInfo.instanceInitMethod;
+                var instanceCtor = new ScriptClassConstructor(instanceInitMethodInfo, scriptClass);
+                _setMethodForMethodInfo(instanceInitMethodInfo, instanceCtor);
                 _createConstructorSig(instanceCtor);
                 scriptClass.setConstructor(instanceCtor);
             }
@@ -2454,59 +2479,28 @@ namespace Mariana.AVM2.Compiler {
         public bool isMethodUsedAsFunction(MethodTrait method) => m_methodTraitData[method].isFunction;
 
         private void _compileMethodBodies() {
+            if (compileOptions.numParallelCompileThreads <= 1)
+                _compileMethodBodiesSingleThread();
+            else
+                _compileMethodBodiesParallel();
+        }
+
+        private void _compileMethodBodiesSingleThread() {
             var methodCompilation = new MethodCompilation(this);
 
-            // First pass: Compile script initializers. No captured scope here.
-
-            for (int i = 0; i < m_abcScriptDataByIndex.length; i++) {
-                ScriptData scriptData = m_abcScriptDataByIndex[i];
-                if (scriptData.initMethod == null)
-                    continue;
-
-                methodCompilation.compile(
-                    methodOrCtor: scriptData.initMethod,
-                    capturedScope: null,
-                    methodBuilder: m_methodTraitData[scriptData.initMethod].methodBuilder,
-                    initFlags: MethodCompilationFlags.IS_SCRIPT_INIT
-                );
-            }
+            // First pass: Compile script initializers.
+            foreach (var cp in _getScriptInitCompileParams())
+                methodCompilation.compile(cp.methodOrCtor, cp.capturedScope, cp.methodBuilder, cp.initFlags);
 
             // Second pass: Compile class static constructors.
-
-            foreach (var classDataEntry in m_classData) {
-                ClassData classData = classDataEntry.Value;
-                if (classData.staticInit == null)
-                    continue;
-
-                methodCompilation.compile(
-                    methodOrCtor: classData.staticInit,
-                    capturedScope: getClassCapturedScope(classDataEntry.Key),
-                    methodBuilder: m_methodTraitData[classData.staticInit].methodBuilder,
-                    initFlags: MethodCompilationFlags.IS_STATIC_INIT
-                );
-            }
+            foreach (var cp in _getClassInitCompileParams())
+                methodCompilation.compile(cp.methodOrCtor, cp.capturedScope, cp.methodBuilder, cp.initFlags);
 
             // Third pass: Compile script and class methods.
-
-            for (int i = 0; i < m_abcScriptDataByIndex.length; i++) {
-                var scriptTraits = m_abcScriptDataByIndex[i].traits;
-                for (int j = 0; j < scriptTraits.length; j++)
-                    _compileMethodBodiesForTrait(methodCompilation, scriptTraits[j], null);
-            }
-
-            foreach (var classDataEntry in m_classData) {
-                ScriptClass klass = classDataEntry.Key;
-
-                if (klass.constructor is ScriptClassConstructor ctor)
-                    methodCompilation.compile(ctor, getClassCapturedScope(klass), classDataEntry.Value.ctorBuilder);
-
-                var declaredTraits = klass.getTraits(TraitType.ALL, TraitScope.DECLARED);
-                for (int i = 0; i < declaredTraits.length; i++)
-                    _compileMethodBodiesForTrait(methodCompilation, declaredTraits[i], getClassCapturedScope(klass));
-            }
+            foreach (var cp in _getScriptAndClassMethodCompileParams())
+                methodCompilation.compile(cp.methodOrCtor, cp.capturedScope, cp.methodBuilder, cp.initFlags);
 
             // Fourth pass: compile functions created in method bodies (with the newfunction instruction)
-
             while (m_functionCompileQueue.Count > 0) {
                 ScriptMethod method = m_functionCompileQueue.Dequeue();
                 methodCompilation.compile(
@@ -2518,19 +2512,149 @@ namespace Mariana.AVM2.Compiler {
             }
         }
 
-        private void _compileMethodBodiesForTrait(MethodCompilation methodCompilation, Trait trait, CapturedScope capturedScope) {
-            if (trait == null)
-                return;
+        private void _compileMethodBodiesParallel() {
+            var parallelOptions = new ParallelOptions {
+                MaxDegreeOfParallelism = compileOptions.numParallelCompileThreads
+            };
 
-            if (trait is ScriptMethod method) {
-                if (getMethodBodyInfo(method.abcMethodInfo) != null)
-                    methodCompilation.compile(method, capturedScope, m_methodTraitData[method].methodBuilder);
+            var localCompilation = new ThreadLocal<MethodCompilation>(() => new MethodCompilation(this));
+
+            try {
+                Action<MethodCompilationParams> worker = cp =>
+                    localCompilation.Value.compile(cp.methodOrCtor, cp.capturedScope, cp.methodBuilder, cp.initFlags);
+
+                // First pass: Compile script initializers. No captured scope here.
+                Parallel.ForEach( _getScriptInitCompileParams(), parallelOptions, worker);
+
+                // Second pass: Compile class static constructors.
+                Parallel.ForEach(_getClassInitCompileParams(), parallelOptions, worker);
+
+                // Third pass: Compile script and class methods.
+                Parallel.ForEach(_getScriptAndClassMethodCompileParams(), parallelOptions, worker);
+
+                // Fourth pass: compile functions created in method bodies (with the newfunction instruction)
+
+                DynamicArray<MethodCompilationParams> queuedFuncCompileParams = default;
+
+                while (m_functionCompileQueue.Count > 0) {
+                    queuedFuncCompileParams.clear();
+                    queuedFuncCompileParams.ensureCapacity(m_functionCompileQueue.Count);
+
+                    while (m_functionCompileQueue.Count > 0) {
+                        ScriptMethod method = m_functionCompileQueue.Dequeue();
+                        queuedFuncCompileParams.add(new MethodCompilationParams {
+                            methodOrCtor = method,
+                            capturedScope = getFunctionCapturedScope(method),
+                            methodBuilder = m_methodTraitData[method].methodBuilder,
+                            initFlags = MethodCompilationFlags.IS_SCOPED_FUNCTION,
+                        });
+                    }
+
+                    Parallel.ForEach(queuedFuncCompileParams.asReadOnlyArrayView(), parallelOptions, worker);
+                }
             }
-            else if (trait is PropertyTrait prop) {
-                if (prop.getter?.declaringClass == prop.declaringClass)
-                    _compileMethodBodiesForTrait(methodCompilation, prop.getter, capturedScope);
-                if (prop.setter?.declaringClass == prop.declaringClass)
-                    _compileMethodBodiesForTrait(methodCompilation, prop.setter, capturedScope);
+            catch (AggregateException e) {
+                // Throw the first AVM2Exception that occured.
+                foreach (var innerEx in e.InnerExceptions) {
+                    if (innerEx is AVM2Exception)
+                        ExceptionDispatchInfo.Throw(innerEx);
+                }
+                throw;
+            }
+            finally {
+                localCompilation.Dispose();
+            }
+        }
+
+        private IEnumerable<MethodCompilationParams> _getScriptInitCompileParams() {
+            for (int i = 0; i < m_abcScriptDataByIndex.length; i++) {
+                ScriptData scriptData = m_abcScriptDataByIndex[i];
+                if (scriptData.initMethod == null)
+                    continue;
+
+                yield return new MethodCompilationParams {
+                    methodOrCtor = scriptData.initMethod,
+                    capturedScope = null,
+                    methodBuilder = m_methodTraitData[scriptData.initMethod].methodBuilder,
+                    initFlags = MethodCompilationFlags.IS_SCRIPT_INIT,
+                };
+            }
+        }
+
+        private IEnumerable<MethodCompilationParams> _getClassInitCompileParams() {
+            foreach (var classDataEntry in m_classData) {
+                ClassData classData = classDataEntry.Value;
+                if (classData.staticInit == null)
+                    continue;
+
+                yield return new MethodCompilationParams {
+                    methodOrCtor = classData.staticInit,
+                    capturedScope = getClassCapturedScope(classDataEntry.Key),
+                    methodBuilder = m_methodTraitData[classData.staticInit].methodBuilder,
+                    initFlags = MethodCompilationFlags.IS_STATIC_INIT,
+                };
+            }
+        }
+
+        private IEnumerable<MethodCompilationParams> _getScriptAndClassMethodCompileParams() {
+            for (int i = 0; i < m_abcScriptDataByIndex.length; i++) {
+                foreach (var cp in getCompileParamsForTraits(m_abcScriptDataByIndex[i].traits.asReadOnlyArrayView(), null))
+                    yield return cp;
+            }
+
+            foreach (var classDataEntry in m_classData) {
+                ScriptClass klass = classDataEntry.Key;
+                CapturedScope capturedScope = getClassCapturedScope(klass);
+
+                if (klass.constructor is ScriptClassConstructor ctor) {
+                    yield return new MethodCompilationParams {
+                        methodOrCtor = ctor,
+                        capturedScope = capturedScope,
+                        methodBuilder = classDataEntry.Value.ctorBuilder
+                    };
+                }
+
+                var declaredTraits = klass.getTraits(TraitType.ALL, TraitScope.DECLARED);
+                foreach (var cp in getCompileParamsForTraits(declaredTraits, capturedScope))
+                    yield return cp;
+            }
+
+            IEnumerable<MethodCompilationParams> getCompileParamsForTraits(
+                ReadOnlyArrayView<Trait> traits, CapturedScope capturedScope)
+            {
+                for (int i = 0; i < traits.length; i++) {
+                    Trait trait = traits[i];
+
+                    if (trait is ScriptMethod method && getMethodBodyInfo(method.abcMethodInfo) != null) {
+                        yield return new MethodCompilationParams {
+                            methodOrCtor = method,
+                            methodBuilder = m_methodTraitData[method].methodBuilder,
+                            capturedScope = capturedScope,
+                        };
+                    }
+
+                    if (!(trait is PropertyTrait prop))
+                        continue;
+
+                    if (prop.getter is ScriptMethod getter && getter.declaringClass == prop.declaringClass
+                        && getMethodBodyInfo(getter.abcMethodInfo) != null)
+                    {
+                        yield return new MethodCompilationParams {
+                            methodOrCtor = getter,
+                            methodBuilder = m_methodTraitData[getter].methodBuilder,
+                            capturedScope = capturedScope,
+                        };
+                    }
+                    if (prop.setter is ScriptMethod setter && setter.declaringClass == prop.declaringClass
+                        && getMethodBodyInfo(setter.abcMethodInfo) != null)
+                    {
+                        yield return new MethodCompilationParams {
+                            methodOrCtor = setter,
+                            methodBuilder = m_methodTraitData[setter].methodBuilder,
+                            capturedScope = capturedScope,
+                        };
+                    }
+                }
             }
         }
 

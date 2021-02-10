@@ -86,6 +86,12 @@ namespace Mariana.AVM2.Compiler {
         public ABCFile abcFile => m_context.abcFile;
 
         /// <summary>
+        /// Gets the application domain in which the global classes and traits defined in the
+        /// compilation are registered.
+        /// </summary>
+        public ApplicationDomain applicationDomain => m_context.applicationDomain;
+
+        /// <summary>
         /// Gets the class that declares the method being compiled. For global methods, the value
         /// of this property is null.
         /// </summary>
@@ -102,15 +108,18 @@ namespace Mariana.AVM2.Compiler {
         public ABCMethodBodyInfo methodBodyInfo => m_currentMethodBodyInfo;
 
         /// <summary>
-        /// Gets the <see cref="ScriptCompileContext"/> in which the method is being compiled.
+        /// Gets the <see cref="ScriptCompileOptions"/> instance containing the current compiler
+        /// configuration.
         /// </summary>
-        public ScriptCompileContext context => m_context;
+        public ScriptCompileOptions compileOptions => m_context.compileOptions;
 
         /// <summary>
         /// Gets the <see cref="MetadataContext"/> for the assembly into which this compilation
         /// is emitting the method.
         /// </summary>
-        public MetadataContext metadataContext => m_context.assemblyBuilder.metadataContext;
+        public MetadataContext metadataContext =>
+            // MetadataContext has its own thread safety, so it can be exposed without taking a context lock.
+            m_context.assemblyBuilder.metadataContext;
 
         /// <summary>
         /// Returns the <see cref="CapturedScope"/> representing the scope stack captured by this
@@ -168,6 +177,12 @@ namespace Mariana.AVM2.Compiler {
         /// Gets the number of local variable slots used by this method.
         /// </summary>
         public int localCount => m_currentMethodBodyInfo.localCount;
+
+        /// <summary>
+        /// Gets a <see cref="LockedObject{ScriptCompileContext}"/> that provides access to the
+        /// context in which the current method compilation is running.
+        /// </summary>
+        public LockedObject<ScriptCompileContext> getContext() => m_context.getLocked();
 
         /// <summary>
         /// Gets the <see cref="ScriptMethod"/> representing the method being compiled.
@@ -575,32 +590,36 @@ namespace Mariana.AVM2.Compiler {
             MethodCompilationFlags initFlags = 0
         ) {
             try {
-                if (methodOrCtor is ScriptMethod method) {
-                    m_currentMethodInfo = method.abcMethodInfo;
-                    m_declClass = (ScriptClass)method.declaringClass;
-                    m_currentScript = m_context.getExportingScript(method);
-                    m_currentMethodParams = method.getParameters();
+                using (var lockedContext = getContext()) {
+                    if (methodOrCtor is ScriptMethod method) {
+                        m_currentMethodInfo = method.abcMethodInfo;
+                        m_declClass = (ScriptClass)method.declaringClass;
+                        m_currentScript = lockedContext.value.getExportingScript(method);
+                        m_currentMethodParams = method.getParameters();
 
-                    if (m_declClass != null && !method.isStatic)
+                        if (m_declClass != null && !method.isStatic)
+                            setFlag(MethodCompilationFlags.IS_INSTANCE_METHOD);
+
+                        if (method.hasReturn)
+                            setFlag(MethodCompilationFlags.HAS_RETURN_VALUE);
+
+                        if (method.hasRest)
+                            setFlag(MethodCompilationFlags.HAS_REST_PARAM);
+                    }
+                    else {
+                        var ctor = (ScriptClassConstructor)methodOrCtor;
+                        m_currentMethodInfo = ctor.abcMethodInfo;
+                        m_declClass = (ScriptClass)ctor.declaringClass;
+                        m_currentScript = lockedContext.value.getExportingScript(m_declClass);
+                        m_currentMethodParams = ctor.getParameters();
+
                         setFlag(MethodCompilationFlags.IS_INSTANCE_METHOD);
 
-                    if (method.hasReturn)
-                        setFlag(MethodCompilationFlags.HAS_RETURN_VALUE);
+                        if (ctor.hasRest)
+                            setFlag(MethodCompilationFlags.HAS_REST_PARAM);
+                    }
 
-                    if (method.hasRest)
-                        setFlag(MethodCompilationFlags.HAS_REST_PARAM);
-                }
-                else {
-                    var ctor = (ScriptClassConstructor)methodOrCtor;
-                    m_currentMethodInfo = ctor.abcMethodInfo;
-                    m_declClass = (ScriptClass)ctor.declaringClass;
-                    m_currentScript = m_context.getExportingScript(m_declClass);
-                    m_currentMethodParams = ctor.getParameters();
-
-                    setFlag(MethodCompilationFlags.IS_INSTANCE_METHOD);
-
-                    if (ctor.hasRest)
-                        setFlag(MethodCompilationFlags.HAS_REST_PARAM);
+                    m_currentMethodBodyInfo = lockedContext.value.getMethodBodyInfo(m_currentMethodInfo);
                 }
 
                 setFlag(initFlags);
@@ -610,7 +629,6 @@ namespace Mariana.AVM2.Compiler {
                     m_currentMethodParams = m_currentMethodParams.slice(1, m_currentMethodParams.length - 1);
 
                 m_currentMethod = methodOrCtor;
-                m_currentMethodBodyInfo = m_context.getMethodBodyInfo(m_currentMethodInfo);
                 m_capturedScope = capturedScope;
 
                 m_computedMaxStack = -1;
@@ -625,14 +643,14 @@ namespace Mariana.AVM2.Compiler {
                 m_dfAssemblyPass.run();
                 m_semanticBindingPass.run();
 #if DEBUG
-                if (m_context.compileOptions.enableTracing)
+                if (compileOptions.enableTracing)
                     trace();
 #endif
                 m_codegenPass.run();
                 methodBuilder.setMethodBody(m_ilBuilder.createMethodBody());
             }
             catch (AVM2Exception e)
-                when (!m_context.compileOptions.earlyThrowMethodBodyErrors && e.thrownValue.value is ASError err)
+                when (!compileOptions.earlyThrowMethodBodyErrors && e.thrownValue.value is ASError err)
             {
                 m_ilBuilder.reset();
                 ILEmitHelper.emitThrowError(m_ilBuilder, err.GetType(), (ErrorCode)err.errorID, err.message);
@@ -1018,8 +1036,11 @@ namespace Mariana.AVM2.Compiler {
         public Class getClassForCatchScope(int excInfoId) {
             ref ScriptClass klass = ref m_catchScopeClasses[excInfoId];
 
-            if (klass == null)
-                klass = context.createCatchScopeClass(methodBodyInfo.getExceptionInfo()[excInfoId]);
+            if (klass != null)
+                return klass;
+
+            using (var lockedContext = getContext())
+                klass = lockedContext.value.createCatchScopeClass(methodBodyInfo.getExceptionInfo()[excInfoId]);
 
             return klass;
         }
@@ -1039,7 +1060,8 @@ namespace Mariana.AVM2.Compiler {
                         throw createError(ErrorCode.MARIANA__ABC_ACTIVATION_INVALID_TRAIT_KIND, (int)kind);
                 }
 
-                m_activationClass = context.createActivationClass(traits);
+                using (var lockedContext = getContext())
+                    m_activationClass = lockedContext.value.createActivationClass(traits);
             }
 
             return m_activationClass;

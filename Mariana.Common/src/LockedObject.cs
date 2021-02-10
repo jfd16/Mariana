@@ -17,17 +17,18 @@ namespace Mariana.Common {
         /// </summary>
         /// <param name="value">The object to be guarded by the lock.</param>
         /// <param name="lockObj">The object on which to take a lock to guard access to
-        /// <paramref name="value"/>. If this is null, attempts to take a lock on
-        /// <paramref name="value"/>.</param>
-        public LockedObject(T value, object lockObj = null) {
+        /// <paramref name="value"/>. If this is null, no lock is taken.</param>
+        public LockedObject(T value, object lockObj) {
             m_value = value;
-            m_lock = lockObj ?? value;
+            m_lock = lockObj;
 
-            bool lockTaken = false;
-            Monitor.TryEnter(m_lock, ref lockTaken);
+            if (m_lock != null) {
+                bool lockTaken = false;
+                Monitor.Enter(m_lock, ref lockTaken);
 
-            if (!lockTaken)
-                m_lock = null;
+                if (!lockTaken)
+                    m_lock = null;
+            }
         }
 
         /// <summary>

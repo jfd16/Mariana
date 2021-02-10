@@ -675,6 +675,7 @@ namespace Mariana.AVM2.Compiler {
         /// Outputs the current compilation state to the console.
         /// </summary>
         public void trace() {
+            var sb = new StringBuilder();
             string className, methodName;
 
             ScriptMethod method = getCurrentMethod();
@@ -688,29 +689,31 @@ namespace Mariana.AVM2.Compiler {
                 methodName = "constructor";
             }
 
-            Console.WriteLine("Method {0}/{1}", className, methodName);
-            Console.WriteLine("MethodCompilationFlags: {0}", m_flags);
+            sb.AppendFormat("Method {0}/{1}", className, methodName).AppendLine();
+            sb.AppendFormat("MethodCompilationFlags: {0}", m_flags).AppendLine();
 
-            Console.WriteLine("Captured scope: {0}", String.Join(' ', getCapturedScopeItems()));
+            sb.AppendFormat("Captured scope: {0}", String.Join(' ', getCapturedScopeItems())).AppendLine();
 
-            Console.WriteLine("{");
-            Console.WriteLine("    MaxStack: {0} (computed: {1})", maxStackSize, computedMaxStackSize);
-            Console.WriteLine("    MaxScope: {0} (computed: {1})", maxScopeStackSize, computedMaxScopeSize);
-            Console.WriteLine();
+            sb.AppendLine("{");
+            sb.AppendFormat("    MaxStack: {0} (computed: {1})", maxStackSize, computedMaxStackSize).AppendLine();
+            sb.AppendFormat("    MaxScope: {0} (computed: {1})", maxScopeStackSize, computedMaxScopeSize).AppendLine();
+            sb.AppendLine();
 
             for (int i = 0; i < m_instructions.length; i++) {
                 ref Instruction instr = ref m_instructions[i];
                 if ((instr.flags & InstructionFlags.STARTS_BASIC_BLOCK) != 0)
-                    Console.WriteLine(basicBlockToString(instr.blockId, 1));
+                    sb.AppendLine(basicBlockToString(instr.blockId, 1));
             }
 
             for (int i = 0; i < m_excHandlers.length; i++) {
-                Console.WriteLine(exceptionHandlerToString(ref m_excHandlers[i], 1));
+                sb.AppendLine(exceptionHandlerToString(ref m_excHandlers[i], 1));
                 if (i == m_excHandlers.length - 1)
-                    Console.WriteLine();
+                    sb.AppendLine();
             }
 
-            Console.WriteLine("}} // End of method {0}/{1}\n", className, methodName);
+            sb.AppendFormat("}} // End of method {0}/{1}\n", className, methodName).AppendLine();
+
+            Console.Write(sb.ToString());
         }
 
     }

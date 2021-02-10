@@ -536,17 +536,19 @@ namespace Mariana.AVM2.Compiler {
         private void _createExceptionHandlersFromEHRegions() {
             var excInfos = m_compilation.methodBodyInfo.getExceptionInfo();
 
-            for (int i = 0; i < m_ehRegions.length; i++) {
-                ref _EHRegion ehRegion = ref m_ehRegions[i];
+            using (var lockedContext = m_compilation.getContext()) {
+                for (int i = 0; i < m_ehRegions.length; i++) {
+                    ref _EHRegion ehRegion = ref m_ehRegions[i];
 
-                ref ExceptionHandler handler = ref m_compilation.addExceptionHandler();
-                handler.tryStartInstrId = ehRegion.tryStartInstrId;
-                handler.tryEndInstrId = ehRegion.tryEndInstrId;
-                handler.catchTargetInstrId = ehRegion.catchInstrId;
-                handler.parentId = ehRegion.parentId;
+                    ref ExceptionHandler handler = ref m_compilation.addExceptionHandler();
+                    handler.tryStartInstrId = ehRegion.tryStartInstrId;
+                    handler.tryEndInstrId = ehRegion.tryEndInstrId;
+                    handler.catchTargetInstrId = ehRegion.catchInstrId;
+                    handler.parentId = ehRegion.parentId;
 
-                ABCExceptionInfo excInfo = excInfos[ehRegion.excInfoId];
-                handler.errorType = m_compilation.context.getClassByMultiname(excInfo.catchTypeName, allowAny: true);
+                    ABCExceptionInfo excInfo = excInfos[ehRegion.excInfoId];
+                    handler.errorType = lockedContext.value.getClassByMultiname(excInfo.catchTypeName, allowAny: true);
+                }
             }
 
             var handlers = m_compilation.getExceptionHandlers();

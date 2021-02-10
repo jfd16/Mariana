@@ -228,13 +228,15 @@ namespace Mariana.AVM2.Compiler {
             var stackAtEntry = m_compilation.staticIntArrayPool.getSpan(block.stackAtEntry);
             var token = m_localVarArrayPool.allocate(stackAtEntry.Length, out Span<ILBuilder.Local> vars);
 
-            for (int i = stackAtEntry.Length - 1; i >= 0; i--) {
-                ref DataNode node = ref m_compilation.getDataNode(stackAtEntry[i]);
-                if (node.isNotPushed || node.dataType == DataNodeType.THIS || node.dataType == DataNodeType.REST)
-                    continue;
+            using (var lockedContext = m_compilation.getContext()) {
+                for (int i = stackAtEntry.Length - 1; i >= 0; i--) {
+                    ref DataNode node = ref m_compilation.getDataNode(stackAtEntry[i]);
+                    if (node.isNotPushed || node.dataType == DataNodeType.THIS || node.dataType == DataNodeType.REST)
+                        continue;
 
-                Class nodeClass = _getPushedClassOfNode(node);
-                vars[i] = m_ilBuilder.acquireTempLocal(m_compilation.context.getTypeSignature(nodeClass));
+                    Class nodeClass = _getPushedClassOfNode(node);
+                    vars[i] = m_ilBuilder.acquireTempLocal(lockedContext.value.getTypeSignature(nodeClass));
+                }
             }
 
             // We release the acquired temporary variables immediately. This means that the
@@ -335,9 +337,10 @@ namespace Mariana.AVM2.Compiler {
                 m_ilBuilder.beginExceptionHandler();
 
                 if (m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_RETURN_VALUE)) {
-                    m_excReturnValueLocal = m_ilBuilder.declareLocal(
-                        m_compilation.context.getTypeSignature(m_compilation.getCurrentMethod().returnType)
-                    );
+                    using (var lockedContext = m_compilation.getContext()) {
+                        var retTypeSig = lockedContext.value.getTypeSignature(m_compilation.getCurrentMethod().returnType);
+                        m_excReturnValueLocal = m_ilBuilder.declareLocal(retTypeSig);
+                    }
                 }
             }
 
@@ -403,8 +406,12 @@ namespace Mariana.AVM2.Compiler {
 
             // Get the runtime scope stack for the captured scope.
             if (m_compilation.declaringClass != null) {
-                var classScope = m_compilation.context.getClassCapturedScope(m_compilation.declaringClass);
-                var classScopeField = m_compilation.context.getClassCapturedScopeFieldHandle(m_compilation.declaringClass);
+                CapturedScope classScope;
+                EntityHandle classScopeField;
+                using (var lockedContext = m_compilation.getContext()) {
+                    classScope = lockedContext.value.getClassCapturedScope(m_compilation.declaringClass);
+                    classScopeField = lockedContext.value.getClassCapturedScopeFieldHandle(m_compilation.declaringClass);
+                }
 
                 m_ilBuilder.emit(ILOp.ldsfld, classScopeField);
                 m_ilBuilder.emit(ILOp.call, classScope.container.rtStackGetMethodHandle, 0);
@@ -526,7 +533,8 @@ namespace Mariana.AVM2.Compiler {
                 traits = m_compilation.declaringClass.getTraits(TraitType.ALL, TraitScope.STATIC);
             }
             else if (m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCRIPT_INIT)) {
-                traits = m_compilation.context.getScriptTraits(m_compilation.currentScriptInfo);
+                using (var lockedContext = m_compilation.getContext())
+                    traits = lockedContext.value.getScriptTraits(m_compilation.currentScriptInfo);
             }
 
             if (traits.length == 0)
@@ -534,34 +542,36 @@ namespace Mariana.AVM2.Compiler {
 
             _checkForFieldsInitInMethodBody();
 
-            for (int i = 0; i < traits.length; i++) {
-                if (!(traits[i] is ScriptField field))
-                    continue;
-                if (m_fieldInitInstructionIds.tryGetValue(field, out int initId) && initId != -1)
-                    continue;
-
-                if (m_compilation.context.tryGetDefaultValueOfField(field, out ASAny initVal)) {
-                    if (ILEmitHelper.isImplicitDefault(initVal, field.fieldType))
+            using (var lockedContext = m_compilation.getContext()) {
+                for (int i = 0; i < traits.length; i++) {
+                    if (!(traits[i] is ScriptField field))
+                        continue;
+                    if (m_fieldInitInstructionIds.tryGetValue(field, out int initId) && initId != -1)
                         continue;
 
-                    if (!field.isStatic)
-                        m_ilBuilder.emit(ILOp.ldarg_0);
+                    if (lockedContext.value.tryGetDefaultValueOfField(field, out ASAny initVal)) {
+                        if (ILEmitHelper.isImplicitDefault(initVal, field.fieldType))
+                            continue;
 
-                    if (field.fieldType == null)
-                        ILEmitHelper.emitPushConstantAsAny(m_ilBuilder, initVal);
-                    else if (field.fieldType == s_objectClass)
-                        ILEmitHelper.emitPushConstantAsObject(m_ilBuilder, initVal);
-                    else
-                        ILEmitHelper.emitPushConstant(m_ilBuilder, initVal);
+                        if (!field.isStatic)
+                            m_ilBuilder.emit(ILOp.ldarg_0);
 
-                    m_ilBuilder.emit(field.isStatic ? ILOp.stsfld : ILOp.stfld, m_compilation.context.getEntityHandle(field));
-                }
-                else if (field.fieldType != null && field.fieldType.tag == ClassTag.NUMBER) {
-                    if (!field.isStatic)
-                        m_ilBuilder.emit(ILOp.ldarg_0);
+                        if (field.fieldType == null)
+                            ILEmitHelper.emitPushConstantAsAny(m_ilBuilder, initVal);
+                        else if (field.fieldType == s_objectClass)
+                            ILEmitHelper.emitPushConstantAsObject(m_ilBuilder, initVal);
+                        else
+                            ILEmitHelper.emitPushConstant(m_ilBuilder, initVal);
 
-                    m_ilBuilder.emit(ILOp.ldc_r4, Single.NaN);
-                    m_ilBuilder.emit(field.isStatic ? ILOp.stsfld : ILOp.stfld, m_compilation.context.getEntityHandle(field));
+                        m_ilBuilder.emit(field.isStatic ? ILOp.stsfld : ILOp.stfld, lockedContext.value.getEntityHandle(field));
+                    }
+                    else if (field.fieldType != null && field.fieldType.tag == ClassTag.NUMBER) {
+                        if (!field.isStatic)
+                            m_ilBuilder.emit(ILOp.ldarg_0);
+
+                        m_ilBuilder.emit(ILOp.ldc_r4, Single.NaN);
+                        m_ilBuilder.emit(field.isStatic ? ILOp.stsfld : ILOp.stfld, lockedContext.value.getEntityHandle(field));
+                    }
                 }
             }
         }
@@ -1936,7 +1946,10 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
             ABCMultiname multiname = m_compilation.abcFile.resolveMultiname(instr.data.coerceOrIsType.multinameId);
-            Class klass = m_compilation.context.getClassByMultiname(multiname);
+
+            Class klass;
+            using (var lockedContext = m_compilation.getContext())
+                klass = lockedContext.value.getClassByMultiname(multiname);
 
             if (ClassTagSet.numeric.contains(klass.tag)
                 || !DataNodeTypeHelper.isObjectType(input.dataType))
@@ -2134,12 +2147,14 @@ namespace Mariana.AVM2.Compiler {
 
         private void _visitNewActivation(ref Instruction instr) {
             var klass = m_compilation.getClassForActivation();
-            m_ilBuilder.emit(ILOp.newobj, m_compilation.context.getEntityHandleForCtor(klass), 1);
+            using (var lockedContext = m_compilation.getContext())
+                m_ilBuilder.emit(ILOp.newobj, lockedContext.value.getEntityHandleForCtor(klass), 1);
         }
 
         private void _visitNewCatch(ref Instruction instr) {
             var klass = m_compilation.getClassForCatchScope(instr.data.newCatch.excInfoId);
-            m_ilBuilder.emit(ILOp.newobj, m_compilation.context.getEntityHandleForCtor(klass), 1);
+            using (var lockedContext = m_compilation.getContext())
+                m_ilBuilder.emit(ILOp.newobj, lockedContext.value.getEntityHandleForCtor(klass), 1);
         }
 
         private void _visitIn(ref Instruction instr) {
@@ -2682,7 +2697,9 @@ namespace Mariana.AVM2.Compiler {
                 var ctor = parentClass.constructor;
                 var argsOnStack = stackPopIds.Slice(stackPopIds.Length - argCount);
                 _emitPrepareMethodCallArguments(ctor.getParameters().asSpan(), ctor.hasRest, argsOnStack, null, null);
-                m_ilBuilder.emit(ILOp.call, m_compilation.context.getEntityHandleForCtor(parentClass));
+
+                using (var lockedContext = m_compilation.getContext())
+                    m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForCtor(parentClass));
             }
             else {
                 var error = ErrorHelper.createErrorObject(ErrorCode.CLASS_CANNOT_BE_INSTANTIATED, parentClass.name.ToString());
@@ -2896,28 +2913,35 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode baseClass = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
             _emitDiscardTopOfStack(ref baseClass);
 
-            ScriptClass klass = m_compilation.context.getClassFromClassInfo(instr.data.newClass.classInfoId);
-            CapturedScope classCapturedScope = m_compilation.context.getClassCapturedScope(klass);
+            using (var lockedContext = m_compilation.getContext()) {
+                ScriptClass klass = lockedContext.value.getClassFromClassInfo(instr.data.newClass.classInfoId);
+                CapturedScope classCapturedScope = lockedContext.value.getClassCapturedScope(klass);
 
-            if (classCapturedScope != null) {
-                EntityHandle classCapturedScopeField = m_compilation.context.getClassCapturedScopeFieldHandle(klass);
-                Span<int> localScopeNodeIds = m_compilation.staticIntArrayPool.getSpan(instr.data.newClass.capturedScopeNodeIds);
+                if (classCapturedScope != null) {
+                    EntityHandle classCapturedScopeField = lockedContext.value.getClassCapturedScopeFieldHandle(klass);
+                    Span<int> localScopeNodeIds = m_compilation.staticIntArrayPool.getSpan(instr.data.newClass.capturedScopeNodeIds);
 
-                var capturedScopeLocal = _emitCaptureCurrentScope(classCapturedScope, localScopeNodeIds);
+                    var capturedScopeLocal = _emitCaptureCurrentScope(classCapturedScope, localScopeNodeIds);
 
-                m_ilBuilder.emit(ILOp.ldloc, capturedScopeLocal);
-                m_ilBuilder.emit(ILOp.stsfld, classCapturedScopeField);
-                m_ilBuilder.releaseTempLocal(capturedScopeLocal);
+                    m_ilBuilder.emit(ILOp.ldloc, capturedScopeLocal);
+                    m_ilBuilder.emit(ILOp.stsfld, classCapturedScopeField);
+                    m_ilBuilder.releaseTempLocal(capturedScopeLocal);
+                }
+
+                MethodTrait staticInit = lockedContext.value.getClassStaticInitMethod(klass);
+                if (staticInit != null)
+                    _emitCallToMethod(staticInit, null, ReadOnlySpan<int>.Empty, noReturn: true);
             }
-
-            MethodTrait staticInit = m_compilation.context.getClassStaticInitMethod(klass);
-            if (staticInit != null)
-                _emitCallToMethod(staticInit, null, ReadOnlySpan<int>.Empty, noReturn: true);
         }
 
         private void _visitNewFunction(ref Instruction instr) {
-            var func = (ScriptMethod)m_compilation.context.getMethodOrCtorForMethodInfo(instr.data.newFunction.methodInfoId);
-            CapturedScope funcCapturedScope = m_compilation.context.getFunctionCapturedScope(func);
+            ScriptMethod func;
+            CapturedScope funcCapturedScope;
+
+            using (var lockedContext = m_compilation.getContext()) {
+                func = (ScriptMethod)lockedContext.value.getMethodOrCtorForMethodInfo(instr.data.newFunction.methodInfoId);
+                funcCapturedScope = lockedContext.value.getFunctionCapturedScope(func);
+            }
 
             Span<int> localScopeNodeIds = m_compilation.staticIntArrayPool.getSpan(instr.data.newFunction.capturedScopeNodeIds);
             var capturedScopeLocal = _emitCaptureCurrentScope(funcCapturedScope, localScopeNodeIds);
@@ -3282,7 +3306,10 @@ namespace Mariana.AVM2.Compiler {
                 _emitTypeCoerceForTopOfStack(ref pushedNode, pushedNode.onPushCoerceType, usePrePushType: true);
 
             if ((pushedNode.flags & DataNodeFlags.PUSH_OPTIONAL_PARAM) != 0) {
-                var optParamTypeSig = m_compilation.context.getTypeSigForOptionalParam(_getPushedClassOfNode(pushedNode));
+                TypeSignature optParamTypeSig;
+                using (var lockedContext = m_compilation.getContext())
+                    optParamTypeSig = lockedContext.value.getTypeSigForOptionalParam(_getPushedClassOfNode(pushedNode));
+
                 var mdContext = m_compilation.metadataContext;
                 var ctorHandle = mdContext.getMemberHandle(KnownMembers.optionalParamCtor, mdContext.getTypeHandle(optParamTypeSig));
 
@@ -3441,13 +3468,15 @@ namespace Mariana.AVM2.Compiler {
                     if (node.dataType == DataNodeType.NULL)
                         break;
 
-                    Class toClass = DataNodeTypeHelper.getClass(toType);
-                    if (currentClass == null) {
-                        m_ilBuilder.emit(ILOp.call, m_compilation.context.getEntityHandleForAnyCast(toClass), 0);
-                    }
-                    else {
-                        ILEmitHelper.emitTypeCoerceToObject(m_ilBuilder, currentClass);
-                        m_ilBuilder.emit(ILOp.call, m_compilation.context.getEntityHandleForObjectCast(toClass), 0);
+                    using (var lockedContext = m_compilation.getContext()) {
+                        Class toClass = DataNodeTypeHelper.getClass(toType);
+                        if (currentClass == null) {
+                            m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForAnyCast(toClass), 0);
+                        }
+                        else {
+                            ILEmitHelper.emitTypeCoerceToObject(m_ilBuilder, currentClass);
+                            m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForObjectCast(toClass), 0);
+                        }
                     }
                     break;
                 }
@@ -3472,7 +3501,8 @@ namespace Mariana.AVM2.Compiler {
                 _emitTypeCoerceForTopOfStack(ref node, nodeTypeForClass, isForcePushed: isForcePushed);
             }
             else if (DataNodeTypeHelper.isAnyOrUndefined(nodeType)) {
-                m_ilBuilder.emit(ILOp.call, m_compilation.context.getEntityHandleForAnyCast(toClass), 0);
+                using (var lockedContext = m_compilation.getContext())
+                    m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForAnyCast(toClass), 0);
             }
             else {
                 if (nodeType == DataNodeType.NULL)
@@ -3491,8 +3521,10 @@ namespace Mariana.AVM2.Compiler {
                     nodeClass = s_objectClass;
                 }
 
-                if (!nodeClass.canAssignTo(toClass))
-                    m_ilBuilder.emit(ILOp.call, m_compilation.context.getEntityHandleForObjectCast(toClass), 0);
+                if (!nodeClass.canAssignTo(toClass)) {
+                    using (var lockedContext = m_compilation.getContext())
+                        m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForObjectCast(toClass), 0);
+                }
             }
         }
 
@@ -3509,16 +3541,21 @@ namespace Mariana.AVM2.Compiler {
 
             if (toClass == null || ClassTagSet.primitive.contains(toClass.tag)) {
                 ILEmitHelper.emitTypeCoerce(m_ilBuilder, fromClass, toClass);
+                return;
             }
-            else if (toClass == s_objectClass) {
+            if (toClass == s_objectClass) {
                 ILEmitHelper.emitTypeCoerceToObject(m_ilBuilder, fromClass);
+                return;
             }
-            else if (fromClass == null) {
-                m_ilBuilder.emit(ILOp.call, m_compilation.context.getEntityHandleForAnyCast(toClass), 0);
-            }
-            else if (ClassTagSet.primitive.contains(fromClass.tag) || !fromClass.canAssignTo(toClass)) {
-                ILEmitHelper.emitTypeCoerceToObject(m_ilBuilder, fromClass);
-                m_ilBuilder.emit(ILOp.call, m_compilation.context.getEntityHandleForObjectCast(toClass), 0);
+
+            using (var lockedContext = m_compilation.getContext()) {
+                if (fromClass == null) {
+                    m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForAnyCast(toClass), 0);
+                }
+                else if (ClassTagSet.primitive.contains(fromClass.tag) || !fromClass.canAssignTo(toClass)) {
+                    ILEmitHelper.emitTypeCoerceToObject(m_ilBuilder, fromClass);
+                    m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForObjectCast(toClass), 0);
+                }
             }
         }
 
@@ -3597,11 +3634,13 @@ namespace Mariana.AVM2.Compiler {
                     break;
 
                 case DataNodeType.QNAME: {
-                    var emitConstData = m_compilation.context.emitConstData;
-                    var index = emitConstData.getQNameIndex(node.constant.qnameValue);
-                    m_ilBuilder.emit(ILOp.ldsfld, emitConstData.xmlQnameArrayFieldHandle);
-                    m_ilBuilder.emit(ILOp.ldc_i4, index);
-                    m_ilBuilder.emit(ILOp.ldelem_ref);
+                    using (var lockedContext = m_compilation.getContext()) {
+                        var emitConstData = lockedContext.value.emitConstData;
+                        var index = emitConstData.getQNameIndex(node.constant.qnameValue);
+                        m_ilBuilder.emit(ILOp.ldsfld, emitConstData.xmlQnameArrayFieldHandle);
+                        m_ilBuilder.emit(ILOp.ldc_i4, index);
+                        m_ilBuilder.emit(ILOp.ldelem_ref);
+                    }
                     break;
                 }
 
@@ -3617,9 +3656,11 @@ namespace Mariana.AVM2.Compiler {
                     m_ilBuilder.emit(ILOp.call, KnownMembers.methodTraitCreateMethodClosure);
                     break;
 
-                case DataNodeType.GLOBAL:
-                    m_ilBuilder.emit(ILOp.ldsfld, m_compilation.context.emitConstData.globalObjFieldHandle);
+                case DataNodeType.GLOBAL: {
+                    using (var lockedContext = m_compilation.getContext())
+                        m_ilBuilder.emit(ILOp.ldsfld, lockedContext.value.emitConstData.globalObjFieldHandle);
                     break;
+                }
 
                 case DataNodeType.THIS:
                     m_ilBuilder.emit(ILOp.ldarg_0);
@@ -3720,28 +3761,32 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _emitPushXmlNamespaceConstant(Namespace value) {
-            var emitConstData = m_compilation.context.emitConstData;
-            var index = emitConstData.getXMLNamespaceIndex(value);
-            m_ilBuilder.emit(ILOp.ldsfld, emitConstData.xmlNsArrayFieldHandle);
-            m_ilBuilder.emit(ILOp.ldc_i4, index);
-            m_ilBuilder.emit(ILOp.ldelem_ref);
+            using (var lockedContext = m_compilation.getContext()) {
+                var emitConstData = lockedContext.value.emitConstData;
+                var index = emitConstData.getXMLNamespaceIndex(value);
+                m_ilBuilder.emit(ILOp.ldsfld, emitConstData.xmlNsArrayFieldHandle);
+                m_ilBuilder.emit(ILOp.ldc_i4, index);
+                m_ilBuilder.emit(ILOp.ldelem_ref);
+            }
         }
 
         private void _emitPushTraitConstant(Trait trait) {
-            var emitConstData = m_compilation.context.emitConstData;
-            int index;
+            using (var lockedContext = m_compilation.getContext()) {
+                var emitConstData = lockedContext.value.emitConstData;
+                int index;
 
-            if (trait is Class klass) {
-                index = emitConstData.getClassIndex(klass);
-                m_ilBuilder.emit(ILOp.ldsfld, emitConstData.classesArrayFieldHandle);
-            }
-            else {
-                index = emitConstData.getTraitIndex(trait);
-                m_ilBuilder.emit(ILOp.ldsfld, emitConstData.traitsArrayFieldHandle);
-            }
+                if (trait is Class klass) {
+                    index = emitConstData.getClassIndex(klass);
+                    m_ilBuilder.emit(ILOp.ldsfld, emitConstData.classesArrayFieldHandle);
+                }
+                else {
+                    index = emitConstData.getTraitIndex(trait);
+                    m_ilBuilder.emit(ILOp.ldsfld, emitConstData.traitsArrayFieldHandle);
+                }
 
-            m_ilBuilder.emit(ILOp.ldc_i4, index);
-            m_ilBuilder.emit(ILOp.ldelem_ref);
+                m_ilBuilder.emit(ILOp.ldc_i4, index);
+                m_ilBuilder.emit(ILOp.ldelem_ref);
+            }
         }
 
         private void _emitIsOrAsType(Class klass, ABCOp opcode) {
@@ -3777,7 +3822,8 @@ namespace Mariana.AVM2.Compiler {
                 }
             }
             else {
-                m_ilBuilder.emit(ILOp.isinst, m_compilation.context.getEntityHandle(klass, noPrimitiveTypes: true));
+                using (var lockedContext = m_compilation.getContext())
+                    m_ilBuilder.emit(ILOp.isinst, lockedContext.value.getEntityHandle(klass, noPrimitiveTypes: true));
 
                 if (opcode == ABCOp.istype || opcode == ABCOp.istypelate) {
                     m_ilBuilder.emit(ILOp.ldnull);
@@ -3810,7 +3856,11 @@ namespace Mariana.AVM2.Compiler {
             }
             else {
                 Debug.Assert(m_compilation.declaringClass != null);
-                m_ilBuilder.emit(ILOp.ldsfld, m_compilation.context.getClassCapturedScopeFieldHandle(m_compilation.declaringClass));
+
+                using (var lockedContext = m_compilation.getContext()) {
+                    var fieldHandle = lockedContext.value.getClassCapturedScopeFieldHandle(m_compilation.declaringClass);
+                    m_ilBuilder.emit(ILOp.ldsfld, fieldHandle);
+                }
             }
 
             m_ilBuilder.emit(ILOp.ldfld, m_compilation.capturedScope.container.getFieldHandle(height));
@@ -4041,14 +4091,16 @@ namespace Mariana.AVM2.Compiler {
 
             TypeSignature typeSig;
 
-            if (node.onPushCoerceType != DataNodeType.UNKNOWN && !usePrePushType)
-                typeSig = m_compilation.context.getTypeSignature(DataNodeTypeHelper.getClass(node.onPushCoerceType));
-            else if (node.dataType == DataNodeType.REST)
-                typeSig = m_compilation.metadataContext.getTypeSignature(typeof(RestParam));
-            else if (!preserveObjectClass && DataNodeTypeHelper.isObjectType(node.dataType))
-                typeSig = m_compilation.context.getTypeSignature(s_objectClass);
-            else
-                typeSig = m_compilation.context.getTypeSignature(m_compilation.getDataNodeClass(node));
+            using (var lockedContext = m_compilation.getContext()) {
+                if (node.onPushCoerceType != DataNodeType.UNKNOWN && !usePrePushType)
+                    typeSig = lockedContext.value.getTypeSignature(DataNodeTypeHelper.getClass(node.onPushCoerceType));
+                else if (node.dataType == DataNodeType.REST)
+                    typeSig = m_compilation.metadataContext.getTypeSignature(typeof(RestParam));
+                else if (!preserveObjectClass && DataNodeTypeHelper.isObjectType(node.dataType))
+                    typeSig = lockedContext.value.getTypeSignature(s_objectClass);
+                else
+                    typeSig = lockedContext.value.getTypeSignature(m_compilation.getDataNodeClass(node));
+            }
 
             var tempLocal = m_ilBuilder.acquireTempLocal(typeSig);
 
@@ -4110,7 +4162,11 @@ namespace Mariana.AVM2.Compiler {
                     return slotVarsSpan[i].local;
             }
 
-            var newLocal = m_compilation.ilBuilder.declareLocal(m_compilation.context.getTypeSignature(klass));
+            TypeSignature localTypeSig;
+            using (var lockedContext = m_compilation.getContext())
+                localTypeSig = lockedContext.value.getTypeSignature(klass);
+
+            var newLocal = m_compilation.ilBuilder.declareLocal(localTypeSig);
             m_localVarWithClassArrayPool.append(slotVars, new LocalVarWithClass(klass, newLocal));
 
             return newLocal;
@@ -4192,7 +4248,6 @@ namespace Mariana.AVM2.Compiler {
             Debug.Assert(multiname.kind != ABCConstKind.GenericClassName);
 
             var abc = m_compilation.abcFile;
-            var emitConstData = m_compilation.context.emitConstData;
 
             bool needToPrepareObject =
                 isOnRuntimeScopeStack || objectType == null || ClassTagSet.primitive.contains(objectType.tag);
@@ -4209,10 +4264,12 @@ namespace Mariana.AVM2.Compiler {
                     if (needToPrepareObject)
                         emitPrepareObject(objectType, isOnRuntimeScopeStack);
 
-                    int qnameConstId = emitConstData.getQNameIndex(new QName(ns, localName));
-                    m_ilBuilder.emit(ILOp.ldsfld, emitConstData.qnameArrayFieldHandle);
-                    m_ilBuilder.emit(ILOp.ldc_i4, qnameConstId);
-                    m_ilBuilder.emit(ILOp.ldelema, typeof(QName));
+                    using (var lockedContext = m_compilation.getContext()) {
+                        int qnameConstId = lockedContext.value.emitConstData.getQNameIndex(new QName(ns, localName));
+                        m_ilBuilder.emit(ILOp.ldsfld, lockedContext.value.emitConstData.qnameArrayFieldHandle);
+                        m_ilBuilder.emit(ILOp.ldc_i4, qnameConstId);
+                        m_ilBuilder.emit(ILOp.ldelema, typeof(QName));
+                    }
 
                     bindingKind = RuntimeBindingKind.QNAME;
                     break;
@@ -4369,13 +4426,15 @@ namespace Mariana.AVM2.Compiler {
             }
 
             void emitPushNsSet(int abcIndex) {
-                ref int constId = ref m_nsSetConstIdsByABCIndex[abcIndex];
-                if (constId == -1)
-                    constId = emitConstData.addNamespaceSet(abc.resolveNamespaceSet(abcIndex));
+                using (var lockedContext = m_compilation.getContext()) {
+                    ref int constId = ref m_nsSetConstIdsByABCIndex[abcIndex];
+                    if (constId == -1)
+                        constId = lockedContext.value.emitConstData.addNamespaceSet(abc.resolveNamespaceSet(abcIndex));
 
-                m_ilBuilder.emit(ILOp.ldsfld, emitConstData.nsSetArrayFieldHandle);
-                m_ilBuilder.emit(ILOp.ldc_i4, constId);
-                m_ilBuilder.emit(ILOp.ldelema, typeof(NamespaceSet));
+                    m_ilBuilder.emit(ILOp.ldsfld, lockedContext.value.emitConstData.nsSetArrayFieldHandle);
+                    m_ilBuilder.emit(ILOp.ldc_i4, constId);
+                    m_ilBuilder.emit(ILOp.ldelema, typeof(NamespaceSet));
+                }
             }
         }
 
@@ -4421,10 +4480,11 @@ namespace Mariana.AVM2.Compiler {
             TraitType traitType = trait.traitType;
 
             if (traitType == TraitType.FIELD) {
-                m_ilBuilder.emit(
-                    trait.isStatic ? ILOp.ldsfld : ILOp.ldfld,
-                    m_compilation.context.getEntityHandle((FieldTrait)trait)
-                );
+                EntityHandle fieldHandle;
+                using (var lockedContext = m_compilation.getContext())
+                    fieldHandle = lockedContext.value.getEntityHandle((FieldTrait)trait);
+
+                m_ilBuilder.emit(trait.isStatic ? ILOp.ldsfld : ILOp.ldfld, fieldHandle);
             }
             else if (traitType == TraitType.PROPERTY) {
                 _emitCallToMethod(((PropertyTrait)trait).getter, _getPushedClassOfNode(obj), ReadOnlySpan<int>.Empty, isSuper);
@@ -4539,7 +4599,12 @@ namespace Mariana.AVM2.Compiler {
             if (traitType == TraitType.FIELD) {
                 var field = (FieldTrait)trait;
                 _emitTypeCoerceForTopOfStack(ref value, field.fieldType);
-                m_ilBuilder.emit(trait.isStatic ? ILOp.stsfld : ILOp.stfld, m_compilation.context.getEntityHandle(field));
+
+                EntityHandle fieldHandle;
+                using (var lockedContext = m_compilation.getContext())
+                    fieldHandle = lockedContext.value.getEntityHandle(field);
+
+                m_ilBuilder.emit(trait.isStatic ? ILOp.stsfld : ILOp.stfld, fieldHandle);
             }
             else if (traitType == TraitType.PROPERTY) {
                 Span<int> argIds = stackalloc int[] {value.id};
@@ -4596,7 +4661,12 @@ namespace Mariana.AVM2.Compiler {
                 if (isConstruct) {
                     ClassConstructor ctor = klass.constructor;
                     _emitPrepareMethodCallArguments(ctor.getParameters().asSpan(), ctor.hasRest, argIds, null, null);
-                    m_ilBuilder.emit(ILOp.newobj, m_compilation.context.getEntityHandleForCtor(klass));
+
+                    EntityHandle ctorHandle;
+                    using (var lockedContext = m_compilation.getContext())
+                        ctorHandle = lockedContext.value.getEntityHandleForCtor(klass);
+
+                    m_ilBuilder.emit(ILOp.newobj, ctorHandle);
                 }
                 else {
                     Debug.Assert(argIds.Length == 1);
@@ -4648,7 +4718,11 @@ namespace Mariana.AVM2.Compiler {
                 }
 
                 if (trait is FieldTrait field) {
-                    m_ilBuilder.emit(field.isStatic ? ILOp.ldsfld : ILOp.ldfld, m_compilation.context.getEntityHandle(field));
+                    EntityHandle fieldHandle;
+                    using (var lockedContext = m_compilation.getContext())
+                        fieldHandle = lockedContext.value.getEntityHandle(field);
+
+                    m_ilBuilder.emit(field.isStatic ? ILOp.ldsfld : ILOp.ldfld, fieldHandle);
                     ILEmitHelper.emitTypeCoerceToAny(m_ilBuilder, field.fieldType);
                 }
                 else {
@@ -4822,7 +4896,8 @@ namespace Mariana.AVM2.Compiler {
             }
             else {
                 ILOp callOp = (method.isStatic || isCallSuper) ? ILOp.call : ILOp.callvirt;
-                m_ilBuilder.emit(callOp, m_compilation.context.getEntityHandle(method));
+                using (var lockedContext = m_compilation.getContext())
+                    m_ilBuilder.emit(callOp, lockedContext.value.getEntityHandle(method));
             }
 
             if (noReturn && method.hasReturn)
@@ -4939,7 +5014,9 @@ namespace Mariana.AVM2.Compiler {
                     ILBuilder.Local stash;
 
                     if (param.isOptional && !param.hasDefault) {
-                        var optParamTypeSig = m_compilation.context.getTypeSigForOptionalParam(param.type);
+                        TypeSignature optParamTypeSig;
+                        using (var lockedContext = m_compilation.getContext())
+                            optParamTypeSig = lockedContext.value.getTypeSigForOptionalParam(param.type);
 
                         if ((arg.flags & DataNodeFlags.PUSH_OPTIONAL_PARAM) == 0) {
                             var ctorHandle = mdContext.getMemberHandle(
@@ -4952,7 +5029,8 @@ namespace Mariana.AVM2.Compiler {
                         stash = m_ilBuilder.acquireTempLocal(optParamTypeSig);
                     }
                     else {
-                        stash = m_ilBuilder.acquireTempLocal(m_compilation.context.getTypeSignature(param.type));
+                        using (var lockedContext = m_compilation.getContext())
+                            stash = m_ilBuilder.acquireTempLocal(lockedContext.value.getTypeSignature(param.type));
                     }
 
                     m_ilBuilder.emit(ILOp.stloc, stash);
@@ -4987,7 +5065,10 @@ namespace Mariana.AVM2.Compiler {
                             ILEmitHelper.emitPushConstant(m_ilBuilder, param.defaultValue);
                     }
                     else {
-                        var optParamTypeSig = m_compilation.context.getTypeSigForOptionalParam(param.type);
+                        TypeSignature optParamTypeSig;
+                        using (var lockedContext = m_compilation.getContext())
+                            optParamTypeSig = lockedContext.value.getTypeSigForOptionalParam(param.type);
+
                         var missingHandle = mdContext.getMemberHandle(KnownMembers.optionalParamMissing, mdContext.getTypeHandle(optParamTypeSig));
                         m_ilBuilder.emit(ILOp.ldsfld, missingHandle);
                     }
@@ -5076,7 +5157,10 @@ namespace Mariana.AVM2.Compiler {
 
                 var mdContext = m_compilation.metadataContext;
                 var vectorClass = (Class)intrinsic.arg;
-                var vectorTypeHandle = m_compilation.context.getEntityHandle(vectorClass);
+
+                EntityHandle vectorTypeHandle;
+                using (var lockedContext = m_compilation.getContext())
+                    vectorTypeHandle = lockedContext.value.getEntityHandle(vectorClass);
 
                 ref DataNode arg = ref m_compilation.getDataNode(argsOnStack[0]);
                 _emitTypeCoerceForTopOfStack(ref arg, vectorClass.vectorElementType);
@@ -5273,8 +5357,11 @@ namespace Mariana.AVM2.Compiler {
                 case IntrinsicName.VECTOR_T_CALL_1: {
                     _emitTypeCoerceForTopOfStack(ref arg1, DataNodeType.OBJECT);
 
-                    var mdContext = m_compilation.metadataContext;
-                    var vectorTypeHandle = m_compilation.context.getEntityHandle((Class)intrinsic.arg);
+                    MetadataContext mdContext = m_compilation.metadataContext;
+                    EntityHandle vectorTypeHandle;
+                    using (var lockedContext = m_compilation.getContext())
+                        vectorTypeHandle = lockedContext.value.getEntityHandle((Class)intrinsic.arg);
+
                     m_ilBuilder.emit(ILOp.call, mdContext.getMemberHandle(KnownMembers.vectorFromObject, vectorTypeHandle), 0);
 
                     break;
@@ -5371,13 +5458,15 @@ namespace Mariana.AVM2.Compiler {
                         m_ilBuilder.emit(ILOp.ldstr, flags);
                     }
 
-                    var emitConstData = m_compilation.context.emitConstData;
-                    int constId = emitConstData.addRegExp(pattern, flags);
+                    using (var lockedContext = m_compilation.getContext()) {
+                        var emitConstData = lockedContext.value.emitConstData;
+                        int constId = emitConstData.addRegExp(pattern, flags);
 
-                    m_ilBuilder.emit(ILOp.ldsfld, emitConstData.regexpArrayFieldHandle);
-                    m_ilBuilder.emit(ILOp.ldc_i4, constId);
-                    m_ilBuilder.emit(ILOp.ldelema, typeof(ASRegExp));
-                    m_ilBuilder.emit(ILOp.call, KnownMembers.regexpLazyConstruct, -2);
+                        m_ilBuilder.emit(ILOp.ldsfld, emitConstData.regexpArrayFieldHandle);
+                        m_ilBuilder.emit(ILOp.ldc_i4, constId);
+                        m_ilBuilder.emit(ILOp.ldelema, typeof(ASRegExp));
+                        m_ilBuilder.emit(ILOp.call, KnownMembers.regexpLazyConstruct, -2);
+                    }
 
                     break;
                 }
@@ -5697,7 +5786,9 @@ namespace Mariana.AVM2.Compiler {
                 if (exitStackForFixing[i] != -1)
                     _emitTypeCoerceForTopOfStack(ref m_compilation.getDataNode(exitStackForFixing[i]), entryNodeClass);
 
-                stashVars[i] = m_ilBuilder.acquireTempLocal(m_compilation.context.getTypeSignature(entryNodeClass));
+                using (var lockedContext = m_compilation.getContext())
+                    stashVars[i] = m_ilBuilder.acquireTempLocal(lockedContext.value.getTypeSignature(entryNodeClass));
+
                 m_ilBuilder.emit(ILOp.stloc, stashVars[i]);
             }
 
@@ -5746,7 +5837,9 @@ namespace Mariana.AVM2.Compiler {
                 }
 
                 Class entryNodeClass = m_compilation.getDataNodeClass(entryStack[i]);
-                convertVars[i] = m_ilBuilder.acquireTempLocal(m_compilation.context.getTypeSignature(entryNodeClass));
+
+                using (var lockedContext = m_compilation.getContext())
+                    convertVars[i] = m_ilBuilder.acquireTempLocal(lockedContext.value.getTypeSignature(entryNodeClass));
 
                 if (exitStackForFixing[i] != -1)
                     _emitTypeCoerceForTopOfStack(ref m_compilation.getDataNode(exitStackForFixing[i]), entryNodeClass);
@@ -6011,8 +6104,11 @@ namespace Mariana.AVM2.Compiler {
 
                     m_ilBuilder.emit(ILOp.ldloca, m_excThrownValueLocal);
                     m_ilBuilder.emit(ILOp.call, KnownMembers.anyGetObject, 0);
-                    if (targetStackNodeClass != s_objectClass)
-                        m_ilBuilder.emit(ILOp.castclass, m_compilation.context.getEntityHandle(targetStackNodeClass));
+
+                    if (targetStackNodeClass != s_objectClass) {
+                        using (var lockedContext = m_compilation.getContext())
+                            m_ilBuilder.emit(ILOp.castclass, lockedContext.value.getEntityHandle(targetStackNodeClass));
+                    }
                 }
 
                 m_ilBuilder.emit(ILOp.stloc, stashLocal);

@@ -22,12 +22,11 @@ namespace Mariana.Common.Tests {
         }
 
         [Fact]
-        public void shouldUseObjectAsLockIfNoLockProvided() {
+        public void shouldNotLockIfLockObjIsNull() {
             object obj = new object();
-            using (var locked = new LockedObject<object>(obj)) {
-                Assert.True(Monitor.IsEntered(obj));
+            using (var locked = new LockedObject<object>(obj, null)) {
+                Assert.False(Monitor.IsEntered(obj));
             }
-            Assert.False(Monitor.IsEntered(obj));
         }
 
         [Fact]

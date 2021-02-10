@@ -29,6 +29,8 @@ namespace Mariana.AVM2.Compiler {
 
         private string m_emitAssemblySavePath;
 
+        private int m_numParallelCompileThreads;
+
         /// <summary>
         /// Specifies the ABC parser options used by the compiler, as a set of
         /// flags from the <see cref="ABCParseOptions"/> enumeration.
@@ -45,7 +47,13 @@ namespace Mariana.AVM2.Compiler {
         /// Specifies the situations in which the compiler should use integer arithmetic
         /// for certain floating-point arithmetic instructions where the operands are integers.
         /// </summary>
+        ///
         /// <remarks>The default value is <see cref="IntegerArithmeticMode.DEFAULT"/>.</remarks>
+        ///
+        /// <exception cref="AVM2Exception">
+        /// ArgumentError #10061: The value being set to this property is not a valid value of the
+        /// <see cref="IntegerArithmeticMode"/> enumeration.
+        /// </exception>
         public IntegerArithmeticMode integerArithmeticMode {
             get => m_integerArithmeticMode;
             set {
@@ -153,10 +161,32 @@ namespace Mariana.AVM2.Compiler {
         /// which can aid in diagnosing possible compilation or IL generation issues. This
         /// requires a debug build (with the <c>DEBUG</c> symbol defined), and is ignored in
         /// release builds.
-        /// The default value is false.</summary>
+        /// </summary>
+        /// <remarks>
+        /// The default value is false.
+        /// </remarks>
         public bool enableTracing {
             get => m_enableTracing;
             set => m_enableTracing = value;
+        }
+
+        /// <summary>
+        /// Specifies the number of threads to use for parallel method compilation.
+        /// </summary>
+        ///
+        /// <value>The number of threads to use for parallel method compilation. If this is 0 or
+        /// 1, parallel compilation is disabled. The default value is 0.</value>
+        ///
+        /// <exception cref="AVM2Exception">
+        /// ArgumentError #10061: The value being set to this property is a negative value.
+        /// </exception>
+        public int numParallelCompileThreads {
+            get => m_numParallelCompileThreads;
+            set {
+                if (value < 0)
+                    throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_OUT_OF_RANGE, nameof(value));
+                m_numParallelCompileThreads = value;
+            }
         }
 
         internal ScriptCompileOptions clone() => (ScriptCompileOptions)MemberwiseClone();
