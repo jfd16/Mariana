@@ -349,6 +349,13 @@ namespace Mariana.AVM2.Core {
                         _writeCharPair('\\', 'b');
                     break;
 
+                case 'B':
+                    if (m_isInCharSet)
+                        _writeChar('B');
+                    else
+                        _writeCharPair('\\', 'B');
+                    break;
+
                 case 'k':
                     // Flash Player supports \k<name> backreferences but this is not documented.
                     // 'name' cannot be a group number, unlike .NET regex.

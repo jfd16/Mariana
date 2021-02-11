@@ -73,6 +73,7 @@
 1097	TypeError			XML parser failure: Unterminated processing instruction. (line $1)
 1098	TypeError			Illegal prefix '$1' for 'no namespace'.
 
+1100    TypeError           Cannot supply flags when constructing one RegExp from another.
 1102	VerifyError			Illegal default value for type $1.
 1103	VerifyError			Class '$1' cannot extend final base class.
 1104	TypeError			Attribute '$1' was already specified for element '$2'. (line $3)

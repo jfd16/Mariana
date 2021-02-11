@@ -260,7 +260,7 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
-        public ASArray match(ASAny regExp) => match(m_value, regExp);
+        public ASArray match(ASAny regExp = default) => match(m_value, regExp);
 
         /// <summary>
         /// Returns a new string with matches of the <paramref name="search"/> string or RegExp
@@ -296,7 +296,7 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
-        public string replace(ASAny search, ASAny repl) => replace(m_value, search, repl);
+        public string replace(ASAny search = default, ASAny repl = default) => replace(m_value, search, repl);
 
         /// <summary>
         /// Returns the position of the first match of the regular expression in the string.
@@ -315,7 +315,7 @@ namespace Mariana.AVM2.Core {
         /// found.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
-        public int search(ASAny regExp) => search(m_value, regExp);
+        public int search(ASAny regExp = default) => search(m_value, regExp);
 
         /// <summary>
         /// Returns a substring of the string starting at <paramref name="startIndex"/> and ending
@@ -691,12 +691,8 @@ namespace Mariana.AVM2.Core {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
 
-            ASRegExp re = regExp.value as ASRegExp;
-            if (re == null) {
-                if (regExp.value == null)
-                    return null;
-                re = new ASRegExp((string)regExp.value);
-            }
+            if (!(regExp.value is ASRegExp re))
+                re = new ASRegExp(ASAny.AS_convertString(regExp.value));
 
             if (re.global) {
                 MatchCollection mc = re.getInternalRegex().Matches(s);
@@ -709,8 +705,7 @@ namespace Mariana.AVM2.Core {
                 return matchArray;
             }
             else {
-                int lastIndex = 0;
-                return re.execInternal(s, ref lastIndex);
+                return (ASArray)re.exec(s);
             }
         }
 
@@ -718,7 +713,7 @@ namespace Mariana.AVM2.Core {
         /// Returns a new string with matches of the <paramref name="search"/> string or RegExp
         /// replaced with a replacement string or strings returned by a callback function.
         /// </summary>
-        /// <param name="s">The source string.</param>
+        /// <param name="input">The source string.</param>
         /// <param name="search">This may be a string or a RegExp object. (See remarks below)</param>
         /// <param name="repl">This may be a string or a Function object. (See remarks below)</param>
         /// <returns>The resulting string after replacement.</returns>
@@ -747,22 +742,23 @@ namespace Mariana.AVM2.Core {
         /// string). For a literal dollar sign in the replacement string, use "$$".
         /// </para>
         /// </remarks>
-        public static string replace(string s, ASAny search, ASAny repl) {
-            if (s == null)
+        public static string replace(string input, ASAny search, ASAny repl) {
+            if (input == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
 
-            ASFunction replFunction = repl.value as ASFunction;
-            ASRegExp searchRegex = search.value as ASRegExp;
+            var replFunction = repl.value as ASFunction;
+            var searchRegex = search.value as ASRegExp;
             string searchString = null, replString = null;
 
-            // If repl is not a function or search is not a RegExp, convert them to strings.
+            // If repl is not a function, convert to a string.
             if (replFunction == null)
                 replString = ASAny.AS_convertString(repl);
 
+            // If search is not a RegExp, convert to a string.
             if (searchRegex == null) {
-                searchString = (string)search;
-                if (searchString == null || searchString.Length == 0)
-                    return s;
+                searchString = ASAny.AS_convertString(search);
+                if (searchString.Length == 0)
+                    return input;
             }
 
             // isGlobal is true if all matches in the input string are to be replaced.
@@ -771,8 +767,10 @@ namespace Mariana.AVM2.Core {
 
             ASAny[] callbackArgs = null;
 
-            if (replFunction != null)
-                callbackArgs = new ASAny[] {searchString ?? default, default, s};
+            if (replFunction != null) {
+                callbackArgs = new ASAny[3 + ((searchRegex != null) ? searchRegex.groupCount : 0)];
+                callbackArgs[callbackArgs.Length - 1] = input;
+            }
 
             // Determine the index of the first match. If the first match has not been found, return the input
             // string, as there are no replacements to be made.
@@ -780,14 +778,14 @@ namespace Mariana.AVM2.Core {
             Match regexMatch = null;
 
             if (searchRegex == null) {
-                matchIndex = indexOf(s, searchString);
+                matchIndex = indexOf(input, searchString);
                 if (matchIndex == -1)
-                    return s;
+                    return input;
             }
             else {
-                regexMatch = searchRegex.getInternalRegex().Match(s);
+                regexMatch = searchRegex.getInternalRegex().Match(input);
                 if (!regexMatch.Success)
-                    return s;
+                    return input;
                 matchIndex = regexMatch.Index;
             }
 
@@ -796,39 +794,29 @@ namespace Mariana.AVM2.Core {
 
             int replLength = (replString != null && !mustResolveReplString) ? replString.Length : -1;
 
-            char[] replBuffer = new char[s.Length];
+            char[] replBuffer = new char[input.Length];
             int replBufIndex = 0;
             int srcIndex = 0;
 
             do {
                 string matchedString = (searchRegex != null) ? regexMatch.Value : searchString;
-                string strForThisReplace;
-
-                if (replFunction != null) {
-                    if (searchRegex != null)
-                        callbackArgs[0] = matchedString;
-                    callbackArgs[1] = matchIndex;
-                    strForThisReplace = ASAny.AS_convertString(replFunction.AS_invoke(ASAny.@null, callbackArgs));
-                }
-                else {
-                    strForThisReplace = replString;
-                }
+                string strForThisReplace = getCurrentReplaceString();
 
                 int midLength = matchIndex - srcIndex;
 
                 // Check that the buffer has sufficient space for the intermediate portion
                 // (and the replacement string, if it does not have any references to resolve)
-                int bufferCapacityNeeded = (replLength == -1) ? midLength : midLength + replLength;
+                int bufferCapacityNeeded = mustResolveReplString ? midLength : midLength + replLength;
                 if (replBuffer.Length - replBufIndex < bufferCapacityNeeded) {
                     DataStructureUtil.resizeArray(
                         ref replBuffer, replBufIndex, replBufIndex + bufferCapacityNeeded, false);
                 }
 
-                s.CopyTo(srcIndex, replBuffer, replBufIndex, midLength);
+                input.CopyTo(srcIndex, replBuffer, replBufIndex, midLength);
                 replBufIndex += midLength;
 
                 if (mustResolveReplString) {
-                    _resolveRelpaceString(ref replBuffer, ref replBufIndex, s, strForThisReplace, regexMatch);
+                    resolveReplaceStringWithCurrentMatch();
                 }
                 else {
                     strForThisReplace.CopyTo(0, replBuffer, replBufIndex, replLength);
@@ -847,102 +835,111 @@ namespace Mariana.AVM2.Core {
                     matchIndex = regexMatch.Success ? regexMatch.Index : -1;
                 }
                 else {
-                    matchIndex = indexOf(s, searchString, srcIndex);
+                    matchIndex = indexOf(input, searchString, srcIndex);
                 }
             } while (matchIndex != -1);
 
             // Copy the remaining part of the source string, after the last replacement (the 'tail')
-            int tailLength = s.Length - srcIndex;
+            int tailLength = input.Length - srcIndex;
             if (replBufIndex + tailLength > replBuffer.Length)
                 DataStructureUtil.resizeArray(ref replBuffer, replBufIndex, replBufIndex + tailLength, true);
 
-            s.CopyTo(srcIndex, replBuffer, replBufIndex, tailLength);
+            input.CopyTo(srcIndex, replBuffer, replBufIndex, tailLength);
+
+            if (searchRegex != null && searchRegex.global)
+                searchRegex.lastIndex = 0;
+
             return new string(replBuffer, 0, replBufIndex + tailLength);
-        }
 
-        /// <summary>
-        /// Resolves all $-references in a string passed to the replace() function and writes the
-        /// resolved string to the buffer.
-        /// </summary>
-        ///
-        /// <param name="buffer">The buffer to write the resolved string to.</param>
-        /// <param name="bufIndex">The index at which to start writing into the buffer. This will be
-        /// changed to the index following what was written.</param>
-        /// <param name="input">The input string passed to replace().</param>
-        /// <param name="replaceString">The unresolved replacement string passed to
-        /// replace().</param>
-        /// <param name="matchData">The <see cref="Match"/> instance returned by the regular
-        /// expression match.</param>
-        private static void _resolveRelpaceString(
-            ref char[] buffer, ref int bufIndex, string input, string replaceString, Match matchData)
-        {
-            GroupCollection groups = matchData.Groups;
-            ReadOnlySpan<char> replStrSpan = replaceString;
+            string getCurrentReplaceString() {
+                // Returns the replacement string for the current match, without substituting $-references.
 
-            while (replStrSpan.Length > 0) {
-                int substIndex = replStrSpan.IndexOf('$');
-                ReadOnlySpan<char> preSubst, subst;
+                if (replFunction == null)
+                    return replString;
 
-                if (substIndex == -1 || substIndex == replStrSpan.Length - 1) {
-                    preSubst = replStrSpan;
-                    subst = default;
-                    replStrSpan = default;
+                if (regexMatch == null) {
+                    callbackArgs[0] = searchString;
                 }
                 else {
-                    preSubst = replStrSpan.Slice(0, substIndex);
-
-                    switch (replStrSpan[substIndex + 1]) {
-                        case '$':
-                            // Escape, literal dollar sign
-                            subst = replStrSpan.Slice(substIndex, 1);
-                            replStrSpan = replStrSpan.Slice(substIndex + 2);
-                            break;
-
-                        case '&':
-                        case '0':
-                            // Matched string
-                            subst = matchData.Value;
-                            replStrSpan = replStrSpan.Slice(substIndex + 2);
-                            break;
-
-                        case '`':
-                            // String preceding the matched string
-                            subst = input.AsSpan(0, matchData.Index);
-                            replStrSpan = replStrSpan.Slice(substIndex + 2);
-                            break;
-
-                        case '\'':
-                            // String following the matched string
-                            subst = input.AsSpan(matchData.Index + matchData.Length);
-                            replStrSpan = replStrSpan.Slice(substIndex + 2);
-                            break;
-
-                        default: {
-                            // Try to find a capturing group number.
-                            // If the group number is greater than the number of groups in the regex,
-                            // interpret these references as literals.
-
-                            int index = readGroupIndex(replStrSpan.Slice(substIndex + 1), groups.Count, out int charsRead);
-                            if (index == -1) {
-                                subst = replStrSpan.Slice(substIndex, 1);
-                                replStrSpan = replStrSpan.Slice(substIndex + 1);
-                            }
-                            else {
-                                subst = groups[index].Value ?? "";
-                                replStrSpan = replStrSpan.Slice(substIndex + charsRead + 1);
-                            }
-                            break;
-                        }
-                    }
+                    GroupCollection groups = regexMatch.Groups;
+                    for (int i = 0; i < groups.Count; i++)
+                        callbackArgs[i] = groups[i].Value;
                 }
 
-                int totalLength = preSubst.Length + subst.Length;
-                if (buffer.Length - bufIndex < totalLength)
-                    DataStructureUtil.resizeArray(ref buffer, bufIndex, bufIndex + totalLength, false);
+                callbackArgs[callbackArgs.Length - 2] = matchIndex;
+                return ASAny.AS_convertString(replFunction.AS_invoke(ASAny.@null, callbackArgs));
+            }
 
-                preSubst.CopyTo(buffer.AsSpan(bufIndex));
-                subst.CopyTo(buffer.AsSpan(bufIndex + preSubst.Length));
-                bufIndex += totalLength;
+            void resolveReplaceStringWithCurrentMatch() {
+                GroupCollection groups = regexMatch.Groups;
+                ReadOnlySpan<char> replStrSpan = replString;
+
+                while (replStrSpan.Length > 0) {
+                    int substIndex = replStrSpan.IndexOf('$');
+                    ReadOnlySpan<char> preSubst, subst;
+
+                    if (substIndex == -1 || substIndex == replStrSpan.Length - 1) {
+                        preSubst = replStrSpan;
+                        subst = default;
+                        replStrSpan = default;
+                    }
+                    else {
+                        preSubst = replStrSpan.Slice(0, substIndex);
+
+                        switch (replStrSpan[substIndex + 1]) {
+                            case '$':
+                                // Escape, literal dollar sign
+                                subst = replStrSpan.Slice(substIndex, 1);
+                                replStrSpan = replStrSpan.Slice(substIndex + 2);
+                                break;
+
+                            case '&':
+                            case '0':
+                                // Matched string
+                                subst = regexMatch.Value;
+                                replStrSpan = replStrSpan.Slice(substIndex + 2);
+                                break;
+
+                            case '`':
+                                // String preceding the matched string
+                                subst = input.AsSpan(0, regexMatch.Index);
+                                replStrSpan = replStrSpan.Slice(substIndex + 2);
+                                break;
+
+                            case '\'':
+                                // String following the matched string
+                                subst = input.AsSpan(regexMatch.Index + regexMatch.Length);
+                                replStrSpan = replStrSpan.Slice(substIndex + 2);
+                                break;
+
+                            default: {
+                                // Try to find a capturing group number.
+                                // If the group number is greater than the number of groups in the regex,
+                                // interpret these references as literals.
+
+                                int index = readGroupIndex(replStrSpan.Slice(substIndex + 1), groups.Count, out int charsRead);
+                                if (index == -1) {
+                                    subst = replStrSpan.Slice(substIndex, 1);
+                                    replStrSpan = replStrSpan.Slice(substIndex + 1);
+                                }
+                                else {
+                                    var group = groups[index];
+                                    subst = input.AsSpan(group.Index, group.Length);
+                                    replStrSpan = replStrSpan.Slice(substIndex + charsRead + 1);
+                                }
+                                break;
+                            }
+                        }
+                    }
+
+                    int totalLength = preSubst.Length + subst.Length;
+                    if (replBuffer.Length - replBufIndex < totalLength)
+                        DataStructureUtil.resizeArray(ref replBuffer, replBufIndex, replBufIndex + totalLength, false);
+
+                    preSubst.CopyTo(replBuffer.AsSpan(replBufIndex));
+                    subst.CopyTo(replBuffer.AsSpan(replBufIndex + preSubst.Length));
+                    replBufIndex += totalLength;
+                }
             }
 
             int readGroupIndex(ReadOnlySpan<char> span, int groupCount, out int charsRead) {
@@ -976,13 +973,13 @@ namespace Mariana.AVM2.Core {
 
         /// <summary>
         /// Returns the position of the first match of the regular expression in the string
-        /// <paramref name="s"/>. This method ignores the
+        /// <paramref name="input"/>. This method ignores the
         /// <see cref="ASRegExp.lastIndex" qualifyHint="true"/> property of RegExp and starts the
         /// search from the beginning of the string.
         /// </summary>
         ///
-        /// <param name="s">The input string.</param>
-        /// <param name="p">
+        /// <param name="input">The input string.</param>
+        /// <param name="regExp">
         /// The RegExp object representing the regular expression to execute on the target string. If
         /// this is not a RegExp, it is converted to a string and used as the regular expression
         /// pattern, with no flags set. The RegExp object's
@@ -992,28 +989,24 @@ namespace Mariana.AVM2.Core {
         ///
         /// <returns>The position of the first match of the regular expression in the string, or -1 if
         /// no match is found.</returns>
-        public static int search(string s, ASAny p) {
+        public static int search(string s, ASAny regExp) {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
 
-            ASRegExp re = p.value as ASRegExp;
-            if (re == null) {
-                if (p.value == null)
-                    return -1;
-                re = new ASRegExp(ASObject.AS_coerceString(p.value));
-            }
+            if (!(regExp.value is ASRegExp re))
+                re = new ASRegExp(ASAny.AS_convertString(regExp));
 
             Match m = re.getInternalRegex().Match(s);
             return m.Success ? m.Index : -1;
         }
 
         /// <summary>
-        /// Returns the substring of <paramref name="s"/> starting at
+        /// Returns the substring of <paramref name="input"/> starting at
         /// <paramref name="startIndex"/> and having <paramref name="length"/> number of
         /// characters.
         /// </summary>
         ///
-        /// <param name="s">The string.</param>
+        /// <param name="input">The string.</param>
         /// <param name="startIndex">The start index. If this is negative, the string's length will be
         /// added to it; if it is still negative after adding the string's length, it will be set to
         /// zero. If this is greater than the string's length, the empty string is returned.</param>
@@ -1025,7 +1018,7 @@ namespace Mariana.AVM2.Core {
         /// empty string is returned.
         /// </param>
         ///
-        /// <returns>The substring of <paramref name="s"/> starting at
+        /// <returns>The substring of <paramref name="input"/> starting at
         /// <paramref name="startIndex"/> and having <paramref name="length"/> number of
         /// characters.</returns>
         public static string substr(string s, int startIndex = 0, int length = Int32.MaxValue) {
@@ -1044,12 +1037,12 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Returns the substring of <paramref name="s"/> starting at index
+        /// Returns the substring of <paramref name="input"/> starting at index
         /// <paramref name="startIndex"/> and ending at the index preceding
         /// <paramref name="endIndex"/>.
         /// </summary>
         ///
-        /// <param name="s">The string.</param>
+        /// <param name="input">The string.</param>
         /// <param name="startIndex">
         /// The index where the returned substring starts. If this is negative, the string's length
         /// will be added to it; if it is still negative after adding the string's length, it will be
@@ -1064,7 +1057,7 @@ namespace Mariana.AVM2.Core {
         /// than or equal to <paramref name="startIndex"/>, the empty string is returned.
         /// </param>
         ///
-        /// <returns>The substring of <paramref name="s"/> starting at index
+        /// <returns>The substring of <paramref name="input"/> starting at index
         /// <paramref name="startIndex"/> and ending at the index preceding
         /// <paramref name="endIndex"/>.</returns>
         public static string slice(string s, int startIndex = 0, int endIndex = Int32.MaxValue) {
@@ -1083,12 +1076,12 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Returns the substring of <paramref name="s"/> starting at index
+        /// Returns the substring of <paramref name="input"/> starting at index
         /// <paramref name="startIndex"/> and ending at the index preceding
         /// <paramref name="endIndex"/>.
         /// </summary>
         ///
-        /// <param name="s">The string.</param>
+        /// <param name="input">The string.</param>
         /// <param name="startIndex">
         /// The index where the returned substring starts. If this is negative, it is set to zero; if
         /// it is greater than the string's length, it is taken as the string's length. If this is
@@ -1103,7 +1096,7 @@ namespace Mariana.AVM2.Core {
         /// <paramref name="startIndex"/>, the start and end indices are swapped.
         /// </param>
         ///
-        /// <returns>The substring of <paramref name="s"/> starting at index
+        /// <returns>The substring of <paramref name="input"/> starting at index
         /// <paramref name="startIndex"/> and ending at the index preceding
         /// <paramref name="endIndex"/>.</returns>
         ///
@@ -1131,11 +1124,11 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Splits the string <paramref name="s"/> using a separator (or a regular expression that
+        /// Splits the string <paramref name="input"/> using a separator (or a regular expression that
         /// matches separators) and returns an array of the split strings.
         /// </summary>
         ///
-        /// <param name="s">The string to split.</param>
+        /// <param name="input">The string to split.</param>
         /// <param name="sep">
         /// A string or regular expression that is used to separate the string. If this is a RegExp
         /// object, matches of the RegExp in the input string are considered as separators. The
@@ -1274,7 +1267,7 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Converts all alphabetic characters in the string to lowercase.
         /// </summary>
-        /// <param name="s">The string.</param>
+        /// <param name="input">The string.</param>
         /// <returns>The string with alphabetic characters converted to lowercase.</returns>
         public static string toLowerCase(string s) {
             if (s == null)
@@ -1285,7 +1278,7 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Converts all alphabetic characters in the string to lowercase in a locale-specific manner.
         /// </summary>
-        /// <param name="s">The string.</param>
+        /// <param name="input">The string.</param>
         /// <returns>The string with alphabetic characters converted to lowercase.</returns>
         public static string toLocaleLowerCase(string s) {
             if (s == null)
@@ -1296,7 +1289,7 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Converts all alphabetic characters in the string to uppercase.
         /// </summary>
-        /// <param name="s">The string.</param>
+        /// <param name="input">The string.</param>
         /// <returns>The string with alphabetic characters converted to uppercase.</returns>
         public static string toUpperCase(string s) {
             if (s == null)
@@ -1307,7 +1300,7 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Converts all alphabetic characters in the string to uppercase in a locale-specific manner.
         /// </summary>
-        /// <param name="s">The string.</param>
+        /// <param name="input">The string.</param>
         /// <returns>The string with alphabetic characters converted to uppercase.</returns>
         public static string toLocaleUpperCase(string s) {
             if (s == null)
@@ -1319,8 +1312,8 @@ namespace Mariana.AVM2.Core {
         /// Returns the given argument. This is used by the ABC compiler for calls to the
         /// <c>valueOf</c> method on String values.
         /// </summary>
-        /// <param name="s">The argument.</param>
-        /// <returns>The value of <paramref name="s"/>.</returns>
+        /// <param name="input">The argument.</param>
+        /// <returns>The value of <paramref name="input"/>.</returns>
         [AVM2ExportPrototypeMethod]
         public static string valueOf(string s) {
             if (s == null)

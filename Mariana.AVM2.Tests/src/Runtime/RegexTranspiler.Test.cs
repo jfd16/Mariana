@@ -20,7 +20,7 @@ namespace Mariana.AVM2.Tests {
         }
 
         [Theory]
-        [InlineData(@"\n\r\f\t\v\b")]
+        [InlineData(@"\n\r\f\t\v\b\B")]
         [InlineData(@"\*\^\$\(\)\{\}\[\]\+\?\-\.\\")]
         [InlineData(@"\~\`\!\@\#\%\&\=\_\:\;\'\""\<\>\,", @"~`!@#%&=_:;'""<>,")]
         [InlineData("\\\n\\\r\\\t\\\f\\\v\\ ", "\n\r\t\f\v ")]
@@ -264,6 +264,7 @@ namespace Mariana.AVM2.Tests {
             (@"[]", @"(?!)"),
             (@"[^]", @"[\s\S]"),
             (@"[\b]", @"[\x08]"),
+            (@"[\b\B]", @"[\x08B]"),
             (@"[-ab][ab-]", @"[\-ab][ab\-]"),
             (@"[^a]", @"[^a]"),
             (@"[^-a]", @"[^\-a]"),
