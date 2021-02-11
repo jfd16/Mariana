@@ -13,7 +13,7 @@ namespace Mariana.AVM2.Tests {
         [InlineData("")]
         [InlineData("abc")]
         [InlineData("hello")]
-        [InlineData("~`!@%&-_=:;'/\"<>,")]
+        [InlineData("~`!@%&-_=:;]'/\"<>,")]
         [InlineData("\x00\x01\x05\ud800\udfff\uffff")]
         public void shouldTranspilePatternWithoutSpecialChars(string pattern) {
             _verifyPatternFlagsInvariant(pattern);
@@ -301,6 +301,10 @@ namespace Mariana.AVM2.Tests {
             (@"[!----a]", @"[!-\-\--a]"),
             (@"[!----a-b]", @"[!-\-\--a\-b]"),
             (@"[-]", @"[\-]"),
+            (@"[AB-[C]]", @"[AB-\[C]]"),
+            (@"[A-Z-[G-H]]", @"[A-Z\-\[G-H]]"),
+            (@"[a-z-[g-h]]", @"[a-z\-\[g-h]]"),
+            (@"[a-z-[g-h\b]\b]", @"[a-z\-\[g-h\x08]\b]"),
             (@"[-\x37][-\u1377][^-\x37][^-\u1377]", @"[\-\x37][\-\u1377][^\-\x37][^\-\u1377]"),
             (@"[\w-\d-\s-\W-\D-\S-][-\w-\d-\s-\W-\D-\S][^\w-\d-\s]", @"[\w\-\d\-\s\-\W\-\D\-\S\-][\-\w\-\d\-\s\-\W\-\D\-\S][^\w\-\d\-\s]"),
             (@"[\w-1\d-1\s-1\W-1\D-1\S-1][z-\wz-\dz-\sz-\Wz-\Dz-\S]", @"[\w\-1\d\-1\s\-1\W\-1\D\-1\S\-1][z\-\wz\-\dz\-\sz\-\Wz\-\Dz\-\S]"),
@@ -500,6 +504,7 @@ namespace Mariana.AVM2.Tests {
             (@"(?<!(?<!(?<!a)b)c)d", null, null),
             (@"a(?=b(?=c(?=d)))", null, null),
             (@"a(?!b(?!c(?!d)))", null, null),
+            (@"a(?=b)*(?<!abc){2,4}(?!(?=ab)+c*){8}", null, null),
             (
                 @"^(?P<x>abc*z|[0-9.]+(?=[a-z]{3,})|&+)[\w\d]*?\n(?!\s*[a-f])",
                 @"^(abc*z|[0-9.]+(?=[a-z]{3,})|&+)[\w\d]*?\n(?!\s*[a-f])",
@@ -794,6 +799,8 @@ namespace Mariana.AVM2.Tests {
             @"abc(?<:",
             @"abc(?<abc>pq)",
             @"abc(?>abc)",
+            @"abc(?(x)def)",
+            @"abc(?P<x>def)(?(x)ghi)",
             @"(?P<abc",
             @"(?P<abc)*",
             @"(?p<abc>123)*",
@@ -849,6 +856,7 @@ namespace Mariana.AVM2.Tests {
             @"[\x39-8]",
             @"[✔-\u2713]",
             @"[\u2715-✔]",
+            @"[ab-[c]]",
             @"abc\u123G",
             @"abc\u123h",
             @"abc\xag",

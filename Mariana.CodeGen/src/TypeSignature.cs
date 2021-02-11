@@ -164,16 +164,19 @@ namespace Mariana.CodeGen {
 
             int compactLength = (int)(m_compact >> 56);
 
-            if (compactLength < 7) {
+            if (compactLength < 7)
                 return new TypeSignature((long)(compactLength + 1) << 56 | m_compact << 8 | (byte)code);
-            }
-            else {
-                var builder = TypeSignatureBuilder.getInstance();
+
+            var builder = TypeSignatureBuilder.getInstance();
+            try {
                 builder.appendByte((byte)code);
                 builder.appendSignature(this);
                 return builder.makeSignature();
             }
-        }
+            finally {
+                builder.clear();
+            }
+    }
 
         /// <summary>
         /// Returns a signature representing a general array type whose element type is represented
@@ -212,21 +215,25 @@ namespace Mariana.CodeGen {
                 throw new InvalidOperationException("Cannot use a by-ref type as the element type of an array, pointer or by-ref type.");
 
             var builder = TypeSignatureBuilder.getInstance();
+            try {
+                builder.appendByte((byte)SignatureTypeCode.Array);
+                builder.appendSignature(this);
 
-            builder.appendByte((byte)SignatureTypeCode.Array);
-            builder.appendSignature(this);
+                builder.appendCompressedUnsignedInt(rank);
 
-            builder.appendCompressedUnsignedInt(rank);
+                builder.appendCompressedUnsignedInt(lengths.Length);
+                for (int i = 0; i < lengths.Length; i++)
+                    builder.appendCompressedUnsignedInt(lengths[i]);
 
-            builder.appendCompressedUnsignedInt(lengths.Length);
-            for (int i = 0; i < lengths.Length; i++)
-                builder.appendCompressedUnsignedInt(lengths[i]);
+                builder.appendCompressedUnsignedInt(lowerBounds.Length);
+                for (int i = 0; i < lowerBounds.Length; i++)
+                    builder.appendCompressedSignedInt(lowerBounds[i]);
 
-            builder.appendCompressedUnsignedInt(lowerBounds.Length);
-            for (int i = 0; i < lowerBounds.Length; i++)
-                builder.appendCompressedSignedInt(lowerBounds[i]);
-
-            return builder.makeSignature();
+                return builder.makeSignature();
+            }
+            finally {
+                builder.clear();
+            }
         }
 
         /// <summary>
@@ -259,9 +266,14 @@ namespace Mariana.CodeGen {
                 throw new ArgumentException("Handle for a class or value type must not be null.", nameof(handle));
 
             var builder = TypeSignatureBuilder.getInstance();
-            builder.appendByte((byte)(isValueType ? SignatureTypeKind.ValueType : SignatureTypeKind.Class));
-            builder.appendCompressedUnsignedInt(CodedIndex.TypeDefOrRefOrSpec(handle));
-            return builder.makeSignature();
+            try {
+                builder.appendByte((byte)(isValueType ? SignatureTypeKind.ValueType : SignatureTypeKind.Class));
+                builder.appendCompressedUnsignedInt(CodedIndex.TypeDefOrRefOrSpec(handle));
+                return builder.makeSignature();
+            }
+            finally {
+                builder.clear();
+            }
         }
 
         /// <summary>
@@ -282,10 +294,14 @@ namespace Mariana.CodeGen {
             }
 
             var builder = TypeSignatureBuilder.getInstance();
-            builder.appendByte((byte)SignatureTypeCode.GenericTypeParameter);
-            builder.appendCompressedUnsignedInt(position);
-
-            return builder.makeSignature();
+            try {
+                builder.appendByte((byte)SignatureTypeCode.GenericTypeParameter);
+                builder.appendCompressedUnsignedInt(position);
+                return builder.makeSignature();
+            }
+            finally {
+                builder.clear();
+            }
         }
 
         /// <summary>
@@ -306,10 +322,14 @@ namespace Mariana.CodeGen {
             }
 
             var builder = TypeSignatureBuilder.getInstance();
-            builder.appendByte((byte)SignatureTypeCode.GenericMethodParameter);
-            builder.appendCompressedUnsignedInt(position);
-
-            return builder.makeSignature();
+            try {
+                builder.appendByte((byte)SignatureTypeCode.GenericMethodParameter);
+                builder.appendCompressedUnsignedInt(position);
+                return builder.makeSignature();
+            }
+            finally {
+                builder.clear();
+            }
         }
 
         /// <summary>
@@ -333,15 +353,19 @@ namespace Mariana.CodeGen {
                 throw new InvalidOperationException("Generic instantiation is only allowed for class and valuetype signatures.");
 
             var builder = TypeSignatureBuilder.getInstance();
+            try {
+                builder.appendByte((byte)SignatureTypeCode.GenericTypeInstance);
+                builder.appendSignature(this);
 
-            builder.appendByte((byte)SignatureTypeCode.GenericTypeInstance);
-            builder.appendSignature(this);
+                builder.appendCompressedUnsignedInt(typeArguments.Length);
+                for (int i = 0; i < typeArguments.Length; i++)
+                    builder.appendSignature(typeArguments[i]);
 
-            builder.appendCompressedUnsignedInt(typeArguments.Length);
-            for (int i = 0; i < typeArguments.Length; i++)
-                builder.appendSignature(typeArguments[i]);
-
-            return builder.makeSignature();
+                return builder.makeSignature();
+            }
+            finally {
+                builder.clear();
+            }
         }
 
         /// <summary>
@@ -365,17 +389,21 @@ namespace Mariana.CodeGen {
                 throw new InvalidOperationException("Generic instantiation is only allowed for class or valuetype signatures.");
 
             var builder = TypeSignatureBuilder.getInstance();
+            try {
+                builder.appendByte((byte)SignatureTypeCode.GenericTypeInstance);
+                builder.appendSignature(this);
 
-            builder.appendByte((byte)SignatureTypeCode.GenericTypeInstance);
-            builder.appendSignature(this);
+                builder.appendCompressedUnsignedInt(typeParamCount);
+                for (int i = 0; i < typeParamCount; i++) {
+                    builder.appendByte((byte)SignatureTypeCode.GenericTypeParameter);
+                    builder.appendCompressedUnsignedInt(i);
+                }
 
-            builder.appendCompressedUnsignedInt(typeParamCount);
-            for (int i = 0; i < typeParamCount; i++) {
-                builder.appendByte((byte)SignatureTypeCode.GenericTypeParameter);
-                builder.appendCompressedUnsignedInt(i);
+                return builder.makeSignature();
             }
-
-            return builder.makeSignature();
+            finally {
+                builder.clear();
+            }
         }
 
         /// <summary>
@@ -444,14 +472,15 @@ namespace Mariana.CodeGen {
         public bool isReferenceType() {
             byte firstByte = getFirstByte();
 
-            if (firstByte == (byte)SignatureTypeKind.Class
-                || firstByte == (byte)SignatureTypeCode.SZArray
-                || firstByte == (byte)SignatureTypeCode.Array
-                || firstByte == (byte)SignatureTypeCode.String
-                || firstByte == (byte)SignatureTypeCode.Object)
-            {
+            const int refTypeMask =
+                  1 << (int)SignatureTypeKind.Class
+                | 1 << (int)SignatureTypeCode.SZArray
+                | 1 << (int)SignatureTypeCode.Array
+                | 1 << (int)SignatureTypeCode.String
+                | 1 << (int)SignatureTypeCode.Object;
+
+            if (firstByte <= 31 && ((1 << firstByte) & refTypeMask) != 0)
                 return true;
-            }
 
             if (firstByte == (byte)SignatureTypeCode.GenericTypeInstance) {
                 byte second = (m_bytes != null) ? m_bytes[1] : (byte)(m_compact >> 8);
@@ -728,17 +757,22 @@ namespace Mariana.CodeGen {
         /// <returns>A byte array containing the signature.</returns>
         public static byte[] makeLocalSignature(ReadOnlySpan<LocalTypeSignature> localTypes) {
             var builder = TypeSignatureBuilder.getInstance();
-            builder.appendByte((byte)SignatureKind.LocalVariables);
-            builder.appendCompressedUnsignedInt(localTypes.Length);
+            try {
+                builder.appendByte((byte)SignatureKind.LocalVariables);
+                builder.appendCompressedUnsignedInt(localTypes.Length);
 
-            for (int i = 0; i < localTypes.Length; i++) {
-                ref readonly var local = ref localTypes[i];
-                if (local.isPinned)
-                    builder.appendByte((byte)SignatureTypeCode.Pinned);
-                builder.appendSignature(local.type);
+                for (int i = 0; i < localTypes.Length; i++) {
+                    ref readonly var local = ref localTypes[i];
+                    if (local.isPinned)
+                        builder.appendByte((byte)SignatureTypeCode.Pinned);
+                    builder.appendSignature(local.type);
+                }
+
+                return builder.makeByteArray();
             }
-
-            return builder.makeByteArray();
+            finally {
+                builder.clear();
+            }
         }
 
     }
@@ -754,7 +788,7 @@ namespace Mariana.CodeGen {
 
         private TypeSignatureBuilder() {
             m_initialBuffer = new byte[64];
-            _clear();
+            clear();
         }
 
         public static TypeSignatureBuilder getInstance() {
@@ -765,7 +799,7 @@ namespace Mariana.CodeGen {
             return inst;
         }
 
-        private void _clear() {
+        public void clear() {
             m_currentBuffer = m_initialBuffer;
             m_pos = 0;
         }
@@ -846,7 +880,6 @@ namespace Mariana.CodeGen {
 
         public byte[] makeByteArray() {
             var array = m_currentBuffer.AsSpan(0, m_pos).ToArray();
-            _clear();
             return array;
         }
 
@@ -864,7 +897,6 @@ namespace Mariana.CodeGen {
                 signature = new TypeSignature(m_currentBuffer.AsSpan(0, m_pos).ToArray());
             }
 
-            _clear();
             return signature;
         }
 

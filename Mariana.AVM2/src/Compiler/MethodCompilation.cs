@@ -862,7 +862,7 @@ namespace Mariana.AVM2.Compiler {
             node.isBlock ? m_basicBlocks[node.id].immediateDominator : CFGNodeRef.start;
 
         /// <summary>
-        /// Returns the class representing the data type of the data node with the given id.
+        /// Returns the <see cref="Class"/> representing the data type of the data node with the given id.
         /// </summary>
         /// <param name="nodeId">The id of the data node.</param>
         /// <returns>A <see cref="Class"/> representing the data type of the node whose id
@@ -870,7 +870,7 @@ namespace Mariana.AVM2.Compiler {
         public Class getDataNodeClass(int nodeId) => getDataNodeClass(m_dataNodes[nodeId]);
 
         /// <summary>
-        /// Returns the class representing the data type of the data node with the given id.
+        /// Returns the <see cref="Class"/> representing the data type of the given node.
         /// </summary>
         /// <param name="node">A reference to a data node.</param>
         /// <returns>A <see cref="Class"/> representing the data type of the given node.</returns>
@@ -892,7 +892,7 @@ namespace Mariana.AVM2.Compiler {
         public string getDataNodeTypeName(int nodeId) => getDataNodeTypeName(m_dataNodes[nodeId]);
 
         /// <summary>
-        /// Returns the name of the data type of the data node with the given id.
+        /// Returns the name of the data type of the given node.
         /// </summary>
         /// <param name="node">A reference to a data node.</param>
         /// <returns>The name of the data type of the given node.</returns>

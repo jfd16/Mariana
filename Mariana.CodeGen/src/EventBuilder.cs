@@ -99,7 +99,7 @@ namespace Mariana.CodeGen {
         /// Adds a method to the list of "other" methods for this event.
         /// </summary>
         /// <param name="method">The <see cref="MethodBuilder"/> representing the method (should be declared
-        /// on the same type as the property).</param>
+        /// on the same type as the event).</param>
         public void addOtherMethod(MethodBuilder method) {
             if (method == null)
                 throw new ArgumentNullException(nameof(method));

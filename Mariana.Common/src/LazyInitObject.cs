@@ -101,11 +101,8 @@ namespace Mariana.Common {
             if (initFunc == null)
                 throw new ArgumentNullException(nameof(initFunc));
 
-            if (recursionHandling < LazyInitRecursionHandling.THROW
-                || recursionHandling > LazyInitRecursionHandling.RECURSIVE_CALL)
-            {
+            if (recursionHandling > LazyInitRecursionHandling.RECURSIVE_CALL)
                 throw new ArgumentOutOfRangeException(nameof(recursionHandling));
-            }
 
             if (initLock == null)
                 initLock = new object();

@@ -45,8 +45,8 @@ namespace Mariana.Common {
         /// <param name="index">The index.</param>
         /// <exception cref="ArgumentOutOfRangeException">The index is out of bounds.</exception>
         /// <remarks>
-        /// The reference returned is guaranteed to be valid until the <see cref="clear"/> method
-        /// is called on this <see cref="IndexedSet{T}"/> instance.
+        /// The reference returned is guaranteed to be valid until a new element is added to this
+        /// <see cref="IndexedSet{T}"/>, or the <see cref="clear"/> method is called.
         /// </remarks>
         public ref readonly T this[int index] {
             get {
@@ -68,7 +68,7 @@ namespace Mariana.Common {
         /// <returns>False if the element already exists, true otherwise.</returns>
         public bool add(T o) {
             int lastIndex = m_count;
-            return findOrAdd(o) != lastIndex;
+            return findOrAdd(o) == lastIndex;
         }
 
         /// <summary>
