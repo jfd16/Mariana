@@ -285,11 +285,7 @@ namespace Mariana.AVM2.Native {
             ClassConstructor classCtor = null;
             DynamicPropertyCollection protoProperties = prototypeObject.AS_dynamicProps;
 
-            // If this is an interface, we need to capture the accessor methods of exported
-            // properties to ensure that they are not (erroneously) considered as unexported.
-            ReferenceSet<MethodInfo> propAccessorSet = null;
-            if (isInterface)
-                propAccessorSet = new ReferenceSet<MethodInfo>();
+            var exportedMethodSet = new ReferenceSet<MethodInfo>();
 
             for (int i = 0; i < members.Length; i++) {
                 object[] memberAttrs = members[i].GetCustomAttributes(false);
@@ -319,12 +315,10 @@ namespace Mariana.AVM2.Native {
 
                     trait = propTrait;
 
-                    if (propAccessorSet != null) {
-                        if (propTrait.getter != null)
-                            propAccessorSet.add(propTrait.getter.underlyingMethodInfo);
-                        if (propTrait.setter != null)
-                            propAccessorSet.add(propTrait.setter.underlyingMethodInfo);
-                    }
+                    if (propTrait.getter != null)
+                        exportedMethodSet.add(propTrait.getter.underlyingMethodInfo);
+                    if (propTrait.setter != null)
+                        exportedMethodSet.add(propTrait.setter.underlyingMethodInfo);
                 }
                 else if (memberType == MemberTypes.Method) {
                     MethodInfo methodInfo = (MethodInfo)members[i];
@@ -341,6 +335,7 @@ namespace Mariana.AVM2.Native {
                     MethodTrait methodTrait;
                     if (traitAttr != null) {
                         methodTrait = _makeMethodTrait(methodInfo, traitAttr, this, applicationDomain, metadataAttrs);
+                        exportedMethodSet.add(methodInfo);
                         trait = methodTrait;
                     }
                     else if (protoMethodAttr != null) {
@@ -383,11 +378,35 @@ namespace Mariana.AVM2.Native {
                 );
 
                 for (int i = 0; i < unexportedMethods.Length; i++) {
-                    if (!propAccessorSet.find((MethodInfo)unexportedMethods[i]))
-                        throw ErrorHelper.createError(ErrorCode.MARIANA__NATIVE_CLASS_INTERFACE_UNEXPORTED_METHODS, name);
+                    // Check if an unexported method is an accessor for an exported property.
+                    if (!exportedMethodSet.find((MethodInfo)unexportedMethods[i])) {
+                        throw ErrorHelper.createError(
+                            ErrorCode.MARIANA__NATIVE_CLASS_INTERFACE_UNEXPORTED_METHOD, name, unexportedMethods[i].Name);
+                    }
                 }
             }
+            else {
+                // All class methods that implement interface methods of exported interfaces must be exported.
+                var interfaces = getImplementedInterfaces();
+                for (int i = 0; i < interfaces.length; i++) {
+                    if (parent != null && parent.canAssignTo(interfaces[i]))
+                        continue;
 
+                    InterfaceMapping interfaceMap = underlyingType.GetInterfaceMap(interfaces[i].underlyingType);
+                    MethodInfo[] targetMethods = interfaceMap.TargetMethods;
+
+                    for (int j = 0; j < targetMethods.Length; j++) {
+                        if (!exportedMethodSet.find(targetMethods[j])) {
+                            throw ErrorHelper.createError(
+                                ErrorCode.MARIANA__NATIVE_CLASS_INTERFACE_IMPL_UNEXPORTED,
+                                name,
+                                targetMethods[j].Name,
+                                interfaces[i].name
+                            );
+                        }
+                    }
+                }
+            }
         }
 
         private static QName _makeTraitName(

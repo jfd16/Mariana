@@ -163,10 +163,11 @@
 10126   NativeClassLoadError    Invalid trait '$1' in class '$2': Method optional parameters must not be followed by required parameters.
 10127   NativeClassLoadError    Invalid trait '$1' in class '$2': Rest parameter must be the last parameter of a method.
 10128   NativeClassLoadError    Invalid trait '$1' in class '$2': Default parameter value cannot be coerced to the parameter type.
-10129   NativeClassLoadError    Interface '$1' contains unexported methods.
+10129   NativeClassLoadError    Interface '$1' contains unexported method '$2'.
 10130   NativeClassLoadError    Invalid trait name in class '$1': Namespace kind cannot be ANY or PRIVATE.
 10131   NativeClassLoadError    Vector instantiation contains a trait with an invalid dependent type in the signature.
 10132   NativeClassLoadError    Interface '$1' extends unexported interface '$2'.
+10133   NativeClassLoadError    Class '$1' implements method '$2' of interface '$3' with unexported method.
 10140   NativeClassLoadError    Standalone method must be public, static and not contain generic parameters.
 
 10201   TypeError               createChildNode() can only be used on element nodes.
