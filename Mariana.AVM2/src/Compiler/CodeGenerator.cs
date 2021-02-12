@@ -66,8 +66,6 @@ namespace Mariana.AVM2.Compiler {
 
         private DynamicArray<ILBuilder.Local> m_catchLocalVarSyncTable;
 
-        private DynamicArray<int> m_nsSetConstIdsByABCIndex;
-
         private ReferenceDictionary<FieldTrait, int> m_fieldInitInstructionIds = new ReferenceDictionary<FieldTrait, int>();
 
         private bool m_hasExceptionHandling;
@@ -91,9 +89,6 @@ namespace Mariana.AVM2.Compiler {
 
         public CodeGenerator(MethodCompilation compilation) {
             m_compilation = compilation;
-
-            m_nsSetConstIdsByABCIndex = new DynamicArray<int>(m_compilation.abcFile.getNamespaceSetPool().length, true);
-            m_nsSetConstIdsByABCIndex.asSpan().Fill(-1);
         }
 
         private static ReferenceDictionary<MethodTrait, MethodInfo> _initPrimitiveTypeMethodMap() {
@@ -329,7 +324,10 @@ namespace Mariana.AVM2.Compiler {
         private void _emitHeader() {
             bool hasExceptionHandlers = m_compilation.getExceptionHandlers().Length > 0;
 
-            m_needsFinallyBlock = m_compilation.isAnyFlagSet(MethodCompilationFlags.USES_DXNS);
+            bool methodSetsDxns = m_compilation.isAnyFlagSet(MethodCompilationFlags.SETS_DXNS);
+            bool methodUsesDxns = m_compilation.isAnyFlagSet(MethodCompilationFlags.MAY_USE_DXNS);
+
+            m_needsFinallyBlock = methodSetsDxns || methodUsesDxns;
             m_hasExceptionHandling = m_needsFinallyBlock || hasExceptionHandlers;
 
             if (m_hasExceptionHandling) {
@@ -349,15 +347,6 @@ namespace Mariana.AVM2.Compiler {
                 m_excThrownValueLocal = m_ilBuilder.declareLocal(typeof(ASAny));
             }
 
-            if (m_compilation.isAnyFlagSet(MethodCompilationFlags.USES_DXNS)) {
-                // Save the old DXNS so that it can be restored at the end.
-                m_oldDxnsLocal = m_ilBuilder.declareLocal(typeof(ASNamespace));
-                m_ilBuilder.emit(ILOp.call, KnownMembers.getDxns, 1);
-                m_ilBuilder.emit(ILOp.stloc, m_oldDxnsLocal);
-                m_ilBuilder.emit(ILOp.ldnull);
-                m_ilBuilder.emit(ILOp.call, KnownMembers.setDxns, -1);
-            }
-
             if (m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCOPED_FUNCTION)) {
                 var containerTypeHandle = m_compilation.capturedScope.container.typeHandle;
                 m_scopedFuncThisLocal = m_ilBuilder.declareLocal(typeof(ASObject));
@@ -370,6 +359,22 @@ namespace Mariana.AVM2.Compiler {
                 m_ilBuilder.emit(ILOp.ldfld, KnownMembers.scopedClosureReceiverScope);
                 m_ilBuilder.emit(ILOp.castclass, containerTypeHandle);
                 m_ilBuilder.emit(ILOp.stloc, m_scopedFuncScopeLocal);
+            }
+
+            if (methodSetsDxns || methodUsesDxns) {
+                // Save the old DXNS so that it can be restored at the end.
+                m_oldDxnsLocal = m_ilBuilder.declareLocal(typeof(ASNamespace));
+
+                if (methodSetsDxns || m_compilation.capturedScope == null || !m_compilation.capturedScope.capturesDxns) {
+                    m_ilBuilder.emit(ILOp.ldnull);
+                }
+                else {
+                    _emitPushCapturedScope();
+                    m_ilBuilder.emit(ILOp.ldfld, m_compilation.capturedScope.container.dxnsFieldHandle);
+                }
+
+                m_ilBuilder.emit(ILOp.ldloca, m_oldDxnsLocal);
+                m_ilBuilder.emit(ILOp.call, KnownMembers.setDxnsGetOld, -2);
             }
 
             if (m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_RUNTIME_SCOPE_STACK))
@@ -697,7 +702,7 @@ namespace Mariana.AVM2.Compiler {
             if (m_needsFinallyBlock)
                 m_ilBuilder.beginFinallyClause();
 
-            if (m_compilation.isAnyFlagSet(MethodCompilationFlags.USES_DXNS)) {
+            if (!m_oldDxnsLocal.isDefault) {
                 // Restore the original DXNS
                 m_ilBuilder.emit(ILOp.ldloc, m_oldDxnsLocal);
                 m_ilBuilder.emit(ILOp.call, KnownMembers.setDxns, -1);
@@ -2163,37 +2168,59 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode objNode = ref m_compilation.getDataNode(stackPopIds[1]);
 
             ILBuilder.Local objLocal;
-            ILBuilder.Local nameLocal = m_ilBuilder.acquireTempLocal(typeof(QName));
 
             var bindOpts = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC;
-            bool objIsAny = false;
+            Class objClass = _getPushedClassOfNode(objNode);
 
-            if (DataNodeTypeHelper.isAnyOrUndefined(objNode.dataType)) {
+            if (objClass == null) {
                 objLocal = m_ilBuilder.acquireTempLocal(typeof(ASAny));
-                objIsAny = true;
             }
             else {
                 objLocal = m_ilBuilder.acquireTempLocal(typeof(ASObject));
                 _emitTypeCoerceForTopOfStack(ref objNode, DataNodeType.OBJECT);
             }
-
             m_ilBuilder.emit(ILOp.stloc, objLocal);
 
             _emitTypeCoerceForTopOfStack(ref nameNode, DataNodeType.STRING);
-            m_ilBuilder.emit(ILOp.call, KnownMembers.qnamePublicName, 0);
-            m_ilBuilder.emit(ILOp.stloc, nameLocal);
 
-            m_ilBuilder.emit(objIsAny ? ILOp.ldloca : ILOp.ldloc, objLocal);
-            m_ilBuilder.emit(ILOp.ldloca, nameLocal);
-            m_ilBuilder.emit(ILOp.ldc_i4, (int)bindOpts);
+            ILBuilder.Local nameLocal;
+            MethodInfo method;
 
-            if (objIsAny)
-                m_ilBuilder.emit(ILOp.call, KnownMembers.anyHasPropertyQName, -2);
-            else
-                m_ilBuilder.emit(ILOp.callvirt, KnownMembers.objHasPropertyQName, -2);
+            if (objClass != null && objClass != s_objectClass && !ClassTagSet.xmlOrXmlList.contains(objClass.tag)) {
+                // If the object cannot be an XML or XMLList then the default XML namespace will
+                // never be used for the lookup, so we can use a public QName.
+                nameLocal = m_ilBuilder.acquireTempLocal(typeof(QName));
+                m_ilBuilder.emit(ILOp.call, KnownMembers.qnamePublicName, 0);
+                m_ilBuilder.emit(ILOp.stloc, nameLocal);
+
+                m_ilBuilder.emit(ILOp.ldloc, objLocal);
+                m_ilBuilder.emit(ILOp.ldloca, nameLocal);
+
+                method = KnownMembers.objHasPropertyQName;
+            }
+            else {
+                // Use a namespace set containing only the public namespace instead of a QName so
+                // that the default XML namespace will also be searched if the object is an XML or XMLList.
+                nameLocal = m_ilBuilder.acquireTempLocal(typeof(string));
+                m_ilBuilder.emit(ILOp.stloc, nameLocal);
+
+                m_ilBuilder.emit((objClass == null) ? ILOp.ldloca : ILOp.ldloc, objLocal);
+                m_ilBuilder.emit(ILOp.ldloc, nameLocal);
+
+                using (var lockedContext = m_compilation.getContext()) {
+                    m_ilBuilder.emit(ILOp.ldsfld, lockedContext.value.emitConstData.nsSetArrayFieldHandle);
+                    m_ilBuilder.emit(ILOp.ldc_i4, lockedContext.value.getEmitConstDataIdForPublicNamespaceSet());
+                    m_ilBuilder.emit(ILOp.ldelema, typeof(NamespaceSet));
+                }
+
+                method = (objClass == null) ? KnownMembers.anyHasPropertyNsSet : KnownMembers.objHasPropertyNsSet;
+            }
 
             m_ilBuilder.releaseTempLocal(objLocal);
             m_ilBuilder.releaseTempLocal(nameLocal);
+
+            m_ilBuilder.emit(ILOp.ldc_i4, (int)bindOpts);
+            m_ilBuilder.emit((objClass == null) ? ILOp.call : ILOp.callvirt, method);
         }
 
         private void _visitApplyType(ref Instruction instr) {
@@ -2711,11 +2738,11 @@ namespace Mariana.AVM2.Compiler {
                 if (ctor == null && parentClass != s_objectClass)
                     return true;
 
-                (int requiredParamCount, int paramCount) = (parentClass == s_objectClass)
+                var (requiredParamCount, paramCount) = (parentClass == s_objectClass)
                     ? (0, 0)
                     : (ctor.requiredParamCount, ctor.paramCount);
 
-                if (argCount >= requiredParamCount && argCount <= paramCount)
+                if (argCount >= requiredParamCount && (argCount <= paramCount || (ctor != null && ctor.hasRest)))
                     return true;
 
                 var error = ErrorHelper.createErrorObject(
@@ -3636,7 +3663,7 @@ namespace Mariana.AVM2.Compiler {
                 case DataNodeType.QNAME: {
                     using (var lockedContext = m_compilation.getContext()) {
                         var emitConstData = lockedContext.value.emitConstData;
-                        var index = emitConstData.getQNameIndex(node.constant.qnameValue);
+                        var index = emitConstData.getXMLQNameIndex(node.constant.qnameValue);
                         m_ilBuilder.emit(ILOp.ldsfld, emitConstData.xmlQnameArrayFieldHandle);
                         m_ilBuilder.emit(ILOp.ldc_i4, index);
                         m_ilBuilder.emit(ILOp.ldelem_ref);
@@ -3850,7 +3877,7 @@ namespace Mariana.AVM2.Compiler {
                 m_ilBuilder.emit(ILOp.ldarga, _getIndexOfRestArg());
         }
 
-        private void _emitPushCapturedScopeItem(int height) {
+        private void _emitPushCapturedScope() {
             if (m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCOPED_FUNCTION)) {
                 m_ilBuilder.emit(ILOp.ldloc, m_scopedFuncScopeLocal);
             }
@@ -3862,7 +3889,10 @@ namespace Mariana.AVM2.Compiler {
                     m_ilBuilder.emit(ILOp.ldsfld, fieldHandle);
                 }
             }
+        }
 
+        private void _emitPushCapturedScopeItem(int height) {
+            _emitPushCapturedScope();
             m_ilBuilder.emit(ILOp.ldfld, m_compilation.capturedScope.container.getFieldHandle(height));
         }
 
@@ -4427,12 +4457,8 @@ namespace Mariana.AVM2.Compiler {
 
             void emitPushNsSet(int abcIndex) {
                 using (var lockedContext = m_compilation.getContext()) {
-                    ref int constId = ref m_nsSetConstIdsByABCIndex[abcIndex];
-                    if (constId == -1)
-                        constId = lockedContext.value.emitConstData.addNamespaceSet(abc.resolveNamespaceSet(abcIndex));
-
                     m_ilBuilder.emit(ILOp.ldsfld, lockedContext.value.emitConstData.nsSetArrayFieldHandle);
-                    m_ilBuilder.emit(ILOp.ldc_i4, constId);
+                    m_ilBuilder.emit(ILOp.ldc_i4, lockedContext.value.getEmitConstDataIdForNamespaceSet(abcIndex));
                     m_ilBuilder.emit(ILOp.ldelema, typeof(NamespaceSet));
                 }
             }
@@ -5525,6 +5551,23 @@ namespace Mariana.AVM2.Compiler {
                 m_ilBuilder.emit(ILOp.ldloc, m_rtScopeStackLocal);
                 m_ilBuilder.emit(ILOp.call, KnownMembers.rtScopeStackClone, 0);
                 m_ilBuilder.emit(ILOp.stfld, captureContainer.rtStackFieldHandle);
+            }
+
+            if (capturedScope.capturesDxns) {
+                m_ilBuilder.emit(ILOp.ldloc, newScopeLocal);
+
+                if (m_compilation.isAnyFlagSet(MethodCompilationFlags.SETS_DXNS)) {
+                    m_ilBuilder.emit(ILOp.call, KnownMembers.getDxns, 1);
+                }
+                else if (m_compilation.capturedScope != null && m_compilation.capturedScope.capturesDxns) {
+                    _emitPushCapturedScope();
+                    m_ilBuilder.emit(ILOp.ldfld, m_compilation.capturedScope.container.dxnsFieldHandle);
+                }
+                else {
+                    m_ilBuilder.emit(ILOp.ldnull);
+                }
+
+                m_ilBuilder.emit(ILOp.stfld, captureContainer.dxnsFieldHandle);
             }
 
             return newScopeLocal;

@@ -613,6 +613,9 @@ namespace Mariana.AVM2.Compiler {
         public static readonly MI setDxns =
             getMemberFromExpr<Action<ASNamespace>, MI>(x => ASNamespace.setDefault(x));
 
+        public static readonly MI setDxnsGetOld =
+            typeof(ASNamespace).GetMethod(nameof(ASNamespace.setDefault), new[] {typeof(ASNamespace), typeof(ASNamespace).MakeByRefType()});
+
         public static readonly MI escapeXmlElem =
             getMemberFromExpr<Func<string, string>, MI>(x => ASXML.escapeText(x));
 

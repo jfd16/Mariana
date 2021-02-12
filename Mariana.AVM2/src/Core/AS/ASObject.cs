@@ -2890,6 +2890,9 @@ namespace Mariana.AVM2.Core {
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
         public virtual bool propertyIsEnumerable(ASAny name = default) {
+            if (name.isUndefined)
+                return false;
+
             DynamicPropertyCollection dynamicProperties = AS_dynamicProps;
             return dynamicProperties != null && dynamicProperties.isEnumerable(ASAny.AS_convertString(name));
         }
@@ -2907,12 +2910,16 @@ namespace Mariana.AVM2.Core {
         /// properties searched by for-in loops. If the object does not have dynamic properties, this
         /// method does nothing.
         /// </remarks>
+        ///
+        /// <exception cref="AVM2Exception">ReferenceError #1056: This object is an instance of a non-dynamic class.</exception>
         //[AVM2ExportTrait(nsName = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
         public void setPropertyIsEnumerable(string name, bool value) {
             DynamicPropertyCollection dynamicProperties = AS_dynamicProps;
-            if (dynamicProperties != null)
-                dynamicProperties.setEnumerable(ASString.AS_convertString(name), value);
+            if (dynamicProperties == null)
+                throw ErrorHelper.createError(ErrorCode.CANNOT_CREATE_PROPERTY, name, AS_class.name);
+
+            dynamicProperties.setEnumerable(ASString.AS_convertString(name), value);
         }
 
         /// <summary>

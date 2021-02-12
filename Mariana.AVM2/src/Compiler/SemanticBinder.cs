@@ -1284,7 +1284,7 @@ namespace Mariana.AVM2.Compiler {
             if ((methodInfo.flags & ABCMethodFlags.SET_DXNS) == 0)
                 throw m_compilation.createError(ErrorCode.CANNOT_SET_DEFAULT_XMLNS, instr.id);
 
-            m_compilation.setFlag(MethodCompilationFlags.USES_DXNS);
+            m_compilation.setFlag(MethodCompilationFlags.SETS_DXNS);
         }
 
         private void _visitHasNext(ref Instruction instr) {
@@ -2986,10 +2986,8 @@ namespace Mariana.AVM2.Compiler {
                         ref DataNode arg = ref m_compilation.getDataNode(argsOnStackIds[0]);
 
                         if (arg.dataType == DataNodeType.STRING) {
-                            if (arg.isConstant) {
-                                result.isConstant = true;
-                                result.constant = new DataNodeConstant(QName.publicName(arg.constant.stringValue));
-                            }
+                            // We can't create constant QNames from constant strings as the constructor depends
+                            // on the default XML namespace set at runtime.
                             return Intrinsic.QNAME_NEW_1;
                         }
 
@@ -3078,10 +3076,13 @@ namespace Mariana.AVM2.Compiler {
         private static readonly Class s_objectClass = Class.fromType<ASObject>();
         private static readonly Trait s_arrayLengthTrait = Class.fromType<ASArray>().getTrait("length");
 
+        private static readonly Trait s_objHasOwnPropertyTrait = Class.fromType<ASObject>().getTrait(new QName(Namespace.AS3, "hasOwnProperty"));
+
         private MethodCompilation m_compilation;
         private DynamicArray<int> m_tempIntArray;
         private DynamicArray<int> m_dataNodeIdsWithConstPushConversions;
         private bool m_hasRestOnScopeStack;
+        private bool m_hasXmlWithOnScopeStack;
 
         public SemanticBinderSecondPass(MethodCompilation compilation) {
             m_compilation = compilation;
@@ -3101,8 +3102,31 @@ namespace Mariana.AVM2.Compiler {
 
             _checkDataNodeConstPushConversions();
 
-            if (m_hasRestOnScopeStack && m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_RUNTIME_SCOPE_STACK))
-                m_compilation.setFlag(MethodCompilationFlags.HAS_REST_ARRAY);
+            if (m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_RUNTIME_SCOPE_STACK)) {
+                // If the rest argument is pushed onto the runtime scope stack, we have to
+                // create the array.
+                if (m_hasRestOnScopeStack)
+                    m_compilation.setFlag(MethodCompilationFlags.HAS_REST_ARRAY);
+
+                // If an object pushed onto the runtime scope stack with the "with" flag is possibly
+                // an XML or XMLList, a property lookup on the runtime scope stack may access the default
+                // XML namespace.
+                if (m_hasXmlWithOnScopeStack) {
+                    m_compilation.setFlag(MethodCompilationFlags.MAY_USE_DXNS);
+                }
+                else {
+                    var capturedItems = m_compilation.getCapturedScopeItems();
+                    for (int i = 0; i < capturedItems.length; i++) {
+                        ref readonly var capturedItem = ref capturedItems[i];
+                        if (capturedItem.isWithScope && capturedItem.dataType == DataNodeType.OBJECT
+                            && (capturedItem.objClass == s_objectClass || ClassTagSet.xmlOrXmlList.contains(capturedItem.objClass.tag)))
+                        {
+                            m_compilation.setFlag(MethodCompilationFlags.MAY_USE_DXNS);
+                            break;
+                        }
+                    }
+                }
+            }
         }
 
         private void _visitBasicBlock(ref BasicBlock block) {
@@ -3360,6 +3384,7 @@ namespace Mariana.AVM2.Compiler {
 
                 case ABCOp.getproperty:
                 case ABCOp.getsuper:
+                case ABCOp.deleteproperty:
                     _visitGetOrDeleteProperty(ref instr);
                     break;
 
@@ -3693,8 +3718,14 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
             ref DataNode scope = ref m_compilation.getDataNode(instr.data.pushScope.pushedNodeId);
 
-            if (scope.dataType == DataNodeType.REST)
+            if (scope.dataType == DataNodeType.REST) {
                 m_hasRestOnScopeStack = true;
+            }
+            else if (instr.opcode == ABCOp.pushwith) {
+                Class scopeClass = m_compilation.getDataNodeClass(scope);
+                if (scopeClass == null || scopeClass == s_objectClass || ClassTagSet.xmlOrXmlList.contains(scopeClass.tag))
+                    m_hasXmlWithOnScopeStack = true;
+            }
 
             if (scope.isConstant || scope.dataType == DataNodeType.THIS || scope.dataType == DataNodeType.REST)
                 _markStackNodeAsNoPush(ref input);
@@ -3764,6 +3795,9 @@ namespace Mariana.AVM2.Compiler {
             }
 
             _checkRuntimeMultinameArgs(ref dummyResolvedProp, stackPopIds.Slice(1), instr.id);
+
+            if (multiname.usesNamespaceSet)
+                m_compilation.setFlag(MethodCompilationFlags.MAY_USE_DXNS);
         }
 
         private void _visitGetOrDeleteProperty(ref Instruction instr) {
@@ -3773,6 +3807,15 @@ namespace Mariana.AVM2.Compiler {
 
             _checkRuntimeMultinameArgs(ref resolvedProp, stackPopIds.Slice(1), instr.id);
 
+            // Check if a runtime binding may access the default XML namespace. This happens
+            // when a namespace set is used and the object is possibly an XML or XMLList instance.
+            ABCMultiname multiname = m_compilation.abcFile.resolveMultiname(instr.data.accessProperty.multinameId);
+            if (multiname.usesNamespaceSet && resolvedProp.propKind == ResolvedPropertyKind.RUNTIME) {
+                Class objClass = m_compilation.getDataNodeClass(obj);
+                if (objClass == null || objClass == s_objectClass || ClassTagSet.xmlOrXmlList.contains(objClass.tag))
+                    m_compilation.setFlag(MethodCompilationFlags.MAY_USE_DXNS);
+            }
+
             Debug.Assert(resolvedProp.propKind != ResolvedPropertyKind.UNKNOWN);
 
             switch (resolvedProp.propKind) {
@@ -3781,17 +3824,15 @@ namespace Mariana.AVM2.Compiler {
                     _checkTraitAccessObject(ref obj, trait, instr.id);
                     break;
                 }
-                // TODO intrinsics
 
                 case ResolvedPropertyKind.INDEX:
                     if (instr.opcode == ABCOp.deleteproperty && obj.dataType == DataNodeType.REST)
                         m_compilation.setFlag(MethodCompilationFlags.HAS_REST_ARRAY);
                     break;
 
-                case ResolvedPropertyKind.RUNTIME: {
+                case ResolvedPropertyKind.RUNTIME:
                     _requireStackNodeObjectOrAny(ref obj, instr.id);
                     break;
-                }
             }
         }
 
@@ -3802,6 +3843,15 @@ namespace Mariana.AVM2.Compiler {
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.accessProperty.resolvedPropId);
 
             _checkRuntimeMultinameArgs(ref resolvedProp, stackPopIds.Slice(1), instr.id);
+
+            // Check if a runtime binding may access the default XML namespace. This happens
+            // when a namespace set is used and the object is possibly an XML or XMLList instance.
+            ABCMultiname multiname = m_compilation.abcFile.resolveMultiname(instr.data.accessProperty.multinameId);
+            if (multiname.usesNamespaceSet && resolvedProp.propKind == ResolvedPropertyKind.RUNTIME) {
+                Class objClass = m_compilation.getDataNodeClass(obj);
+                if (objClass == null || objClass == s_objectClass || ClassTagSet.xmlOrXmlList.contains(objClass.tag))
+                    m_compilation.setFlag(MethodCompilationFlags.MAY_USE_DXNS);
+            }
 
             Debug.Assert(resolvedProp.propKind != ResolvedPropertyKind.UNKNOWN);
 
@@ -3900,6 +3950,12 @@ namespace Mariana.AVM2.Compiler {
 
             _requireStackNodeAsType(ref name, DataNodeType.STRING, instr.id);
             _requireStackNodeObjectOrAny(ref obj, instr.id);
+
+            // Check if a runtime binding may access the default XML namespace. This happens
+            // when the object is possibly an XML or XMLList instance.
+            Class objClass = m_compilation.getDataNodeClass(obj);
+            if (objClass == null || objClass == s_objectClass || ClassTagSet.xmlOrXmlList.contains(objClass.tag))
+                m_compilation.setFlag(MethodCompilationFlags.MAY_USE_DXNS);
         }
 
         private void _visitCallOrConstructProp(ref Instruction instr) {
@@ -3926,23 +3982,26 @@ namespace Mariana.AVM2.Compiler {
                     else
                         _checkTraitInvokeOrConstructArgs(trait, isConstruct, argNodeIds, instr.id);
 
+                    if (_traitInvokeMayUseDefaultXmlNamespace(trait))
+                        m_compilation.setFlag(MethodCompilationFlags.MAY_USE_DXNS);
+
                     break;
                 }
 
-                case ResolvedPropertyKind.INTRINSIC: {
+                case ResolvedPropertyKind.INTRINSIC:
                     _checkIntrinsicInvokeOrConstruct(ref resolvedProp, obj.id, argNodeIds, instr.stackPushedNodeId, instr.id);
                     break;
-                }
 
                 case ResolvedPropertyKind.INDEX:
                     _requireStackArgsAny(argNodeIds, instr.id);
+                    m_compilation.setFlag(MethodCompilationFlags.MAY_USE_DXNS);
                     break;
 
-                case ResolvedPropertyKind.RUNTIME: {
+                case ResolvedPropertyKind.RUNTIME:
                     _requireStackNodeObjectOrAny(ref obj, instr.id);
                     _requireStackArgsAny(argNodeIds, instr.id);
+                    m_compilation.setFlag(MethodCompilationFlags.MAY_USE_DXNS);
                     break;
-                }
             }
         }
 
@@ -3965,6 +4024,9 @@ namespace Mariana.AVM2.Compiler {
                 _requireStackArgsAny(argNodeIds, instr.id);
             else
                 _requireStackArgsAsParamTypes(argNodeIds, method.getParameters().asSpan(), instr.id);
+
+            if (_traitInvokeMayUseDefaultXmlNamespace(method))
+                m_compilation.setFlag(MethodCompilationFlags.MAY_USE_DXNS);
         }
 
         private void _visitCallOrConstruct(ref Instruction instr) {
@@ -3997,6 +4059,9 @@ namespace Mariana.AVM2.Compiler {
                     else
                         _checkTraitInvokeOrConstructArgs(trait, isConstruct, argNodeIds, instr.id);
 
+                    if (_traitInvokeMayUseDefaultXmlNamespace(trait))
+                        m_compilation.setFlag(MethodCompilationFlags.MAY_USE_DXNS);
+
                     break;
                 }
 
@@ -4010,6 +4075,7 @@ namespace Mariana.AVM2.Compiler {
                 case ResolvedPropertyKind.RUNTIME: {
                     _requireStackNodeObjectOrAny(ref func, instr.id);
                     _requireStackArgsAny(argNodeIds, instr.id);
+                    m_compilation.setFlag(MethodCompilationFlags.MAY_USE_DXNS);
 
                     if (instr.opcode == ABCOp.call)
                         _requireStackNodeAsType(stackPopIds[1], DataNodeType.ANY, instr.id);
@@ -4047,6 +4113,11 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode baseClassNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
             _markStackNodeAsNoPush(ref baseClassNode);
 
+            var capturedNodeIds = m_compilation.staticIntArrayPool.getSpan(instr.data.newClass.capturedScopeNodeIds);
+
+            bool captureDxns = m_compilation.isAnyFlagSet(MethodCompilationFlags.SETS_DXNS)
+                || (m_compilation.capturedScope != null && m_compilation.capturedScope.capturesDxns);
+
             using (var lockedContext = m_compilation.getContext()) {
                 ScriptClass klass = lockedContext.value.getClassFromClassInfo(instr.data.newClass.classInfoId);
 
@@ -4062,18 +4133,24 @@ namespace Mariana.AVM2.Compiler {
                     throw m_compilation.createError(ErrorCode.MARIANA__ABC_NEWCLASS_ONCE, instr.id);
                 }
 
-                var captured = m_compilation.staticIntArrayPool.getSpan(instr.data.newClass.capturedScopeNodeIds);
-                lockedContext.value.setClassCapturedScope(klass, _createCapturedScope(captured));
+                lockedContext.value.setClassCapturedScope(klass, _createCapturedScope(capturedNodeIds), captureDxns);
             }
         }
 
         private void _visitNewFunction(ref Instruction instr) {
             var methodInfo = m_compilation.abcFile.resolveMethodInfo(instr.data.newFunction.methodInfoId);
-            var captured = m_compilation.staticIntArrayPool.getSpan(instr.data.newFunction.capturedScopeNodeIds);
+            var capturedNodeIds = m_compilation.staticIntArrayPool.getSpan(instr.data.newFunction.capturedScopeNodeIds);
+
+            bool captureDxns = m_compilation.isAnyFlagSet(MethodCompilationFlags.SETS_DXNS)
+                || (m_compilation.capturedScope != null && m_compilation.capturedScope.capturesDxns);
 
             using (var lockedContext = m_compilation.getContext()) {
                 lockedContext.value.createNewFunction(
-                    methodInfo, m_compilation.currentScriptInfo, _createCapturedScope(captured));
+                    methodInfo,
+                    m_compilation.currentScriptInfo,
+                    _createCapturedScope(capturedNodeIds),
+                    captureDxns
+                );
             }
         }
 
@@ -4992,12 +5069,25 @@ namespace Mariana.AVM2.Compiler {
                 case IntrinsicName.NAMESPACE_NEW_2:
                 case IntrinsicName.QNAME_NEW_1:
                 case IntrinsicName.QNAME_NEW_2:
+                {
                     if (resultIsConst) {
                         if (argsOnStack.Length >= 1)
                             _markStackNodeAsNoPush(argsOnStack[0]);
                         if (argsOnStack.Length >= 2)
                             _markStackNodeAsNoPush(argsOnStack[1]);
                     }
+
+                    if (intrinsic.name == IntrinsicName.QNAME_NEW_1)
+                        m_compilation.setFlag(MethodCompilationFlags.MAY_USE_DXNS);
+
+                    break;
+                }
+
+                case IntrinsicName.XML_CALL_1:
+                case IntrinsicName.XML_NEW_1:
+                case IntrinsicName.XMLLIST_CALL_1:
+                case IntrinsicName.XMLLIST_NEW_1:
+                    m_compilation.setFlag(MethodCompilationFlags.MAY_USE_DXNS);
                     break;
 
                 case IntrinsicName.MATH_MIN_2:
@@ -5032,6 +5122,24 @@ namespace Mariana.AVM2.Compiler {
 
             if (isStaticFunc && objectId != -1 && m_compilation.getDataNode(objectId).isConstant)
                 _markStackNodeAsNoPush(objectId);
+        }
+
+        /// <summary>
+        /// Returns true if the given trait may access the current default XML namespace when invoked.
+        /// </summary>
+        /// <param name="trait">The trait to check.</param>
+        /// <returns>True if <paramref name="trait"/> may access the default XML namespace when invoked,
+        /// otherwise false.</returns>
+        private static bool _traitInvokeMayUseDefaultXmlNamespace(Trait trait) {
+            if (trait is Class klass)
+                return klass == s_objectClass || klass.tag == ClassTag.QNAME || ClassTagSet.xmlOrXmlList.contains(klass.tag);
+
+            if (trait.traitType == TraitType.METHOD) {
+                return trait == s_objHasOwnPropertyTrait
+                    || (!trait.isStatic && ClassTagSet.xmlOrXmlList.contains(trait.declaringClass.tag));
+            }
+
+            return true;
         }
 
     }

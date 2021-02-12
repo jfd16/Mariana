@@ -9,7 +9,7 @@ namespace Mariana.AVM2.Compiler {
         /// <summary>
         /// The method sets the default XML namespace.
         /// </summary>
-        USES_DXNS = 1,
+        SETS_DXNS = 1,
 
         /// <summary>
         /// The method is a script initializer.
@@ -51,6 +51,11 @@ namespace Mariana.AVM2.Compiler {
         /// The method requires a runtime scope stack.
         /// </summary>
         HAS_RUNTIME_SCOPE_STACK = 512,
+
+        /// <summary>
+        /// The method may invoke a runtime function that uses the default XML namespace.
+        /// </summary>
+        MAY_USE_DXNS = 1024,
 
     }
 

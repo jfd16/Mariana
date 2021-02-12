@@ -271,18 +271,15 @@ namespace Mariana.AVM2.Native {
             if (!isInterface)
                 bindingAttr |= BindingFlags.Static;
 
+            bool memberFilter(MemberInfo m) =>
+                m.IsDefined(typeof(AVM2ExportTraitAttribute), false)
+                || (m_containsProtoMethods && m.IsDefined(typeof(AVM2ExportPrototypeMethodAttribute), false));
+
             MemberInfo[] members = underlyingType.FindMembers(
-                memberType: MemberTypes.Field | MemberTypes.Method
-                    | MemberTypes.Property | MemberTypes.Constructor,
-                bindingAttr: bindingAttr,
-                filter: (MemberInfo m, object fc) => {
-                    if (m.IsDefined(typeof(AVM2ExportTraitAttribute), false))
-                        return true;
-                    if (m_containsProtoMethods && m.IsDefined(typeof(AVM2ExportPrototypeMethodAttribute), false))
-                        return true;
-                    return false;
-                },
-                filterCriteria: null
+                MemberTypes.Field | MemberTypes.Method | MemberTypes.Property | MemberTypes.Constructor,
+                bindingAttr,
+                (m, fc) => memberFilter(m),
+                null
             );
 
             ClassConstructor classCtor = null;

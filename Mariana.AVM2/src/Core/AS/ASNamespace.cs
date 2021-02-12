@@ -31,7 +31,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <remarks>
         /// This is the default namespace used for elements and attributes on all new XML objects with
-        /// unqualified names, if the default namespace is not set (using <see cref="setDefault"/>)
+        /// unqualified names, if the default namespace is not set (using <see cref="setDefault(ASNamespace)"/>)
         /// to some other value. This is a special namespace whose prefix is always the empty string,
         /// and attempts to define a new prefix for it will result in a TypeError being thrown.
         /// </remarks>
@@ -170,12 +170,7 @@ namespace Mariana.AVM2.Core {
         /// parameter.</para>
         /// <para>The prefix of the default namespace is always the empty string.</para>
         /// </remarks>
-        public static ASNamespace getDefault() {
-            var defaultNS = s_defaultNS;
-            if (defaultNS == null)
-                defaultNS = s_defaultNS = @public;
-            return defaultNS;
-        }
+        public static ASNamespace getDefault() => s_defaultNS ?? @public;
 
         /// <summary>
         /// Sets the default XML namespace for the current thread.
@@ -183,22 +178,36 @@ namespace Mariana.AVM2.Core {
         /// <param name="ns">The default XML namespace.</param>
         ///
         /// <remarks>
-        /// <para>The default XML namespace is used for elements and attributes on all new XML objects
-        /// created with unqualified names, and is a namespace that is implicitly included in
-        /// namespace sets for all methods of XML and XMLList that take a namespace set
-        /// parameter.</para>
-        /// <para>This value cannot be the "any" namespace (the namespace whose URI is null). If the
-        /// any namespace is assigned to this property, it will be set to the public namespace
-        /// instead. The public namespace is the default value of this property for all new
-        /// threads.</para>
+        /// The default XML namespace is used as the namespace for element names of new XML
+        /// objects with unqualified names, and is a namespace that is implicitly included in
+        /// namespace sets for all property lookups on XML and XMLList instances that use
+        /// namespace set arguments.
         /// </remarks>
-        public static void setDefault(ASNamespace ns) {
+        public static void setDefault(ASNamespace ns) => setDefault(ns, out _);
+
+        /// <summary>
+        /// Sets the default XML namespace for the current thread.
+        /// </summary>
+        /// <param name="ns">The default XML namespace.</param>
+        /// <param name="oldDefault">An output argument into which the old default XML namespace
+        /// (before it was set to <paramref name="ns"/>) will be written.</param>
+        ///
+        /// <remarks>
+        /// The default XML namespace is used as the namespace for element names of new XML
+        /// objects with unqualified names, and is a namespace that is implicitly included in
+        /// namespace sets for all property lookups on XML and XMLList instances that use
+        /// namespace set arguments.
+        /// </remarks>
+        public static void setDefault(ASNamespace ns, out ASNamespace oldDefault) {
+            ref ASNamespace defaultNS = ref s_defaultNS;
+            oldDefault = defaultNS ?? @public;
+
             if (ns == null)
-                s_defaultNS = @public;
+                defaultNS = @public;
             else if (ns.prefix != null && ns.prefix.Length == 0)
-                s_defaultNS = ns;
+                defaultNS = ns;
             else
-                s_defaultNS = unsafeCreate("", ns.uri);
+                defaultNS = unsafeCreate("", ns.uri);
         }
 
         /// <exclude/>

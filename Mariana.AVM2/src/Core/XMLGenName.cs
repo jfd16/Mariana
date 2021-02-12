@@ -17,7 +17,8 @@ namespace Mariana.AVM2.Core {
 
         /// <summary>
         /// The namespace URI. If this is null, the namespace must be ignored for matching.
-        /// This must be ignored if <see cref="isMultiname"/> is true.
+        /// If <see cref="isMultiname"/> is true and this is not null, this URI must be matched
+        /// in addition to the namespace set.
         /// </summary>
         public readonly string uri;
 
@@ -89,7 +90,6 @@ namespace Mariana.AVM2.Core {
         /// name must be created. The following flags are used here:
         /// <see cref="BindOptions.ATTRIBUTE"/> and <see cref="BindOptions.RUNTIME_NAME"/>.</param>
         public static XMLGenName fromQName(QName qname, BindOptions bindOptions) {
-
             bool isAttr = (bindOptions & BindOptions.ATTRIBUTE) != 0;
             string uri = qname.ns.uri;
             string localName;
@@ -119,7 +119,6 @@ namespace Mariana.AVM2.Core {
                 localName = null;
 
             return new XMLGenName(uri: uri, localName: localName, isAttr: isAttr);
-
         }
 
         /// <summary>
@@ -159,11 +158,7 @@ namespace Mariana.AVM2.Core {
             bool isMultiname = true;
             string uri;
 
-            if (nsSet.count == 1 && nsSet.contains(NamespaceKind.NAMESPACE) && !nsSet.containsPublic) {
-                isMultiname = false;
-                uri = nsSet.getNamespaces()[0].uri;
-            }
-            else if (localName == null) {
+            if (localName == null) {
                 // If the local name is the "any" name, Flash Player ignores the namespace set
                 // and uses the "any" namespace instead. (This means that x.* and x.*::* are
                 // equivalent expressions, even though they compile to different instructions)
@@ -281,11 +276,8 @@ namespace Mariana.AVM2.Core {
             }
 
             if (isMultiname) {
-                if (nsSet.count == 1 && nsSet.contains(NamespaceKind.NAMESPACE) && !nsSet.containsPublic) {
-                    isMultiname = false;
-                    uri = nsSet.getNamespaces()[0].uri;
-                }
-                else if (qname == null && localName == null) {
+                if (qname == null && localName == null) {
+                    uri = null;
                     isMultiname = false;
                 }
                 else {

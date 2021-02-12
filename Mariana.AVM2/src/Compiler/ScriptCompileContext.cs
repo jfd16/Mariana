@@ -139,6 +139,10 @@ namespace Mariana.AVM2.Compiler {
 
         private Dictionary<int, MemberInfo> m_vectorMembersByDefToken = new Dictionary<int, MemberInfo>();
 
+        private DynamicArray<int> m_nsSetEmitConstIdsByABCIndex;
+
+        private int m_publicNsSetEmitConstId;
+
         private DynamicArray<ScriptClass> m_catchScopeClasses;
 
         private Queue<ScriptMethod> m_functionCompileQueue = new Queue<ScriptMethod>();
@@ -217,6 +221,11 @@ namespace Mariana.AVM2.Compiler {
             m_methodTraitData.clear();
             m_fieldDefaultValues.clear();
             m_traitExportScripts.clear();
+
+            m_nsSetEmitConstIdsByABCIndex.clearAndAddUninitialized(m_abcFile.getNamespaceSetPool().length);
+            m_nsSetEmitConstIdsByABCIndex.asSpan().Fill(-1);
+
+            m_publicNsSetEmitConstId = -1;
 
             m_unexportedClassTraits = new ClassTraitTable(null, true);
 
@@ -568,6 +577,7 @@ namespace Mariana.AVM2.Compiler {
                     si.initMethod, QName.publicName(initName), null, m_domain, true, true, false, null);
 
                 scriptData.initMethod = initMethod;
+                m_scriptInitializers.add(initMethod);
                 m_methodTraitData[initMethod] = new MethodTraitData();
 
                 m_traitExportScripts[initMethod] = si;
@@ -2379,11 +2389,14 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="scopeItems">The types of the values on the scope stack captured by the
         /// class from the context in which it is created, as a read-only array view of
         /// <see cref="CapturedScopeItem"/> instances.</param>
-        public void setClassCapturedScope(ScriptClass klass, ReadOnlyArrayView<CapturedScopeItem> scopeItems) {
+        /// <param name="captureDxns">Set to true if the default XML namespace should be captured.</param>
+        public void setClassCapturedScope(
+            ScriptClass klass, ReadOnlyArrayView<CapturedScopeItem> scopeItems, bool captureDxns)
+        {
             var classData = m_classData[klass];
             Debug.Assert(classData.capturedScope == null);
 
-            classData.capturedScope = m_capturedScopeFactory.getCapturedScopeForClass(klass, scopeItems);
+            classData.capturedScope = m_capturedScopeFactory.getCapturedScopeForClass(klass, scopeItems, captureDxns);
             classData.capturedScopeField = classData.typeBuilder.defineField(
                 "{capturedScope}",
                 TypeSignature.forClassType(classData.capturedScope.container.typeHandle),
@@ -2402,10 +2415,12 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="capturedScopeItems">The types of the values on the scope stack captured by the
         /// function from the context in which it is created, as a read-only array view of
         /// <see cref="CapturedScopeItem"/> instances.</param>
+        /// <param name="captureDxns">Set to true if the default XML namespace should be captured.</param>
         public ScriptMethod createNewFunction(
             ABCMethodInfo methodInfo,
             ABCScriptInfo creatingScript,
-            ReadOnlyArrayView<CapturedScopeItem> capturedScopeItems
+            ReadOnlyArrayView<CapturedScopeItem> capturedScopeItems,
+            bool captureDxns
         ) {
             MethodInfoData methodInfoData = m_abcMethodInfoDataByIndex[methodInfo.abcIndex];
             MethodTraitData methodTraitData;
@@ -2417,8 +2432,12 @@ namespace Mariana.AVM2.Compiler {
 
                 if (methodTraitData == null || !methodTraitData.isFunction)
                     throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_NEWFUNCTION_INVALID_METHOD, methodInfo.abcIndex);
-                if (!capturedScopeTypesMatch(capturedScopeItems, methodTraitData.funcCapturedScope.getItems()))
+
+                if (!capturedScopeTypesMatch(capturedScopeItems, methodTraitData.funcCapturedScope.getItems())
+                    || captureDxns != methodTraitData.funcCapturedScope.capturesDxns)
+                {
                     throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_NEWFUNCTION_SCOPE_MISMATCH, methodInfo.abcIndex);
+                }
 
                 return existingMethod;
             }
@@ -2443,7 +2462,7 @@ namespace Mariana.AVM2.Compiler {
             _createMethodTraitSig(funcMethod, true);
             _emitMethodBuilder(funcMethod, m_globalTraitsContainer, funcMethod.name, MethodNameMangleMode.NONE);
 
-            methodTraitData.funcCapturedScope = m_capturedScopeFactory.getCapturedScopeForFunction(capturedScopeItems);
+            methodTraitData.funcCapturedScope = m_capturedScopeFactory.getCapturedScopeForFunction(capturedScopeItems, captureDxns);
 
             m_functionCompileQueue.Enqueue(funcMethod);
             return funcMethod;
@@ -2477,6 +2496,33 @@ namespace Mariana.AVM2.Compiler {
         /// <returns>True if <paramref name="method"/> was created with a newfunction instruction,
         /// otherwise false.</returns>
         public bool isMethodUsedAsFunction(MethodTrait method) => m_methodTraitData[method].isFunction;
+
+        /// <summary>
+        /// Returns the index of a namespace set in the emitted namespace set constant pool
+        /// given its index in the ABC file constant pool.
+        /// </summary>
+        /// <param name="abcIndex">The index of the namespace set in the ABC file namespace set
+        /// constant pool.</param>
+        /// <returns>The index of the namespace set in the emitted constant pool.</returns>
+        public int getEmitConstDataIdForNamespaceSet(int abcIndex) {
+            ref int emitPoolIndex = ref m_nsSetEmitConstIdsByABCIndex[abcIndex];
+            if (emitPoolIndex == -1)
+                emitPoolIndex = m_emitConstantData.addNamespaceSet(m_abcFile.resolveNamespaceSet(abcIndex));
+
+            return emitPoolIndex;
+        }
+
+        /// <summary>
+        /// Returns the index in the emitted namespace set constant pool for the special namespace
+        /// set containing only the public namespace.
+        /// </summary>
+        /// <returns>The index of the namespace set in the emitted constant pool.</returns>
+        public int getEmitConstDataIdForPublicNamespaceSet() {
+            if (m_publicNsSetEmitConstId == -1)
+                m_publicNsSetEmitConstId = m_emitConstantData.addNamespaceSet(new NamespaceSet(Namespace.@public));
+
+            return m_publicNsSetEmitConstId;
+        }
 
         private void _compileMethodBodies() {
             if (compileOptions.numParallelCompileThreads <= 1)

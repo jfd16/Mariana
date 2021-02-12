@@ -973,12 +973,12 @@ namespace Mariana.AVM2.Core {
 
         /// <summary>
         /// Returns the position of the first match of the regular expression in the string
-        /// <paramref name="input"/>. This method ignores the
+        /// <paramref name="s"/>. This method ignores the
         /// <see cref="ASRegExp.lastIndex" qualifyHint="true"/> property of RegExp and starts the
         /// search from the beginning of the string.
         /// </summary>
         ///
-        /// <param name="input">The input string.</param>
+        /// <param name="s">The input string.</param>
         /// <param name="regExp">
         /// The RegExp object representing the regular expression to execute on the target string. If
         /// this is not a RegExp, it is converted to a string and used as the regular expression
@@ -1001,12 +1001,12 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Returns the substring of <paramref name="input"/> starting at
+        /// Returns the substring of <paramref name="s"/> starting at
         /// <paramref name="startIndex"/> and having <paramref name="length"/> number of
         /// characters.
         /// </summary>
         ///
-        /// <param name="input">The string.</param>
+        /// <param name="s">The string.</param>
         /// <param name="startIndex">The start index. If this is negative, the string's length will be
         /// added to it; if it is still negative after adding the string's length, it will be set to
         /// zero. If this is greater than the string's length, the empty string is returned.</param>
@@ -1018,7 +1018,7 @@ namespace Mariana.AVM2.Core {
         /// empty string is returned.
         /// </param>
         ///
-        /// <returns>The substring of <paramref name="input"/> starting at
+        /// <returns>The substring of <paramref name="s"/> starting at
         /// <paramref name="startIndex"/> and having <paramref name="length"/> number of
         /// characters.</returns>
         public static string substr(string s, int startIndex = 0, int length = Int32.MaxValue) {
@@ -1037,12 +1037,12 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Returns the substring of <paramref name="input"/> starting at index
+        /// Returns the substring of <paramref name="s"/> starting at index
         /// <paramref name="startIndex"/> and ending at the index preceding
         /// <paramref name="endIndex"/>.
         /// </summary>
         ///
-        /// <param name="input">The string.</param>
+        /// <param name="s">The string.</param>
         /// <param name="startIndex">
         /// The index where the returned substring starts. If this is negative, the string's length
         /// will be added to it; if it is still negative after adding the string's length, it will be
@@ -1057,7 +1057,7 @@ namespace Mariana.AVM2.Core {
         /// than or equal to <paramref name="startIndex"/>, the empty string is returned.
         /// </param>
         ///
-        /// <returns>The substring of <paramref name="input"/> starting at index
+        /// <returns>The substring of <paramref name="s"/> starting at index
         /// <paramref name="startIndex"/> and ending at the index preceding
         /// <paramref name="endIndex"/>.</returns>
         public static string slice(string s, int startIndex = 0, int endIndex = Int32.MaxValue) {
@@ -1076,12 +1076,12 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Returns the substring of <paramref name="input"/> starting at index
+        /// Returns the substring of <paramref name="s"/> starting at index
         /// <paramref name="startIndex"/> and ending at the index preceding
         /// <paramref name="endIndex"/>.
         /// </summary>
         ///
-        /// <param name="input">The string.</param>
+        /// <param name="s">The string.</param>
         /// <param name="startIndex">
         /// The index where the returned substring starts. If this is negative, it is set to zero; if
         /// it is greater than the string's length, it is taken as the string's length. If this is
@@ -1096,7 +1096,7 @@ namespace Mariana.AVM2.Core {
         /// <paramref name="startIndex"/>, the start and end indices are swapped.
         /// </param>
         ///
-        /// <returns>The substring of <paramref name="input"/> starting at index
+        /// <returns>The substring of <paramref name="s"/> starting at index
         /// <paramref name="startIndex"/> and ending at the index preceding
         /// <paramref name="endIndex"/>.</returns>
         ///
@@ -1124,11 +1124,11 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Splits the string <paramref name="input"/> using a separator (or a regular expression that
+        /// Splits the string <paramref name="s"/> using a separator (or a regular expression that
         /// matches separators) and returns an array of the split strings.
         /// </summary>
         ///
-        /// <param name="input">The string to split.</param>
+        /// <param name="s">The string to split.</param>
         /// <param name="sep">
         /// A string or regular expression that is used to separate the string. If this is a RegExp
         /// object, matches of the RegExp in the input string are considered as separators. The
@@ -1267,7 +1267,7 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Converts all alphabetic characters in the string to lowercase.
         /// </summary>
-        /// <param name="input">The string.</param>
+        /// <param name="s">The string.</param>
         /// <returns>The string with alphabetic characters converted to lowercase.</returns>
         public static string toLowerCase(string s) {
             if (s == null)
@@ -1278,7 +1278,7 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Converts all alphabetic characters in the string to lowercase in a locale-specific manner.
         /// </summary>
-        /// <param name="input">The string.</param>
+        /// <param name="s">The string.</param>
         /// <returns>The string with alphabetic characters converted to lowercase.</returns>
         public static string toLocaleLowerCase(string s) {
             if (s == null)
@@ -1289,7 +1289,7 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Converts all alphabetic characters in the string to uppercase.
         /// </summary>
-        /// <param name="input">The string.</param>
+        /// <param name="s">The string.</param>
         /// <returns>The string with alphabetic characters converted to uppercase.</returns>
         public static string toUpperCase(string s) {
             if (s == null)
@@ -1300,7 +1300,7 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Converts all alphabetic characters in the string to uppercase in a locale-specific manner.
         /// </summary>
-        /// <param name="input">The string.</param>
+        /// <param name="s">The string.</param>
         /// <returns>The string with alphabetic characters converted to uppercase.</returns>
         public static string toLocaleUpperCase(string s) {
             if (s == null)
@@ -1312,8 +1312,8 @@ namespace Mariana.AVM2.Core {
         /// Returns the given argument. This is used by the ABC compiler for calls to the
         /// <c>valueOf</c> method on String values.
         /// </summary>
-        /// <param name="input">The argument.</param>
-        /// <returns>The value of <paramref name="input"/>.</returns>
+        /// <param name="s">The argument.</param>
+        /// <returns>The value of <paramref name="s"/>.</returns>
         [AVM2ExportPrototypeMethod]
         public static string valueOf(string s) {
             if (s == null)

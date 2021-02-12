@@ -64,6 +64,12 @@ namespace Mariana.AVM2.Compiler {
             (isStatic && m_hasClass) ? m_items.slice(0, m_items.length - 1) : m_items;
 
         /// <summary>
+        /// Returns a value indicating whether the captured scope stack includes a default XML
+        /// namespace.
+        /// </summary>
+        public bool capturesDxns => !m_containerType.dxnsFieldHandle.IsNil;
+
+        /// <summary>
         /// Gets the <see cref="CapturedScopeContainerType"/> representing the emitted
         /// scope container for this <see cref="CapturedScope"/>.
         /// </summary>
@@ -153,16 +159,21 @@ namespace Mariana.AVM2.Compiler {
     /// </summary>
     internal sealed class CapturedScopeFactory {
 
-        private class _KeyComparer : IEqualityComparer<CapturedScopeItems> {
+        private struct _Key {
+            public CapturedScopeItems items;
+            public bool hasDxns;
+        }
+
+        private class _KeyComparer : IEqualityComparer<_Key> {
             public static _KeyComparer instance = new _KeyComparer();
 
-            public bool Equals(CapturedScopeItems x, CapturedScopeItems y) {
-                if (x.length != y.length)
+            public bool Equals(_Key x, _Key y) {
+                if (x.items.length != y.items.length || x.hasDxns != y.hasDxns)
                     return false;
 
-                for (int i = 0; i < x.length; i++) {
-                    ref readonly CapturedScopeItem item1 = ref x[i];
-                    ref readonly CapturedScopeItem item2 = ref y[i];
+                for (int i = 0; i < x.items.length; i++) {
+                    ref readonly CapturedScopeItem item1 = ref x.items[i];
+                    ref readonly CapturedScopeItem item2 = ref y.items[i];
 
                     if (item1.dataType != item2.dataType || item1.objClass != item2.objClass
                         || item1.isWithScope != item2.isWithScope)
@@ -174,10 +185,11 @@ namespace Mariana.AVM2.Compiler {
                 return true;
             }
 
-            public int GetHashCode(CapturedScopeItems obj) {
+            public int GetHashCode(_Key key) {
                 int hash = 91697839;
-                for (int i = 0; i < obj.length; i++) {
-                    ref readonly CapturedScopeItem item = ref obj[i];
+
+                for (int i = 0; i < key.items.length; i++) {
+                    ref readonly CapturedScopeItem item = ref key.items[i];
                     hash += item.dataType.GetHashCode();
                     hash *= 54811607;
                     if (item.objClass != null) {
@@ -187,11 +199,15 @@ namespace Mariana.AVM2.Compiler {
                     hash += item.isWithScope.GetHashCode();
                     hash *= 63704189;
                 }
+
+                if (key.hasDxns)
+                    hash *= 63704189;
+
                 return hash;
             }
         }
 
-        private readonly Dictionary<CapturedScopeItems, CapturedScopeContainerType> m_cachedContainers;
+        private readonly Dictionary<_Key, CapturedScopeContainerType> m_cachedContainers;
         private readonly IncrementCounter m_counter;
         private readonly ScriptCompileContext m_context;
         private readonly ILBuilder m_ilBuilder;
@@ -204,7 +220,7 @@ namespace Mariana.AVM2.Compiler {
         public CapturedScopeFactory(ScriptCompileContext context) {
             m_context = context;
             m_ilBuilder = new ILBuilder(context.assemblyBuilder.metadataContext.ilTokenProvider);
-            m_cachedContainers = new Dictionary<CapturedScopeItems, CapturedScopeContainerType>(_KeyComparer.instance);
+            m_cachedContainers = new Dictionary<_Key, CapturedScopeContainerType>(_KeyComparer.instance);
             m_counter = new IncrementCounter();
         }
 
@@ -215,10 +231,11 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="scopeItems">A <see cref="ReadOnlyArrayView{CapturedScopeItem}"/> containing
         /// the type information for the values on the captured scope stack, in a bottom-to-top
         /// order.</param>
+        /// <param name="capturesDxns">True if the captured scope contains a default XML namespace.</param>
         /// <returns>A <see cref="CapturedScope"/> representing the captured scope created for
         /// <paramref name="klass"/>.</returns>
-        public CapturedScope getCapturedScopeForClass(Class klass, in CapturedScopeItems scopeItems) =>
-            new CapturedScope(scopeItems, klass, _getContainer(scopeItems));
+        public CapturedScope getCapturedScopeForClass(Class klass, in CapturedScopeItems scopeItems, bool capturesDxns) =>
+            new CapturedScope(scopeItems, klass, _getContainer(new _Key {items = scopeItems, hasDxns = capturesDxns}));
 
         /// <summary>
         /// Creates a captured scope for a function.
@@ -226,26 +243,25 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="scopeItems">A <see cref="ReadOnlyArrayView{CapturedScopeItem}"/> containing
         /// the type information for the values on the captured scope stack, in a bottom-to-top
         /// order.</param>
+        /// <param name="capturesDxns">True if the captured scope contains a default XML namespace.</param>
         /// <returns>A <see cref="CapturedScope"/> representing the captured scope created.</returns>
-        public CapturedScope getCapturedScopeForFunction(in CapturedScopeItems scopeItems) =>
-            new CapturedScope(scopeItems, null, _getContainer(scopeItems));
+        public CapturedScope getCapturedScopeForFunction(in CapturedScopeItems scopeItems, bool capturesDxns) =>
+            new CapturedScope(scopeItems, null, _getContainer(new _Key {items = scopeItems, hasDxns = capturesDxns}));
 
         /// <summary>
         /// Creates a container type for a captured scope given the types of its values,
         /// reusing an existing container if possible.
         /// </summary>
-        /// <param name="scopeItems">A <see cref="ReadOnlyArrayView{CapturedScopeItem}"/> containing
-        /// the type information for the values on the captured scope stack, in a bottom-to-top
-        /// order.</param>
+        /// <param name="key">The cache key for the container.</param>
         /// <returns>A <see cref="CapturedScopeContainerType"/> reprsenting the container type.</returns>
-        private CapturedScopeContainerType _getContainer(in CapturedScopeItems scopeItems) {
+        private CapturedScopeContainerType _getContainer(in _Key key) {
             CapturedScopeContainerType container;
 
-            if (!m_cachedContainers.TryGetValue(scopeItems, out container)) {
+            if (!m_cachedContainers.TryGetValue(key, out container)) {
                 string containerName = "__Scope{" + m_counter.next().ToString(CultureInfo.InvariantCulture) + "}";
 
-                container = new CapturedScopeContainerType(scopeItems, containerName, m_context, m_ilBuilder);
-                m_cachedContainers.Add(scopeItems, container);
+                container = new CapturedScopeContainerType(key.items, containerName, key.hasDxns, m_context, m_ilBuilder);
+                m_cachedContainers.Add(key, container);
             }
 
             return container;
@@ -258,12 +274,17 @@ namespace Mariana.AVM2.Compiler {
         private readonly EntityHandle m_typeHandle;
         private readonly EntityHandle m_ctorHandle;
         private readonly EntityHandle[] m_fieldHandles;
+        private readonly EntityHandle m_dxnsFieldHandle;
         private readonly EntityHandle m_rtStackFieldHandle;
         private readonly EntityHandle m_rtStackGetMethodHandle;
 
         public CapturedScopeContainerType(
-            in CapturedScopeItems items, string containerName, ScriptCompileContext context, ILBuilder ilBuilder)
-        {
+            in CapturedScopeItems items,
+            string containerName,
+            bool capturesDxns,
+            ScriptCompileContext context,
+            ILBuilder ilBuilder
+        ) {
             var metadataContext = context.assemblyBuilder.metadataContext;
 
             TypeBuilder type = context.assemblyBuilder.defineType(containerName, TypeAttributes.Public | TypeAttributes.Sealed);
@@ -285,6 +306,12 @@ namespace Mariana.AVM2.Compiler {
 
             m_fieldHandles = new EntityHandle[items.length];
 
+            if (capturesDxns) {
+                FieldBuilder dxnsField = type.defineField(
+                    "dxns", metadataContext.getTypeSignature(typeof(ASNamespace)), FieldAttributes.Public);
+                m_dxnsFieldHandle = dxnsField.handle;
+            }
+
             _emitItemFields(items, type, context);
             _emitConstructor(ctor, ilBuilder);
             _emitGetRuntimeStackMethod(rtStackGetMethod, items, context, ilBuilder);
@@ -297,6 +324,8 @@ namespace Mariana.AVM2.Compiler {
         public EntityHandle rtStackFieldHandle => m_rtStackFieldHandle;
 
         public EntityHandle rtStackGetMethodHandle => m_rtStackGetMethodHandle;
+
+        public EntityHandle dxnsFieldHandle => m_dxnsFieldHandle;
 
         public EntityHandle getFieldHandle(int height) => m_fieldHandles[height];
 
