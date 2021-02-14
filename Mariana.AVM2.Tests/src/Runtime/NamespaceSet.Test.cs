@@ -24,6 +24,10 @@ namespace Mariana.AVM2.Tests {
             nsSet = new NamespaceSet(new Namespace[0]);
             Assert.Equal(0, nsSet.count);
             Assert.Equal(0, nsSet.getNamespaces().length);
+
+            nsSet = new NamespaceSet(ReadOnlySpan<Namespace>.Empty);
+            Assert.Equal(0, nsSet.count);
+            Assert.Equal(0, nsSet.getNamespaces().length);
         }
 
         public static IEnumerable<object[]> ctor_shouldCreateSet_data = new Namespace[][] {
@@ -52,8 +56,15 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(ctor_shouldCreateSet_data))]
         public void ctor_shouldCreateSet(Namespace[] elements) {
-            var nsSet = new NamespaceSet(elements);
-            var hashSet = elements.ToHashSet();
+            NamespaceSet nsSet;
+            HashSet<Namespace> hashSet = elements.ToHashSet();
+
+            nsSet = new NamespaceSet(elements);
+            Assert.Equal(nsSet.count, nsSet.getNamespaces().length);
+            Assert.Equal(hashSet.Count, nsSet.getNamespaces().length);
+            Assert.Subset(hashSet, nsSet.getNamespaces().ToHashSet());
+
+            nsSet = new NamespaceSet(elements.AsSpan());
             Assert.Equal(nsSet.count, nsSet.getNamespaces().length);
             Assert.Equal(hashSet.Count, nsSet.getNamespaces().length);
             Assert.Subset(hashSet, nsSet.getNamespaces().ToHashSet());

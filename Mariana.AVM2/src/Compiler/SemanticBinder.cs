@@ -4665,9 +4665,9 @@ namespace Mariana.AVM2.Compiler {
                         return ComparisonType.OBJECT;
                     }
 
-                    ClassTagSet specialEqTagSet = isStrictEquals
-                        ? new ClassTagSet(ClassTag.NAMESPACE, ClassTag.QNAME)
-                        : new ClassTagSet(ClassTag.NAMESPACE, ClassTag.QNAME, ClassTag.XML, ClassTag.XML_LIST);
+                    var specialEqTagSet = ClassTagSet.specialStrictEquality;
+                    if (!isStrictEquals)
+                        specialEqTagSet = specialEqTagSet.add(ClassTagSet.xmlOrXmlList);
 
                     if (specialEqTagSet.containsAll(inputClassTagSet))
                         return ComparisonType.OBJECT;

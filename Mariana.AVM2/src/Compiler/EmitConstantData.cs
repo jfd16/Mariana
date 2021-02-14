@@ -22,7 +22,10 @@ namespace Mariana.AVM2.Compiler {
         private IndexedSet<QName> m_qnames = new IndexedSet<QName>();
         private IndexedSet<QName> m_xqnames = new IndexedSet<QName>();
 
-        private DynamicArray<NamespaceSet> m_nssets = new DynamicArray<NamespaceSet>();
+        private DynamicArray<int> m_nsSetIndices = new DynamicArray<int>();
+        private DynamicArray<int> m_nsSetLengths = new DynamicArray<int>();
+        private int m_nsSetCount = 0;
+
         private int m_regexpCount = 0;
 
         private ASObject m_globalObject;
@@ -181,8 +184,14 @@ namespace Mariana.AVM2.Compiler {
         /// <returns>The index of the new entry for <paramref name="nsSet"/> in the namespace
         /// set constant array.</returns>
         public int addNamespaceSet(in NamespaceSet nsSet) {
-            m_nssets.add(nsSet);
-            return m_nssets.length - 1;
+            var nsInSet = nsSet.getNamespaces();
+            m_nsSetLengths.add(nsInSet.length);
+
+            for (int i = 0; i < nsInSet.length; i++)
+                m_nsSetIndices.add(getNamespaceIndex(nsInSet[i]));
+
+            m_nsSetCount++;
+            return m_nsSetCount - 1;
         }
 
         /// <summary>
@@ -232,7 +241,7 @@ namespace Mariana.AVM2.Compiler {
             ilBuilder.emit(ILOp.newarr, typeof(ASQName));
             ilBuilder.emit(ILOp.stsfld, m_xqnameArrayField.handle);
 
-            ilBuilder.emit(ILOp.ldc_i4, m_nssets.length);
+            ilBuilder.emit(ILOp.ldc_i4, m_nsSetCount);
             ilBuilder.emit(ILOp.newarr, typeof(NamespaceSet));
             ilBuilder.emit(ILOp.stsfld, m_nssetArrayField.handle);
 
@@ -240,9 +249,253 @@ namespace Mariana.AVM2.Compiler {
             ilBuilder.emit(ILOp.newarr, typeof(ASRegExp));
             ilBuilder.emit(ILOp.stsfld, m_regexpArrayField.handle);
 
+            _emitInitializeNamespaces(ilBuilder);
+            _emitInitializeQNames(ilBuilder);
+            _emitInitializeNamespaceSets(ilBuilder);
+            _emitInitializeXMLNamespaces(ilBuilder);
+            _emitInitializeXMLQNames(ilBuilder);
+
             ilBuilder.emit(ILOp.ret);
 
             methodBuilder.setMethodBody(ilBuilder.createMethodBody());
+        }
+
+        /// <summary>
+        /// Emits code to initialize the namespace constant pool in the constant pool static initializer.
+        /// </summary>
+        /// <param name="ilBuilder">The <see cref="ILBuilder"/> into which to emit the code.</param>
+        private void _emitInitializeNamespaces(ILBuilder ilBuilder) {
+            if (m_nss.count == 0)
+                return;
+
+            var nsArrLocal = ilBuilder.acquireTempLocal(typeof(Namespace[]));
+            ilBuilder.emit(ILOp.ldsfld, nsArrayFieldHandle);
+            ilBuilder.emit(ILOp.stloc, nsArrLocal);
+
+            // Initialize in reverse order to allow range checks to be eliminated.
+            for (int i = m_nss.count - 1; i >= 0; i--) {
+                Namespace ns = m_nss[i];
+
+                ilBuilder.emit(ILOp.ldloc, nsArrLocal);
+                ilBuilder.emit(ILOp.ldc_i4, i);
+
+                switch (ns.kind) {
+                    case NamespaceKind.ANY:
+                        ilBuilder.emit(ILOp.ldelema, typeof(Namespace));
+                        ilBuilder.emit(ILOp.initobj, typeof(ASNamespace));
+                        break;
+
+                    case NamespaceKind.PRIVATE:
+                        ilBuilder.emit(ILOp.ldc_i4, ns.privateNamespaceId);
+                        ilBuilder.emit(ILOp.call, KnownMembers.namespaceCreatePrivateFromId, 0);
+                        ilBuilder.emit(ILOp.stelem, typeof(Namespace));
+                        break;
+
+                    case NamespaceKind.NAMESPACE:
+                        ilBuilder.emit(ILOp.ldelema, typeof(Namespace));
+                        ilBuilder.emit(ILOp.ldstr, ns.uri);
+                        ilBuilder.emit(ILOp.call, KnownMembers.namespaceCtorFromURI, -2);
+                        break;
+
+                    default:
+                        ilBuilder.emit(ILOp.ldelema, typeof(Namespace));
+                        ilBuilder.emit(ILOp.ldc_i4, (int)ns.kind);
+                        ilBuilder.emit(ILOp.ldstr, ns.uri);
+                        ilBuilder.emit(ILOp.call, KnownMembers.namespaceCtorFromKindAndURI, -3);
+                        break;
+                }
+            }
+
+            ilBuilder.releaseTempLocal(nsArrLocal);
+        }
+
+        /// <summary>
+        /// Emits code to initialize the QName constant pool in the constant pool static initializer.
+        /// </summary>
+        /// <param name="ilBuilder">The <see cref="ILBuilder"/> into which to emit the code.</param>
+        private void _emitInitializeQNames(ILBuilder ilBuilder) {
+            if (m_qnames.count == 0)
+                return;
+
+            ILBuilder.Local qnameArrLocal = ilBuilder.acquireTempLocal(typeof(QName[]));
+            ilBuilder.emit(ILOp.ldsfld, qnameArrayFieldHandle);
+            ilBuilder.emit(ILOp.stloc, qnameArrLocal);
+
+            ILBuilder.Local nsTempLocal = default;
+
+            // Initialize in reverse order to allow range checks to be eliminated.
+            for (int i = m_qnames.count - 1; i >= 0; i--) {
+                QName qname = m_qnames[i];
+
+                ilBuilder.emit(ILOp.ldloc, qnameArrLocal);
+                ilBuilder.emit(ILOp.ldc_i4, i);
+
+                if (qname.ns.isPublic) {
+                    ilBuilder.emit(ILOp.ldstr, qname.localName);
+                    ilBuilder.emit(ILOp.call, KnownMembers.qnamePublicName, 0);
+                    ilBuilder.emit(ILOp.stelem, typeof(QName));
+                    continue;
+                }
+
+                if (qname.ns.kind == NamespaceKind.NAMESPACE) {
+                    ilBuilder.emit(ILOp.ldelema, typeof(QName));
+                    ilBuilder.emit(ILOp.ldstr, qname.ns.uri);
+                    ilBuilder.emit(ILOp.ldstr, qname.localName);
+                    ilBuilder.emit(ILOp.call, KnownMembers.qnameCtorFromUriAndLocalName, -3);
+                    continue;
+                }
+
+                ilBuilder.emit(ILOp.ldelema, typeof(QName));
+
+                if (nsTempLocal.isDefault)
+                    nsTempLocal = ilBuilder.acquireTempLocal(typeof(Namespace));
+
+                if (qname.ns.kind == NamespaceKind.PRIVATE) {
+                    ilBuilder.emit(ILOp.ldc_i4, qname.ns.privateNamespaceId);
+                    ilBuilder.emit(ILOp.call, KnownMembers.namespaceCreatePrivateFromId, 0);
+                    ilBuilder.emit(ILOp.stloc, nsTempLocal);
+                    ilBuilder.emit(ILOp.ldloca, nsTempLocal);
+                }
+                else {
+                    ilBuilder.emit(ILOp.ldloca, nsTempLocal);
+                    ilBuilder.emit(ILOp.dup);
+                    ilBuilder.emit(ILOp.ldc_i4, (int)qname.ns.kind);
+                    ilBuilder.emit(ILOp.ldstr, qname.ns.uri);
+                    ilBuilder.emit(ILOp.call, KnownMembers.namespaceCtorFromKindAndURI, -3);
+                }
+
+                ilBuilder.emit(ILOp.ldstr, qname.localName);
+                ilBuilder.emit(ILOp.call, KnownMembers.qnameCtorFromNsAndLocalName, -3);
+            }
+
+            ilBuilder.releaseTempLocal(qnameArrLocal);
+
+            if (!nsTempLocal.isDefault)
+                ilBuilder.releaseTempLocal(nsTempLocal);
+        }
+
+        /// <summary>
+        /// Emits code to initialize the XML namespace constant pool in the constant pool static initializer.
+        /// </summary>
+        /// <param name="ilBuilder">The <see cref="ILBuilder"/> into which to emit the code.</param>
+        private void _emitInitializeXMLNamespaces(ILBuilder ilBuilder) {
+            if (m_xnss.count == 0)
+                return;
+
+            var nsArrLocal = ilBuilder.acquireTempLocal(typeof(ASNamespace[]));
+            ilBuilder.emit(ILOp.ldsfld, xmlNsArrayFieldHandle);
+            ilBuilder.emit(ILOp.stloc, nsArrLocal);
+
+            // Initialize in reverse order to allow range checks to be eliminated.
+            for (int i = m_xnss.count - 1; i >= 0; i--) {
+                Namespace ns = m_xnss[i];
+
+                ilBuilder.emit(ILOp.ldloc, nsArrLocal);
+                ilBuilder.emit(ILOp.ldc_i4, i);
+                ilBuilder.emit(ILOp.ldstr, ns.uri);
+                ilBuilder.emit(ILOp.newobj, KnownMembers.xmlNsCtorFromURI);
+                ilBuilder.emit(ILOp.stelem_ref);
+            }
+
+            ilBuilder.releaseTempLocal(nsArrLocal);
+        }
+
+        /// <summary>
+        /// Emits code to initialize the XML QName constant pool in the constant pool static initializer.
+        /// </summary>
+        /// <param name="ilBuilder">The <see cref="ILBuilder"/> into which to emit the code.</param>
+        private void _emitInitializeXMLQNames(ILBuilder ilBuilder) {
+            if (m_xqnames.count == 0)
+                return;
+
+            var qnameArrLocal = ilBuilder.acquireTempLocal(typeof(ASQName[]));
+            ilBuilder.emit(ILOp.ldsfld, xmlQnameArrayFieldHandle);
+            ilBuilder.emit(ILOp.stloc, qnameArrLocal);
+
+            // Initialize in reverse order to allow range checks to be eliminated.
+            for (int i = m_xqnames.count - 1; i >= 0; i--) {
+                QName qname = m_xqnames[i];
+
+                ilBuilder.emit(ILOp.ldloc, qnameArrLocal);
+                ilBuilder.emit(ILOp.ldc_i4, i);
+                ilBuilder.emit(ILOp.ldstr, qname.ns.uri);
+                ilBuilder.emit(ILOp.ldstr, qname.localName);
+                ilBuilder.emit(ILOp.newobj, KnownMembers.xmlQnameCtorFromUriAndLocal);
+                ilBuilder.emit(ILOp.stelem_ref);
+            }
+
+            ilBuilder.releaseTempLocal(qnameArrLocal);
+        }
+
+        /// <summary>
+        /// Emits code to initialize the namespace set constant pool in the constant pool static initializer.
+        /// </summary>
+        /// <param name="ilBuilder">The <see cref="ILBuilder"/> into which to emit the code.</param>
+        private void _emitInitializeNamespaceSets(ILBuilder ilBuilder) {
+            if (m_nsSetCount == 0)
+                return;
+
+            var nsSetArrLocal = ilBuilder.acquireTempLocal(typeof(NamespaceSet[]));
+            var nsArrLocal = ilBuilder.acquireTempLocal(typeof(Namespace[]));
+            var tempNsArrayLocal = ilBuilder.acquireTempLocal(typeof(Namespace[]));
+
+            ilBuilder.emit(ILOp.ldsfld, nsSetArrayFieldHandle);
+            ilBuilder.emit(ILOp.stloc, nsSetArrLocal);
+            ilBuilder.emit(ILOp.ldsfld, nsArrayFieldHandle);
+            ilBuilder.emit(ILOp.stloc, nsArrLocal);
+
+            var setLengths = m_nsSetLengths.asSpan();
+            var setIndices = m_nsSetIndices.asSpan();
+
+            // Create a temporary array to hold the namespaces that will be used for
+            // constructing sets. The length of this array must be the largest length of
+            // any namespace set in the pool.
+
+            int maxSetLength = 0;
+            for (int i = 0; i < setLengths.Length; i++)
+                maxSetLength = Math.Max(maxSetLength, setLengths[i]);
+
+            ilBuilder.emit(ILOp.ldc_i4, maxSetLength);
+            ilBuilder.emit(ILOp.newarr, typeof(Namespace));
+            ilBuilder.emit(ILOp.stloc, tempNsArrayLocal);
+
+            // Initialize in reverse order to allow range checks to be eliminated.
+            for (int i = setLengths.Length - 1; i >= 0; i--) {
+                Span<int> indicesForThisSet = setIndices.Slice(setIndices.Length - setLengths[i]);
+
+                // Copy the namespaces in the set from the namespace constant pool to the
+                // temporary array.
+                for (int j = 0; j < indicesForThisSet.Length; j++) {
+                    ilBuilder.emit(ILOp.ldloc, tempNsArrayLocal);
+                    ilBuilder.emit(ILOp.ldc_i4, j);
+                    ilBuilder.emit(ILOp.ldloc, nsArrLocal);
+                    ilBuilder.emit(ILOp.ldc_i4, indicesForThisSet[j]);
+                    ilBuilder.emit(ILOp.ldelem, typeof(Namespace));
+                    ilBuilder.emit(ILOp.stelem, typeof(Namespace));
+                }
+
+                ilBuilder.emit(ILOp.ldloc, nsSetArrLocal);
+                ilBuilder.emit(ILOp.ldc_i4, i);
+                ilBuilder.emit(ILOp.ldelema, typeof(NamespaceSet));
+
+                if (indicesForThisSet.Length == maxSetLength) {
+                    ilBuilder.emit(ILOp.ldloc, tempNsArrayLocal);
+                    ilBuilder.emit(ILOp.call, KnownMembers.nsSetCtorFromArray, -2);
+                }
+                else {
+                    ilBuilder.emit(ILOp.ldloc, tempNsArrayLocal);
+                    ilBuilder.emit(ILOp.ldc_i4_0);
+                    ilBuilder.emit(ILOp.ldc_i4, indicesForThisSet.Length);
+                    ilBuilder.emit(ILOp.newobj, KnownMembers.roSpanNamespaceFromSubArray, -2);
+                    ilBuilder.emit(ILOp.call, KnownMembers.nsSetCtorFromSpan, -2);
+                }
+
+                setIndices = setIndices.Slice(0, setIndices.Length - indicesForThisSet.Length);
+            }
+
+            ilBuilder.releaseTempLocal(nsSetArrLocal);
+            ilBuilder.releaseTempLocal(nsArrLocal);
+            ilBuilder.releaseTempLocal(tempNsArrayLocal);
         }
 
         /// <summary>
@@ -261,31 +514,12 @@ namespace Mariana.AVM2.Compiler {
 
             var classes = getField<Class[]>(m_classesArrayField);
             var traits = getField<Trait[]>(m_traitsArrayField);
-            var nss = getField<Namespace[]>(m_nsArrayField);
-            var qnames = getField<QName[]>(m_qnameArrayField);
-            var xnss = getField<ASNamespace[]>(m_xnsArrayField);
-            var xqnames = getField<ASQName[]>(m_xqnameArrayField);
-            var nssets = getField<NamespaceSet[]>(m_nssetArrayField);
 
             for (int i = 0; i < m_classes.count; i++)
                 classes[i] = m_classes[i].value;
 
             for (int i = 0; i < m_traits.count; i++)
                 traits[i] = m_traits[i].value;
-
-            for (int i = 0; i < m_xnss.count; i++)
-                xnss[i] = new ASNamespace(m_xnss[i].uri);
-
-            for (int i = 0; i < m_xqnames.count; i++) {
-                QName qname = m_xqnames[i];
-                xqnames[i] = new ASQName(qname.ns.uri, qname.localName);
-            }
-
-            m_nss.copyTo(nss);
-            m_qnames.copyTo(qnames);
-            m_nssets.asSpan().CopyTo(nssets);
-
-            // Regexps are lazily initialized, so no initializing here.
 
             module.ResolveField(tokenMapping.getMappedToken(m_globalObjField.handle)).SetValue(null, m_globalObject);
         }

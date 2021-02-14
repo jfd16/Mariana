@@ -1618,9 +1618,9 @@ namespace Mariana.AVM2.Core {
 
             ClassTagSet tagSet = default;
             if (vx != null)
-                tagSet.add(vx.AS_class.tag);
+                tagSet = tagSet.add(vx.AS_class.tag);
             if (vy != null)
-                tagSet.add(vy.AS_class.tag);
+                tagSet = tagSet.add(vy.AS_class.tag);
 
             if (ClassTagSet.xmlOrXmlList.containsAny(tagSet))
                 // We need to check this case first because an empty XMLList and
@@ -1644,6 +1644,12 @@ namespace Mariana.AVM2.Core {
 
             if (tagSet.isSingle(ClassTag.NAMESPACE))
                 return ((ASNamespace)vx).uri == ((ASNamespace)vy).uri;
+
+            if (tagSet.isSingle(ClassTag.FUNCTION)) {
+                return vx is ASMethodClosure mc1 && vy is ASMethodClosure mc2
+                    && mc1.method == mc2.method
+                    && mc1.storedReceiver == mc2.storedReceiver;
+            }
 
             return false;
         }
@@ -1793,9 +1799,9 @@ namespace Mariana.AVM2.Core {
         public static ASObject AS_add(ASAny x, ASAny y) {
             ClassTagSet tagSet = default;
             if (x.value != null)
-                tagSet.add(x.AS_class.tag);
+                tagSet = tagSet.add(x.AS_class.tag);
             if (y.value != null)
-                tagSet.add(y.AS_class.tag);
+                tagSet = tagSet.add(y.AS_class.tag);
 
             if (ClassTagSet.numericOrBool.containsAll(tagSet))
                 return (double)x + (double)y;
@@ -1811,9 +1817,9 @@ namespace Mariana.AVM2.Core {
 
             tagSet = default;
             if (x.value != null)
-                tagSet.add(p1.AS_class.tag);
+                tagSet = tagSet.add(p1.AS_class.tag);
             if (y.value != null)
-                tagSet.add(p2.AS_class.tag);
+                tagSet = tagSet.add(p2.AS_class.tag);
 
             if (ClassTagSet.numericOrBool.containsAll(tagSet))
                 return (double)p1 + (double)p2;

@@ -210,6 +210,45 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal("c", ASNamespace.getDefault().uri);
         }
 
+        [Fact]
+        public void setDefault_shouldSetThreadDefaultNamespaceAndGetOld() {
+            ASNamespace oldDefault;
+
+            ASNamespace.setDefault(new ASNamespace("a"));
+
+            ASNamespace.setDefault(new ASNamespace("a", "b"), out oldDefault);
+            Assert.Equal("", ASNamespace.getDefault().prefix);
+            Assert.Equal("b", ASNamespace.getDefault().uri);
+            Assert.Equal("", oldDefault.prefix);
+            Assert.Equal("a", oldDefault.uri);
+
+            ASNamespace.setDefault(null, out oldDefault);
+            Assert.Equal("", ASNamespace.getDefault().prefix);
+            Assert.Equal("", ASNamespace.getDefault().uri);
+            Assert.Equal("", oldDefault.prefix);
+            Assert.Equal("b", oldDefault.uri);
+
+            ASNamespace.setDefault(new ASNamespace("", "c"), out oldDefault);
+            Assert.Equal("", ASNamespace.getDefault().prefix);
+            Assert.Equal("c", ASNamespace.getDefault().uri);
+            Assert.Equal("", oldDefault.prefix);
+            Assert.Equal("", oldDefault.uri);
+
+            var thread = new Thread(() => {
+                ASNamespace.setDefault(new ASNamespace("e", "f"), out oldDefault);
+                Assert.Equal("", ASNamespace.getDefault().prefix);
+                Assert.Equal("f", ASNamespace.getDefault().uri);
+                Assert.Equal("", oldDefault.prefix);
+                Assert.Equal("", oldDefault.uri);
+            });
+
+            thread.Start();
+            thread.Join();
+
+            Assert.Equal("", ASNamespace.getDefault().prefix);
+            Assert.Equal("c", ASNamespace.getDefault().uri);
+        }
+
     }
 
 }

@@ -609,7 +609,8 @@ namespace Mariana.AVM2.Core {
 
         internal sealed class Object<T> : GenericComparer<T> where T : ASObject {
 
-            private static readonly bool s_typeHasSpecialStrictEq = typeof(T) == typeof(ASObject);
+            private static readonly bool s_typeHasSpecialStrictEq =
+                typeof(T) == typeof(ASObject) || typeof(ASFunction).IsAssignableFrom(typeof(T));
 
             public override bool Equals(T x, T y) => s_typeHasSpecialStrictEq ? x == y : ASObject.AS_strictEq(x, y);
             public override int Compare(T x, T y) => Equals(x, y) ? 0 : (ASObject.AS_lessThan(x, y) ? -1 : 1);

@@ -2308,11 +2308,11 @@ namespace Mariana.AVM2.Core {
             if (x == y)  // Equal by reference, or both null
                 return true;
 
-            ClassTagSet tagSet = default;
+            var tagSet = new ClassTagSet();
             if (x != null)
-                tagSet.add(x.AS_class.tag);
+                tagSet = tagSet.add(x.AS_class.tag);
             if (y != null)
-                tagSet.add(y.AS_class.tag);
+                tagSet = tagSet.add(y.AS_class.tag);
 
             if (ClassTagSet.xmlOrXmlList.containsAny(tagSet))
                 // null equals a simple-content XML object with "null", so do this check first.
@@ -2336,6 +2336,12 @@ namespace Mariana.AVM2.Core {
 
             if (tagSet.isSingle(ClassTag.NAMESPACE))
                 return ((ASNamespace)x).uri == ((ASNamespace)y).uri;
+
+            if (tagSet.isSingle(ClassTag.FUNCTION)) {
+                return x is ASMethodClosure mc1 && y is ASMethodClosure mc2
+                    && mc1.method == mc2.method
+                    && mc1.storedReceiver == mc2.storedReceiver;
+            }
 
             return false;
         }
@@ -2388,6 +2394,12 @@ namespace Mariana.AVM2.Core {
 
             if (tagSet.isSingle(ClassTag.NAMESPACE))
                 return ((ASNamespace)x).uri == ((ASNamespace)y).uri;
+
+            if (tagSet.isSingle(ClassTag.FUNCTION)) {
+                return x is ASMethodClosure mc1 && y is ASMethodClosure mc2
+                    && mc1.method == mc2.method
+                    && mc1.storedReceiver == mc2.storedReceiver;
+            }
 
             return false;
         }

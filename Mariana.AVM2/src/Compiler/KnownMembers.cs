@@ -535,8 +535,26 @@ namespace Mariana.AVM2.Compiler {
         public static readonly CI namespaceCtorFromURI =
             getMemberFromExpr<Func<string, Namespace>, CI>(x => new Namespace(x));
 
+        public static readonly CI namespaceCtorFromKindAndURI =
+            getMemberFromExpr<Func<NamespaceKind, string, Namespace>, CI>((x, y) => new Namespace(x, y));
+
+        public static readonly FI namespacePublic =
+            getMemberFromExpr<Func<Namespace>, FI>(() => Namespace.@public);
+
+        public static readonly MI namespaceCreatePrivateFromId =
+            getMemberFromExpr<Func<int, Namespace>, MI>(x => Namespace.createPrivate(x));
+
         public static readonly MI namespaceFromXmlNs =
             getMemberFromExpr<Func<ASNamespace, Namespace>, MI>(x => Namespace.fromASNamespace(x));
+
+        public static readonly CI nsSetCtorFromSpan =
+            typeof(NamespaceSet).GetConstructor(new[] {typeof(ReadOnlySpan<Namespace>)});
+
+        public static readonly CI nsSetCtorFromArray =
+            typeof(NamespaceSet).GetConstructor(new[] {typeof(Namespace[])});
+
+        public static readonly CI roSpanNamespaceFromSubArray =
+            typeof(ReadOnlySpan<Namespace>).GetConstructor(new[] {typeof(Namespace[]), typeof(int), typeof(int)});
 
         public static readonly MI qnameFromXmlQname =
             getMemberFromExpr<Func<ASQName, QName>, MI>(x => QName.fromASQName(x));

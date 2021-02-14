@@ -36,18 +36,24 @@ namespace Mariana.AVM2.Core {
         /// Creates a new namespace set with the given namespaces.
         /// </summary>
         /// <param name="arr">The namespaces in the set.</param>
-        public NamespaceSet(params Namespace[] arr) {
+        public NamespaceSet(params Namespace[] arr) : this(new ReadOnlySpan<Namespace>(arr)) {}
+
+        /// <summary>
+        /// Creates a new namespace set with the given namespaces.
+        /// </summary>
+        /// <param name="span">A span containing the namespaces in the set.</param>
+        public NamespaceSet(ReadOnlySpan<Namespace> span) {
             m_flags = 0;
 
-            if (arr == null || arr.Length == 0) {
+            if (span.IsEmpty) {
                 m_namespaces = null;
                 return;
             }
 
-            var list = new DynamicArray<Namespace>(arr.Length);
+            var list = new DynamicArray<Namespace>(span.Length);
 
-            for (int i = 0; i < arr.Length; i++) {
-                Namespace ns = arr[i];
+            for (int i = 0; i < span.Length; i++) {
+                Namespace ns = span[i];
 
                 bool exists = false;
                 for (int j = 0; j < list.length; j++) {
