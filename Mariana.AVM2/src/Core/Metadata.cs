@@ -8,49 +8,16 @@ namespace Mariana.AVM2.Core {
     using KVPair = KeyValuePair<string, string>;
 
     /// <summary>
-    /// A metadata tag applied to a trait.
+    /// Represents additional metadata associated with an AVM2 trait.
     /// </summary>
     /// <remarks>
-    /// A metadata tag has two parts: an array of strings that may be looked up by a numeric
-    /// index, and a table of key-value pairs.
+    /// Metadata in a tag is represented by key-value pairs of strings. The keys do not necessarily have to
+    /// be unique, and may be null.
     /// </remarks>
     public sealed class MetadataTag {
 
-        private class _KeyComparer : IComparer<KVPair> {
-            public static _KeyComparer instance = new _KeyComparer();
-            public int Compare(KVPair x, KVPair y) => String.CompareOrdinal(x.Key, y.Key);
-        }
-
-        private const int SMALL_KEYVALUE_SIZE = 8;
-
         private string m_name;
-        private string[] m_indexed;
         private KVPair[] m_keyvalues;
-
-        /// <summary>
-        /// Creates a new instance of <see cref="MetadataTag"/>.
-        /// </summary>
-        ///
-        /// <param name="name">The name of the metadata tag.</param>
-        /// <param name="indexed">The indexed values of the tag.</param>
-        /// <param name="keys">The keys of the key-value pairs of this tag.</param>
-        /// <param name="values">The values of the key-value pairs of this tag. The
-        /// length of this span must be the same as that of <paramref name="keys"/></param>
-        internal MetadataTag(
-            string name, ReadOnlySpan<string> indexed, ReadOnlySpan<string> keys, ReadOnlySpan<string> values)
-        {
-            m_name = name;
-            m_indexed = indexed.ToArray();
-
-            if (keys.Length > 0) {
-                m_keyvalues = new KVPair[keys.Length];
-                for (int i = 0; i < keys.Length; i++)
-                    m_keyvalues[i] = new KVPair(keys[i], values[i]);
-
-                if (keys.Length > SMALL_KEYVALUE_SIZE)
-                    Array.Sort(m_keyvalues, _KeyComparer.instance);
-            }
-        }
 
         /// <summary>
         /// Creates a new instance of <see cref="MetadataTag"/>.
@@ -63,29 +30,10 @@ namespace Mariana.AVM2.Core {
         /// index in the <paramref name="keys"/> array.</param>
         internal MetadataTag(string name, ReadOnlySpan<string> keys, ReadOnlySpan<string> values) {
             m_name = name;
+            m_keyvalues = (keys.Length != 0) ? new KVPair[keys.Length] : Array.Empty<KVPair>();
 
-            int indexedCount = 0, kvCount = 0;
-            for (int i = 0; i < keys.Length; i++) {
-                if (keys[i] == null)
-                    indexedCount++;
-                else
-                    kvCount++;
-            }
-
-            m_indexed = (indexedCount != 0) ? new string[indexedCount] : Array.Empty<string>();
-            m_keyvalues = (kvCount != 0) ? new KVPair[kvCount] : Array.Empty<KVPair>();
-
-            int curIndex = 0, curKvIndex = 0;
-
-            for (int i = 0; i < keys.Length; i++) {
-                if (keys[i] == null)
-                    m_indexed[curIndex++] = values[i];
-                else
-                    m_keyvalues[curKvIndex++] = new KVPair(keys[i], values[i]);
-            }
-
-            if (kvCount > SMALL_KEYVALUE_SIZE)
-                Array.Sort(m_keyvalues, _KeyComparer.instance);
+            for (int i = 0; i < keys.Length; i++)
+                m_keyvalues[i] = new KVPair(keys[i], values[i]);
         }
 
         /// <summary>
@@ -94,19 +42,15 @@ namespace Mariana.AVM2.Core {
         public string name => m_name;
 
         /// <summary>
-        /// Gets the number of indexed values in this metadata tag.
-        /// </summary>
-        public int indexedValueCount => m_indexed.Length;
-
-        /// <summary>
         /// Gets a Boolean value indicating whether the metadata tag contains a key-value pair with
         /// the given key.
         /// </summary>
-        /// <param name="key">Key.</param>
+        /// <param name="key">The key. This must not be null.</param>
         /// <returns>True if a key-value pair with the given key exists, false otherwise.</returns>
+        /// <exception cref="AVM2Exception">ArgumentError #10060: <paramref name="key"/> is null.</exception>
         public bool hasValue(string key) {
-            if (m_keyvalues.Length > SMALL_KEYVALUE_SIZE)
-                return Array.BinarySearch(m_keyvalues, new KVPair(key, null), _KeyComparer.instance) >= 0;
+            if (key == null)
+                throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(key));
 
             var kvs = m_keyvalues;
             for (int i = 0; i < kvs.Length; i++) {
@@ -118,53 +62,20 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Gets an array containing the indexed values in this tag.
+        /// Gets the value of the key-value pair in the tag with the specified key.
         /// </summary>
-        /// <returns>An array containing the indexed values in this tag.</returns>
-        public ReadOnlyArrayView<string> getIndexedValues() => new ReadOnlyArrayView<string>(m_indexed);
-
-        /// <summary>
-        /// Gets all the key-value pairs in this tag.
-        /// </summary>
-        /// <returns>A read-only array view of of <see cref="KeyValuePair{String, String}"/> instances
-        /// containing the key-value pairs in this tag.</returns>
-        public ReadOnlyArrayView<KVPair> getKeyValuePairs() => new ReadOnlyArrayView<KVPair>(m_keyvalues);
-
-        /// <summary>
-        /// Gets the indexed tag value at the specified index.
-        /// </summary>
-        /// <param name="index">The index.</param>
-        ///
-        /// <exception cref="AVM2Exception">
-        /// <list type="bullet">
-        /// <item>
-        /// <term>ArgumentError #10061</term>
-        /// <description><paramref name="index"/> is out of bounds.</description>
-        /// </item>
-        /// </list>
-        /// </exception>
-        public string this[int index] {
-            get {
-                if ((uint)index >= (uint)m_indexed.Length)
-                    throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_OUT_OF_RANGE, nameof(index));
-                return m_indexed[index];
-            }
-        }
-
-        /// <summary>
-        /// Gets the value of the key-value pair in the tag with the specified key. If no key-value
-        /// pair with the key exists, returns null.
-        /// </summary>
-        /// <param name="key">The key.</param>
+        /// <returns>The value of the key-value pair in the tag with the specified key. If no key-value
+        /// pair with the key exists, returns null. If multiple key-value pairs exist with the given key,
+        /// returns the value of the last such pair.</returns>
+        /// <param name="key">The key. This must not be null.</param>
+        /// <exception cref="AVM2Exception">ArgumentError #10060: <paramref name="key"/> is null.</exception>
         public string this[string key] {
             get {
-                if (m_keyvalues.Length > SMALL_KEYVALUE_SIZE) {
-                    int index = Array.BinarySearch(m_keyvalues, new KVPair(key, null), _KeyComparer.instance);
-                    return (index >= 0) ? m_keyvalues[index].Value : null;
-                }
+                if (key == null)
+                    throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(key));
 
                 var kvs = m_keyvalues;
-                for (int i = 0; i < kvs.Length; i++) {
+                for (int i = kvs.Length - 1; i >= 0; i--) {
                     if (kvs[i].Key == key)
                         return kvs[i].Value;
                 }
@@ -172,6 +83,13 @@ namespace Mariana.AVM2.Core {
                 return null;
             }
         }
+
+        /// <summary>
+        /// Gets all the key-value pairs in this tag.
+        /// </summary>
+        /// <returns>A read-only array view of of <see cref="KeyValuePair{String, String}"/> instances
+        /// containing the key-value pairs in this tag.</returns>
+        public ReadOnlyArrayView<KVPair> getKeyValuePairs() => new ReadOnlyArrayView<KVPair>(m_keyvalues);
 
         /// <summary>
         /// Returns a string representation of this tag.
@@ -182,66 +100,55 @@ namespace Mariana.AVM2.Core {
             sb.Append('[');
             appendEscaped(m_name);
 
-            if (m_indexed.Length == 0 && m_keyvalues.Length == 0) {
-                sb.Append(']');
-                return sb.ToString();
-            }
-
-            sb.Append('(');
-
-            bool first = true;
-            var indexed = m_indexed;
             var keyvalues = m_keyvalues;
 
-            for (int i = 0; i < indexed.Length; i++) {
-                appendSep();
-                appendEscaped(indexed[i]);
+            if (keyvalues.Length > 0) {
+                sb.Append('(');
+                for (int i = 0; i < keyvalues.Length; i++) {
+                    if (i != 0)
+                        sb.Append(',').Append(' ');
+
+                    if (keyvalues[i].Key != null) {
+                        appendEscaped(keyvalues[i].Key);
+                        sb.Append(" = ");
+                    }
+                    appendEscaped(keyvalues[i].Value);
+                }
+                sb.Append(')');
             }
 
-            for (int i = 0; i < keyvalues.Length; i++) {
-                appendSep();
-                appendEscaped(keyvalues[i].Key);
-                sb.Append(" = ");
-                appendEscaped(keyvalues[i].Value);
-            }
-
-            sb.Append(')');
             sb.Append(']');
             return sb.ToString();
 
-            void appendSep() {
-                if (first)
-                    first = false;
-                else
-                    sb.Append(',').Append(' ');
-            }
-
             void appendEscaped(string strToEscape) {
-                int i, n = strToEscape.Length;
-                char c;
-                bool mustEscape = false;
+                strToEscape = strToEscape ?? "null";
+                bool mustEscape = strToEscape.Length == 0;
 
-                for (i = 0; i < n; i++) {
-                    c = strToEscape[i];
-                    if (((c < 'A' || c > 'Z') && (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '_') || c >= 0x80) {
+                for (int i = 0; i < strToEscape.Length && !mustEscape; i++) {
+                    char c = strToEscape[i];
+                    if (c >= 0x80) {
                         mustEscape = true;
-                        break;
+                    }
+                    else {
+                        mustEscape =
+                            c != '_'
+                            && (uint)(c - '0') > 9
+                            && (uint)(c - 'A') > 'Z' - 'A'
+                            && (uint)(c - 'a') > 'z' - 'a';
                     }
                 }
+
                 if (!mustEscape) {
                     sb.Append(strToEscape);
                     return;
                 }
 
                 sb.Append('"');
-                for (int j = 0; j < i; j++)
-                    sb.Append(strToEscape[j]);
-                while (i < n) {
-                    c = strToEscape[i];
-                    if (c == '"' || c == '\\')
+                for (int i = 0; i < strToEscape.Length; i++) {
+                    char ch = strToEscape[i];
+                    if (ch == '\\' || ch == '"')
                         sb.Append('\\');
-                    sb.Append(c);
-                    i++;
+                    sb.Append(ch);
                 }
                 sb.Append('"');
             }
@@ -252,11 +159,6 @@ namespace Mariana.AVM2.Core {
     /// Represents a collection of metadata tags associated with a trait.
     /// </summary>
     public sealed class MetadataTagCollection {
-
-        private class _TagComparer : IComparer<MetadataTag> {
-            public static _TagComparer instance = new _TagComparer();
-            public int Compare(MetadataTag x, MetadataTag y) => String.CompareOrdinal(x.name, y.name);
-        }
 
         /// <summary>
         /// A <see cref="MetadataTagCollection"/> containing no tags.
@@ -270,9 +172,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="tags">A read-only span containing the tags to store in the collection.</param>
         internal MetadataTagCollection(ReadOnlySpan<MetadataTag> tags) {
-            m_tags = new MetadataTag[tags.Length];
-            tags.CopyTo(m_tags);
-            Array.Sort(m_tags, _TagComparer.instance);
+            m_tags = tags.ToArray();
         }
 
         /// <summary>
@@ -289,7 +189,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="name">The name of the tag.</param>
         /// <returns>The metadata tag in this collection with the given name, or null if no
         /// tag with the name exists. If there is more than one tag with the given name
-        /// in the collection, it is unspecified as to which one will be returned.</returns>
+        /// in the collection, the first one is returned.</returns>
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
@@ -302,11 +202,6 @@ namespace Mariana.AVM2.Core {
             if (name == null)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(name));
 
-            if (m_tags.Length > 8) {
-                int index = Array.BinarySearch(m_tags, _TagComparer.instance);
-                return (index >= 0) ? m_tags[index] : null;
-            }
-
             var tags = m_tags;
             for (int i = 0; i < tags.Length; i++) {
                 if (tags[i].name == name)
@@ -314,42 +209,6 @@ namespace Mariana.AVM2.Core {
             }
 
             return null;
-        }
-
-        /// <summary>
-        /// Returns a read-only array view containing all the metadata tags in this collection
-        /// with the given name.
-        /// </summary>
-        /// <param name="name">The name of the tag.</param>
-        /// <returns>A <see cref="ReadOnlyArrayView{MetadataTag}"/> containing all the tags in this
-        /// collection whose name is equal to <paramref name="name"/>.</returns>
-        /// <exception cref="AVM2Exception">
-        /// <list type="bullet">
-        /// <item>
-        /// <term>ArgumentError #10060</term>
-        /// <description><paramref name="name"/> is null.</description>
-        /// </item>
-        /// </list>
-        /// </exception>
-        public ReadOnlyArrayView<MetadataTag> getTags(string name) {
-            if (name == null)
-                throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(name));
-
-            var tags = m_tags;
-            int startIndex = -1, endIndex = tags.Length;
-
-            for (int i = 0; i < tags.Length; i++) {
-                string tagName = tags[i].name;
-                if (startIndex == -1 && tagName == name)
-                    startIndex = i;
-                else if (startIndex != -1 && tagName != name)
-                    endIndex = i;
-            }
-
-            if (startIndex == -1)
-                return default;
-
-            return new ReadOnlyArrayView<MetadataTag>(m_tags, startIndex, endIndex - startIndex);
         }
 
     }

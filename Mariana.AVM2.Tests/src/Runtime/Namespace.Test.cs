@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Mariana.AVM2.Core;
+using Mariana.AVM2.Tests.Helpers;
 using Xunit;
 
 namespace Mariana.AVM2.Tests {
@@ -80,8 +81,7 @@ namespace Mariana.AVM2.Tests {
         [InlineData(NamespaceKind.PROTECTED, null)]
         [InlineData(NamespaceKind.STATIC_PROTECTED, null)]
         internal void ctor_shouldThrowOnNullUri(NamespaceKind kind, string uri) {
-            var exc = Assert.Throws<AVM2Exception>(() => { new Namespace(kind, uri); });
-            Assert.Equal(ErrorCode.MARIANA__NAMESPACE_NULL_NAME, (ErrorCode)((ASError)exc.thrownValue).errorID);
+            AssertHelper.throwsErrorWithCode(ErrorCode.MARIANA__NAMESPACE_NULL_NAME, () => new Namespace(kind, uri));
         }
 
         [Fact]
@@ -127,13 +127,8 @@ namespace Mariana.AVM2.Tests {
 
         [Fact]
         public void createPrivate_shouldThrowWhenIdExceedsMaxValue() {
-            AVM2Exception exc;
-
-            exc = Assert.Throws<AVM2Exception>(() => { Namespace.createPrivate(-1); });
-            Assert.Equal(ErrorCode.MARIANA__PRIVATE_NS_LIMIT_EXCEEDED, (ErrorCode)((ASError)exc.thrownValue).errorID);
-
-            exc = Assert.Throws<AVM2Exception>(() => { Namespace.createPrivate(0xFFFFFFF + 1); });
-            Assert.Equal(ErrorCode.MARIANA__PRIVATE_NS_LIMIT_EXCEEDED, (ErrorCode)((ASError)exc.thrownValue).errorID);
+            AssertHelper.throwsErrorWithCode(ErrorCode.MARIANA__PRIVATE_NS_LIMIT_EXCEEDED, () => Namespace.createPrivate(-1));
+            AssertHelper.throwsErrorWithCode(ErrorCode.MARIANA__PRIVATE_NS_LIMIT_EXCEEDED, () => Namespace.createPrivate(0xFFFFFFF + 1));
         }
 
         [Fact]

@@ -946,7 +946,6 @@ namespace Mariana.AVM2.Native {
                     throw _parseError();
 
                 string tagName = _readString();
-                var indexed = new DynamicArray<string>();
                 var keys = new DynamicArray<string>();
                 var values = new DynamicArray<string>();
 
@@ -956,7 +955,7 @@ namespace Mariana.AVM2.Native {
                 if (ch == ']') {
                     if (!_readChar(out _)) {
                         // Tag with only a name.
-                        return _makeTag(tagName, ref indexed, ref keys, ref values);
+                        return _makeTag(tagName, ref keys, ref values);
                     }
                     throw _parseError();
                 }
@@ -965,7 +964,7 @@ namespace Mariana.AVM2.Native {
                 }
 
                 while (true) {
-                    string indexedOrKey = _readString();
+                    string keyOrKeylessValue = _readString();
 
                     if (!_readChar(out ch))
                         throw _parseError();
@@ -974,14 +973,16 @@ namespace Mariana.AVM2.Native {
                         case ',':
                         case ';':
                         case ')':
-                            indexed.add(indexedOrKey);
+                            keys.add(null);
+                            values.add(keyOrKeylessValue);
                             break;
 
                         case '=': {
                             string value = _readString();
                             if (!_readChar(out ch) || (ch != ',' && ch != ';' && ch != ')'))
                                 throw _parseError();
-                            keys.add(indexedOrKey);
+
+                            keys.add(keyOrKeylessValue);
                             values.add(value);
                             break;
                         }
@@ -1001,19 +1002,14 @@ namespace Mariana.AVM2.Native {
                     // Junk characters after tag end
                     throw _parseError();
 
-                return _makeTag(tagName, ref indexed, ref keys, ref values);
+                return _makeTag(tagName, ref keys, ref values);
             }
 
-            private AVM2Exception _parseError() {
-                return ErrorHelper.createError(ErrorCode.MARIANA__NATIVE_CLASS_LOAD_METADATA_INVALID);
-            }
+            private AVM2Exception _parseError() =>
+                ErrorHelper.createError(ErrorCode.MARIANA__NATIVE_CLASS_LOAD_METADATA_INVALID);
 
-            private MetadataTag _makeTag(
-                string tagName, ref DynamicArray<string> indexed, ref DynamicArray<string> keys,
-                ref DynamicArray<string> values)
-            {
-                return new MetadataTag(tagName, indexed.asSpan(), keys.asSpan(), values.asSpan());
-            }
+            private MetadataTag _makeTag(string tagName, ref DynamicArray<string> keys,ref DynamicArray<string> values) =>
+                new MetadataTag(tagName, keys.asSpan(), values.asSpan());
 
             private bool _readChar(out char ch) {
                 int pos = m_readPos;

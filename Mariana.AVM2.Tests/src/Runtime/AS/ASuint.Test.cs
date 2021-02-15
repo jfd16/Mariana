@@ -2,9 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using Mariana.AVM2.Core;
-using Mariana.AVM2.Tests.TestDoubles;
 using Xunit;
+
+using Mariana.AVM2.Core;
+using Mariana.AVM2.Tests.Helpers;
 
 namespace Mariana.AVM2.Tests {
 
@@ -386,10 +387,7 @@ namespace Mariana.AVM2.Tests {
             check(() => ((ASuint)(ASObject)value).toPrecision(-1000));
             check(() => ((ASuint)(ASObject)value).toPrecision(1000));
 
-            void check(Action f) {
-                var exc = Assert.Throws<AVM2Exception>(f);
-                Assert.Equal(ErrorCode.NUMBER_PRECISION_OUT_OF_RANGE, (ErrorCode)((ASError)exc.thrownValue).errorID);
-            }
+            void check(Action f)  => AssertHelper.throwsErrorWithCode(ErrorCode.NUMBER_PRECISION_OUT_OF_RANGE, f);
         }
 
 
@@ -413,10 +411,7 @@ namespace Mariana.AVM2.Tests {
             check(() => ((ASuint)(ASObject)value).AS_toString(-1000));
             check(() => ((ASuint)(ASObject)value).AS_toString(1000));
 
-            void check(Action f) {
-                var exc = Assert.Throws<AVM2Exception>(f);
-                Assert.Equal(ErrorCode.NUMBER_RADIX_OUT_OF_RANGE, (ErrorCode)((ASError)exc.thrownValue).errorID);
-            }
+            void check(Action f) => AssertHelper.throwsErrorWithCode(ErrorCode.NUMBER_RADIX_OUT_OF_RANGE, f);
         }
 
         [Fact]

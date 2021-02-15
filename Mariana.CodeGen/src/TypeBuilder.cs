@@ -413,6 +413,8 @@ namespace Mariana.CodeGen {
                 methodName = ".cctor";
             }
             else {
+                if ((m_typeAttrs & TypeAttributes.Interface) != 0)
+                    throw new ArgumentException("The Static attribute must be set for a constructor on an interface type.", nameof(attributes));
                 methodName = ".ctor";
             }
 

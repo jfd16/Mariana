@@ -3,7 +3,7 @@ using System.Threading;
 using Mariana.AVM2.Core;
 using Mariana.AVM2.Native;
 
-namespace Mariana.AVM2.Tests.TestDoubles {
+namespace Mariana.AVM2.Tests.Helpers {
 
     public static class SpyObjects {
         private static bool s_init;

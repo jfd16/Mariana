@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
-using Mariana.AVM2.Core;
 using Xunit;
+
+using Mariana.AVM2.Core;
+using Mariana.AVM2.Tests.Helpers;
 
 namespace Mariana.AVM2.Tests {
 
@@ -185,8 +186,7 @@ namespace Mariana.AVM2.Tests {
 
         [Fact]
         public void constructor_shouldThrowIfEmptyUriAndNonEmptyPrefix() {
-            var exc = Assert.Throws<AVM2Exception>(() => new ASQName("a", "", "b"));
-            Assert.Equal(ErrorCode.XML_ILLEGAL_PREFIX_PUBLIC_NAMESPACE, (ErrorCode)((ASError)exc.thrownValue).errorID);
+            AssertHelper.throwsErrorWithCode(ErrorCode.XML_ILLEGAL_PREFIX_PUBLIC_NAMESPACE, () => new ASQName("a", "", "b"));
         }
 
         public static IEnumerable<object[]> toString_shouldReturnStringReprOfQName_data = new (ASQName, string)[] {

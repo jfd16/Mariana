@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 using Mariana.AVM2.Core;
-using Mariana.AVM2.Tests.TestDoubles;
+using Mariana.AVM2.Tests.Helpers;
 using Xunit;
 
 using static Mariana.AVM2.Core.ASMath;

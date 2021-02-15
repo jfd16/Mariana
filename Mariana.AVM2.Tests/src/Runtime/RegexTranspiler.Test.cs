@@ -1,9 +1,11 @@
 using System;
 using System.Linq;
-using Xunit;
-using Mariana.AVM2.Core;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using Xunit;
+
+using Mariana.AVM2.Core;
+using Mariana.AVM2.Tests.Helpers;
 
 namespace Mariana.AVM2.Tests {
 
@@ -902,16 +904,12 @@ namespace Mariana.AVM2.Tests {
         [InlineData("( ?P<x>a)")]
         public void shouldThrowErrorIfPatternInvalidExtended(string pattern) {
             var t = new RegexTranspiler();
-            AVM2Exception exc;
 
             t.transpile(pattern, false, false);
             t.transpile(pattern, true, false);
 
-            exc = Assert.Throws<AVM2Exception>(() => t.transpile(pattern, false, true));
-            Assert.Equal(ErrorCode.MARIANA__REGEXP_PARSE_ERROR, (ErrorCode)((ASError)exc.thrownValue).errorID);
-
-            exc = Assert.Throws<AVM2Exception>(() => t.transpile(pattern, true, true));
-            Assert.Equal(ErrorCode.MARIANA__REGEXP_PARSE_ERROR, (ErrorCode)((ASError)exc.thrownValue).errorID);
+            AssertHelper.throwsErrorWithCode(ErrorCode.MARIANA__REGEXP_PARSE_ERROR, () => t.transpile(pattern, false, true));
+            AssertHelper.throwsErrorWithCode(ErrorCode.MARIANA__REGEXP_PARSE_ERROR, () => t.transpile(pattern, true, true));
         }
 
         [Theory]
@@ -922,16 +920,12 @@ namespace Mariana.AVM2.Tests {
         [InlineData("a (  # ) \n bc # ) \n (d*) # *? \n ) #123 \r+")]
         public void shouldThrowErrorIfPatternInvalidNonExtended(string pattern) {
             var t = new RegexTranspiler();
-            AVM2Exception exc;
 
             t.transpile(pattern, false, true);
             t.transpile(pattern, true, true);
 
-            exc = Assert.Throws<AVM2Exception>(() => t.transpile(pattern, false, false));
-            Assert.Equal(ErrorCode.MARIANA__REGEXP_PARSE_ERROR, (ErrorCode)((ASError)exc.thrownValue).errorID);
-
-            exc = Assert.Throws<AVM2Exception>(() => t.transpile(pattern, true, false));
-            Assert.Equal(ErrorCode.MARIANA__REGEXP_PARSE_ERROR, (ErrorCode)((ASError)exc.thrownValue).errorID);
+            AssertHelper.throwsErrorWithCode(ErrorCode.MARIANA__REGEXP_PARSE_ERROR, () => t.transpile(pattern, false, false));
+            AssertHelper.throwsErrorWithCode(ErrorCode.MARIANA__REGEXP_PARSE_ERROR, () => t.transpile(pattern, true, false));
         }
 
         public static IEnumerable<object[]> shouldThrowErrorIfGroupLimitExceeded_data = new string[] {
@@ -989,19 +983,11 @@ namespace Mariana.AVM2.Tests {
 
         private void _verifyPatternErrorFlagsInvariant(string pattern) {
             var t = new RegexTranspiler();
-            AVM2Exception exc;
 
-            exc = Assert.Throws<AVM2Exception>(() => t.transpile(pattern, false, false));
-            Assert.Equal(ErrorCode.MARIANA__REGEXP_PARSE_ERROR, (ErrorCode)((ASError)exc.thrownValue).errorID);
-
-            exc = Assert.Throws<AVM2Exception>(() => t.transpile(pattern, false, true));
-            Assert.Equal(ErrorCode.MARIANA__REGEXP_PARSE_ERROR, (ErrorCode)((ASError)exc.thrownValue).errorID);
-
-            exc = Assert.Throws<AVM2Exception>(() => t.transpile(pattern, true, false));
-            Assert.Equal(ErrorCode.MARIANA__REGEXP_PARSE_ERROR, (ErrorCode)((ASError)exc.thrownValue).errorID);
-
-            exc = Assert.Throws<AVM2Exception>(() => t.transpile(pattern, true, true));
-            Assert.Equal(ErrorCode.MARIANA__REGEXP_PARSE_ERROR, (ErrorCode)((ASError)exc.thrownValue).errorID);
+            AssertHelper.throwsErrorWithCode(ErrorCode.MARIANA__REGEXP_PARSE_ERROR, () => t.transpile(pattern, false, false));
+            AssertHelper.throwsErrorWithCode(ErrorCode.MARIANA__REGEXP_PARSE_ERROR, () => t.transpile(pattern, false, true));
+            AssertHelper.throwsErrorWithCode(ErrorCode.MARIANA__REGEXP_PARSE_ERROR, () => t.transpile(pattern, true, false));
+            AssertHelper.throwsErrorWithCode(ErrorCode.MARIANA__REGEXP_PARSE_ERROR, () => t.transpile(pattern, true, true));
         }
 
     }
