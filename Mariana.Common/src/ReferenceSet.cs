@@ -60,18 +60,21 @@ namespace Mariana.Common {
         /// </summary>
         /// <param name="item">The item to find in the set.</param>
         /// <returns>True if the set contains the given item, false otherwise.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="item"/> is null.</exception>
         public bool find(T item) {
-            if (item != null) {
-                int chain = (RuntimeHelpers.GetHashCode(item) & 0x7FFFFFFF) % m_chains.Length;
-                int i = m_chains[chain];
+            if (item == null)
+                throw new ArgumentNullException(nameof(item));
 
-                while (i != -1) {
-                    ref Slot slot = ref m_slots[i];
-                    if (slot.value == item)
-                        return true;
-                    i = slot.next;
-                }
+            int chain = (RuntimeHelpers.GetHashCode(item) & 0x7FFFFFFF) % m_chains.Length;
+            int i = m_chains[chain];
+
+            while (i != -1) {
+                ref Slot slot = ref m_slots[i];
+                if (slot.value == item)
+                    return true;
+                i = slot.next;
             }
+
             return false;
         }
 
@@ -81,9 +84,10 @@ namespace Mariana.Common {
         /// <param name="item">The item to add to the set. This must be a non-null object.</param>
         /// <returns>True if the entry was added; false if the item already exists in the set (or is
         /// null).</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="item"/> is null.</exception>
         public bool add(T item) {
             if (item == null)
-                return false;
+                throw new ArgumentNullException(nameof(item));
 
             int hash = RuntimeHelpers.GetHashCode(item) & 0x7FFFFFFF;
             int chain = hash % m_chains.Length;
@@ -142,7 +146,11 @@ namespace Mariana.Common {
         /// <param name="item">The item to remove from the set.</param>
         /// <returns>True if the item was deleted, false if the item does not exist in the
         /// set.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="item"/> is null.</exception>
         public bool delete(T item) {
+            if (item == null)
+                throw new ArgumentNullException(nameof(item));
+
             int hash = RuntimeHelpers.GetHashCode(item) & 2147483647;
             int path = hash % m_chains.Length;
             int prev = -1;
@@ -193,7 +201,14 @@ namespace Mariana.Common {
         /// </summary>
         ///
         /// <param name="otherSet">The set to take the union with the current set.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="otherSet"/> is null.</exception>
         public void unionWith(ReferenceSet<T> otherSet) {
+            if (otherSet == null)
+                throw new ArgumentNullException(nameof(otherSet));
+
+            if (otherSet == this)
+                return;
+
             Span<Slot> otherSlots = otherSet.m_slots.AsSpan(0, otherSet.m_count);
 
             for (int i = 0; i < otherSlots.Length; i++) {
@@ -210,7 +225,14 @@ namespace Mariana.Common {
         /// </summary>
         ///
         /// <param name="otherSet">The set to take the intersection with the current set.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="otherSet"/> is null.</exception>
         public void intersectWith(ReferenceSet<T> otherSet) {
+            if (otherSet == null)
+                throw new ArgumentNullException(nameof(otherSet));
+
+            if (otherSet == this)
+                return;
+
             Slot[] slots = m_slots;
             int[] chains = m_chains;
 
@@ -263,32 +285,32 @@ namespace Mariana.Common {
         /// </summary>
         /// <returns>An enumerator that can be used to iterate over the key-value pairs of
         /// this dictionary.</returns>
-        public Iterator GetEnumerator() => new Iterator(this);
+        public Enumerator GetEnumerator() => new Enumerator(this);
 
         /// <summary>
         /// Gets an enumerator for this <see cref="ReferenceSet{T}"/> instance.
         /// </summary>
         /// <returns>An enumerator that can be used to iterate over the key-value pairs of
         /// this dictionary.</returns>
-        IEnumerator<T> IEnumerable<T>.GetEnumerator() => new Iterator(this);
+        IEnumerator<T> IEnumerable<T>.GetEnumerator() => new Enumerator(this);
 
         /// <summary>
         /// Gets an enumerator for this <see cref="ReferenceSet{T}"/> instance.
         /// </summary>
         /// <returns>An enumerator that can be used to iterate over the key-value pairs of
         /// this dictionary.</returns>
-        IEnumerator IEnumerable.GetEnumerator() => new Iterator(this);
+        IEnumerator IEnumerable.GetEnumerator() => new Enumerator(this);
 
         /// <summary>
         /// An implementation of <see cref="IEnumerator{T}"/> that can
         /// be used to iterate over the elements of a <see cref="ReferenceSet{T}"/>
         /// </summary>
-        public struct Iterator : IEnumerator<T> {
+        public struct Enumerator : IEnumerator<T> {
 
             private Slot[] m_slots;
             private int m_index;
 
-            internal Iterator(ReferenceSet<T> set) {
+            internal Enumerator(ReferenceSet<T> set) {
                 m_slots = set.m_slots;
                 m_index = set.m_count;
             }

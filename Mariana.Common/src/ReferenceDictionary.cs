@@ -56,6 +56,11 @@ namespace Mariana.Common {
         }
 
         /// <summary>
+        /// Returns the number of entries in the dictionary.
+        /// </summary>
+        public int count => m_count - m_emptyCount;
+
+        /// <summary>
         /// Gets or sets the value associated with the given key.
         /// </summary>
         /// <param name="key">The key.</param>
@@ -93,6 +98,16 @@ namespace Mariana.Common {
             value = default(TValue);
             return false;
         }
+
+        /// <summary>
+        /// Returns a boolean value indicating whether the given key exists in the dictionary.
+        /// </summary>
+        ///
+        /// <param name="key">The key.</param>
+        /// <returns>True if an entry in the dictionary exists whose key is <paramref name="key"/>,
+        /// otherwise false.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="key"/> is null.</exception>
+        public bool containsKey(TKey key) => tryGetValue(key, out _);
 
         /// <summary>
         /// Returns the value associated with the given key in the dictionary, or the default
@@ -141,7 +156,7 @@ namespace Mariana.Common {
             }
 
             if (!createIfNotExists)
-                throw new ArgumentException("Key does not exist in the dictionary.", nameof(key));
+                throw new ArgumentException("The key '" + key.ToString() + "' does not exist in the dictionary.", nameof(key));
 
             int newIndex;
 
