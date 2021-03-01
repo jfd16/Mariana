@@ -32,7 +32,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         internal DynamicPropertyCollection() {
             m_slots = new Slot[INITIAL_SIZE];
-            m_chainHeads = new int[INITIAL_SIZE];
+            m_chainHeads = new int[m_slots.Length];
             m_chainHeads.AsSpan().Fill(-1);
         }
 
@@ -45,6 +45,7 @@ namespace Mariana.AVM2.Core {
         /// Gets or sets the value of the property with the specified name.
         /// </summary>
         /// <param name="name">The name of the property.</param>
+        /// <exception cref="AVM2Exception">ArgumentError #10061: <paramref name="name"/> is null.</exception>
         public ASAny this[string name] {
             get => getValue(name);
             set => setValue(name, value);
@@ -56,6 +57,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="name">The name of the property.</param>
         /// <returns>The value of the property with the given name. If no property exists, returns
         /// undefined.</returns>
+        /// <exception cref="AVM2Exception">ArgumentError #10061: <paramref name="name"/> is null.</exception>
         public ASAny getValue(string name) {
             tryGetValue(name, out ASAny value);
             return value;
@@ -68,11 +70,10 @@ namespace Mariana.AVM2.Core {
         /// <param name="value">The value of the property, or undefined if no property with the given
         /// name exists.</param>
         /// <returns>True, if the property with the given name exists, false otherwise.</returns>
+        /// <exception cref="AVM2Exception">ArgumentError #10061: <paramref name="name"/> is null.</exception>
         public bool tryGetValue(string name, out ASAny value) {
-            if (name == null) {
-                value = default;
-                return false;
-            }
+            if (name == null)
+                throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(name));
 
             int hash = name.GetHashCode();
             int i = m_chainHeads[(hash & 0x7FFFFFFF) % m_chainHeads.Length];
@@ -97,9 +98,10 @@ namespace Mariana.AVM2.Core {
         /// <param name="value">The value of the property.</param>
         /// <param name="isEnum">True if the property's enumerable flag must be set, otherwise
         /// false.</param>
+        /// <exception cref="AVM2Exception">ArgumentError #10061: <paramref name="name"/> is null.</exception>
         public void setValue(string name, ASAny value, bool isEnum = true) {
             if (name == null)
-                throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
+                throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(name));
 
             int hash = name.GetHashCode();
             int chain = (hash & 0x7FFFFFFF) % m_chainHeads.Length;
@@ -162,6 +164,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="name">The name of the property.</param>
         /// <returns>True, if a property with the given name exists, false otherwise.</returns>
+        /// <exception cref="AVM2Exception">ArgumentError #10061: <paramref name="name"/> is null.</exception>
         public bool hasValue(string name) => getIndex(name) != -1;
 
         /// <summary>
@@ -173,9 +176,11 @@ namespace Mariana.AVM2.Core {
         /// <param name="name">The name of the property.</param>
         /// <returns>The index of the property, or -1 if a property with the given name does not
         /// exist.</returns>
+        ///
+        /// <exception cref="AVM2Exception">ArgumentError #10061: <paramref name="name"/> is null.</exception>
         public int getIndex(string name) {
             if (name == null)
-                return -1;
+                throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(name));
 
             int hash = name.GetHashCode();
             int i = m_chainHeads[(hash & 0x7FFFFFFF) % m_chainHeads.Length];
@@ -194,10 +199,14 @@ namespace Mariana.AVM2.Core {
         /// Gets the index of the next enumerable property after the one at the specified index. If
         /// there are no more enumerable properties, returns -1.
         /// </summary>
+        ///
         /// <param name="index">The index of the property from where to start searching. A value of -1
         /// will return the index of the first property.</param>
         /// <returns>The index of the next enumerable property after the specified one, or -1 if there
         /// are no more enumerable properties.</returns>
+        ///
+        /// <exception cref="AVM2Exception">ArgumentError #10061: <paramref name="name"/> is null.</exception>
+        ///
         /// <remarks>
         /// This method is used to implement ActionScript 3's for-in loops.
         /// </remarks>
@@ -236,6 +245,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="name">The name of the property.</param>
         /// <returns>True if a property with the given name exists and is enumerable, otherwise
         /// false.</returns>
+        /// <exception cref="AVM2Exception">ArgumentError #10061: <paramref name="name"/> is null.</exception>
         public bool isEnumerable(string name) {
             int index = getIndex(name);
             return index != -1 && m_slots[index].isEnum;
@@ -246,6 +256,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="name">The name of the property.</param>
         /// <param name="isEnum">The value of the enumerable flag.</param>
+        /// <exception cref="AVM2Exception">ArgumentError #10061: <paramref name="name"/> is null.</exception>
         public void setEnumerable(string name, bool isEnum) {
             int index = getIndex(name);
             if (index != -1)
@@ -256,11 +267,12 @@ namespace Mariana.AVM2.Core {
         /// Deletes the property with the specified name.
         /// </summary>
         /// <param name="name">The name of the property.</param>
-        /// <returns>True if the property was deleted, false if it was not (such as if no property
-        /// with the given name exists).</returns>
+        /// <returns>True if the property was deleted successfully, false if no property with the
+        /// given name exists.</returns>
+        /// <exception cref="AVM2Exception">ArgumentError #10061: <paramref name="name"/> is null.</exception>
         public bool delete(string name) {
             if (name == null)
-                return false;
+                throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(name));
 
             int hash = name.GetHashCode();
             int chain = (hash & 0x7FFFFFFF) % m_chainHeads.Length;
@@ -307,11 +319,11 @@ namespace Mariana.AVM2.Core {
         /// <param name="value">The value of the property, if is is found. Otherwise, this is set to
         /// undefined.</param>
         /// <returns>True, if a property was found; false otherwise.</returns>
+        ///
+        /// <exception cref="AVM2Exception">ArgumentError #10061: <paramref name="name"/> is null.</exception>
         internal static bool searchPrototypeChain(ASObject obj, string name, out ASAny value) {
-            if (name == null) {
-                value = default;
-                return false;
-            }
+            if (name == null)
+                throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(name));
 
             int hash = name.GetHashCode();    // Compute the hash code only once.
 

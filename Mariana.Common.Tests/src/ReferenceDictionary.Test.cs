@@ -113,70 +113,74 @@ namespace Mariana.Common.Tests {
             int keyDomainSize, int commandCount, int initCapacity, int seed,
             int setRatio = 0, int testSetRatio = 0, int delRatio = 0, int clearRatio = 0)
         {
-            yield return new Command {type = CmdType.CREATE, arg = initCapacity};
+            return generator().ToArray();
 
-            var random = new Random(seed);
-            var keysNotInDict = Enumerable.Range(0, keyDomainSize).ToList();
-            var keysInDict = new List<int>(keyDomainSize);
-            var valuesInDict = new int[keyDomainSize];
+            IEnumerable<Command> generator() {
+                yield return new Command {type = CmdType.CREATE, arg = initCapacity};
 
-            int commandsGenerated = 0;
+                var random = new Random(seed);
+                var keysNotInDict = Enumerable.Range(0, keyDomainSize).ToList();
+                var keysInDict = new List<int>(keyDomainSize);
+                var valuesInDict = new int[keyDomainSize];
 
-            double totalRatio = (double)(setRatio + testSetRatio + delRatio + clearRatio);
-            double pClear = (double)clearRatio / totalRatio;
-            double pDel = pClear + (double)delRatio / totalRatio;
-            double pSet = pDel + (double)setRatio / totalRatio;
+                int commandsGenerated = 0;
 
-            while (commandsGenerated < commandCount) {
-                double decision = random.NextDouble();
-                if (decision < pClear) {
-                    if (keysInDict.Count == 0)
-                        continue;
+                double totalRatio = (double)(setRatio + testSetRatio + delRatio + clearRatio);
+                double pClear = (double)clearRatio / totalRatio;
+                double pDel = pClear + (double)delRatio / totalRatio;
+                double pSet = pDel + (double)setRatio / totalRatio;
 
-                    keysNotInDict.AddRange(keysInDict);
-                    keysInDict.Clear();
-                    commandsGenerated++;
-                    yield return new Command {type = CmdType.CLEAR};
-                }
-                else if (decision < pDel) {
-                    if (keysInDict.Count == 0)
-                        continue;
+                while (commandsGenerated < commandCount) {
+                    double decision = random.NextDouble();
+                    if (decision < pClear) {
+                        if (keysInDict.Count == 0)
+                            continue;
 
-                    int index = random.Next(keysInDict.Count);
-                    int key = keysInDict[index];
-                    keysInDict.RemoveAt(index);
-                    keysNotInDict.Add(key);
-                    commandsGenerated++;
+                        keysNotInDict.AddRange(keysInDict);
+                        keysInDict.Clear();
+                        commandsGenerated++;
+                        yield return new Command {type = CmdType.CLEAR};
+                    }
+                    else if (decision < pDel) {
+                        if (keysInDict.Count == 0)
+                            continue;
 
-                    yield return new Command {
-                        type = CmdType.DEL, arg = key,
-                        contents = keysInDict.Select(x => (x, valuesInDict[x])).ToArray()
-                    };
-                }
-                else {
-                    int key = random.Next(keyDomainSize);
-                    int value = random.Next();
-                    int oldValue = 0;
+                        int index = random.Next(keysInDict.Count);
+                        int key = keysInDict[index];
+                        keysInDict.RemoveAt(index);
+                        keysNotInDict.Add(key);
+                        commandsGenerated++;
 
-                    if (keysNotInDict.Remove(key))
-                        keysInDict.Add(key);
-                    else
-                        oldValue = valuesInDict[key];
-
-                    valuesInDict[key] = value;
-                    commandsGenerated++;
-
-                    if (decision < pSet) {
                         yield return new Command {
-                            type = CmdType.SET, arg = key, arg2 = value,
+                            type = CmdType.DEL, arg = key,
                             contents = keysInDict.Select(x => (x, valuesInDict[x])).ToArray()
                         };
                     }
                     else {
-                        yield return new Command {
-                            type = CmdType.TEST_SET, arg = key, arg2 = oldValue, arg3 = value,
-                            contents = keysInDict.Select(x => (x, valuesInDict[x])).ToArray()
-                        };
+                        int key = random.Next(keyDomainSize);
+                        int value = random.Next();
+                        int oldValue = 0;
+
+                        if (keysNotInDict.Remove(key))
+                            keysInDict.Add(key);
+                        else
+                            oldValue = valuesInDict[key];
+
+                        valuesInDict[key] = value;
+                        commandsGenerated++;
+
+                        if (decision < pSet) {
+                            yield return new Command {
+                                type = CmdType.SET, arg = key, arg2 = value,
+                                contents = keysInDict.Select(x => (x, valuesInDict[x])).ToArray()
+                            };
+                        }
+                        else {
+                            yield return new Command {
+                                type = CmdType.TEST_SET, arg = key, arg2 = oldValue, arg3 = value,
+                                contents = keysInDict.Select(x => (x, valuesInDict[x])).ToArray()
+                            };
+                        }
                     }
                 }
             }

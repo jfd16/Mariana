@@ -75,10 +75,20 @@ namespace Mariana.Common {
         /// Returns a span that can be used to access an array allocated with the
         /// <see cref="allocate(Int32)"/> method.
         /// </summary>
+        ///
         /// <param name="token">A <see cref="DynamicArrayPoolToken{T}"/> that was obtained from
         /// a call to <see cref="allocate(Int32)"/>. If this is the default value of
         /// <see cref="DynamicArrayPoolToken{T}"/>, an empty span is returned.</param>
         /// <returns>A <see cref="Span{T}"/> that provides access to the allocated memory.</returns>
+        ///
+        /// <remarks>
+        /// The returned span is guaranteed to refer to the memory associated with the token
+        /// <paramref name="token"/> as long as the <see cref="allocate(Int32)"/>,
+        /// <see cref="resize(DynamicArrayPoolToken{T}, Int32)"/> and <see cref="append(DynamicArrayPoolToken{T}, T)"/>
+        /// methods are not called on this <see cref="DynamicArrayPool{T}"/> instance. These methods may move
+        /// the data associated with the token to new location in memory, and this method must then be called
+        /// again to get the span for the new backing memory.
+        /// </remarks>
         /// <remarks>
         /// If the token was obtained from a different <see cref="DynamicArrayPoolToken{T}"/>
         /// instance, or if the memory backed by the token was released by calling <see cref="free"/>
@@ -97,10 +107,12 @@ namespace Mariana.Common {
         /// <summary>
         /// Returns the length of an array allocated with the <see cref="allocate(Int32)"/> method.
         /// </summary>
+        ///
         /// <param name="token">A <see cref="DynamicArrayPoolToken{T}"/> that was obtained from
         /// a call to <see cref="allocate(Int32)"/>. If this is the default value of
         /// <see cref="DynamicArrayPoolToken{T}"/>, zero is returned.</param>
         /// <returns>The length of the array represented by <paramref name="token"/>.</returns>
+        ///
         /// <remarks>
         /// If the token was obtained from a different <see cref="DynamicArrayPoolToken{T}"/>
         /// instance, or if the memory backed by the token was released by calling
@@ -141,8 +153,17 @@ namespace Mariana.Common {
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="length"/> is less than 0.</exception>
         ///
         /// <remarks>
+        /// <para>
         /// The allocated memory is guaranteed to be zero-initialized if <typeparamref name="T"/> is
         /// a reference type or a value type containing references.
+        /// </para>
+        /// <remarks>
+        /// The span written to <paramref name="span"/> is guaranteed to refer to the memory associated with the token
+        /// <paramref name="token"/> as long as there are no further calls to the <see cref="allocate(Int32)"/>,
+        /// <see cref="resize(DynamicArrayPoolToken{T}, Int32)"/> or <see cref="append(DynamicArrayPoolToken{T}, T)"/>
+        /// methods on this instance. These methods may move the data associated with the token to new location in memory,
+        /// and <see cref="getSpan(DynamicArrayPoolToken{T})"/> must then be called to get the span for the new backing memory.
+        /// </remarks>
         /// </remarks>
         public DynamicArrayPoolToken<T> allocate(int length, out Span<T> span) {
             if (length < 0)
@@ -187,18 +208,24 @@ namespace Mariana.Common {
         /// Releases an array obtained from this <see cref="DynamicArrayPool{T}"/> instance so that
         /// its memory can be reused.
         /// </summary>
+        ///
         /// <param name="token">A <see cref="DynamicArrayPoolToken{T}"/> instance representing the
         /// array whose memory is to be released.</param>
+        ///
         /// <exception cref="ArgumentException"><paramref name="token"/> is the default value of
         /// <see cref="DynamicArrayPoolToken{T}"/>.</exception>
+        ///
+        /// <remarks>
+        /// Do not pass a token that was obtained from a different <see cref="DynamicArrayPool{T}"/>
+        /// instance, or a token whose backing memory has already been freed by a prior call to
+        /// this method, or by calling the <see cref="clear"/> method. This may result in this
+        /// <see cref="DynamicArrayPool{T}"/> instance being in a corrupted state.
+        /// </remarks>
         public void free(DynamicArrayPoolToken<T> token) {
             if (token.m_id == 0)
                 throw new ArgumentException("Token must not be the default value.", nameof(token));
 
             ref Segment segment = ref m_segments[token.m_id - 1];
-            if (segment.bucketId == -1)
-                return;
-
             m_buckets[segment.bucketId].freeSegment(segment.index);
             segment.bucketId = -1;
             m_freeTokens.add(token.m_id);
@@ -217,10 +244,25 @@ namespace Mariana.Common {
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="newLength"/> is less than 0.</exception>
         ///
         /// <remarks>
+        /// <para>
         /// If <typeparamref name="T"/> is a reference type or a value type containing references
         /// and <paramref name="newLength"/> is greater than the length of the array represented
         /// by <paramref name="token"/>, all excess elements in the new array are guaranteed to
         /// be zero-initialized.
+        /// </para>
+        /// <para>
+        /// Do not pass a token that was obtained from a different <see cref="DynamicArrayPool{T}"/>
+        /// instance, or a token whose backing memory has already been freed by a prior call to
+        /// this method, or by calling the <see cref="clear"/> method. This may result in this
+        /// <see cref="DynamicArrayPool{T}"/> instance being in a corrupted state.
+        /// </para>
+        /// <remarks>
+        /// The span written to <paramref name="span"/> is guaranteed to refer to the memory associated with the token
+        /// <paramref name="token"/> as long as there are no further calls to the <see cref="allocate(Int32)"/>,
+        /// <see cref="resize(DynamicArrayPoolToken{T}, Int32)"/> or <see cref="append(DynamicArrayPoolToken{T}, T)"/>
+        /// methods on this instance. These methods may move the data associated with the token to new location in memory,
+        /// and <see cref="getSpan(DynamicArrayPoolToken{T})"/> must then be called to get the span for the new backing memory.
+        /// </remarks>
         /// </remarks>
         public void resize(DynamicArrayPoolToken<T> token, int newLength, out Span<T> span) {
             if (token.m_id == 0)
@@ -233,11 +275,14 @@ namespace Mariana.Common {
             ref Bucket bucket = ref m_buckets[segment.bucketId];
 
             if (newLength == segment.length) {
+                // No resizing.
                 span = bucket.getSpan(segment.index, segment.length);
                 return;
             }
 
-            if (newLength < bucket.segmentSize && newLength >= (bucket.segmentSize >> 1)) {
+            if (newLength <= bucket.segmentSize && newLength > (bucket.segmentSize >> 1)) {
+                // The new length is valid for the current bucket, so we can reuse the segment.
+                // However, if the length is being reduced we have to zero out any references.
                 if (newLength < segment.length && RuntimeHelpers.IsReferenceOrContainsReferences<T>()) {
                     span = bucket.getSpan(segment.index, segment.length);
                     span.Slice(newLength).Clear();
@@ -250,14 +295,14 @@ namespace Mariana.Common {
                 segment.length = newLength;
             }
             else {
+                // The data needs to be moved to a different bucket.
                 int newBucketId = _getBucketIndex(newLength);
                 ref Bucket newBucket = ref m_buckets[newBucketId];
 
                 int newIndex = newBucket.allocNewSegment();
                 span = newBucket.getSpan(newIndex, newLength);
 
-                Span<T> data = bucket.getSpan(segment.index, Math.Min(segment.length, newLength));
-                data.CopyTo(span.Slice(0, data.Length));
+                bucket.getSpan(segment.index, Math.Min(segment.length, newLength)).CopyTo(span);
 
                 bucket.freeSegment(segment.index);
                 segment.bucketId = newBucketId;
@@ -269,23 +314,49 @@ namespace Mariana.Common {
         /// <summary>
         /// Resizes an already allocated array.
         /// </summary>
+        ///
         /// <param name="token">A <see cref="DynamicArrayPoolToken{T}"/> instance representing the
         /// array to be resized.</param>
         /// <param name="newLength">The new length of the array.</param>
+        ///
         /// <exception cref="ArgumentException"><paramref name="token"/> is the default value of
         /// <see cref="DynamicArrayPoolToken{T}"/>.</exception>
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="newLength"/> is less than 0.</exception>
+        ///
+        /// <remarks>
+        /// <para>
+        /// If <typeparamref name="T"/> is a reference type or a value type containing references
+        /// and <paramref name="newLength"/> is greater than the length of the array represented
+        /// by <paramref name="token"/>, all excess elements in the new array are guaranteed to
+        /// be zero-initialized.
+        /// </para>
+        /// <para>
+        /// Do not pass a token that was obtained from a different <see cref="DynamicArrayPool{T}"/>
+        /// instance, or a token whose backing memory has already been freed by a prior call to
+        /// this method, or by calling the <see cref="clear"/> method. This may result in this
+        /// <see cref="DynamicArrayPool{T}"/> instance being in a corrupted state.
+        /// </para>
+        /// </remarks>
         public void resize(DynamicArrayPoolToken<T> token, int newLength) => resize(token, newLength, out _);
 
         /// <summary>
         /// Appends a value to an array allocated from this array pool. This increases the
         /// length of the array by one.
         /// </summary>
+        ///
         /// <param name="token">A <see cref="DynamicArrayPoolToken{T}"/> instance representing the
         /// array to which to append <paramref name="value"/>.</param>
         /// <param name="value">The value to append to the array represented by <paramref name="token"/>.</param>
+        ///
         /// <exception cref="ArgumentException"><paramref name="token"/> is the default value of
         /// <see cref="DynamicArrayPoolToken{T}"/>.</exception>
+        ///
+        /// <remarks>
+        /// Do not pass a token that was obtained from a different <see cref="DynamicArrayPool{T}"/>
+        /// instance, or a token whose backing memory has already been freed by a prior call to
+        /// this method, or by calling the <see cref="clear"/> method. This may result in this
+        /// <see cref="DynamicArrayPool{T}"/> instance being in a corrupted state.
+        /// </remarks>
         public void append(DynamicArrayPoolToken<T> token, T value) {
             if (token.m_id == 0)
                 throw new ArgumentException("Token must not be the default value.", nameof(token));
@@ -320,9 +391,18 @@ namespace Mariana.Common {
         /// <summary>
         /// Returns a string representation of an array in the pool.
         /// </summary>
+        ///
         /// <param name="token">A <see cref="DynamicArrayPoolToken{T}"/> instance representing the
         /// allocated array for which to return a string representation.</param>
+        ///
         /// <returns>A string representation of the array.</returns>
+        ///
+        /// <remarks>
+        /// If the token was obtained from a different <see cref="DynamicArrayPoolToken{T}"/>
+        /// instance, or if the memory backed by the token was released by calling <see cref="free"/>
+        /// or <see cref="clear"/>, this method may return an unspecified string value or throw an
+        /// exception.
+        /// </remarks>
         public string arrayToString(DynamicArrayPoolToken<T> token) {
             Span<T> span = getSpan(token);
             var sb = new StringBuilder();

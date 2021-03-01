@@ -109,49 +109,53 @@ namespace Mariana.Common.Tests {
         private static IEnumerable<Command> genRandomCommands(
             int domainSize, int commandCount, int initCapacity, int seed, int clearRatio = 0, int addRatio = 0, int delRatio = 0)
         {
-            yield return new Command {type = CmdType.CREATE, arg = initCapacity};
+            return generator().ToArray();
 
-            var random = new Random(seed);
-            var keysNotInSet = Enumerable.Range(0, domainSize).ToList();
-            var keysInSet = new List<int>(domainSize);
+            IEnumerable<Command> generator() {
+                yield return new Command {type = CmdType.CREATE, arg = initCapacity};
 
-            int commandsGenerated = 0;
+                var random = new Random(seed);
+                var keysNotInSet = Enumerable.Range(0, domainSize).ToList();
+                var keysInSet = new List<int>(domainSize);
 
-            double pClear = (double)clearRatio / (double)(clearRatio + addRatio + delRatio);
-            double pDel = pClear + (double)delRatio / (double)(clearRatio + addRatio + delRatio);
+                int commandsGenerated = 0;
 
-            while (commandsGenerated < commandCount) {
-                double decision = random.NextDouble();
-                if (decision < pClear) {
-                    if (keysInSet.Count == 0)
-                        continue;
+                double pClear = (double)clearRatio / (double)(clearRatio + addRatio + delRatio);
+                double pDel = pClear + (double)delRatio / (double)(clearRatio + addRatio + delRatio);
 
-                    keysNotInSet.AddRange(keysInSet);
-                    keysInSet.Clear();
-                    commandsGenerated++;
-                    yield return new Command {type = CmdType.CLEAR};
-                }
-                else if (decision < pDel) {
-                    if (keysInSet.Count == 0)
-                        continue;
+                while (commandsGenerated < commandCount) {
+                    double decision = random.NextDouble();
+                    if (decision < pClear) {
+                        if (keysInSet.Count == 0)
+                            continue;
 
-                    int index = random.Next(keysInSet.Count);
-                    int key = keysInSet[index];
-                    keysInSet.RemoveAt(index);
-                    keysNotInSet.Add(key);
-                    commandsGenerated++;
-                    yield return new Command {type = CmdType.DEL, arg = key, keysInSet = keysInSet.ToArray()};
-                }
-                else {
-                    if (keysNotInSet.Count == 0)
-                        continue;
+                        keysNotInSet.AddRange(keysInSet);
+                        keysInSet.Clear();
+                        commandsGenerated++;
+                        yield return new Command {type = CmdType.CLEAR};
+                    }
+                    else if (decision < pDel) {
+                        if (keysInSet.Count == 0)
+                            continue;
 
-                    int index = random.Next(keysNotInSet.Count);
-                    int key = keysNotInSet[index];
-                    keysNotInSet.RemoveAt(index);
-                    keysInSet.Add(key);
-                    commandsGenerated++;
-                    yield return new Command {type = CmdType.ADD, arg = key, keysInSet = keysInSet.ToArray()};
+                        int index = random.Next(keysInSet.Count);
+                        int key = keysInSet[index];
+                        keysInSet.RemoveAt(index);
+                        keysNotInSet.Add(key);
+                        commandsGenerated++;
+                        yield return new Command {type = CmdType.DEL, arg = key, keysInSet = keysInSet.ToArray()};
+                    }
+                    else {
+                        if (keysNotInSet.Count == 0)
+                            continue;
+
+                        int index = random.Next(keysNotInSet.Count);
+                        int key = keysNotInSet[index];
+                        keysNotInSet.RemoveAt(index);
+                        keysInSet.Add(key);
+                        commandsGenerated++;
+                        yield return new Command {type = CmdType.ADD, arg = key, keysInSet = keysInSet.ToArray()};
+                    }
                 }
             }
         }

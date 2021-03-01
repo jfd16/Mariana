@@ -11,24 +11,21 @@ namespace Mariana.Common.Tests {
             public int p;
             public string q;
 
-            public bool Equals(StructWithRef other) => p == other.p && q == other.q;
+            public bool Equals(StructWithRef other) => p == other.p && (object)q == other.q;
         }
 
         [Fact]
-        public void constructor_shouldThrowWhenCapacityIsNegative() {
-            Assert.Throws<ArgumentOutOfRangeException>(() => new StaticArrayPool<int>(-1));
-        }
-
-        [Fact]
-        public void defaultTokenValue_shouldHaveIsDefaultTrue() {
+        public void defaultTokenValueTest() {
             Assert.True(default(StaticArrayPoolToken<int>).isDefault);
-        }
 
-        [Fact]
-        public void defaultToken_shouldGetEmptySpanAndZeroLength() {
             var pool = new StaticArrayPool<int>();
             Assert.Equal(0, pool.getSpan(default).Length);
             Assert.Equal(0, pool.getLength(default));
+        }
+
+        [Fact]
+        public void constructorTest_withNegativeCapacity() {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new StaticArrayPool<int>(-1));
         }
 
         public static IEnumerable<object[]> allocateTest_data = new (int, int[])[] {
@@ -150,8 +147,8 @@ namespace Mariana.Common.Tests {
 
             pool.allocate(10, out Span<int> span1);
             pool.clear();
-            pool.allocate(10, out Span<int> span2);
 
+            pool.allocate(10, out Span<int> span2);
             Assert.True(span1 == span2);
         }
 
@@ -180,6 +177,7 @@ namespace Mariana.Common.Tests {
         [InlineData(new int[] {1}, new int[] {4, 16}, new int[] {64}, new int[] {16, 16, 16, 16}, new int[] {5, 10})]
         public void allocateAndClearTest(params int[][] sizes) {
             var pool = new StaticArrayPool<int>();
+
             for (int i = 0; i < sizes.Length; i++) {
                 pool.clear();
                 _doAllocateTest(pool, sizes[i]);
