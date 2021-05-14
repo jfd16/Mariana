@@ -261,6 +261,14 @@ namespace Mariana.AVM2.Compiler {
                 case ABCOp.greaterequals:
                     sb.AppendFormat("compareType = {0}", instr.data.compare.compareType);
                     break;
+
+                case ABCOp.add: {
+                    if (instr.data.add.isConcatTreeInternalNode)
+                        sb.Append("<concat tree internal node>");
+                    else if (instr.data.add.isConcatTreeRoot)
+                        sb.Append("<concat tree root>");
+                    break;
+                }
             }
 
             return sb.ToString();

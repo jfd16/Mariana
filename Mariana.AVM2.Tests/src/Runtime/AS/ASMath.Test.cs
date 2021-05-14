@@ -361,8 +361,8 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(1.0, min(new Rest(1.0, POS_INF)));
             Assert.Equal(1.0, min(new Rest(POS_INF, 1.0)));
 
-            var obj1 = new SpyObjectWithConversions {numberValue = 1.0};
-            var obj2 = new SpyObjectWithConversions {numberValue = 2.0};
+            var obj1 = new ConvertibleMockObject(numberValue: 1.0);
+            var obj2 = new ConvertibleMockObject(numberValue: 2.0);
 
             Assert.Equal(1.0, min(new Rest(obj1, obj2)));
             Assert.Equal(1.0, min(new Rest(obj2, obj1)));
@@ -438,8 +438,8 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(1.0, max(new Rest(1.0, NEG_INF)));
             Assert.Equal(1.0, max(new Rest(NEG_INF, 1.0)));
 
-            var obj1 = new SpyObjectWithConversions {numberValue = 1.0};
-            var obj2 = new SpyObjectWithConversions {numberValue = 2.0};
+            var obj1 = new ConvertibleMockObject(numberValue: 1.0);
+            var obj2 = new ConvertibleMockObject(numberValue: 2.0);
 
             Assert.Equal(2.0, max(new Rest(obj1, obj2)));
             Assert.Equal(2.0, max(new Rest(obj2, obj1)));

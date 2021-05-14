@@ -889,16 +889,14 @@ namespace Mariana.AVM2.Native {
         }
 
         /// <summary>
-        /// Loads all public types from the given assembly that declare the attributes
+        /// Loads all public types from the given array that declare the attributes
         /// <see cref="AVM2ExportClassAttribute"/> and <see cref="AVM2ExportModuleAttribute"/>
         /// as native classes and modules in the given application domain.
         /// </summary>
-        /// <param name="assembly">The <see cref="Assembly"/> instance representing the
-        /// assembly containing the types to load.</param>
+        /// <param name="types">A span of <see cref="Type"/> instances containing the types to load.</param>
         /// <param name="domain">The application domain in which to define the loaded classes and
         /// module traits.</param>
-        internal static void createClassesAndModulesFromAssemblyTypes(Assembly assembly, ApplicationDomain domain) {
-            Type[] types = assembly.GetTypes();
+        internal static void createClassesAndModulesFromTypes(ReadOnlySpan<Type> types, ApplicationDomain domain) {
             var createdClasses = new DynamicArray<NativeClass>();
 
             for (int i = 0; i < types.Length; i++) {

@@ -237,6 +237,16 @@ namespace Mariana.AVM2.Compiler {
             /// or the operands must be coerced to the Object type.
             /// </summary>
             public bool argsAreAnyType;
+
+            /// <summary>
+            /// True if the output of this instruction is the root node of a string concatenation tree.
+            /// </summary>
+            public bool isConcatTreeRoot;
+
+            /// <summary>
+            /// True if the output of this instruction is an internal node of a string concatenation tree.
+            /// </summary>
+            public bool isConcatTreeInternalNode;
         }
 
         /// <summary>

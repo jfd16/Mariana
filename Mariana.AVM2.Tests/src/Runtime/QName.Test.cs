@@ -1,30 +1,30 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Mariana.AVM2.Core;
+using Mariana.AVM2.Tests.Helpers;
 using Xunit;
 
 namespace Mariana.AVM2.Tests {
 
     public class QNameTest {
 
-        public static IEnumerable<object[]> ctor_shouldCreateFromNamespaceAndLocalName_data = new object[][] {
-            new object[] { Namespace.any, null },
-            new object[] { Namespace.@public, null },
-            new object[] { new Namespace("hello"), null },
-            new object[] { new Namespace(NamespaceKind.PACKAGE_INTERNAL, "hello"), null },
-            new object[] { Namespace.createPrivate(1), null },
-            new object[] { Namespace.any, "*" },
-            new object[] { Namespace.@public, "*" },
-            new object[] { new Namespace("hello"), "*" },
-            new object[] { new Namespace(NamespaceKind.PACKAGE_INTERNAL, "hello"), "*" },
-            new object[] { Namespace.createPrivate(1), "*" },
-            new object[] { Namespace.any, "abc" },
-            new object[] { Namespace.@public, "abc" },
-            new object[] { new Namespace("hello"), "abc" },
-            new object[] { new Namespace(NamespaceKind.PACKAGE_INTERNAL, "hello"), "abc" },
-            new object[] { Namespace.createPrivate(1), "abc" },
-        };
+        public static IEnumerable<object[]> ctor_shouldCreateFromNamespaceAndLocalName_data = TupleHelper.toArrays(
+            (Namespace.any, null),
+            (Namespace.@public, null),
+            (new Namespace("hello"), null),
+            (new Namespace(NamespaceKind.PACKAGE_INTERNAL, "hello"), null),
+            (Namespace.createPrivate(1), null),
+            (Namespace.any, "*"),
+            (Namespace.@public, "*"),
+            (new Namespace("hello"), "*"),
+            (new Namespace(NamespaceKind.PACKAGE_INTERNAL, "hello"), "*"),
+            (Namespace.createPrivate(1), "*"),
+            (Namespace.any, "abc"),
+            (Namespace.@public, "abc"),
+            (new Namespace("hello"), "abc"),
+            (new Namespace(NamespaceKind.PACKAGE_INTERNAL, "hello"), "abc"),
+            (Namespace.createPrivate(1), "abc")
+        );
 
         [Theory]
         [MemberData(nameof(ctor_shouldCreateFromNamespaceAndLocalName_data))]
@@ -62,40 +62,40 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(localName, qname.localName);
         }
 
-        public static IEnumerable<object[]> parse_shouldParseStringToQName_data = new object[][] {
-            new object[] { null, default(QName) },
-            new object[] { "", new QName("", "") },
-            new object[] { "*", new QName(Namespace.any, "*") },
-            new object[] { "a", QName.publicName("a") },
-            new object[] { "hello", QName.publicName("hello") },
+        public static IEnumerable<object[]> parse_shouldParseStringToQName_data = TupleHelper.toArrays(
+            (null, default(QName)),
+            ("", new QName("", "")),
+            ("*", new QName(Namespace.any, "*")),
+            ("a", QName.publicName("a")),
+            ("hello", QName.publicName("hello")),
 
-            new object[] { "a.b", new QName("a", "b") },
-            new object[] { "a.", new QName("a", "") },
-            new object[] { ".b", new QName("", "b") },
-            new object[] { ".", new QName("", "") },
-            new object[] { "a.b.c", new QName("a.b", "c") },
-            new object[] { ".b.c", new QName(".b", "c") },
-            new object[] { "a.b.", new QName("a.b", "") },
-            new object[] { "*.b", new QName("*", "b") },
-            new object[] { "a.*", new QName("a", "*") },
+            ("a.b", new QName("a", "b")),
+            ("a.", new QName("a", "")),
+            (".b", new QName("", "b")),
+            (".", new QName("", "")),
+            ("a.b.c", new QName("a.b", "c")),
+            (".b.c", new QName(".b", "c")),
+            ("a.b.", new QName("a.b", "")),
+            ("*.b", new QName("*", "b")),
+            ("a.*", new QName("a", "*")),
 
-            new object[] { "a::b", new QName("a", "b") },
-            new object[] { "a::", new QName("a", "") },
-            new object[] { "::b", new QName("", "b") },
-            new object[] { "*::b", new QName(Namespace.any, "b") },
-            new object[] { "a::*", new QName("a", "*") },
-            new object[] { "a::b::c", new QName("a::b", "c") },
-            new object[] { "a::b::", new QName("a::b", "") },
-            new object[] { "::b::c", new QName("::b", "c") },
-            new object[] { "a::b.c", new QName("a", "b.c") },
-            new object[] { "a.b::c", new QName("a.b", "c") },
+            ("a::b", new QName("a", "b")),
+            ("a::", new QName("a", "")),
+            ("::b", new QName("", "b")),
+            ("*::b", new QName(Namespace.any, "b")),
+            ("a::*", new QName("a", "*")),
+            ("a::b::c", new QName("a::b", "c")),
+            ("a::b::", new QName("a::b", "")),
+            ("::b::c", new QName("::b", "c")),
+            ("a::b.c", new QName("a", "b.c")),
+            ("a.b::c", new QName("a.b", "c")),
 
-            new object[] { "a.<b>", new QName("", "a.<b>") },
-            new object[] { "a.<b.<c,d>>", new QName("", "a.<b.<c,d>>") },
-            new object[] { "x.y.a.<b.<c,d>>", new QName("x.y", "a.<b.<c,d>>") },
-            new object[] { "x.y::a.<b.<c,d>>", new QName("x.y", "a.<b.<c,d>>") },
-            new object[] { "x.y.a.<b::<c,d>>", new QName("x.y.a.<b", "<c,d>>") },
-        };
+            ("a.<b>", new QName("", "a.<b>")),
+            ("a.<b.<c,d>>", new QName("", "a.<b.<c,d>>")),
+            ("x.y.a.<b.<c,d>>", new QName("x.y", "a.<b.<c,d>>")),
+            ("x.y::a.<b.<c,d>>", new QName("x.y", "a.<b.<c,d>>")),
+            ("x.y.a.<b::<c,d>>", new QName("x.y.a.<b", "<c,d>>"))
+        );
 
         [Theory]
         [MemberData(nameof(parse_shouldParseStringToQName_data))]
@@ -105,64 +105,64 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expected.localName, qname.localName);
         }
 
-        public static IEnumerable<object[]> equals_shouldCheckForQNameEquality_data = new object[][] {
-            new object[] { default(QName), new QName(Namespace.any, null), true },
-            new object[] { new QName(Namespace.any, "hello"), new QName(Namespace.any, "hello"), true },
-            new object[] { QName.publicName("hello"), new QName(Namespace.@public, "hello"), true },
-            new object[] { new QName("a", "b"), new QName("a", "b"), true },
-            new object[] {
+        public static IEnumerable<object[]> equals_shouldCheckForQNameEquality_data = TupleHelper.toArrays(
+            (default(QName), new QName(Namespace.any, null), true),
+            (new QName(Namespace.any, "hello"), new QName(Namespace.any, "hello"), true),
+            (QName.publicName("hello"), new QName(Namespace.@public, "hello"), true),
+            (new QName("a", "b"), new QName("a", "b"), true),
+            (
                 new QName(Namespace.createPrivate(3), ""),
                 new QName(Namespace.createPrivate(3), ""),
                 true
-            },
-            new object[] {
+            ),
+            (
                 new QName(new Namespace(NamespaceKind.PROTECTED, "foo"), "bar"),
                 new QName(new Namespace(NamespaceKind.PROTECTED, "foo"), "bar"),
                 true
-            },
+            ),
 
-            new object[] { default(QName), new QName("*", null), false },
-            new object[] { new QName(Namespace.any, "hello"), new QName("", "hello"), false },
-            new object[] { new QName("a", "b"), new QName("a", "c"), false },
-            new object[] { new QName("a", "b"), new QName("c", "b"), false },
-            new object[] { new QName("a", "*"), new QName("a", "c"), false },
-            new object[] { new QName("*", "b"), new QName("a", "b"), false },
-            new object[] {
+            (default(QName), new QName("*", null), false),
+            (new QName(Namespace.any, "hello"), new QName("", "hello"), false),
+            (new QName("a", "b"), new QName("a", "c"), false),
+            (new QName("a", "b"), new QName("c", "b"), false),
+            (new QName("a", "*"), new QName("a", "c"), false),
+            (new QName("*", "b"), new QName("a", "b"), false),
+            (
                 new QName(Namespace.createPrivate(2), "a"),
                 new QName(Namespace.createPrivate(3), "a"),
                 false
-            },
-            new object[] {
+            ),
+            (
                 new QName(Namespace.createPrivate(2), "a"),
                 new QName(Namespace.createPrivate(2), "b"),
                 false
-            },
-            new object[] {
+            ),
+            (
                 new QName(new Namespace(NamespaceKind.PROTECTED, "foo"), "bar"),
                 new QName(new Namespace(NamespaceKind.PROTECTED, "foo"), "foo"),
                 false
-            },
-            new object[] {
+            ),
+            (
                 new QName(new Namespace(NamespaceKind.PROTECTED, "foo"), "bar"),
                 new QName(new Namespace(NamespaceKind.STATIC_PROTECTED, "foo"), "bar"),
                 false
-            },
-            new object[] {
+            ),
+            (
                 new QName(new Namespace(NamespaceKind.PROTECTED, "foo"), "bar"),
                 new QName(new Namespace(NamespaceKind.PROTECTED, "bar"), "foo"),
                 false
-            },
-            new object[] {
+            ),
+            (
                 new QName(Namespace.createPrivate(2), "a"),
                 new QName(new Namespace(NamespaceKind.PROTECTED, ""), "a"),
                 false
-            },
-            new object[] {
+            ),
+            (
                 new QName(Namespace.any, "a"),
                 new QName(new Namespace(NamespaceKind.PROTECTED, ""), "a"),
                 false
-            },
-        };
+            )
+        );
 
         [Theory]
         [MemberData(nameof(equals_shouldCheckForQNameEquality_data))]
@@ -192,24 +192,24 @@ namespace Mariana.AVM2.Tests {
                 Assert.Equal(x.GetHashCode(), y.GetHashCode());
         }
 
-        public static IEnumerable<object[]> toString_shouldReturnStringRepr_data = new object[][] {
-            new object[] { default(QName), "*::null" },
-            new object[] { new QName(Namespace.any, "*"), "*::*" },
-            new object[] { QName.publicName("foo"), "foo" },
+        public static IEnumerable<object[]> toString_shouldReturnStringRepr_data = TupleHelper.toArrays(
+            (default(QName), "*::null"),
+            (new QName(Namespace.any, "*"), "*::*"),
+            (QName.publicName("foo"), "foo"),
 
-            new object[] { new QName("", "bar"), "bar" },
-            new object[] { new QName("", null), "null" },
-            new object[] { new QName("", "bar.foo"), "bar.foo" },
-            new object[] { new QName("", "bar::foo"), "bar::foo" },
-            new object[] { new QName("a", "b"), "a::b" },
-            new object[] { new QName("a", null), "a::null" },
-            new object[] { new QName("a", "*"), "a::*" },
-            new object[] { new QName("a::b", "c"), "a::b::c" },
-            new object[] { new QName("a", "b::c"), "a::b::c" },
+            (new QName("", "bar"), "bar"),
+            (new QName("", null), "null"),
+            (new QName("", "bar.foo"), "bar.foo"),
+            (new QName("", "bar::foo"), "bar::foo"),
+            (new QName("a", "b"), "a::b"),
+            (new QName("a", null), "a::null"),
+            (new QName("a", "*"), "a::*"),
+            (new QName("a::b", "c"), "a::b::c"),
+            (new QName("a", "b::c"), "a::b::c"),
 
-            new object[] { new QName(new Namespace(NamespaceKind.PACKAGE_INTERNAL, "foo"), "bar"), "<internal foo>::bar" },
-            new object[] { new QName(Namespace.createPrivate(1), "bar"), "<private #1>::bar" },
-        };
+            (new QName(new Namespace(NamespaceKind.PACKAGE_INTERNAL, "foo"), "bar"), "<internal foo>::bar"),
+            (new QName(Namespace.createPrivate(1), "bar"), "<private #1>::bar")
+        );
 
         [Theory]
         [MemberData(nameof(toString_shouldReturnStringRepr_data))]
@@ -229,7 +229,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(localName, qname.localName);
         }
 
-        public static IEnumerable<object[]> fromObject_shouldCreateQNameFromASObject_data = new (ASObject, QName)[] {
+        public static IEnumerable<object[]> fromObject_shouldCreateQNameFromASObject_data = TupleHelper.toArrays<ASObject, QName>(
             (1, QName.publicName("1")),
             (true, QName.publicName("true")),
             ("*", QName.publicName("*")),
@@ -241,8 +241,8 @@ namespace Mariana.AVM2.Tests {
             (new ASQName("ab.c"), QName.publicName("ab.c")),
             (new ASQName("ab::c"), QName.publicName("ab::c")),
             (new ASQName("a", "b"), new QName("a", "b")),
-            (new ASQName("a", "b", "c"), new QName("b", "c")),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            (new ASQName("a", "b", "c"), new QName("b", "c"))
+        );
 
         [Theory]
         [MemberData(nameof(fromObject_shouldCreateQNameFromASObject_data))]
@@ -250,14 +250,14 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expected, QName.fromObject(obj));
         }
 
-        public static IEnumerable<object[]> fromASQName_shouldCreateQNameFromASQName_data = new (ASQName, QName)[] {
+        public static IEnumerable<object[]> fromASQName_shouldCreateQNameFromASQName_data = TupleHelper.toArrays(
             (null, default(QName)),
             (new ASQName("abc"), QName.publicName("abc")),
             (new ASQName("ab.c"), QName.publicName("ab.c")),
             (new ASQName("ab::c"), QName.publicName("ab::c")),
             (new ASQName("a", "b"), new QName("a", "b")),
-            (new ASQName("a", "b", "c"), new QName("b", "c")),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            (new ASQName("a", "b", "c"), new QName("b", "c"))
+        );
 
         [Theory]
         [MemberData(nameof(fromASQName_shouldCreateQNameFromASQName_data))]

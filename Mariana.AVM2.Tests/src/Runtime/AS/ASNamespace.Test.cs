@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using Xunit;
 
@@ -63,7 +62,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Null(ns.prefix);
         }
 
-        public static IEnumerable<object[]> testNamespaceData = new ASNamespace[] {
+        public static IEnumerable<object[]> testNamespaceData = TupleHelper.toArrays(
             ASNamespace.@public,
             new ASNamespace(""),
             new ASNamespace("a"),
@@ -75,8 +74,8 @@ namespace Mariana.AVM2.Tests {
             new ASNamespace("a", "a"),
             new ASNamespace("b", "a"),
             new ASNamespace("b", "b"),
-            new ASNamespace("b", "*"),
-        }.Select(x => new object[] {x});
+            new ASNamespace("b", "*")
+        );
 
         [Theory]
         [MemberData(nameof(testNamespaceData))]
@@ -109,7 +108,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(x?.uri == y?.uri, ASNamespace.AS_equals(x, y));
         }
 
-        public static IEnumerable<object[]> runtimeConstructorTest_data = new (ASAny[], ASNamespace)[] {
+        public static IEnumerable<object[]> runtimeConstructorTest_data = TupleHelper.toArrays(
             (Array.Empty<ASAny>(), ASNamespace.@public),
 
             (new ASAny[] {ASAny.undefined}, new ASNamespace("undefined")),
@@ -146,8 +145,8 @@ namespace Mariana.AVM2.Tests {
             (new ASAny[] {new ASQName("a", "b"), new ASQName("c", "d", "e")}, new ASNamespace("d")),
 
             (new ASAny[] {"a", "b", "c", "d"}, new ASNamespace("a", "b")),
-            (new ASAny[] {new ASNamespace("a", "b"), new ASNamespace("c", "d"), new ASNamespace("e", "f")}, new ASNamespace("b", "d")),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            (new ASAny[] {new ASNamespace("a", "b"), new ASNamespace("c", "d"), new ASNamespace("e", "f")}, new ASNamespace("b", "d"))
+        );
 
         [Theory]
         [MemberData(nameof(runtimeConstructorTest_data))]

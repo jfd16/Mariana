@@ -58,7 +58,7 @@ namespace Mariana.AVM2.Core {
         private static LazyInitObject<ComparerSet> s_lazyComparerSet = new LazyInitObject<ComparerSet>(_createComparerSet);
 
         /// <summary>
-        /// Gets the instance of the default GenericComparer for the type parameter.
+        /// Gets the instance of the default <see cref="GenericComparer{T}"/> for the given type argument.
         /// </summary>
         ///
         /// <exception cref="AVM2Exception">
@@ -108,7 +108,7 @@ namespace Mariana.AVM2.Core {
         /// </exception>
         ///
         /// <remarks>
-        /// Only the following type parameters can be used with this method with
+        /// Only the following type arguments can be used with this method with
         /// <paramref name="type"/> set to
         /// <see cref="GenericComparerType.DEFAULT" qualifyHint="true"/>: <see cref="Int32"/>,
         /// <see cref="UInt32"/>, <see cref="Double"/>, <see cref="String"/>,
@@ -116,7 +116,7 @@ namespace Mariana.AVM2.Core {
         /// inheriting from the <see cref="ASObject"/> class. For any other type, this method will
         /// throw an exception if <paramref name="type"/> is set to
         /// <see cref="GenericComparerType.DEFAULT" qualifyHint="true"/>. When
-        /// <paramref name="type"/> is set to any other value and an unsupported type parameter is
+        /// <paramref name="type"/> is set to any other value and an unsupported type argument is
         /// used, an error is not thrown immediately; however, calling any methods on the returned
         /// comparer may throw invalid conversion errors.
         /// </remarks>
@@ -157,8 +157,8 @@ namespace Mariana.AVM2.Core {
         ///
         /// <remarks>
         /// It is not recommended to use the comparers returned by this method for hash tables, as
-        /// they cannot generate hash codes. (The
-        /// <see cref="IEqualityComparer{T}.GetHashCode" qualifyHint="true"/> method will always
+        /// they cannot generate hash codes. (The implementation of
+        /// <see cref="IEqualityComparer{T}.GetHashCode" qualifyHint="true"/> will always
         /// return 0.)
         /// </remarks>
         public static GenericComparer<T> getComparer(ASFunction compareFunc, bool createDelegateComparer = false) {
@@ -247,7 +247,7 @@ namespace Mariana.AVM2.Core {
 
         private static ComparerSet _createComparerSet() {
             Type t = typeof(T);
-            ComparerSet comparerSet = default(ComparerSet);
+            ComparerSet comparerSet = default;
 
             if (t == typeof(int)) {
                 comparerSet.defaultCmp = (GenericComparer<T>)(object)new InternalGenericComparers.Int();
@@ -336,11 +336,8 @@ namespace Mariana.AVM2.Core {
                     return 0;
                 if (x < y)
                     return -1;
-                if (x > y)
-                    return 1;
-                // NaNs need to be checked, otherwise some array sorting methods can throw exceptions
-                if (Double.IsNaN(x))
-                    return Double.IsNaN(y) ? 0 : -1;
+                if (Double.IsNaN(y))
+                    return Double.IsNaN(x) ? 0 : -1;
                 return 1;
             }
 
@@ -380,10 +377,8 @@ namespace Mariana.AVM2.Core {
                     return 0;
                 if (dx < dy)
                     return -1;
-                if (dx > dy)
-                    return 1;
-                if (Double.IsNaN(dx))
-                    return Double.IsNaN(dy) ? 0 : -1;
+                if (Double.IsNaN(dy))
+                    return Double.IsNaN(dx) ? 0 : -1;
                 return 1;
             }
 

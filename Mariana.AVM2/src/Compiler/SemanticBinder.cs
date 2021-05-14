@@ -1108,7 +1108,8 @@ namespace Mariana.AVM2.Compiler {
                 | (1 << (int)DataNodeType.NULL)
                 | (1 << (int)DataNodeType.UNDEFINED);
 
-            const int anyDataTypeMask = (1 << (int)DataNodeType.NULL) | (1 << (int)DataNodeType.UNDEFINED);
+            const int anyDataTypeMask = (1 << (int)DataNodeType.ANY) | (1 << (int)DataNodeType.UNDEFINED);
+            const int stringDataTypeMask = 1 << (int)DataNodeType.STRING;
 
             int inputTypeBits = 1 << (int)input1.dataType | 1 << (int)input2.dataType;
 
@@ -1121,15 +1122,15 @@ namespace Mariana.AVM2.Compiler {
             else if ((inputTypeBits & numberAddDataTypeMask) == inputTypeBits) {
                 output.dataType = DataNodeType.NUMBER;
             }
-            else if ((input1.dataType == DataNodeType.STRING && input2.isNotNull)
-                || (input2.dataType == DataNodeType.STRING && input1.isNotNull))
-            {
+            else if ((inputTypeBits & stringDataTypeMask) != 0 && (input1.isNotNull || input2.isNotNull)) {
+                // This instruction is definitely a string concatenation if at least one input is
+                // definitely not null or undefined, because null + null => 0 and null + undefined => NaN
                 output.dataType = DataNodeType.STRING;
             }
             else {
                 output.dataType = DataNodeType.OBJECT;
                 output.constant = new DataNodeConstant(s_objectClass);
-                instr.data.add.argsAreAnyType = (inputTypeBits & anyDataTypeMask) == inputTypeBits;
+                instr.data.add.argsAreAnyType = (inputTypeBits & anyDataTypeMask) != 0;
             }
 
             output.isNotNull = true;
@@ -3563,6 +3564,9 @@ namespace Mariana.AVM2.Compiler {
                 DataNodeType inputType = instr.data.add.argsAreAnyType ? DataNodeType.ANY : output.dataType;
                 _requireStackNodeAsType(ref input1, inputType, instr.id);
                 _requireStackNodeAsType(ref input2, inputType, instr.id);
+
+                if (inputType == DataNodeType.STRING)
+                    _checkForStringConcatTree(ref instr, ref input1, ref input2);
             }
         }
 
@@ -4392,6 +4396,13 @@ namespace Mariana.AVM2.Compiler {
             return false;
         }
 
+        /// <summary>
+        /// Checks for floating-point arithmetic instructions that can be optimized to integer operations.
+        /// </summary>
+        /// <param name="node">A reference to the <see cref="DataNode"/> representing the output of the
+        /// floating-point operation.</param>
+        /// <param name="targetType">The target integer type.</param>
+        /// <returns>True if any integer arithmetic optimization was made, otherwise false.</returns>
         private bool _checkForFloatToIntegerOp(ref DataNode node, DataNodeType targetType) {
             if (!DataNodeTypeHelper.isInteger(targetType)
                 || m_compilation.compileOptions.integerArithmeticMode == IntegerArithmeticMode.EXPLICIT_ONLY
@@ -4417,11 +4428,7 @@ namespace Mariana.AVM2.Compiler {
 
             return true;
 
-            bool walk(
-                ref DataNode _node,
-                bool isTopLevel,
-                ref DynamicArray<int> _nodeSet
-            ) {
+            bool walk(ref DataNode _node, bool isTopLevel, ref DynamicArray<int> _nodeSet) {
                 if (DataNodeTypeHelper.isInteger(_node.dataType)) {
                     if (_node.onPushCoerceType != DataNodeType.UNKNOWN)
                         _nodeSet.add(_node.id);
@@ -4486,7 +4493,7 @@ namespace Mariana.AVM2.Compiler {
                                 return false;
                         }
 
-                        if (!checkBinOpInputUses(ref left, ref right, out bool isRightDupOfLeft)) {
+                        if (!_areBinOpNodesUsedOnlyOnce(ref left, ref right, out bool isRightDupOfLeft)) {
                             // We allow nodes to be used elsewhere if both of them are known to be of
                             // integral types, as they will be left unchanged.
                             if (!DataNodeTypeHelper.isInteger(left.dataType) && !DataNodeTypeHelper.isInteger(right.dataType))
@@ -4523,41 +4530,87 @@ namespace Mariana.AVM2.Compiler {
                         return false;
                 }
             }
+        }
 
-            // Checks if the operands to a binary operation have no other uses, with the
-            // exception of the right node being the result of dup'ing the left one.
-            bool checkBinOpInputUses(ref DataNode left, ref DataNode right, out bool isRightDupOfLeft) {
-                isRightDupOfLeft = false;
+        /// <summary>
+        /// Checks if an add instruction that does string concatenation is part of a string concatenation tree.
+        /// Concatenation trees are used to optimize multiple string concatenations by avoiding allocations of
+        /// intermediate strings.
+        /// </summary>
+        /// <param name="instr">The instruction performing the string concatenation.</param>
+        /// <param name="leftInput">The left input node for the string concatenation.</param>
+        /// <param name="rightInput">The right input node for the string concatenation.</param>
+        private void _checkForStringConcatTree(ref Instruction instr, ref DataNode leftInput, ref DataNode rightInput) {
+            // We can only create a concatenation tree if the two inputs are not used anywhere
+            // else. An exception is if right is the result of dup'ing the left.
 
-                if (m_compilation.getDataNodeUseCount(ref right) > 1)
-                    return false;
-
-                var leftUses = m_compilation.getDataNodeUses(ref left);
-
-                if (leftUses.Length == 1)
-                    return true;
-
-                if (leftUses.Length > 2)
-                    return false;
-
-                if (leftUses[0].isInstruction) {
-                    ref Instruction instr = ref m_compilation.getInstruction(leftUses[0].instrOrNodeId);
-                    if (instr.opcode == ABCOp.dup && instr.data.dupOrSwap.nodeId2 == right.id) {
-                        isRightDupOfLeft = true;
-                        return true;
-                    }
-                }
-
-                if (leftUses[1].isInstruction) {
-                    ref Instruction instr = ref m_compilation.getInstruction(leftUses[1].instrOrNodeId);
-                    if (instr.opcode == ABCOp.dup && instr.data.dupOrSwap.nodeId2 == right.id) {
-                        isRightDupOfLeft = true;
-                        return true;
-                    }
-                }
-
-                return false;
+            if (!_areBinOpNodesUsedOnlyOnce(ref leftInput, ref rightInput, out _)) {
+                instr.data.add.isConcatTreeRoot = false;
+                instr.data.add.isConcatTreeInternalNode = false;
+                return;
             }
+
+            instr.data.add.isConcatTreeRoot = true;
+            markInternalNode(ref leftInput);
+            markInternalNode(ref rightInput);
+
+            void markInternalNode(ref DataNode node) {
+                // Constant nodes are always leaf nodes.
+                if (node.isConstant)
+                    return;
+
+                var defs = m_compilation.getDataNodeDefs(node.id);
+                if (defs.Length != 1 || !defs[0].isInstruction)
+                    return;
+
+                ref Instruction pushInstr = ref m_compilation.getInstruction(defs[0].instrOrNodeId);
+                if (pushInstr.opcode == ABCOp.add && pushInstr.data.add.isConcatTreeRoot) {
+                    pushInstr.data.add.isConcatTreeRoot = false;
+                    pushInstr.data.add.isConcatTreeInternalNode = true;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Checks if the two input nodes for a binary operation instruction are consumed by that instruction
+        /// only. As a special case, it allows the right input to be the result of performing a dup on the
+        /// left input.
+        /// </summary>
+        /// <param name="left">The left input to the binary operation.</param>
+        /// <param name="right">The right input to the binary operation.</param>
+        /// <param name="isRightDupOfLeft">True if the right input is the result of duplicating the left one.</param>
+        /// <returns>True if the inputs are consumed only by the binary operation and nowhere else, otherwise false.</returns>
+        private bool _areBinOpNodesUsedOnlyOnce(ref DataNode left, ref DataNode right, out bool isRightDupOfLeft) {
+            isRightDupOfLeft = false;
+
+            if (m_compilation.getDataNodeUseCount(ref right) > 1)
+                return false;
+
+            var leftUses = m_compilation.getDataNodeUses(ref left);
+
+            if (leftUses.Length == 1)
+                return true;
+
+            if (leftUses.Length > 2)
+                return false;
+
+            if (leftUses[0].isInstruction) {
+                ref Instruction instr = ref m_compilation.getInstruction(leftUses[0].instrOrNodeId);
+                if (instr.opcode == ABCOp.dup && instr.data.dupOrSwap.nodeId2 == right.id) {
+                    isRightDupOfLeft = true;
+                    return true;
+                }
+            }
+
+            if (leftUses[1].isInstruction) {
+                ref Instruction instr = ref m_compilation.getInstruction(leftUses[1].instrOrNodeId);
+                if (instr.opcode == ABCOp.dup && instr.data.dupOrSwap.nodeId2 == right.id) {
+                    isRightDupOfLeft = true;
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

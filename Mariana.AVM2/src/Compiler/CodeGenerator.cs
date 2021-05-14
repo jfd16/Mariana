@@ -388,7 +388,16 @@ namespace Mariana.AVM2.Compiler {
                 m_ilBuilder.emit(ILOp.stloc, m_restOrArgumentsArrayLocal);
             }
             else if ((m_compilation.methodInfo.flags & ABCMethodFlags.NEED_ARGUMENTS) != 0) {
-                _emitInitArgumentsArray();
+                // Emit the code for initializing the arguments array only if it is is
+                // actually used.
+                var initialLocalNodeIds = m_compilation.getInitialLocalNodeIds();
+                int argsLocalSlotId = m_compilation.getCurrentMethodParams().length + 1;
+
+                if (argsLocalSlotId < initialLocalNodeIds.Length
+                    && m_compilation.getDataNodeUseCount(initialLocalNodeIds[argsLocalSlotId]) > 0)
+                {
+                    _emitInitArgumentsArray();
+                }
             }
 
             _emitInitFieldsToDefaultValues();
@@ -620,7 +629,7 @@ namespace Mariana.AVM2.Compiler {
                     ref Instruction useInstr = ref m_compilation.getInstruction(nodeUses[j].instrOrNodeId);
 
                     if (useInstr.blockId != firstBlock.id)
-                        // We don't care about uses in other basic block, as we are only
+                        // We don't care about uses in other basic blocks, as we are only
                         // considering initializations in the first block.
                         continue;
 
@@ -1608,10 +1617,22 @@ namespace Mariana.AVM2.Compiler {
                     m_ilBuilder.emit(ILOp.add);
                     break;
 
-                case DataNodeType.STRING:
-                    _emitTypeCoerceForStackTop2(ref left, ref right, DataNodeType.STRING, DataNodeType.STRING);
-                    m_ilBuilder.emit(ILOp.call, KnownMembers.stringAdd, -1);
+                case DataNodeType.STRING: {
+                    if (instr.data.add.isConcatTreeInternalNode) {
+                        // Internal node of a concat tree - leave the inputs on the stack.
+                        break;
+                    }
+                    else if (instr.data.add.isConcatTreeRoot) {
+                        // String concat tree root node.
+                        _emitStringConcatTree(ref instr);
+                    }
+                    else {
+                        // Not part of a concat tree. Just a simple binary concatenation.
+                        _emitTypeCoerceForStackTop2(ref left, ref right, DataNodeType.STRING, DataNodeType.STRING);
+                        m_ilBuilder.emit(ILOp.call, KnownMembers.stringAdd2, -1);
+                    }
                     break;
+                }
 
                 case DataNodeType.OBJECT: {
                     DataNodeType inputType = instr.data.add.argsAreAnyType ? DataNodeType.ANY : DataNodeType.OBJECT;
@@ -1932,7 +1953,7 @@ namespace Mariana.AVM2.Compiler {
 
                         var constFlags = (compareType == ComparisonType.INT_ZERO_L) ? lt.flags : rt.flags;
                         if ((constFlags & DataNodeFlags.NO_PUSH) == 0)
-                            goto case ComparisonType.INT;
+                            goto case ComparisonType.UINT;
 
                         m_ilBuilder.emit(ILOp.ldc_i4_0);
                         m_ilBuilder.emit(ILOp.cgt_un);
@@ -5133,6 +5154,140 @@ namespace Mariana.AVM2.Compiler {
 
             m_ilBuilder.releaseTempLocal(elemLocal);
             return arrLocal;
+        }
+
+        /// <summary>
+        /// Emits IL for evaluating a string concatenation tree, assuming that the leaf node values
+        /// are on the stack.
+        /// </summary>
+        /// <param name="instr">The instruction at the root of the concatentation tree.</param>
+        private void _emitStringConcatTree(ref Instruction instr) {
+            Debug.Assert(instr.opcode == ABCOp.add && instr.data.add.isConcatTreeRoot);
+
+            // Walk the concatenation tree and get the stack node ids of the leaf nodes.
+            // These will be the arguments on the IL stack.
+
+            ref var leafNodeIds = ref m_tempIntArray;
+            leafNodeIds.clear();
+
+            var rootChildIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            collectLeafNodes(rootChildIds[0], ref leafNodeIds);
+            collectLeafNodes(rootChildIds[1], ref leafNodeIds);
+
+            void collectLeafNodes(int nodeId, ref DynamicArray<int> _leafNodeIds) {
+                ref DataNode node = ref m_compilation.getDataNode(nodeId);
+
+                bool isLeaf = true;
+                int leftChildId = -1, rightChildId = -1;
+
+                if (!node.isConstant) {
+                    var defs = m_compilation.getDataNodeDefs(node.id);
+                    if (defs.Length == 1 && defs[0].isInstruction) {
+                        ref Instruction pushInstr = ref m_compilation.getInstruction(defs[0].instrOrNodeId);
+                        if (pushInstr.opcode == ABCOp.add && pushInstr.data.add.isConcatTreeInternalNode) {
+                            // This is an internal node of the concat tree. We need to recurse into it.
+                            isLeaf = false;
+                            var childNodeIds = m_compilation.getInstructionStackPoppedNodes(ref pushInstr);
+                            (leftChildId, rightChildId) = (childNodeIds[0], childNodeIds[1]);
+                        }
+                    }
+                }
+
+                if (isLeaf) {
+                    _leafNodeIds.add(node.id);
+                }
+                else {
+                    collectLeafNodes(leftChildId, ref _leafNodeIds);
+                    collectLeafNodes(rightChildId, ref _leafNodeIds);
+                }
+            }
+
+            Span<int> leafNodeIdsSpan = leafNodeIds.asSpan();
+            Debug.Assert(leafNodeIdsSpan.Length >= 2);
+
+            if (leafNodeIdsSpan.Length <= 4) {
+                // Use a specialized concatenation method for a small number of arguments.
+                _emitStringConcatTreeSpecial(leafNodeIdsSpan);
+                return;
+            }
+
+            // If a specialized method is not available, use the general concatenation
+            // method which requires allocating an array containing the arguments.
+
+            var strArrayLocal = m_ilBuilder.acquireTempLocal(typeof(string[]));
+            var strTempLocal = m_ilBuilder.acquireTempLocal(typeof(string));
+
+            m_ilBuilder.emit(ILOp.ldc_i4, leafNodeIdsSpan.Length);
+            m_ilBuilder.emit(ILOp.newarr, typeof(string));
+            m_ilBuilder.emit(ILOp.stloc, strArrayLocal);
+
+            for (int i = leafNodeIdsSpan.Length - 1; i >= 0; i--) {
+                _emitTypeCoerceForTopOfStack(leafNodeIdsSpan[i], DataNodeType.STRING);
+
+                m_ilBuilder.emit(ILOp.stloc, strTempLocal);
+                m_ilBuilder.emit(ILOp.ldloc, strArrayLocal);
+                m_ilBuilder.emit(ILOp.ldc_i4, i);
+                m_ilBuilder.emit(ILOp.ldloc, strTempLocal);
+                m_ilBuilder.emit(ILOp.stelem_ref);
+            }
+
+            m_ilBuilder.emit(ILOp.ldloc, strArrayLocal);
+            m_ilBuilder.emit(ILOp.call, KnownMembers.stringAddArray, 0);
+
+            m_ilBuilder.releaseTempLocal(strArrayLocal);
+            m_ilBuilder.releaseTempLocal(strTempLocal);
+        }
+
+        private void _emitStringConcatTreeSpecial(ReadOnlySpan<int> argsOnStack) {
+            Debug.Assert(argsOnStack.Length <= 4);
+
+            // Find the deepest non-string value on the stack.
+
+            int heightOfFirstNonString = -1;
+            for (int i = 0; i < argsOnStack.Length; i++) {
+                ref DataNode node = ref m_compilation.getDataNode(argsOnStack[i]);
+                DataNodeType pushedType = _getPushedTypeOfNode(node);
+
+                if (pushedType != DataNodeType.STRING && pushedType != DataNodeType.NULL) {
+                    heightOfFirstNonString = i;
+                    break;
+                }
+            }
+
+            // Convert any non-string values to strings.
+
+            if (heightOfFirstNonString != -1) {
+                int nStashVarsRequired = argsOnStack.Length - heightOfFirstNonString - 1;
+
+                m_tempLocalArray.clearAndAddUninitialized(nStashVarsRequired);
+                var stashVars = m_tempLocalArray.asSpan();
+
+                for (int i = 0; i < stashVars.Length; i++) {
+                    _emitTypeCoerceForTopOfStack(argsOnStack[argsOnStack.Length - i - 1], DataNodeType.STRING);
+                    var stashLocal = m_ilBuilder.acquireTempLocal(typeof(string));
+                    m_ilBuilder.emit(ILOp.stloc, stashLocal);
+                    stashVars[stashVars.Length - i - 1] = stashLocal;
+                }
+
+                _emitTypeCoerceForTopOfStack(argsOnStack[heightOfFirstNonString], DataNodeType.STRING);
+
+                for (int i = 0; i < stashVars.Length; i++) {
+                    m_ilBuilder.emit(ILOp.ldloc, stashVars[i]);
+                    m_ilBuilder.releaseTempLocal(stashVars[i]);
+                }
+            }
+
+            switch (argsOnStack.Length) {
+                case 2:
+                    m_ilBuilder.emit(ILOp.call, KnownMembers.stringAdd2, -1);
+                    break;
+                case 3:
+                    m_ilBuilder.emit(ILOp.call, KnownMembers.stringAdd3, -2);
+                    break;
+                case 4:
+                    m_ilBuilder.emit(ILOp.call, KnownMembers.stringAdd4, -3);
+                    break;
+            }
         }
 
         /// <summary>

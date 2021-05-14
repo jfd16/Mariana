@@ -140,15 +140,19 @@ namespace Mariana.AVM2.Core {
         private const int HASH_TO_DENSE_LOAD_FACTOR = 36;
 
         /// <summary>
+        /// The maximum array size that can be preallocated when constructing an Array with a constructor that
+        /// takes a length argument.
+        /// </summary>
+        private const int MAX_PREALLOC_LENGTH = 1 << 20;
+
+        /// <summary>
         /// Used for directly sorting objects in their internal representation in an Array.
         /// </summary>
-        private class ArrayValueInternalComparer : IComparer<Value> {
-            public IComparer<ASAny> baseComparer;
-            public int Compare(Value x, Value y) => baseComparer.Compare(x.toAny(), y.toAny());
+        private class ArrayValueComparer : IComparer<Value> {
+            private readonly IComparer<ASAny> m_baseComparer;
+            public ArrayValueComparer(IComparer<ASAny> baseComparer) => m_baseComparer = baseComparer;
+            public int Compare(Value x, Value y) => m_baseComparer.Compare(x.toAny(), y.toAny());
         }
-
-        [ThreadStatic]
-        private static ArrayValueInternalComparer s_threadStaticValueComparer;
 
         /// <summary>
         /// The value of the "length" property of the current array. The indices of all non-deleted
@@ -255,7 +259,11 @@ namespace Mariana.AVM2.Core {
             if (length < 0)
                 throw ErrorHelper.createError(ErrorCode.ARRAY_LENGTH_NOT_POSITIVE_INTEGER, length);
 
-            m_values = new Value[Math.Max(length, 4)];
+            if (length <= MAX_PREALLOC_LENGTH)
+                m_values = new Value[Math.Max(length, 4)];
+            else
+                m_values = Array.Empty<Value>();
+
             m_length = (uint)length;
             m_nonEmptyCount = 0;
             m_totalCount = 0;
@@ -266,7 +274,11 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="length">The initial length of the array.</param>
         public ASArray(uint length) {
-            m_values = (length < (uint)Int32.MaxValue) ? new Value[Math.Max((int)length, 4)] : Array.Empty<Value>();
+            if (length <= (uint)MAX_PREALLOC_LENGTH)
+                m_values = new Value[Math.Max((int)length, 4)];
+            else
+                m_values = Array.Empty<Value>();
+
             m_length = length;
             m_nonEmptyCount = 0;
             m_totalCount = 0;
@@ -298,14 +310,18 @@ namespace Mariana.AVM2.Core {
                 m_length = 0;
             }
             else if (args.Length == 1 && AS_isNumeric(args[0].value)) {
-                double arg1_d = (double)args[0];
-                uint arg1_u = (uint)arg1_d;
+                double dArg1 = (double)args[0];
+                uint uArg1 = (uint)dArg1;
 
-                if ((double)arg1_u != arg1_d)
-                    throw ErrorHelper.createError(ErrorCode.ARRAY_LENGTH_NOT_POSITIVE_INTEGER, arg1_d);
+                if ((double)uArg1 != dArg1)
+                    throw ErrorHelper.createError(ErrorCode.ARRAY_LENGTH_NOT_POSITIVE_INTEGER, dArg1);
 
-                m_values = (arg1_u < (uint)Int32.MaxValue) ? new Value[(int)arg1_u] : Array.Empty<Value>();
-                m_length = arg1_u;
+                if (uArg1 <= (uint)MAX_PREALLOC_LENGTH)
+                    m_values = new Value[Math.Max((int)uArg1, 4)];
+                else
+                    m_values = Array.Empty<Value>();
+
+                m_length = uArg1;
             }
             else {
                 m_values = new Value[args.Length];
@@ -320,6 +336,16 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
+        /// Creates a new <see cref="ASArray"/> instance using values from the given typed array.
+        /// </summary>
+        ///
+        /// <param name="array">A typed array containing the elements of the <see cref="ASArray"/>
+        /// instance to be created.</param>
+        /// <typeparam name="T">The type of the elements in <paramref name="array"/>.</typeparam>
+        /// <returns>The created array.</returns>
+        public static ASArray fromTypedArray<T>(T[] array) => fromSpan(new ReadOnlySpan<T>(array));
+
+        /// <summary>
         /// Creates a new <see cref="ASArray"/> instance using values from the given span.
         /// </summary>
         ///
@@ -332,7 +358,9 @@ namespace Mariana.AVM2.Core {
         /// the faster <see cref="fromObjectSpan{T}"/> method is recommended.
         /// </remarks>
         public static ASArray fromSpan<T>(ReadOnlySpan<T> span) {
-            ASArray array = new ASArray(span.Length);
+            ASArray array = new ASArray();
+            array.m_values = new Value[span.Length];
+
             Span<Value> values = array.m_values.AsSpan(0, span.Length);
             var converter = GenericTypeConverter<T, ASAny>.instance;
 
@@ -341,6 +369,7 @@ namespace Mariana.AVM2.Core {
 
             array.m_nonEmptyCount = span.Length;
             array.m_totalCount = span.Length;
+            array.m_length = (uint)span.Length;
 
             return array;
         }
@@ -360,14 +389,17 @@ namespace Mariana.AVM2.Core {
         /// performance
         /// </remarks>
         public static ASArray fromObjectSpan<T>(ReadOnlySpan<T> span) where T : ASObject {
-            ASArray array = new ASArray(span.Length);
-            Span<Value> values = array.m_values.AsSpan(0, span.Length);
+            ASArray array = new ASArray();
+            array.m_values = new Value[span.Length];
+
+            Span<Value> values = array.m_values;
 
             for (int i = 0; i < values.Length; i++)
                 values[i] = Value.fromObject(span[i]);
 
             array.m_nonEmptyCount = span.Length;
             array.m_totalCount = span.Length;
+            array.m_length = (uint)span.Length;
 
             return array;
         }
@@ -642,9 +674,9 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         ///
         /// <param name="totalCount">
-        /// A value less than the length of the <see cref="m_values"/> array of this instance, from
-        /// which <see cref="m_totalCount"/> must be computed. Callers must ensure that all elements
-        /// in <see cref="m_values"/> at indices not less than this value are null; this is not
+        /// An upper bound for <see cref="m_totalCount"/>, which must be less than the length of
+        /// the <see cref="m_values"/> array. Callers must ensure that all elements
+        /// in <see cref="m_values"/> at indices not less than this value are empty; this is not
         /// checked in this method and a violation of this condition may break the ASArray class
         /// invariants.
         /// </param>
@@ -659,13 +691,16 @@ namespace Mariana.AVM2.Core {
         /// Transforms the underlying storage of this array from a dense array to a hash table.
         /// </summary>
         private void _denseArrayToHash() {
-            var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, m_totalCount);
+            if (m_values.Length == 0)
+                m_values = new Value[4];
+
             HashLink[] hashLinks = new HashLink[m_values.Length];
 
             m_hashEmptyChainHead = -1;
-
             for (int i = 0; i < hashLinks.Length; i++)
                 hashLinks[i].headOfChain = -1;
+
+            var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, m_totalCount);
 
             for (int i = 0; i < valuesSpan.Length; i++) {
                 ref HashLink link = ref hashLinks[i];
@@ -769,11 +804,6 @@ namespace Mariana.AVM2.Core {
         /// <param name="newLength">The new value to be set to the <see cref="length"/>
         /// property.</param>
         private void _trimToLength(uint newLength) {
-            if (newLength >= m_length) {
-                m_length = newLength;
-                return;
-            }
-
             if (_isDenseArray())
                 trimDenseArray(newLength);
             else
@@ -859,9 +889,12 @@ namespace Mariana.AVM2.Core {
         /// <param name="length">The length of the array.</param>
         /// <returns>The normalized index.</returns>
         private static uint _normalizeIndex(double index, uint length) {
-            return (index >= 0.0)
-                ? (uint)Math.Min(index, (double)length)
-                : (uint)Math.Max(index + (double)length, 0.0);
+            if (Double.IsNaN(index))
+                return 0;
+
+            return (index <= -1.0)
+                ? (uint)Math.Max(Math.Truncate(index) + (double)length, 0)
+                : (uint)Math.Min(index, (double)length);
         }
 
         /// <summary>
@@ -885,17 +918,9 @@ namespace Mariana.AVM2.Core {
             var converter = GenericTypeConverter<ASAny, T>.instance;
 
             if (_isDenseArrayWithoutEmptySlots()) {
-                uint srcEndIndex = Math.Min(srcIndex + (uint)dest.Length, (uint)m_totalCount);
-                if (srcEndIndex <= srcIndex)
-                    return;
-
-                var valuesSpan = new ReadOnlySpan<Value>(m_values, (int)srcIndex, (int)(srcEndIndex - srcIndex));
-
+                var valuesSpan = new ReadOnlySpan<Value>(m_values, (int)srcIndex, dest.Length);
                 for (int i = 0; i < valuesSpan.Length; i++)
                     dest[i] = converter.convert(valuesSpan[i].toAny());
-
-                if (dest.Length > valuesSpan.Length)
-                    dest.Slice(valuesSpan.Length).Fill(converter.convert(default(ASAny)));
             }
             else {
                 for (int i = 0; i < dest.Length; i++)
@@ -929,7 +954,7 @@ namespace Mariana.AVM2.Core {
             uint length = this.length;
 
             if (_isDenseArrayWithoutEmptySlots()) {
-                for (int i = 0; i < m_totalCount; i++)
+                for (int i = 0; i < length; i++)
                     yield return converter.convert(m_values[i].toAny());
             }
             else {
@@ -961,7 +986,7 @@ namespace Mariana.AVM2.Core {
             }
         }
 
-        private ASAny _getElementFallback(string indexStr) {
+        private ASAny _getElementEmptyOrNonValidIndex(string indexStr) {
             var name = QName.publicName(indexStr);
             BindStatus bindStatus = base.AS_tryGetProperty(name, out ASAny value);
             if (bindStatus == BindStatus.SUCCESS || bindStatus == BindStatus.SOFT_SUCCESS)
@@ -969,16 +994,18 @@ namespace Mariana.AVM2.Core {
             throw ErrorHelper.createBindingError(AS_class.name, name, bindStatus);
         }
 
-        private void _setElementFallback(string indexStr, ASAny value) {
+        private bool _hasElementEmptyOrNonValidIndex(string indexStr) =>
+            base.AS_hasProperty(QName.publicName(indexStr));
+
+        private void _setElementNonValidIndex(string indexStr, ASAny value) {
             var name = QName.publicName(indexStr);
             BindStatus bindStatus = base.AS_trySetProperty(name, value);
             if (bindStatus != BindStatus.SUCCESS && bindStatus != BindStatus.SOFT_SUCCESS)
                 throw ErrorHelper.createBindingError(AS_class.name, name, bindStatus);
         }
 
-        private bool _hasElementFallback(string indexStr) => base.AS_hasProperty(QName.publicName(indexStr));
-
-        private bool _deleteElementFallback(string indexStr) => base.AS_deleteProperty(QName.publicName(indexStr));
+        private bool _deleteElementNonValidIndex(string indexStr) =>
+            base.AS_deleteProperty(QName.publicName(indexStr));
 
         /// <summary>
         /// Gets the value of the element at the given index.
@@ -988,7 +1015,7 @@ namespace Mariana.AVM2.Core {
         /// index.</returns>
         public ASAny AS_getElement(uint index) {
             Value val = _getValueAt(index);
-            return !val.isEmpty ? val.toAny() : _getElementFallback(ASuint.AS_convertString(index));
+            return !val.isEmpty ? val.toAny() : _getElementEmptyOrNonValidIndex(ASuint.AS_convertString(index));
         }
 
         /// <summary>
@@ -1000,7 +1027,7 @@ namespace Mariana.AVM2.Core {
         /// otherwise.</returns>
         public bool AS_hasElement(uint index) {
             Value val = _getValueAt(index);
-            return !val.isEmpty || _hasElementFallback(ASuint.AS_convertString(index));
+            return !val.isEmpty || _hasElementEmptyOrNonValidIndex(ASuint.AS_convertString(index));
         }
 
         /// <summary>
@@ -1010,7 +1037,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="value">The value of the element.</param>
         public void AS_setElement(uint index, ASAny value) {
             if (index == UInt32.MaxValue) {  // Not a valid array index
-                _setElementFallback(ASuint.AS_convertString(index), value);
+                _setElementNonValidIndex(ASuint.AS_convertString(index), value);
                 return;
             }
 
@@ -1041,6 +1068,8 @@ namespace Mariana.AVM2.Core {
                         m_totalCount = (int)index + 1;
                     }
                 }
+
+                m_length = Math.Max(m_length, index + 1);
             }
             else {
                 _hashSetValue(index, Value.fromAny(value), out bool newHashSlotCreated);
@@ -1048,11 +1077,12 @@ namespace Mariana.AVM2.Core {
                 // If an element is added to the hash table (and it did not overwrite an
                 // existing slot), check whether the hash table's load factor has crossed
                 // the dense array threshold and convert to a dense array if that is the case.
+                // This requires the array's length property to have a correct value, so update it first.
+                m_length = Math.Max(m_length, index + 1);
+
                 if (newHashSlotCreated)
                     _updateArrayStorage();
             }
-
-            m_length = Math.Max(m_length, index + 1);
         }
 
         /// <summary>
@@ -1065,12 +1095,15 @@ namespace Mariana.AVM2.Core {
         /// <returns>True if the property was deleted, false otherwise.</returns>
         public bool AS_deleteElement(uint index) {
             if (index == UInt32.MaxValue)   // Not a valid array index
-                return _deleteElementFallback(ASuint.AS_convertString(index));
+                return _deleteElementNonValidIndex(ASuint.AS_convertString(index));
 
             if (_isDenseArray()) {
+                if (index >= (uint)m_totalCount)
+                    return false;
+
                 ref Value slot = ref m_values[(int)index];
 
-                if (index >= (uint)m_totalCount || slot.isEmpty)
+                if (slot.isEmpty)
                     return false;
 
                 slot = Value.empty;
@@ -1102,7 +1135,7 @@ namespace Mariana.AVM2.Core {
         /// subclass of Array that is non-dynamic, an error is thrown.
         /// </remarks>
         public ASAny AS_getElement(int index) =>
-            (index >= 0) ? AS_getElement((uint)index) : _getElementFallback(ASint.AS_convertString(index));
+            (index >= 0) ? AS_getElement((uint)index) : _getElementEmptyOrNonValidIndex(ASint.AS_convertString(index));
 
         /// <summary>
         /// Returns a Boolean value indicating whether the current instance has an element at the
@@ -1118,7 +1151,7 @@ namespace Mariana.AVM2.Core {
         /// subclass of Array that is non-dynamic, an error is thrown.
         /// </remarks>
         public bool AS_hasElement(int index) =>
-            (index >= 0) ? AS_hasElement((uint)index) : _hasElementFallback(ASint.AS_convertString(index));
+            (index >= 0) ? AS_hasElement((uint)index) : _hasElementEmptyOrNonValidIndex(ASint.AS_convertString(index));
 
         /// <summary>
         /// Sets the value of the element at the given index.
@@ -1135,7 +1168,7 @@ namespace Mariana.AVM2.Core {
             if (index >= 0)
                 AS_setElement((uint)index, value);
             else
-                _setElementFallback(ASint.AS_convertString(index), value);
+                _setElementNonValidIndex(ASint.AS_convertString(index), value);
         }
 
         /// <summary>
@@ -1151,7 +1184,7 @@ namespace Mariana.AVM2.Core {
         /// that is non-dynamic, this method returns false.
         /// </remarks>
         public bool AS_deleteElement(int index) =>
-            (index >= 0) ? AS_deleteElement((uint)index) : _deleteElementFallback(ASint.AS_convertString(index));
+            (index >= 0) ? AS_deleteElement((uint)index) : _deleteElementNonValidIndex(ASint.AS_convertString(index));
 
         /// <summary>
         /// Gets the value of the element at the given index.
@@ -1168,7 +1201,7 @@ namespace Mariana.AVM2.Core {
         public ASAny AS_getElement(double index) {
             return _tryGetIndexFromNumberKey(index, out uint uintIndex)
                 ? AS_getElement(uintIndex)
-                : _getElementFallback(ASNumber.AS_convertString(index));
+                : _getElementEmptyOrNonValidIndex(ASNumber.AS_convertString(index));
         }
 
         /// <summary>
@@ -1187,7 +1220,7 @@ namespace Mariana.AVM2.Core {
         public bool AS_hasElement(double index) {
             return _tryGetIndexFromNumberKey(index, out uint uintIndex)
                 ? AS_hasElement(uintIndex)
-                : _hasElementFallback(ASNumber.AS_convertString(index));
+                : _hasElementEmptyOrNonValidIndex(ASNumber.AS_convertString(index));
         }
 
         /// <summary>
@@ -1205,7 +1238,7 @@ namespace Mariana.AVM2.Core {
             if (_tryGetIndexFromNumberKey(index, out uint uintIndex))
                 AS_setElement(uintIndex, value);
             else
-                _setElementFallback(ASNumber.AS_convertString(index), value);
+                _setElementNonValidIndex(ASNumber.AS_convertString(index), value);
         }
 
         /// <summary>
@@ -1223,7 +1256,7 @@ namespace Mariana.AVM2.Core {
         public bool AS_deleteElement(double index) {
             return _tryGetIndexFromNumberKey(index, out uint uintIndex)
                 ? AS_deleteElement(uintIndex)
-                : _deleteElementFallback(ASNumber.AS_convertString(index));
+                : _deleteElementNonValidIndex(ASNumber.AS_convertString(index));
         }
 
         /// <summary>
@@ -1253,6 +1286,30 @@ namespace Mariana.AVM2.Core {
         public ASAny this[uint i] {
             get => AS_getElement(i);
             set => AS_setElement(i, value);
+        }
+
+        /// <summary>
+        /// Gets or sets the value of the element at the specified index.
+        /// </summary>
+        /// <param name="i">The index.</param>
+        ///
+        /// <exception cref="AVM2Exception">ArgumentError #10061: <paramref name="i"/> is less than 0.</exception>
+        ///
+        /// <remarks>
+        /// This method throws an exception when the index is negative, unlike <see cref="AS_getElement(Int32)"/>
+        /// which converts the negative index to a string and does a dynamic property lookup.
+        /// </remarks>
+        public ASAny this[int i] {
+            get {
+                if (i < 0)
+                    throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_OUT_OF_RANGE, nameof(i));
+                return AS_getElement((uint)i);
+            }
+            set {
+                if (i < 0)
+                    throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_OUT_OF_RANGE, nameof(i));
+                AS_setElement(i, value);
+            }
         }
 
         #region BindingMethodOverrides
@@ -1469,7 +1526,7 @@ namespace Mariana.AVM2.Core {
 
             return (key.value is ASQName qName)
                 ? AS_trySetProperty(QName.fromASQName(qName), value, options)
-                : AS_trySetProperty(QName.publicName(ASAny.AS_convertString(key)), value, options);
+                : AS_trySetProperty(ASAny.AS_convertString(key), nsSet, value, options);
         }
 
         /// <inheritdoc/>
@@ -1534,7 +1591,7 @@ namespace Mariana.AVM2.Core {
 
             return (key.value is ASQName qName)
                 ? AS_deleteProperty(QName.fromASQName(qName), options)
-                : AS_deleteProperty(QName.publicName(ASAny.AS_convertString(key)), options);
+                : AS_deleteProperty(ASAny.AS_convertString(key), nsSet, options);
         }
 
         /// <inheritdoc/>
@@ -1634,7 +1691,7 @@ namespace Mariana.AVM2.Core {
                         : BindStatus.FAILED_NOTCONSTRUCTOR;
                 }
             }
-            return base.AS_tryCallProperty(name, args, out result, options);
+            return base.AS_tryConstructProperty(name, args, out result, options);
         }
 
         /// <inheritdoc/>
@@ -1653,7 +1710,7 @@ namespace Mariana.AVM2.Core {
                         : BindStatus.FAILED_NOTCONSTRUCTOR;
                 }
             }
-            return base.AS_tryCallProperty(name, nsSet, args, out result, options);
+            return base.AS_tryConstructProperty(name, nsSet, args, out result, options);
         }
 
         /// <inheritdoc/>
@@ -1711,14 +1768,19 @@ namespace Mariana.AVM2.Core {
         /// <returns>The one-based index of the next enumerable property, or 0 if there are no more
         /// enumerable properties.</returns>
         public override int AS_nextIndex(int index) {
-            do {
-                index++;
-            } while (index <= m_totalCount && m_values[index - 1].isEmpty);
+            if (index < m_totalCount) {
+                do {
+                    index++;
+                } while (index <= m_totalCount && m_values[index - 1].isEmpty);
 
-            if (index <= m_totalCount)
-                return index;
+                if (index <= m_totalCount)
+                    return index;
 
-            return base.AS_nextIndex(index - m_totalCount);
+                index = m_totalCount;
+            }
+
+            int baseNextIndex = base.AS_nextIndex(index - m_totalCount);
+            return (baseNextIndex == 0) ? 0 : m_totalCount + baseNextIndex;
         }
 
         /// <summary>
@@ -1727,8 +1789,12 @@ namespace Mariana.AVM2.Core {
         /// <param name="index">The one-based index of the property. This index is usually obtained
         /// from the <see cref="AS_nextIndex"/> method.</param>
         /// <returns>The property name.</returns>
-        public override ASAny AS_nameAtIndex(int index) =>
-            (index <= m_totalCount) ? (ASAny)(index - 1) : base.AS_nameAtIndex(index - m_totalCount);
+        public override ASAny AS_nameAtIndex(int index) {
+            if (index > m_totalCount)
+                return base.AS_nameAtIndex(index - m_totalCount);
+
+            return _isDenseArray() ? (uint)(index - 1) : m_hashLinks[index - 1].key;
+        }
 
         /// <summary>
         /// Gets the value of the dynamic property at the given index.
@@ -1736,8 +1802,12 @@ namespace Mariana.AVM2.Core {
         /// <param name="index">The one-based index of the property. This index is usually returned
         /// from the <see cref="AS_nextIndex"/> method.</param>
         /// <returns>The property value.</returns>
-        public override ASAny AS_valueAtIndex(int index) =>
-            (index <= m_totalCount) ? m_values[index - 1].toAny() : base.AS_valueAtIndex(index - m_totalCount);
+        public override ASAny AS_valueAtIndex(int index) {
+            if (index > m_totalCount)
+                return base.AS_valueAtIndex(index - m_totalCount);
+
+            return m_values[index - 1].toAny();
+        }
 
         #endregion
 
@@ -1758,142 +1828,185 @@ namespace Mariana.AVM2.Core {
                 return clone();
 
             int nArgs = args.length;
-            int newNonEmptyCount = m_nonEmptyCount;
-            uint newLength = m_length;
+            int resultNonEmptyCount = m_nonEmptyCount;
+            uint resultLength = m_length;
 
             // Determine the amount of space that needs to be allocated for the result array
             // and its load factor (which determines whether the result array storage will be dense
-            // or a hash table). Overflow checking is done here.
+            // or a hash table).
 
             for (int i = 0; i < nArgs; i++) {
                 ASObject arg = args[i].value;
 
+                uint argLength;
+                int argNonEmptyCount;
+
                 if (arg is ASArray argArray) {
-                    newNonEmptyCount = checked(newNonEmptyCount + argArray.m_nonEmptyCount);
-                    newLength = checked(newLength + argArray.m_length);
+                    argLength = argArray.m_length;
+                    argNonEmptyCount = argArray.m_nonEmptyCount;
                 }
                 else if (arg is ASVectorAny argVector) {
-                    int vecLength = argVector.length;
-                    newNonEmptyCount = checked(newNonEmptyCount + vecLength);
-                    newLength = checked(newLength + (uint)vecLength);
+                    argLength = (uint)argVector.length;
+                    argNonEmptyCount = (int)argLength;
                 }
                 else {
-                    newNonEmptyCount = checked(newNonEmptyCount + 1);
-                    newLength = checked(newLength + 1);
+                    argLength = 1;
+                    argNonEmptyCount = 1;
                 }
+
+                if (resultLength >= UInt32.MaxValue - argLength) {
+                    // Don't use any more arguments when the maximum length is reached.
+                    // In this case, we do not have the exact nonEmptyCount for the (prefix of) the last
+                    // argument that will be appended, so use the minimum of the prefix length and
+                    // the full nonEmptyCount of the argument as an approximate value.
+                    // This is OK as we are using the result nonEmptyCount calculated here only to
+                    // determine the storage type of the result; the exact count will be calculated
+                    // when the result array is actually being constructed.
+
+                    resultLength = UInt32.MaxValue;
+                    resultNonEmptyCount += (int)Math.Min((uint)argNonEmptyCount, UInt32.MaxValue - argLength);
+                    nArgs = i + 1;
+                    break;
+                }
+
+                resultLength += argLength;
+                resultNonEmptyCount += argNonEmptyCount;
             }
+
+            if (resultNonEmptyCount < 0)
+                throw new OutOfMemoryException();
 
             // Create the result array.
 
-            bool newArrayUseHash = !_canUseDenseArray(newNonEmptyCount, newLength);
+            bool resultIsHash = !_canUseDenseArray(resultNonEmptyCount, resultLength);
 
-            ASArray newArray;
-            if (newArrayUseHash) {
-                newArray = new ASArray(newNonEmptyCount);
-                newArray._denseArrayToHash();
+            ASArray resultArray = new ASArray();
+            resultArray.m_length = resultLength;
+
+            if (resultIsHash) {
+                resultArray.m_values = new Value[resultNonEmptyCount];
+                resultArray._denseArrayToHash();
             }
             else {
-                newArray = new ASArray((int)newLength);
+                resultArray.m_values = new Value[(int)resultLength];
             }
 
-            uint curIndex = 0;
+            uint resCurrentLength = 0;
 
-            // Copy current array contents.
-            newArray._internalConcatArray(this, ref curIndex);
+            // Copy current array.
+            appendArrayToResult(this);
 
-            // Copy contents from arguments
-
+            // Copy from arguments
             for (int i = 0; i < nArgs; i++) {
                 ASAny arg = args[i];
 
                 if (arg.value is ASArray argArray) {
-                    newArray._internalConcatArray(argArray, ref curIndex);
+                    appendArrayToResult(argArray);
                 }
                 else if (arg.value is ASVectorAny argVector) {
-                    newArray._internalConcatVector(argVector, ref curIndex);
+                    appendVectorToResult(argVector);
                 }
-                else if (newArrayUseHash) {
-                    newArray._hashSetValue(curIndex, Value.fromAny(arg));
-                }
-                else {
-                    newArray.m_values[(int)curIndex] = Value.fromAny(arg);
-                    newArray.m_nonEmptyCount++;
-                    newArray.m_totalCount++;
-                    curIndex++;
-                }
-            }
-
-            if (newArray._isDenseArray())
-                newArray._setDenseArrayTotalCount(newArray.m_totalCount);
-
-            newArray.m_length = newLength;
-            return newArray;
-        }
-
-        private void _internalConcatArray(ASArray srcArr, ref uint curIndex) {
-            // We don't need to check the additions or int-uint casts here
-            // for overflow since the checks done in the concat() method ensure
-            // that it will never happen.
-
-            // Four cases need to be handled here:
-            // (1) Source and destination storage is array.
-            // (2) Source storage is array, destination is hash table
-            // (3) Source storage is hash table, destination is array
-            // (4) Source and destination storage is hash table.
-
-            var srcValues = new ReadOnlySpan<Value>(srcArr.m_values, 0, srcArr.m_totalCount);
-            HashLink[] srcHashLinks = srcArr.m_hashLinks;
-
-            if (_isDenseArray()) {
-                if (srcArr._isDenseArray()) {
-                    // Case (1)
-                    srcValues.CopyTo(m_values.AsSpan((int)curIndex, srcValues.Length));
+                else if (resultIsHash) {
+                    resultArray._hashSetValue(resCurrentLength, Value.fromAny(arg));
+                    resCurrentLength++;
                 }
                 else {
-                    // Case (2)
-                    for (int i = 0; i < srcValues.Length; i++) {
-                        Value val = srcValues[i];
-                        if (!val.isEmpty)
-                            m_values[(int)(curIndex + srcHashLinks[i].key)] = val;
-                    }
-                }
-
-                m_nonEmptyCount += srcArr.m_nonEmptyCount;
-                m_totalCount = (int)(curIndex + srcArr.m_length);
-            }
-            else {
-                // Case (3) and (4)
-                bool srcIsHash = !srcArr._isDenseArray();
-
-                for (int i = 0; i < srcValues.Length; i++) {
-                    Value val = srcValues[i];
-                    if (!val.isEmpty) {
-                        uint key = srcIsHash ? srcHashLinks[i].key : (uint)i;
-                        _hashSetValue(curIndex + key, val);
-                    }
+                    resultArray.m_values[(int)resCurrentLength] = Value.fromAny(arg);
+                    resultArray.m_nonEmptyCount++;
+                    resultArray.m_totalCount++;
+                    resCurrentLength++;
                 }
             }
 
-            curIndex += srcArr.m_length;
-        }
+            if (resultArray._isDenseArray())
+                resultArray._setDenseArrayTotalCount(resultArray.m_totalCount);
 
-        private void _internalConcatVector(ASVectorAny srcVec, ref uint curIndex) {
-            int vecLength = srcVec.length;
+            return resultArray;
 
-            if (_isDenseArray()) {
-                var valuesSpan = m_values.AsSpan((int)curIndex, vecLength);
-                for (int i = 0; i < valuesSpan.Length; i++)
-                    valuesSpan[i] = Value.fromObject(srcVec.AS_getElement(i));
+            void appendArrayToResult(ASArray argArray) {
+                var argValues = new ReadOnlySpan<Value>(argArray.m_values, 0, argArray.m_totalCount);
+                HashLink[] argHashLinks = argArray.m_hashLinks;
+                Span<Value> resultValues = resultArray.m_values;
 
-                m_nonEmptyCount += vecLength;
-                m_totalCount += vecLength;
+                if (resultArray._isDenseArray()) {
+                    // If the result is a dense array, we do not have to handle the case where
+                    // the last argument is truncated. This happens only when the result
+                    // array length reaches the limit of 2^32 - 1, at which point it cannot use
+                    // a dense array storage.
+
+                    if (argArray._isDenseArray()) {
+                        // Both argument and result are using dense array storage.
+                        argValues.CopyTo(resultValues.Slice((int)resCurrentLength));
+                    }
+                    else {
+                        // Argument is a hash table but the result is a dense array.
+                        for (int i = 0; i < argValues.Length; i++) {
+                            Value val = argValues[i];
+                            if (!val.isEmpty) {
+                                int index = (int)(resCurrentLength + argHashLinks[i].key);
+                                resultValues[index] = val;
+                            }
+                        }
+                    }
+
+                    resultArray.m_nonEmptyCount += argArray.m_nonEmptyCount;
+                    resCurrentLength += argArray.length;
+                    resultArray.m_totalCount = (int)resCurrentLength;
+                }
+                else {
+                    // Result is a hash table.
+                    // We must handle the last argument truncated case here.
+
+                    bool argIsHash = !argArray._isDenseArray();
+                    uint appendLength = Math.Min(argArray.length, resultLength - resCurrentLength);
+
+                    if (!argIsHash) {
+                        if (appendLength < (uint)argValues.Length)
+                            argValues = argValues.Slice(0, (int)appendLength);
+
+                        for (int i = 0; i < argValues.Length; i++) {
+                            Value val = argValues[i];
+                            if (!val.isEmpty)
+                                resultArray._hashSetValue(resCurrentLength + (uint)i, val);
+                        }
+                    }
+                    else {
+                        for (int i = 0; i < argValues.Length; i++) {
+                            Value val = argValues[i];
+                            uint key = argHashLinks[i].key;
+
+                            if (!val.isEmpty && key < appendLength)
+                                resultArray._hashSetValue(resCurrentLength + key, val);
+                        }
+                    }
+
+                    resCurrentLength += appendLength;
+                }
             }
-            else {
-                for (int i = 0; i < vecLength; i++)
-                    _hashSetValue(curIndex + (uint)i, Value.fromObject(srcVec.AS_getElement(i)));
-            }
 
-            curIndex += (uint)vecLength;
+            void appendVectorToResult(ASVectorAny argVector) {
+                int vecLength = argVector.length;
+
+                if (resultArray._isDenseArray()) {
+                    // We do not have to handle the last argument truncated case when the result
+                    // is a dense array. (See comments on appendArrayToResult)
+
+                    var valuesSpan = resultArray.m_values.AsSpan((int)resCurrentLength, vecLength);
+                    for (int i = 0; i < valuesSpan.Length; i++)
+                        valuesSpan[i] = Value.fromObject(argVector.AS_getElement(i));
+
+                    resultArray.m_nonEmptyCount += vecLength;
+                    resultArray.m_totalCount += vecLength;
+                    resCurrentLength += (uint)vecLength;
+                }
+                else {
+                    uint appendLength = Math.Min((uint)vecLength, resultLength - resCurrentLength);
+                    for (uint i = 0; i < appendLength; i++)
+                        resultArray._hashSetValue(resCurrentLength + i, Value.fromObject(argVector.AS_getElement(i)));
+
+                    resCurrentLength += appendLength;
+                }
+            }
         }
 
         /// <summary>
@@ -1939,9 +2052,8 @@ namespace Mariana.AVM2.Core {
         public virtual bool every(ASFunction callback, ASAny thisObject = default) {
             if (callback == null)
                 return true;
-                //throw AVM2Errors.createError<ASTypeError>(2007, "callback");
 
-            if (thisObject.value != null && callback is ASMethodClosure)
+            if (!thisObject.isUndefinedOrNull && callback.isMethodClosure)
                 throw ErrorHelper.createError(ErrorCode.CALLBACK_METHOD_THIS_NOT_NULL);
 
             ASAny[] cbArgsArray = new ASAny[3];
@@ -2012,9 +2124,8 @@ namespace Mariana.AVM2.Core {
         public virtual ASArray filter(ASFunction callback, ASAny thisObject = default) {
             if (callback == null)
                 return new ASArray();
-                // AVM2Errors.createError<ASTypeError>(2007, "callback");
 
-            if (thisObject.value != null && callback is ASMethodClosure)
+            if (!thisObject.isUndefinedOrNull && callback.isMethodClosure)
                 throw ErrorHelper.createError(ErrorCode.CALLBACK_METHOD_THIS_NOT_NULL);
 
             ASArray resultArray = new ASArray();
@@ -2080,9 +2191,8 @@ namespace Mariana.AVM2.Core {
         public virtual void forEach(ASFunction callback, ASAny thisObject = default(ASAny)) {
             if (callback == null)
                 return;
-                // throw AVM2Errors.createError<ASTypeError>(2007, "callback");
 
-            if (thisObject.value != null && callback is ASMethodClosure)
+            if (!thisObject.isUndefinedOrNull && callback.isMethodClosure)
                 throw ErrorHelper.createError(ErrorCode.CALLBACK_METHOD_THIS_NOT_NULL);
 
             ASAny[] cbArgsArray = new ASAny[3];
@@ -2132,13 +2242,13 @@ namespace Mariana.AVM2.Core {
         public virtual double indexOf(
             ASAny searchElement, [ParamDefaultValue(0)] ASAny fromIndex)
         {
-            uint fromIndexU = _normalizeIndex((double)fromIndex, m_length);
+            uint uFromIndex = _normalizeIndex((double)fromIndex, m_length);
 
             if (_isDenseArrayWithoutEmptySlots()) {
-                if (fromIndexU >= (uint)m_totalCount)
+                if (uFromIndex >= m_length)
                     return -1.0;
 
-                var valuesSpan = new ReadOnlySpan<Value>(m_values, (int)fromIndexU, m_totalCount - (int)fromIndexU);
+                var valuesSpan = new ReadOnlySpan<Value>(m_values, (int)uFromIndex, (int)(m_length - uFromIndex));
 
                 if (searchElement.isUndefinedOrNull
                     || !ClassTagSet.specialStrictEquality.contains(searchElement.AS_class.tag))
@@ -2146,7 +2256,7 @@ namespace Mariana.AVM2.Core {
                     Value searchVal = Value.fromAny(searchElement);
                     for (int i = 0; i < valuesSpan.Length; i++) {
                         if (valuesSpan[i].isReferenceEqual(searchVal))
-                            return (double)i;
+                            return (double)((uint)i + uFromIndex);
                     }
                 }
                 else if (ASObject.AS_isNumeric(searchElement.value)) {
@@ -2154,7 +2264,7 @@ namespace Mariana.AVM2.Core {
                     for (int i = 0; i < valuesSpan.Length; i++) {
                         ASObject obj = valuesSpan[i].toAny().value;
                         if (ASObject.AS_isNumeric(obj) && (double)obj == searchVal)
-                            return (double)i;
+                            return (double)((uint)i + uFromIndex);
                     }
                 }
                 else if (searchElement.value is ASString) {
@@ -2162,18 +2272,18 @@ namespace Mariana.AVM2.Core {
                     for (int i = 0; i < valuesSpan.Length; i++) {
                         ASObject strObj = valuesSpan[i].toAny().value as ASString;
                         if (strObj != null && (string)strObj == searchVal)
-                            return (double)i;
+                            return (double)((uint)i + uFromIndex);
                     }
                 }
                 else {
                     for (int i = 0; i < valuesSpan.Length; i++) {
                         if (ASAny.AS_strictEq(searchElement, valuesSpan[i].toAny()))
-                            return (double)i;
+                            return (double)((uint)i + uFromIndex);
                     }
                 }
             }
             else {
-                for (uint i = 0, n = m_length; i < n; i++) {
+                for (uint i = uFromIndex, n = m_length; i < n; i++) {
                     if (ASAny.AS_strictEq(searchElement, AS_getElement(i)))
                         return (double)i;
                 }
@@ -2234,12 +2344,12 @@ namespace Mariana.AVM2.Core {
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
         public virtual double lastIndexOf(
-            ASAny searchElement, [ParamDefaultValue(Int32.MaxValue)] ASAny fromIndex)
+            ASAny searchElement, [ParamDefaultValue(UInt32.MaxValue)] ASAny fromIndex)
         {
-            uint fromIndexU = _normalizeIndex((double)fromIndex, m_length);
+            uint uFromIndex = _normalizeIndex((double)fromIndex, m_length);
 
             if (_isDenseArrayWithoutEmptySlots()) {
-                var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, (int)Math.Min(fromIndexU, (uint)m_totalCount));
+                var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, (int)Math.Min(uFromIndex + 1, m_length));
 
                 if (searchElement.isUndefinedOrNull
                     || !ClassTagSet.specialStrictEquality.contains(searchElement.AS_class.tag))
@@ -2274,9 +2384,13 @@ namespace Mariana.AVM2.Core {
                 }
             }
             else {
-                for (uint i = m_length; i >= 0; i--) {
-                    if (ASAny.AS_strictEq(searchElement, AS_getElement(i)))
-                        return (double)i;
+                uint curIndex = (uFromIndex == m_length) ? m_length - 1 : uFromIndex;
+                while (true) {
+                    if (ASAny.AS_strictEq(searchElement, AS_getElement(curIndex)))
+                        return (double)curIndex;
+                    if (curIndex == 0)
+                        break;
+                    curIndex--;
                 }
             }
 
@@ -2324,12 +2438,15 @@ namespace Mariana.AVM2.Core {
             if (callback == null)
                 return new ASArray();
 
-            if (thisObject.value != null && callback is ASMethodClosure)
+            if (!thisObject.isUndefinedOrNull && callback.isMethodClosure)
                 throw ErrorHelper.createError(ErrorCode.CALLBACK_METHOD_THIS_NOT_NULL);
 
             int length = (int)Math.Min(m_length, (uint)Int32.MaxValue);
 
-            ASArray resultArray = new ASArray(length);
+            ASArray resultArray = new ASArray();
+            resultArray.m_values = new Value[length];
+            resultArray.m_length = (uint)length;
+
             Span<Value> resultValues = resultArray.m_values;
 
             ASAny[] cbArgsArray = new ASAny[3];
@@ -2407,7 +2524,8 @@ namespace Mariana.AVM2.Core {
         /// <returns>The new length of the array.</returns>
         public virtual uint push(ASAny arg) {
             // This method is used as a compiler intrinsic for a single-argument push() call
-            AS_setElement(m_length, arg);
+            if (m_length < UInt32.MaxValue)
+                AS_setElement(m_length, arg);
             return m_length;
         }
 
@@ -2435,7 +2553,7 @@ namespace Mariana.AVM2.Core {
             if (_isDenseArray()) {
                 int curLen = (int)m_length;
                 if (curLen + argCount > m_values.Length)
-                    Array.Resize(ref m_values, Math.Max(curLen + argCount, m_values.Length * 2));
+                    Array.Resize(ref m_values, Math.Max(Math.Max(curLen + argCount, m_values.Length * 2), 4));
 
                 var span = m_values.AsSpan(curLen, argCount);
                 for (int i = 0; i < argCount; i++)
@@ -2592,42 +2710,30 @@ namespace Mariana.AVM2.Core {
         public virtual ASArray slice(
             [ParamDefaultValue(0)] ASAny startIndex, [ParamDefaultValue(UInt32.MaxValue)] ASAny endIndex)
         {
-            uint startIndexU = _normalizeIndex((double)startIndex, m_length);
-            uint endIndexU = _normalizeIndex((double)endIndex, m_length);
+            uint uStartIndex = _normalizeIndex((double)startIndex, m_length);
+            uint uEndIndex = _normalizeIndex((double)endIndex, m_length);
 
-            if (endIndexU <= startIndexU)
+            if (uEndIndex <= uStartIndex)
                 return new ASArray();
 
             // slice() always returns a dense array, so the slice length is limited
             // to the max dense array size.
-            if (endIndexU - startIndexU > (uint)Int32.MaxValue)
-                endIndexU = startIndexU + (uint)Int32.MaxValue;
+            if (uEndIndex - uStartIndex > (uint)Int32.MaxValue)
+                uEndIndex = uStartIndex + (uint)Int32.MaxValue;
 
-            int sliceLength = (int)(endIndexU - startIndexU);
-            return _internalSlice(startIndexU, sliceLength);
+            int sliceLength = (int)(uEndIndex - uStartIndex);
+            return _internalSlice(uStartIndex, sliceLength);
         }
 
         private ASArray _internalSlice(uint startIndex, int sliceLength) {
-            if (sliceLength == 0)
-                return new ASArray();
+            ASArray sliceArray = new ASArray();
+            sliceArray.m_values = new Value[sliceLength];
 
-            ASArray sliceArray = new ASArray(sliceLength);
             Span<Value> sliceValues = sliceArray.m_values.AsSpan(0, sliceLength);
 
             if (_isDenseArrayWithoutEmptySlots()) {
-                int sliceLengthInArray = (startIndex >= (uint)m_values.Length)
-                    ? 0
-                    : Math.Min(sliceLength, m_values.Length - (int)startIndex);
-
-                if (sliceLengthInArray > 0) {
-                    ReadOnlySpan<Value> src = m_values.AsSpan((int)startIndex, sliceLengthInArray);
-                    Span<Value> dest = sliceValues.Slice(0, sliceLengthInArray);
-                    for (int i = 0; i < src.Length ; i++)
-                        dest[i] = src[i].isEmpty ? Value.undef : src[i];
-                }
-
-                if (sliceLengthInArray < sliceLength)
-                    sliceValues.Slice(sliceLengthInArray).Fill(Value.undef);
+                var srcValues = new ReadOnlySpan<Value>(m_values, (int)startIndex, sliceLength);
+                srcValues.CopyTo(sliceValues);
             }
             else {
                 for (int i = 0; i < sliceValues.Length; i++)
@@ -2636,6 +2742,7 @@ namespace Mariana.AVM2.Core {
 
             sliceArray.m_nonEmptyCount = sliceLength;
             sliceArray.m_totalCount = sliceLength;
+            sliceArray.m_length = (uint)sliceLength;
 
             return sliceArray;
         }
@@ -2684,7 +2791,7 @@ namespace Mariana.AVM2.Core {
             if (callback == null)
                 return false;
 
-            if (thisObject.value != null && callback is ASMethodClosure)
+            if (!thisObject.isUndefinedOrNull && callback.isMethodClosure)
                 throw ErrorHelper.createError(ErrorCode.CALLBACK_METHOD_THIS_NOT_NULL);
 
             ASAny[] cbArgsArray = new ASAny[3];
@@ -2740,87 +2847,173 @@ namespace Mariana.AVM2.Core {
         /// <para>Any arguments passed after the second are ignored.</para>
         /// <para>If a comparer function is passed to this method, and it throws an exception, the
         /// array will be left in an unspecified state.</para>
+        /// <para>If the value of the <see cref="length"/> property of the array is greater than
+        /// 2^32 - 1, the array will not be sorted and this method will always return the instance
+        /// on which it was called (even if <see cref="RETURNINDEXEDARRAY"/> is set).</para>
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
         public virtual ASAny sort(RestParam args = default) {
-            ASObject arg1 = null, arg2 = null;
-            if (args.length >= 1)
-                arg1 = args[0].value;
-            if (args.length >= 2)
-                arg2 = args[1].value;
-
-            _prepareArrayForSorting(out int sortElementCount);
-
+            ASFunction compareFunc = (args.length >= 1) ? args[0].value as ASFunction : null;
             int flags;
-            bool success = false;
-            ASArray returnArray = null;
 
-            if (arg1 is ASFunction func) {
-                IComparer<ASAny> cmp = GenericComparer<ASAny>.getComparer(func);
-                flags = (int)arg2;
-
-                ArrayValueInternalComparer valueComparer = s_threadStaticValueComparer;
-                if (valueComparer == null)
-                    valueComparer = s_threadStaticValueComparer = new ArrayValueInternalComparer();
-
-                valueComparer.baseComparer = cmp;
-                try {
-                    if ((flags & RETURNINDEXEDARRAY) != 0) {
-                        int[] perm = ArraySortHelper.getSortedPermutation(
-                            m_values, valueComparer, (flags & UNIQUESORT) != 0, sortElementCount);
-
-                        if (perm != null) {
-                            success = true;
-                            returnArray = fromSpan<int>(perm);
-                        }
-                    }
-                    else {
-                        success = ArraySortHelper.sort(m_values, valueComparer, (flags & UNIQUESORT) != 0, sortElementCount);
-                    }
-                }
-                finally {
-                    valueComparer.baseComparer = null;
-                }
+            if (compareFunc != null) {
+                if (args.length < 2)
+                    flags = 0;
+                else if (!ASObject.AS_isNumeric(args[1].value))
+                    throw ErrorHelper.createCastError(args[1], "Number");
+                else
+                    flags = (int)args[1];
             }
             else {
-                flags = (int)arg1;
-
-                var values = new ReadOnlySpan<Value>(m_values, 0, sortElementCount);
-                bool uniqueSort = (flags & UNIQUESORT) != 0;
-                bool returnIndexedArray = (flags & RETURNINDEXEDARRAY) != 0;
-
-                if ((flags & NUMERIC) != 0) {
-                    double[] keys = new double[values.Length];
-                    IComparer<double> cmp = GenericComparer<double>.defaultComparer;
-
-                    for (int i = 0; i < values.Length; i++)
-                        keys[i] = (double)values[i].toAny();
-
-                    success = _internalSortWithKeys(keys, cmp, uniqueSort, returnIndexedArray, out returnArray);
-                }
-                else {
-                    IComparer<string> cmp = GenericComparer<string>.getComparer(
-                        ((flags & CASEINSENSITIVE) != 0) ? GenericComparerType.STRING_IGNORECASE : GenericComparerType.DEFAULT
-                    );
-
-                    string[] keys = new string[values.Length];
-                    for (int i = 0; i < values.Length; i++)
-                        keys[i] = ASAny.AS_convertString(values[i].toAny());
-
-                    success = _internalSortWithKeys(keys, cmp, uniqueSort, returnIndexedArray, out returnArray);
-                }
+                if (args.length < 1)
+                    flags = 0;
+                else if (!ASObject.AS_isNumeric(args[0].value))
+                    throw ErrorHelper.createCastError(args[0], "Function");
+                else
+                    flags = (int)args[0];
             }
 
-            if (!success)
-                return 0;
+            if (m_length > (uint)Int32.MaxValue) {
+                // Arrays greater than this length can't be sorted.
+                return this;
+            }
 
-            returnArray = returnArray ?? this;
+            bool uniqueSort = (flags & UNIQUESORT) != 0;
+            bool returnIndexedArray = (flags & RETURNINDEXEDARRAY) != 0;
+
+            _getArrayValuesForSorting(flags, out Value[] valuesForSort, out bool isSortInPlace);
+
+            int sortArrayLength = isSortInPlace ? m_totalCount : valuesForSort.Length;
+            int sortArrAndUndefinedLength;
+            int[] indexArray = null;
+
+            if (returnIndexedArray) {
+                indexArray = new int[checked((int)m_length)];
+                for (int i = 0; i < indexArray.Length; i++)
+                    indexArray[i] = i;
+
+                _doPreSortPartitionIndexed(
+                    valuesForSort.AsSpan(0, sortArrayLength),
+                    indexArray.AsSpan(0, sortArrayLength),
+                    separateNulls: false,
+                    out sortArrAndUndefinedLength,
+                    out int definedCount
+                );
+                sortArrayLength = definedCount;
+            }
+            else {
+                _doPreSortPartition(
+                    valuesForSort.AsSpan(0, sortArrayLength), separateNulls: false, out sortArrAndUndefinedLength, out int definedCount);
+
+                sortArrayLength = definedCount;
+            }
+
+            // If using UNIQUESORT, we need to generate sort keys for the entire array for the uniqueness check.
+            int sortKeyCount = uniqueSort ? (int)m_length : sortArrayLength;
+
+            if (compareFunc != null) {
+                IComparer<ASAny> comparer = GenericComparer<ASAny>.getComparer(compareFunc);
+                IComparer<Value> valueComparer = new ArrayValueComparer(comparer);
+                Value[] sortKeys = valuesForSort;
+
+                if (returnIndexedArray) {
+                    // We need to make a copy of the values array in two cases:
+                    // - When doing an "in-place" sort. sortKeys will be mutated, and if it refers to
+                    //   the backing storage of this instance, we don't want to mutate it.
+                    // - If the array contains undefined values or holes. In this case, doPreSortPartition
+                    //   may have rearranged the indices and we want the order in sortKeys to reflect that.
+
+                    if (isSortInPlace || !_isDenseArrayWithoutEmptySlots() || sortArrayLength != sortArrAndUndefinedLength) {
+                        sortKeys = new Value[sortKeyCount];
+                        for (int i = 0; i < sortKeys.Length; i++)
+                            sortKeys[i] = valuesForSort[indexArray[i]];
+                    }
+                    Array.Sort(sortKeys, indexArray, 0, sortArrayLength, valueComparer);
+                }
+                else {
+                    Array.Sort(sortKeys, 0, sortArrayLength, valueComparer);
+                }
+
+                if (uniqueSort && !_doUniqueSortCheck(sortKeys.AsSpan(0, sortKeyCount), valueComparer))
+                    return 0;
+            }
+            else if ((flags & NUMERIC) != 0) {
+                double[] keys = new double[sortKeyCount];
+                var comparer = GenericComparer<double>.defaultComparer;
+
+                for (int i = 0; i < keys.Length; i++) {
+                    Value val = valuesForSort[returnIndexedArray ? indexArray[i] : i];
+                    keys[i] = (double)val.toAny();
+                }
+
+                if (returnIndexedArray)
+                    Array.Sort(keys, indexArray, 0, sortArrayLength, comparer);
+                else
+                    Array.Sort(keys, valuesForSort, 0, sortArrayLength, comparer);
+
+                if (uniqueSort && !_doUniqueSortCheck(keys, comparer))
+                    return 0;
+            }
+            else {
+                var comparerType = ((flags & CASEINSENSITIVE) != 0) ? GenericComparerType.STRING_IGNORECASE : GenericComparerType.DEFAULT;
+                var comparer = GenericComparer<string>.getComparer(comparerType);
+
+                string[] keys = new string[sortKeyCount];
+                for (int i = 0; i < keys.Length; i++) {
+                    Value val = valuesForSort[returnIndexedArray ? indexArray[i] : i];
+                    keys[i] = ASAny.AS_convertString(val.toAny());
+                }
+
+                if (returnIndexedArray)
+                    Array.Sort(keys, indexArray, 0, sortArrayLength, comparer);
+                else
+                    Array.Sort(keys, valuesForSort, 0, sortArrayLength, comparer);
+
+                if (uniqueSort && !_doUniqueSortCheck(keys, comparer))
+                    return 0;
+            }
+
+            if (returnIndexedArray) {
+                if ((flags & DESCENDING) != 0)
+                    indexArray.AsSpan(0, sortArrayLength).Reverse();
+
+                return fromTypedArray(indexArray);
+            }
+
+            // If the sorting was done on a separate array (because of holes, UNIQUESORT flag, etc.)
+            // we need to write the sorted array back into this instance. We use one of three options here:
+            //
+            // - If the number of holes in the sorted array is not very large, swap the current
+            //   backing array with the sorted one.
+            // - Otherwise, if the current backing array can hold all the sorted values plus all the
+            //   `undefined` values after the sorted values, copy from the sorted array to the current
+            //   backing array.
+            // - Otherwise, allocate a new backing array.
+
+            if (!isSortInPlace) {
+                if (sortArrAndUndefinedLength >= (valuesForSort.Length >> 1)) {
+                    m_values = valuesForSort;
+                }
+                else if (sortArrAndUndefinedLength <= m_values.Length) {
+                    valuesForSort.AsSpan(0, sortArrAndUndefinedLength).CopyTo(m_values);
+                    if (sortArrAndUndefinedLength < m_totalCount)
+                        m_values.AsSpan(sortArrAndUndefinedLength, m_totalCount - sortArrAndUndefinedLength).Clear();
+                }
+                else {
+                    m_values = valuesForSort.AsSpan(0, sortArrAndUndefinedLength).ToArray();
+                }
+
+                m_totalCount = sortArrAndUndefinedLength;
+                m_nonEmptyCount = sortArrAndUndefinedLength;
+                m_hashLinks = null;
+                m_hashEmptyChainHead = -1;
+            }
 
             if ((flags & DESCENDING) != 0)
-                Array.Reverse(returnArray.m_values, 0, returnArray.m_totalCount);
+                m_values.AsSpan(0, sortArrayLength).Reverse();
 
-            return returnArray;
+            return this;
         }
 
         /// <summary>
@@ -2858,121 +3051,276 @@ namespace Mariana.AVM2.Core {
         /// otherwise, returns the array on which this method is called (in which case the array
         /// is sorted in place).
         /// </returns>
+        ///
+        /// <remarks>
+        /// <para>If the value of the <see cref="length"/> property of the array is greater than
+        /// 2^32 - 1, the array will not be sorted and this method will always return the instance
+        /// on which it was called (even if <see cref="RETURNINDEXEDARRAY"/> is set).</para>
+        /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
-        public virtual ASAny sortOn(
-            ASAny names,
-            [ParamDefaultValue(0)] ASAny options,
-            RestParam reserved = default)
-        {
+        public virtual ASAny sortOn(ASAny names, ASAny options = default, RestParam reserved = default) {
+            if (m_length > (uint)Int32.MaxValue) {
+                // Arrays greater than this length cannot be sorted.
+                return this;
+            }
+
             QName[] propNames;
             int[] propFlags;
 
             if (names.value is ASArray namesArray) {
-                if (namesArray.length == 0)
-                    return this;
-
                 propNames = new QName[(int)Math.Min(namesArray.length, (uint)Int32.MaxValue)];
-
                 for (int i = 0; i < propNames.Length; i++)
-                    propNames[i] = QName.publicName((string)namesArray[(uint)i]);
+                    propNames[i] = QName.publicName(ASAny.AS_convertString(namesArray[i]));
+            }
+            else {
+                propNames = new QName[] {ASAny.AS_convertString(names)};
+            }
 
-                propFlags = new int[propNames.Length];
+            propFlags = new int[propNames.Length];
+            bool uniqueSort = false, returnIndexedArray = false;
 
-                if (options.value is ASArray optionsArray) {
-                    // The options array must only be used if its length is the same as that of
-                    // the names array. Otherwise all options are zero.
-                    if ((int)optionsArray.length == propNames.Length) {
-                        for (int i = 0; i < propFlags.Length; i++)
-                            propFlags[i] = (int)namesArray[(uint)i];
-                    }
-                }
-                else {
-                    int optionsValue = (int)options;
+            if (options.value is ASArray optionsArray) {
+                // The options array must only be used if its length is the same as that of
+                // the names array. Otherwise all options are zero.
+                if ((int)optionsArray.length == propNames.Length) {
                     for (int i = 0; i < propFlags.Length; i++)
-                        propFlags[i] = optionsValue;
+                        propFlags[i] = (int)optionsArray[i];
+
+                    // UNIQUESORT and RETURNINDEXEDARRAY are always taken from the first element in the flags array.
+                    uniqueSort = (propFlags[0] & UNIQUESORT) != 0;
+                    returnIndexedArray = (propFlags[0] & RETURNINDEXEDARRAY) != 0;
                 }
             }
             else {
-                propNames = new[] {QName.publicName((string)names.value)};
-                propFlags = new[] {(int)options};
+                int optionsValue = (int)options;
+                for (int i = 0; i < propFlags.Length; i++)
+                    propFlags[i] = optionsValue;
+
+                uniqueSort = (optionsValue & UNIQUESORT) != 0;
+                returnIndexedArray = (optionsValue & RETURNINDEXEDARRAY) != 0;
             }
 
-            _prepareArrayForSorting(out int sortElementCount);
+            int globalFlags = 0;
+            if (uniqueSort)
+                globalFlags |= UNIQUESORT;
+            if (returnIndexedArray)
+                globalFlags |= RETURNINDEXEDARRAY;
 
-            ASArray returnArray;
-            bool success;
-            bool reverse;
+            _getArrayValuesForSorting(globalFlags, out Value[] valuesForSort, out bool isSortInPlace);
 
-            if (propNames.Length == 1) {
-                // Special case for single name.
+            // Unlike sort(), null values here are also moved to the end of the array with undefined values.
+            // So sortArrAndUndefinedLength includes nulls as well!
+
+            int sortArrayLength = isSortInPlace ? m_totalCount : valuesForSort.Length;
+            int sortArrAndUndefinedLength;
+            int[] indexArray = null;
+
+            if (returnIndexedArray) {
+                indexArray = new int[checked((int)m_length)];
+                for (int i = 0; i < indexArray.Length; i++)
+                    indexArray[i] = i;
+
+                _doPreSortPartitionIndexed(
+                    valuesForSort.AsSpan(0, sortArrayLength),
+                    indexArray.AsSpan(0, sortArrayLength),
+                    separateNulls: true,
+                    out sortArrAndUndefinedLength,
+                    out int definedCount
+                );
+                sortArrayLength = definedCount;
+            }
+            else {
+                _doPreSortPartition(
+                    valuesForSort.AsSpan(0, sortArrayLength), separateNulls: true, out sortArrAndUndefinedLength, out int definedCount);
+
+                sortArrayLength = definedCount;
+            }
+
+            if (uniqueSort && m_length > (uint)sortArrayLength + 1) {
+                // UNIQUESORT is set and there is more than one value that is null, undefined or empty, so fail.
+                // This is intentional, even when there is one null + one undefined value.
+                return 0;
+            }
+
+            bool mustReverse;
+
+            if (propNames.Length == 0) {
+                // If there are no property names to sort on, it is the same as considering all objects
+                // to be equal to each other. This means that if UNIQUESORT is set, the uniqueness check
+                // succeeds if and only if there is no more than one object.
+
+                if (uniqueSort && sortArrayLength > 1)
+                    return 0;
+
+                mustReverse = false;
+            }
+            else if (propNames.Length == 1) {
+                // We use this fast path when there is exactly one property name.
+
                 QName propName = propNames[0];
-
-                var values = new ReadOnlySpan<Value>(m_values, 0, sortElementCount);
-                bool uniqueSort = (propFlags[0] & UNIQUESORT) != 0;
-                bool returnIndexedArray = (propFlags[0] & RETURNINDEXEDARRAY) != 0;
-                reverse = (propFlags[0] & DESCENDING) != 0;
+                mustReverse = (propFlags[0] & DESCENDING) != 0;
 
                 if ((propFlags[0] & NUMERIC) != 0) {
-                    double[] keys = new double[values.Length];
+                    double[] keys = new double[sortArrayLength];
 
-                    for (int i = 0; i < values.Length; i++)
-                        keys[i] = (double)values[i].toAny().AS_getProperty(propName);
+                    for (int i = 0; i < keys.Length; i++) {
+                        Value val = valuesForSort[returnIndexedArray ? indexArray[i] : i];
+                        keys[i] = (double)val.toAny().AS_getProperty(propName);
+                    }
 
-                    IComparer<double> cmp = GenericComparer<double>.defaultComparer;
-                    success = _internalSortWithKeys(keys, cmp, uniqueSort, returnIndexedArray, out returnArray);
+                    var comparer = GenericComparer<double>.defaultComparer;
+
+                    if (returnIndexedArray)
+                        Array.Sort(keys, indexArray, 0, sortArrayLength, comparer);
+                    else
+                        Array.Sort(keys, valuesForSort, 0, sortArrayLength, comparer);
+
+                    if (uniqueSort && !_doUniqueSortCheck(keys, comparer))
+                        return 0;
                 }
                 else {
-                    string[] keys = new string[values.Length];
+                    string[] keys = new string[sortArrayLength];
 
-                    for (int i = 0; i < values.Length; i++)
-                        keys[i] = ASAny.AS_convertString(values[i].toAny().AS_getProperty(propName));
+                    for (int i = 0; i < keys.Length; i++) {
+                        Value val = valuesForSort[returnIndexedArray ? indexArray[i] : i];
+                        keys[i] = ASAny.AS_convertString(val.toAny().AS_getProperty(propName));
+                    }
 
-                    IComparer<string> cmp = GenericComparer<string>.getComparer(
-                        ((propFlags[0] & CASEINSENSITIVE) != 0)
-                            ? GenericComparerType.STRING_IGNORECASE
-                            : GenericComparerType.DEFAULT
-                    );
+                    var comparerType = ((propFlags[0] & CASEINSENSITIVE) != 0) ? GenericComparerType.STRING_IGNORECASE : GenericComparerType.DEFAULT;
+                    IComparer<string> comparer = GenericComparer<string>.getComparer(comparerType);
 
-                    success = _internalSortWithKeys(keys, cmp, uniqueSort, returnIndexedArray, out returnArray);
+                    if (returnIndexedArray)
+                        Array.Sort(keys, indexArray, 0, sortArrayLength, comparer);
+                    else
+                        Array.Sort(keys, valuesForSort, 0, sortArrayLength, comparer);
+
+                    if (uniqueSort && !_doUniqueSortCheck(keys, comparer))
+                        return 0;
                 }
             }
             else {
-                // More than one name.
-
-                // In this case UNIQUESORT and RETURNINDEXEDARRAY are taken from the first element
-                // in the flags array.
-                bool uniqueSort = (propFlags[0] & UNIQUESORT) != 0;
-                bool returnIndexedArray = (propFlags[0] & RETURNINDEXEDARRAY) != 0;
+                // Use the slower path in other cases.
 
                 _internalCreateSortOnKeysAndComparer(
-                    propNames, propFlags, sortElementCount, out int[] keys, out IComparer<int> comparer, out reverse);
+                    objects: returnIndexedArray ? valuesForSort : valuesForSort.AsSpan(0, sortArrayLength),
+                    useIndices: returnIndexedArray,
+                    indices: returnIndexedArray ? indexArray.AsSpan(0, sortArrayLength) : default,
+                    propNames,
+                    propFlags,
+                    out int[] keys,
+                    out IComparer<int> comparer,
+                    out mustReverse
+                );
 
-                success = _internalSortWithKeys(keys, comparer, uniqueSort, returnIndexedArray, out returnArray);
+                if (returnIndexedArray)
+                    Array.Sort(keys, indexArray, 0, sortArrayLength, comparer);
+                else
+                    Array.Sort(keys, valuesForSort, 0, sortArrayLength, comparer);
+
+                if (uniqueSort && !_doUniqueSortCheck(keys, comparer))
+                    return 0;
             }
 
-            if (!success)
-                return 0;
+            if (returnIndexedArray) {
+                if (mustReverse)
+                    indexArray.AsSpan(0, sortArrayLength).Reverse();
 
-            if (reverse)
-                Array.Reverse(m_values, 0, m_totalCount);
+                return fromTypedArray(indexArray);
+            }
 
-            return returnArray;
+            // If the sorting was done on a separate array (because of holes, UNIQUESORT flag, etc.)
+            // we need to write the sorted array back into this instance. We use one of three options here:
+            //
+            // - If the number of holes in the sorted array is not very large, swap the current
+            //   backing array with the sorted one.
+            // - Otherwise, if the current backing array can hold all the sorted values plus all the
+            //   `undefined` values after the sorted values, copy from the sorted array to the current
+            //   backing array.
+            // - Otherwise, allocate a new backing array.
+
+            if (!isSortInPlace) {
+                if (sortArrAndUndefinedLength >= (valuesForSort.Length >> 1)) {
+                    m_values = valuesForSort;
+                }
+                else if (sortArrAndUndefinedLength <= m_values.Length) {
+                    valuesForSort.AsSpan(0, sortArrAndUndefinedLength).CopyTo(m_values);
+                    if (sortArrAndUndefinedLength < m_totalCount)
+                        m_values.AsSpan(sortArrAndUndefinedLength, m_totalCount - sortArrAndUndefinedLength).Clear();
+                }
+                else {
+                    m_values = valuesForSort.AsSpan(0, sortArrAndUndefinedLength).ToArray();
+                }
+
+                m_totalCount = sortArrAndUndefinedLength;
+                m_nonEmptyCount = sortArrAndUndefinedLength;
+                m_hashLinks = null;
+                m_hashEmptyChainHead = -1;
+            }
+
+            if (mustReverse)
+                m_values.AsSpan(0, sortArrayLength).Reverse();
+
+            return this;
         }
 
-        private void _prepareArrayForSorting(out int sortElementCount) {
-            // Partition the array so that all values that are not empty or undefined
-            // come first, followed by all undefined values and then all empty values.
-            // Undefined and empty values should not be involved in sorting comparisons.
+        private void _getArrayValuesForSorting(int sortFlags, out Value[] valuesForSorting, out bool isSortInPlace) {
+            if (_isDenseArrayWithoutEmptySlots()
+                && ((sortFlags & UNIQUESORT) == 0 || (sortFlags & RETURNINDEXEDARRAY) != 0))
+            {
+                // If this is a dense array with no empty slots, we can do an in-place sort if
+                // the UNIQUESORT flag is not set, or the RETURNINDEXEDARRAY flag is set. In
+                // the latter case the sort is not strictly in-place (we still have to allocate
+                // an index array), but we can use the backing array as the values array
+                // as there are no holes for which we have to search the prototype.
 
-            Span<Value> values = m_values.AsSpan(0, m_totalCount);
+                valuesForSorting = m_values;
+                isSortInPlace = true;
+                return;
+            }
+
+            Value[] vals = new Value[checked((int)m_length)];
+            valuesForSorting = vals;
+
+            isSortInPlace = false;
+
+            if (_isDenseArrayWithoutEmptySlots()) {
+                m_values.AsSpan(0, vals.Length).CopyTo(vals);
+                return;
+            }
+
+            for (int i = 0; i < vals.Length; i++) {
+                vals[i] = _getValueAt((uint)i);
+
+                if (!vals[i].isEmpty)
+                    continue;
+
+                // If a prototype property with the same name as this index exists, fill the hole with it.
+                BindStatus status = base.AS_tryGetProperty(
+                    QName.publicName(ASint.AS_convertString(i)),
+                    out ASAny prototypeVal,
+                    BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE
+                );
+
+                if (status == BindStatus.SUCCESS)
+                    vals[i] = Value.fromAny(prototypeVal);
+            }
+        }
+
+        private static void _doPreSortPartition(
+            Span<Value> values, bool separateNulls, out int nonEmptyValueCount, out int definedValueCount)
+        {
+            // Partition the values array so that all non-empty non-undefined (and non-null, if
+            // separateNulls is true) values - the ones that will be sorted - come first, followed
+            // by all undefined values, followed by all undefined values, followed by all empty
+            // values (holes).
 
             int i, j;
 
             // First partition into (defined, undefOrEmpty)
             for (i = 0, j = 0; i < values.Length; i++) {
                 ref Value vali = ref values[i];
-                if (vali.isEmptyOrUndefined)
+                if (vali.isEmptyOrUndefined || (separateNulls && vali.toAny().isNull))
                     continue;
 
                 if (i != j) {
@@ -2982,7 +3330,8 @@ namespace Mariana.AVM2.Core {
                 j++;
             }
 
-            sortElementCount = j;
+            definedValueCount = j;
+
             Span<Value> undefOrEmpty = values.Slice(j);
 
             // Partition undefOrEmpty into (undefined, empty)
@@ -2992,84 +3341,110 @@ namespace Mariana.AVM2.Core {
                     continue;
 
                 if (i != j) {
-                    ref Value valj = ref values[j];
+                    ref Value valj = ref undefOrEmpty[j];
                     (vali, valj) = (valj, vali);
                 }
                 j++;
             }
 
-            m_totalCount = m_nonEmptyCount;
-            m_hashLinks = null;
-            m_hashEmptyChainHead = -1;
+            nonEmptyValueCount = definedValueCount + j;
         }
 
-        /// <summary>
-        /// Sorts the array using the given keys.
-        /// </summary>
-        /// <param name="keys">The keys to be used for sorting the array. The size of the keys array
-        /// must be equal to the size of this array being sorted.</param>
-        /// <param name="comparer">The comparer to use for sorting.</param>
-        /// <param name="uniqueSort">If this is true, and two keys compare as equal, the array is
-        /// restored to its original order and this method returns false.</param>
-        /// <param name="returnIndexedArray">If this is true, create a permutation array containing
-        /// the indices of the elements in sorted order and do not mutate this array.</param>
-        /// <param name="result">If <paramref name="returnIndexedArray"/> is true, this argument will
-        /// be set to the created permutation array, otherwise it will be set to this array.</param>
-        /// <returns>If <paramref name="uniqueSort"/> is true and two keys compare as equal, returns
-        /// false. Otherwise returns true.</returns>
-        private bool _internalSortWithKeys<T>(
-            T[] keys, IComparer<T> comparer, bool uniqueSort, bool returnIndexedArray, out ASArray result)
+        private static void _doPreSortPartitionIndexed(
+            ReadOnlySpan<Value> values, Span<int> indices, bool separateNulls, out int nonEmptyValueCount, out int definedValueCount)
         {
-            result = this;
+            // Do the same (defined, undefined, empty) partition, but on the indices array instead of
+            // the values array.
 
-            if (returnIndexedArray) {
-                int[] permutation = ArraySortHelper.getSortedPermutation(keys, comparer, uniqueSort, m_totalCount);
-                if (permutation == null)
-                    return false;
+            int i, j;
 
-                result = fromSpan<int>(permutation);
-                return true;
+            // First partition into (defined, undefOrEmpty)
+            for (i = 0, j = 0; i < indices.Length; i++) {
+                ref int indexi = ref indices[i];
+                Value vali = values[indexi];
+
+                if (vali.isEmptyOrUndefined || (separateNulls && vali.toAny().isNull))
+                    continue;
+
+                if (i != j) {
+                    ref int indexj = ref indices[j];
+                    (indexi, indexj) = (indexj, indexi);
+                }
+                j++;
             }
-            else {
-                return ArraySortHelper.sortPair(keys, m_values, comparer, uniqueSort, keys.Length);
+
+            definedValueCount = j;
+
+            Span<int> undefOrEmptyIndices = indices.Slice(j);
+
+            // Partition undefOrEmpty into (undefined, empty)
+            for (i = 0, j = 0; i < undefOrEmptyIndices.Length; i++) {
+                ref int indexi = ref undefOrEmptyIndices[i];
+                if (values[indexi].isEmpty)
+                    continue;
+
+                if (i != j) {
+                    ref int indexj = ref undefOrEmptyIndices[j];
+                    (indexi, indexj) = (indexj, indexi);
+                }
+                j++;
             }
+
+            nonEmptyValueCount = definedValueCount + j;
         }
 
         /// <summary>
         /// Creates the sorting keys and comparer for the sortOn method.
         /// </summary>
+        /// <param name="objects">The objects to be sorted.</param>
+        /// <param name="useIndices">If this is true, use the <paramref name="indices"/> span for
+        /// the initial ordering of the keys. Otherwise use the order of the objects in
+        /// <paramref name="objects"/></param>
+        /// <param name="indices">The indices in the <paramref name="objects"/> span representing the
+        /// order in which to create the keys, if <paramref name="useIndices"/> is true.</param>
         /// <param name="propNames">The names of the properties to be used for sorting the array.</param>
         /// <param name="propFlags">The sorting flags for each property.</param>
-        /// <param name="elementCount">The number of elements to be sorted.</param>
         /// <param name="keys">The sorting keys.</param>
         /// <param name="comparer">The sorting comparer.</param>
         /// <param name="reverse">If this is set to true, the array must be reversed after sorting.</param>
-        private void _internalCreateSortOnKeysAndComparer(
-            QName[] propNames, int[] propFlags, int elementCount, out int[] keys, out IComparer<int> comparer, out bool reverse)
-        {
+        private static void _internalCreateSortOnKeysAndComparer(
+            ReadOnlySpan<Value> objects,
+            bool useIndices,
+            ReadOnlySpan<int> indices,
+            QName[] propNames,
+            int[] propFlags,
+            out int[] keys,
+            out IComparer<int> comparer,
+            out bool reverse
+        ) {
             int nameCount = propNames.Length;
-
-            keys = new int[elementCount];
-            for (int i = 0, curKey = 0; i < keys.Length; i++, curKey = checked(curKey + nameCount))
-                keys[i] = curKey;
-
-            ReadOnlySpan<Value> values = new ReadOnlySpan<Value>(m_values, 0, elementCount);
-
             bool hasCommonFlags = true;
+
             int commonFlags = propFlags[0] & (NUMERIC | CASEINSENSITIVE | DESCENDING);
 
             for (int i = 1; i < propFlags.Length && hasCommonFlags; i++)
                 hasCommonFlags &= (propFlags[i] & (NUMERIC | CASEINSENSITIVE | DESCENDING)) == commonFlags;
+
+            int objectCount = useIndices ? indices.Length : objects.Length;
+
+            keys = new int[objectCount];
+            int curKey = 0;
+
+            for (int i = 0; i < keys.Length; i++) {
+                keys[i] = curKey;
+                curKey += nameCount;
+            }
 
             if (hasCommonFlags) {
                 // If the numeric, caseinsensitive and descending flags are the same for all
                 // properties then the type-converted property values can be precomputed.
 
                 if ((commonFlags & NUMERIC) != 0) {
-                    double[] propValues = new double[m_totalCount * nameCount];
+                    double[] propValues = new double[checked(objectCount * nameCount)];
 
-                    for (int i = 0, propIndex = 0; i < values.Length; i++) {
-                        ASAny obj = values[i].toAny();
+                    for (int i = 0, propIndex = 0; i < objectCount; i++) {
+                        ASAny obj = objects[useIndices ? indices[i] : i].toAny();
+
                         for (int j = 0; j < nameCount; j++)
                             propValues[propIndex++] = (double)obj.AS_getProperty(propNames[j]);
                     }
@@ -3077,10 +3452,11 @@ namespace Mariana.AVM2.Core {
                     comparer = new ArraySortHelper.NumericBlockComparer(propValues, nameCount);
                 }
                 else {
-                    string[] propValues = new string[m_totalCount * nameCount];
+                    string[] propValues = new string[checked(objectCount * nameCount)];
 
-                    for (int i = 0, propIndex = 0; i < values.Length; i++) {
-                        ASAny obj = m_values[i].toAny();
+                    for (int i = 0, propIndex = 0; i < objectCount; i++) {
+                        ASAny obj = objects[useIndices ? indices[i] : i].toAny();
+
                         for (int j = 0; j < nameCount; j++)
                             propValues[propIndex++] = ASAny.AS_convertString(obj.AS_getProperty(propNames[j]));
                     }
@@ -3095,14 +3471,7 @@ namespace Mariana.AVM2.Core {
                 // If the flags differ for each property then we can't type-convert
                 // the precomputed property values, the conversions have to be done in the comparer.
 
-                ASAny[] propValues = new ASAny[m_totalCount * nameCount];
-
-                for (int i = 0, propIndex = 0; i < values.Length; i++) {
-                    ASAny obj = m_values[i].toAny();
-                    for (int j = 0; j < nameCount; j++)
-                        propValues[propIndex++] = obj.AS_getProperty(propNames[j]);
-                }
-
+                ASAny[] propValues = new ASAny[checked(objectCount * nameCount)];
                 var propComparers = new IComparer<ASAny>[nameCount];
                 var descendingFlags = new bool[nameCount];
 
@@ -3121,11 +3490,45 @@ namespace Mariana.AVM2.Core {
                     descendingFlags[i] = (flags & DESCENDING) != 0;
                 }
 
+                for (int i = 0, propIndex = 0; i < objectCount; i++) {
+                    ASAny obj = objects[useIndices ? indices[i] : i].toAny();
+
+                    for (int j = 0; j < nameCount; j++) {
+                        ASAny propVal = obj.AS_getProperty(propNames[j]);
+
+                        // If the property value is null or undefined and we are doing a string comparison,
+                        // we need to convert the value to its string representation - this is because the
+                        // comparer converts null and undefined to a null reference.
+
+                        if (propVal.isUndefinedOrNull && (propFlags[j] & NUMERIC) == 0)
+                            propVal = ASAny.AS_convertString(propVal);
+
+                        propValues[propIndex++] = propVal;
+                    }
+                }
+
                 comparer = new ArraySortHelper.GenericBlockComparer<ASAny>(propValues, nameCount, propComparers, descendingFlags);
 
                 // The comparer takes the descending flags into account here, so no reversing after sorting.
                 reverse = false;
             }
+        }
+
+        /// <summary>
+        /// Checks if all keys are unique in a sorted span.
+        /// </summary>
+        /// <param name="sortedKeys">A span containing the keys to check. This must be sorted in the order
+        /// defined by <paramref name="comparer"/>.</param>
+        /// <param name="comparer">The <see cref="IComparer{T}"/> implementation that defines the ordering
+        /// of the keys in <paramref name="sortedKeys"/>.</param>
+        /// <typeparam name="T">The type of the keys.</typeparam>
+        /// <returns>True if no two elements in <paramref name="sortedKeys"/> are equal, otherwise false.</returns>
+        private static bool _doUniqueSortCheck<T>(ReadOnlySpan<T> sortedKeys, IComparer<T> comparer) {
+            for (int i = 0; i + 1 < sortedKeys.Length; i++) {
+                if (comparer.Compare(sortedKeys[i], sortedKeys[i + 1]) == 0)
+                    return false;
+            }
+            return true;
         }
 
         /// <summary>
@@ -3164,38 +3567,44 @@ namespace Mariana.AVM2.Core {
             if (args.length == 0)
                 return new ASArray();
 
-            uint startIndex, deleteCount, endIndex;
+            uint startIndex = _normalizeIndex((double)args[0], m_length);
+            int maxDeleteCount = (int)Math.Min(m_length - startIndex, (uint)Int32.MaxValue);
 
-            startIndex = _normalizeIndex((double)args[0], m_length);
+            int deleteCount;
+            if (args.length < 2) {
+                deleteCount = maxDeleteCount;
+            }
+            else {
+                double dDeleteCount = (double)args[1];
+                if (Double.IsNaN(dDeleteCount) || dDeleteCount < 0.0)
+                    deleteCount = 0;
+                else
+                    deleteCount = (int)Math.Min(dDeleteCount, (double)maxDeleteCount);
+            }
 
-            if (args.length == 1)
-                deleteCount = m_length - startIndex;
-            else
-                deleteCount = (uint)Math.Min((double)(m_length - startIndex), Math.Max((double)args[1], 0.0));
+            uint endIndex = startIndex + (uint)deleteCount;
+            int insertCount = Math.Max(args.length - 2, 0);
 
-            deleteCount = Math.Min(deleteCount, (uint)Int32.MaxValue);
-
-            endIndex = startIndex + deleteCount;
-
-            int nExtraArgs = Math.Max(args.length - 2, 0);
-            if (nExtraArgs > deleteCount)
-                nExtraArgs = (int)Math.Min((uint)nExtraArgs, UInt32.MaxValue - m_length + deleteCount);
-
-            ReadOnlySpan<ASAny> newValues = args.getSpan().Slice(2, nExtraArgs);
+            ReadOnlySpan<ASAny> newValues = (insertCount > 0) ? args.getSpan().Slice(2, insertCount) : default;
             ASArray spliceArray;
 
-            if (_isDenseArray() && deleteCount == nExtraArgs && endIndex <= (uint)m_values.Length) {
-                // Special case: Dense array with delete count same as replacement count.
+            if (_isDenseArray() && deleteCount == insertCount && endIndex <= (uint)m_values.Length) {
+                // Special case: Dense array with delete count same as insert count.
                 // No shifting in this case.
 
-                spliceArray = new ASArray((int)deleteCount);
-                Span<Value> values = m_values.AsSpan((int)startIndex, (int)deleteCount);
-                Span<Value> spliceValues = spliceArray.m_values.AsSpan(0, (int)deleteCount);
+                spliceArray = new ASArray();
+                spliceArray.m_values = new Value[deleteCount];
+
+                Span<Value> values = m_values.AsSpan((int)startIndex, deleteCount);
+                Span<Value> spliceValues = spliceArray.m_values.AsSpan(0, deleteCount);
 
                 for (int i = 0; i < values.Length; i++) {
                     ref Value val = ref values[i];
                     if (val.isEmpty) {
-                        spliceValues[i] = Value.fromAny(AS_getElement((uint)i));
+                        // Holes in the returned array msut be filled with the prototype value, like in slice().
+                        // Also increment nonEmptyCount because the hole in this array will be filled with the
+                        // argument value for its position.
+                        spliceValues[i] = Value.fromAny(AS_getElement((uint)i + startIndex));
                         m_nonEmptyCount++;
                     }
                     else {
@@ -3207,12 +3616,13 @@ namespace Mariana.AVM2.Core {
                 m_totalCount = Math.Max(m_totalCount, (int)endIndex);
                 m_length = Math.Max(m_length, endIndex);
 
-                spliceArray.m_nonEmptyCount = (int)deleteCount;
-                spliceArray.m_totalCount = (int)deleteCount;
+                spliceArray.m_nonEmptyCount = deleteCount;
+                spliceArray.m_totalCount = deleteCount;
+                spliceArray.m_length = (uint)deleteCount;
             }
             else {
-                spliceArray = _internalSlice(startIndex, (int)deleteCount);
-                _internalSpliceReplaceRange(startIndex, (int)deleteCount, newValues);
+                spliceArray = _internalSlice(startIndex, deleteCount);
+                _internalSpliceReplaceRange(startIndex, deleteCount, newValues);
             }
 
             return spliceArray;
@@ -3221,35 +3631,48 @@ namespace Mariana.AVM2.Core {
         private void _internalSpliceReplaceRange(uint startIndex, int deleteCount, ReadOnlySpan<ASAny> newValues) {
             int sizeDelta = newValues.Length - deleteCount;
             uint delEndIndex = startIndex + (uint)deleteCount;
-            uint newArrLength = m_length + (uint)sizeDelta;
+
+            uint newArrLength;
+            if (sizeDelta <= 0)
+                newArrLength = m_length + (uint)sizeDelta;
+            else
+                newArrLength = m_length + Math.Min((uint)sizeDelta, UInt32.MaxValue - m_length);
+
             bool denseConvertedToHash = false;
 
             if (_isDenseArray()) {
-                // Empty out all deleted elements and update the nonEmptyCount.
+                // Set all the slots that we are going to delete to empty.
+                // Update the nonEmptyCount accordingly.
+                // If the load factor gets too low (after accounting for the new items yet to be inserted),
+                // switch to a hash table storage.
+
                 if (startIndex <= (uint)m_totalCount) {
-                    Span<Value> values = m_values.AsSpan((int)startIndex, Math.Min(deleteCount, m_totalCount - (int)startIndex));
-                    for (int i = 0; i < values.Length; i++) {
-                        if (!values[i].isEmpty) {
-                            values[i] = Value.empty;
+                    int deleteRangeLength = Math.Min(deleteCount, m_totalCount - (int)startIndex);
+                    Span<Value> deleteRange = m_values.AsSpan((int)startIndex, deleteRangeLength);
+
+                    for (int i = 0; i < deleteRange.Length; i++) {
+                        if (!deleteRange[i].isEmpty) {
+                            deleteRange[i] = Value.empty;
                             m_nonEmptyCount--;
                         }
                     }
                 }
 
-                if (deleteCount > newValues.Length && !_canUseDenseArray(m_nonEmptyCount + newValues.Length, newArrLength)) {
-                    // The spliced array should use hash table storage.
+                if (!_canUseDenseArray(m_nonEmptyCount + newValues.Length, newArrLength)) {
                     denseConvertedToHash = true;
                     _denseArrayToHash();
                 }
             }
 
             if (_isDenseArray()) {
+                // This is a dense array and does not have to be converted to a hash table.
+                // So shift the elements after the deleted range (startIndex + deleteCount) to their new positions.
+                // If we need to grow or shrink the backing array, do the copying and shifting in one pass.
+
                 Value[] values = m_values;
+                uint shiftBegin = startIndex + (uint)deleteCount;
 
                 if (newArrLength <= (uint)values.Length && newArrLength >= (uint)(values.Length >> 2)) {
-                    // Shift the elements after the deleted range to their correct position in place.
-                    uint shiftBegin = startIndex + (uint)deleteCount;
-
                     if (shiftBegin < (uint)m_totalCount) {
                         values.AsSpan((int)shiftBegin, m_totalCount - (int)shiftBegin)
                             .CopyTo(values.AsSpan((int)shiftBegin + sizeDelta));
@@ -3259,8 +3682,6 @@ namespace Mariana.AVM2.Core {
                     }
                 }
                 else {
-                    // Allocate a new array and copy elements, shifting those after the deleted range
-                    // to their correct position.
                     int newDenseArrayLen = (newArrLength > (uint)values.Length)
                         ? Math.Max((int)newArrLength, values.Length * 2)
                         : Math.Max((int)newArrLength, values.Length >> 1);
@@ -3268,7 +3689,6 @@ namespace Mariana.AVM2.Core {
                     var newArrayValues = new Value[newDenseArrayLen];
                     values.AsSpan(0, (int)Math.Min(startIndex, (uint)m_totalCount)).CopyTo(newArrayValues);
 
-                    uint shiftBegin = startIndex + (uint)deleteCount;
                     if (shiftBegin < (uint)m_totalCount) {
                         values.AsSpan((int)shiftBegin, m_totalCount - (int)shiftBegin)
                             .CopyTo(newArrayValues.AsSpan((int)shiftBegin + sizeDelta));
@@ -3280,6 +3700,12 @@ namespace Mariana.AVM2.Core {
                 m_totalCount = (int)newArrLength;
             }
             else {
+                // This Array instance is currently using hash table storage.
+                // Delete all elements whose keys are in the delete range [startIndex, startIndex + deleteCount - 1],
+                // and add the size difference to all keys >= startIndex + deleteCount.
+                // In addition, check if the new load factor (after accounting for the elements yet to be inserted)
+                // is greater than the dense array load factor threshold, and switch to a dense array if that is the case.
+
                 Span<Value> values = m_values.AsSpan(0, m_totalCount);
                 HashLink[] hashLinks = m_hashLinks;
 
@@ -3294,11 +3720,16 @@ namespace Mariana.AVM2.Core {
                         val = default;   // This marks the hash slot for deletion when _resetHashTableChains is called.
                     }
                     else if (key >= delEndIndex) {
-                        key += (uint)sizeDelta;
+                        if (sizeDelta > 0 && key >= UInt32.MaxValue - (uint)sizeDelta)
+                            val = default;  // Discard overflowing elements
+                        else
+                            key += (uint)sizeDelta;
                     }
                 }
 
-                if (!denseConvertedToHash && _canUseDenseArray(m_nonEmptyCount + newValues.Length, newArrLength)) {
+                if (!denseConvertedToHash
+                    && _canUseDenseArray(m_nonEmptyCount + newValues.Length, newArrLength))
+                {
                     // Converting to dense array doesn't depend on chain correctness, so safe to call here.
                     _hashToDenseArray((int)newArrLength);
                 }
@@ -3307,6 +3738,7 @@ namespace Mariana.AVM2.Core {
                 }
             }
 
+            // Insert the new elements
             if (_isDenseArray()) {
                 var values = m_values.AsSpan((int)startIndex, newValues.Length);
                 for (int i = 0; i < newValues.Length; i++)
@@ -3316,7 +3748,8 @@ namespace Mariana.AVM2.Core {
                 m_nonEmptyCount += newValues.Length;
             }
             else {
-                for (int i = 0; i < newValues.Length; i++)
+                int insertCount = (int)Math.Min((uint)newValues.Length, UInt32.MaxValue - startIndex);
+                for (int i = 0; i < insertCount; i++)
                     _hashSetValue(startIndex + (uint)i, Value.fromAny(newValues[i]));
             }
 
@@ -3386,24 +3819,23 @@ namespace Mariana.AVM2.Core {
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
         public virtual uint unshift(RestParam args = default) {
-            int argCount = (int)Math.Min((uint)args.length, UInt32.MaxValue - m_length);
+            int argCount = args.length;
 
             if (argCount == 0)
                 return m_length;
 
-            uint newArrLength = m_length + (uint)argCount;
+            uint newArrLength = m_length + Math.Min(UInt32.MaxValue - m_length, (uint)argCount);
             bool denseConvertedToHash = false;
 
-            if (_isDenseArray() && m_length > (uint)m_totalCount
-                && !_canUseDenseArray(m_nonEmptyCount + argCount, newArrLength))
-            {
+            if (_isDenseArray() && !_canUseDenseArray(m_nonEmptyCount + argCount, newArrLength)) {
                 denseConvertedToHash = true;
                 _denseArrayToHash();
             }
 
             if (_isDenseArray()) {
                 if (m_totalCount + argCount > m_values.Length) {
-                    Value[] newValues = new Value[Math.Max(m_totalCount + argCount, m_values.Length * 2)];
+                    int newArraySize = Math.Max(Math.Max(m_totalCount + argCount, m_values.Length * 2), 4);
+                    Value[] newValues = new Value[newArraySize];
                     m_values.AsSpan(0, m_totalCount).CopyTo(newValues.AsSpan(argCount));
                     m_values = newValues;
                 }
@@ -3413,14 +3845,24 @@ namespace Mariana.AVM2.Core {
                 m_totalCount += argCount;
             }
             else {
-                var values = new ReadOnlySpan<Value>(m_values, 0, m_totalCount);
+                var values = m_values.AsSpan(0, m_totalCount);
                 HashLink[] hashLinks = m_hashLinks;
 
                 // Shift hash keys and then rebuild chains.
                 for (int i = 0; i < values.Length; i++) {
-                    if (!values[i].isEmpty)
-                        hashLinks[i].key += (uint)argCount;
+                    if (values[i].isEmpty)
+                        continue;
+
+                    ref uint key = ref hashLinks[i].key;
+                    if (key < UInt32.MaxValue - (uint)argCount) {
+                        key += (uint)argCount;
+                    }
+                    else {
+                        // Discard elements that are shifted beyond the maximum array length.
+                        values[i] = Value.empty;
+                    }
                 }
+
                 if (!denseConvertedToHash && _canUseDenseArray(m_nonEmptyCount + argCount, newArrLength))
                     _hashToDenseArray((int)newArrLength);
                 else
@@ -3445,16 +3887,34 @@ namespace Mariana.AVM2.Core {
 
         /// <inheritdoc/>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        [AVM2ExportPrototypeMethod]
         public override bool propertyIsEnumerable(ASAny name = default(ASAny)) {
-            if (ASObject.AS_isUint(name.value) && !_getValueAt((uint)name).isEmpty)
-                return true;
+            uint index = UInt32.MaxValue;
 
-            string str = (string)name;
-            if (NumberFormatHelper.parseArrayIndex(str, false, out uint index) && !_getValueAt(index).isEmpty)
-                return true;
+            if (ASObject.AS_isUint(name.value))
+                index = (uint)name.value;
+            else if (NumberFormatHelper.parseArrayIndex((string)name, false, out uint parsedIndex))
+                index = parsedIndex;
+
+            if (index != UInt32.MaxValue)
+                return !_getValueAt(index).isEmpty;
 
             return base.propertyIsEnumerable(name);
+        }
+
+        /// <inheritdoc/>
+        [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
+        public override bool hasOwnProperty(ASAny name = default(ASAny)) {
+            uint index = UInt32.MaxValue;
+
+            if (ASObject.AS_isUint(name.value))
+                index = (uint)name.value;
+            else if (NumberFormatHelper.parseArrayIndex((string)name, false, out uint parsedIndex))
+                index = parsedIndex;
+
+            if (index != UInt32.MaxValue)
+                return !_getValueAt(index).isEmpty;
+
+            return base.hasOwnProperty(name);
         }
 
         /// <exclude/>

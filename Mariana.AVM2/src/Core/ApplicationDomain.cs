@@ -699,6 +699,16 @@ namespace Mariana.AVM2.Core {
         /// <param name="type">The type to load as a native type.</param>
         /// <returns>A <see cref="Class"/> instance representing the loaded class.</returns>
         ///
+        /// <remarks>
+        /// When a class is loaded, its ancestor class (from the parent class upto <see cref="ASObject"/>)
+        /// and all implemented interfaces that are declared as exported will be automatically loaded if
+        /// they have not been loaded yet. Thus, when loading multiple classes, ensure that they are loaded
+        /// in topological order (that is, base classes before derived classes and interfaces before their
+        /// implementers) to avoid a double load error. Or use one of the <see cref="loadNativeClasses"/> and
+        /// <see cref="loadNativeClassesFromAssembly"/> methods, which are designed for loading multiple
+        /// classes and handle the loading order properly.
+        /// </remarks>
+        ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
@@ -743,6 +753,7 @@ namespace Mariana.AVM2.Core {
         public Class loadNativeClass(Type type) {
             if (type == null)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(type));
+
             if (type.IsConstructedGenericType && type.GetGenericTypeDefinition() == typeof(ASVector<>))
                 throw ErrorHelper.createError(ErrorCode.MARIANA__NATIVE_CLASS_LOAD_VECTOR_EXPLICIT);
 
@@ -785,9 +796,38 @@ namespace Mariana.AVM2.Core {
         public void loadNativeModule(Type moduleType) {
             if (moduleType == null)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(moduleType));
+
             if (this == s_systemDomain)
                 CoreClasses.ensureGlobalsLoaded();
+
             NativeClass.createModule(moduleType, this);
+        }
+
+        /// <summary>
+        /// Loads all public types from the given array of types that declare the attributes
+        /// <see cref="AVM2ExportClassAttribute"/> and <see cref="AVM2ExportModuleAttribute"/>
+        /// as native classes and modules into this domain.
+        /// </summary>
+        /// <param name="types">A read-only span of <see cref="Type"/> instances containing the types to load.</param>
+        ///
+        /// <exception cref="AVM2Exception">
+        /// <list type="bullet">
+        /// <item>ArgumentError #10060: One of the types in <paramref name="types"/> is null.</item>
+        /// <item>NativeClassLoadError: One of the types in <paramref name="types"/> is public and contains the
+        /// <see cref="AVM2ExportClassAttribute"/> or <see cref="AVM2ExportModuleAttribute"/> attribute
+        /// but cannot be loaded as a native class or module.</item>
+        /// </list>
+        /// </exception>
+        public void loadNativeClasses(ReadOnlySpan<Type> types) {
+            if (this == s_systemDomain)
+                CoreClasses.ensureGlobalsLoaded();
+
+            for (int i = 0; i < types.Length; i++) {
+                if (types[i] == null)
+                    throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, $"types[{i}]");
+            }
+
+            NativeClass.createClassesAndModulesFromTypes(types, this);
         }
 
         /// <summary>
@@ -797,13 +837,23 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="assembly">The <see cref="Assembly"/> instance representing the
         /// assembly containing the types to load.</param>
+        ///
+        /// <exception cref="AVM2Exception">
+        /// <list type="bullet">
+        /// <item>ArgumentError #10060: <paramref name="assembly"/> is null.</item>
+        /// <item>NativeClassLoadError: One of the types declared in <paramref name="assembly"/> is public and
+        /// contains the <see cref="AVM2ExportClassAttribute"/> or <see cref="AVM2ExportModuleAttribute"/>
+        /// attribute but cannot be loaded as a native class or module.</item>
+        /// </list>
+        /// </exception>
         public void loadNativeClassesFromAssembly(Assembly assembly) {
             if (assembly == null)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(assembly));
+
             if (this == s_systemDomain)
                 CoreClasses.ensureGlobalsLoaded();
 
-            NativeClass.createClassesAndModulesFromAssemblyTypes(assembly, this);
+            NativeClass.createClassesAndModulesFromTypes(assembly.GetTypes(), this);
         }
 
         /// <summary>

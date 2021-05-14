@@ -407,7 +407,7 @@ namespace Mariana.AVM2.Core {
                     for (int i = 0, n = args.length; i < n; i++) {
                         if (i != 0)
                             Console.Write(' ');
-                        Console.Write(ASObject.AS_convertString(args[i].value));
+                        Console.Write(ASAny.AS_convertString(args[i]));
                     }
                     Console.WriteLine();
                     break;

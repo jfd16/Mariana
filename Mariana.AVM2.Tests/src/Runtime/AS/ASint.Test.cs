@@ -12,7 +12,7 @@ namespace Mariana.AVM2.Tests {
 
         private static readonly Class s_intClass = Class.fromType<int>();
 
-        public static IEnumerable<object[]> s_intTestData = new int[] {
+        public static IEnumerable<object[]> s_intTestData = TupleHelper.toArrays(
             0, 1, -1, 2, -2,
             127, 128, 129, -127, -128, -129,
             255, 256, 257,
@@ -20,8 +20,8 @@ namespace Mariana.AVM2.Tests {
             32767, 32768, 32769, -32767, -32768, -32769,
             65535, 65536, 65537,
             123456789, 193847113,
-            Int32.MaxValue, Int32.MinValue, -Int32.MaxValue,
-        }.Select(x => new object[] {x});
+            Int32.MaxValue, Int32.MinValue, -Int32.MaxValue
+        );
 
         [Theory]
         [MemberData(nameof(s_intTestData))]
@@ -83,7 +83,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(value, ((ASint)(ASObject)value).valueOf());
         }
 
-        public static IEnumerable<object[]> shouldConvertToString_data = new (int, string)[] {
+        public static IEnumerable<object[]> shouldConvertToString_data = TupleHelper.toArrays(
             (0, "0"),
             (1, "1"),
             (2, "2"),
@@ -113,8 +113,8 @@ namespace Mariana.AVM2.Tests {
             (1234567890, "1234567890"),
             (-2135497086, "-2135497086"),
             (Int32.MaxValue, "2147483647"),
-            (Int32.MinValue, "-2147483648"),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            (Int32.MinValue, "-2147483648")
+        );
 
         [Theory]
         [MemberData(nameof(shouldConvertToString_data))]
@@ -132,7 +132,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expected, ((ASint)(ASObject)value).AS_toString(10));
         }
 
-        public static IEnumerable<object[]> toString_shouldConvertToString_nonBase10_data = new (int, int, string)[] {
+        public static IEnumerable<object[]> toString_shouldConvertToString_nonBase10_data = TupleHelper.toArrays(
             (0, 2, "0"),
             (0, 3, "0"),
             (0, 16, "0"),
@@ -162,8 +162,8 @@ namespace Mariana.AVM2.Tests {
             (-2147483648, 2, "-10000000000000000000000000000000"),
             (-2147483648, 7, "-104134211162"),
             (-2147483648, 32, "-2000000"),
-            (-2147483648, 36, "-zik0zk"),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3});
+            (-2147483648, 36, "-zik0zk")
+        );
 
         [Theory]
         [MemberData(nameof(toString_shouldConvertToString_nonBase10_data))]
@@ -172,7 +172,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expected, ((ASint)(ASObject)value).AS_toString(radix));
         }
 
-        public static IEnumerable<object[]> toFixed_toExponential_shouldFormatNumber_data = new (int, int, string, string)[] {
+        public static IEnumerable<object[]> toFixed_toExponential_shouldFormatNumber_data = TupleHelper.toArrays(
             (0, 0, "0", "0e+0"),
             (0, 2, "0.00", "0.00e+0"),
             (0, 20, "0.00000000000000000000", "0.00000000000000000000e+0"),
@@ -236,8 +236,8 @@ namespace Mariana.AVM2.Tests {
             (Int32.MinValue, 10, "-2147483648.0000000000", "-2.1474836480e+9"),
             (Int32.MinValue, 13, "-2147483648.0000000000000", "-2.1474836480000e+9"),
             (Int32.MinValue, 19, "-2147483648.0000000000000000000", "-2.1474836480000000000e+9"),
-            (Int32.MinValue, 20, "-2147483648.00000000000000000000", "-2.14748364800000000000e+9"),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3, x.Item4});
+            (Int32.MinValue, 20, "-2147483648.00000000000000000000", "-2.14748364800000000000e+9")
+        );
 
         [Theory]
         [MemberData(nameof(toFixed_toExponential_shouldFormatNumber_data))]
@@ -248,7 +248,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expectedExponential, ((ASint)(ASObject)value).toExponential(precision));
         }
 
-        public static IEnumerable<object[]> toPrecision_shouldFormatNumber_data = new (int, int, string)[] {
+        public static IEnumerable<object[]> toPrecision_shouldFormatNumber_data = TupleHelper.toArrays(
             (0, 1, "0"),
             (0, 2, "0.0"),
             (0, 5, "0.0000"),
@@ -318,8 +318,8 @@ namespace Mariana.AVM2.Tests {
             (Int32.MinValue, 11, "-2147483648.0"),
             (Int32.MinValue, 13, "-2147483648.000"),
             (Int32.MinValue, 20, "-2147483648.0000000000"),
-            (Int32.MinValue, 21, "-2147483648.00000000000"),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3});
+            (Int32.MinValue, 21, "-2147483648.00000000000")
+        );
 
         [Theory]
         [MemberData(nameof(toPrecision_shouldFormatNumber_data))]
@@ -421,7 +421,7 @@ namespace Mariana.AVM2.Tests {
 
         [Fact]
         public void shouldConvertFromObject() {
-            ASObject obj = new SpyObjectWithConversions() {intValue = 1244};
+            ASObject obj = new ConvertibleMockObject(intValue: 1244);
 
             Assert.Equal(1244, (int)obj);
             Assert.Equal(1244, ASObject.AS_toInt(obj));
@@ -431,8 +431,8 @@ namespace Mariana.AVM2.Tests {
 
         [Fact]
         public void classInvokeOrConstruct_shouldConvertFirstArg() {
-            ASObject obj = new SpyObjectWithConversions() {intValue = 1244};
-            ASObject obj2 = new SpyObjectWithConversions() {intValue = 35667};
+            ASObject obj = new ConvertibleMockObject(intValue: 1244);
+            ASObject obj2 = new ConvertibleMockObject(intValue: 35667);
 
             check(s_intClass.invoke(new ASAny[] {}), 0);
             check(s_intClass.invoke(new ASAny[] {default}), 0);

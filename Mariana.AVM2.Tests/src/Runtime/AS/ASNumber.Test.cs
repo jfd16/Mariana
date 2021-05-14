@@ -14,16 +14,7 @@ namespace Mariana.AVM2.Tests {
 
         private static readonly double NEG_ZERO = BitConverter.Int64BitsToDouble(unchecked((long)0x8000000000000000L));
 
-        private static void assertNumberEqual(double expected, double actual) {
-            if (Double.IsNaN(expected))
-                Assert.True(Double.IsNaN(actual));
-            else if (expected == 0.0)
-                Assert.Equal(BitConverter.DoubleToInt64Bits(expected), BitConverter.DoubleToInt64Bits(actual));
-            else
-                Assert.Equal(expected, actual);
-        }
-
-        public static IEnumerable<object[]> shouldBoxNumberValue_data = new double[] {
+        public static IEnumerable<object[]> shouldBoxNumberValue_data = TupleHelper.toArrays(
             0.0,
             NEG_ZERO,
             1.0,
@@ -38,8 +29,8 @@ namespace Mariana.AVM2.Tests {
             -Double.MaxValue,
             Double.PositiveInfinity,
             Double.NegativeInfinity,
-            Double.NaN,
-        }.Select(x => new object[] {x});
+            Double.NaN
+        );
 
         [Theory]
         [MemberData(nameof(shouldBoxNumberValue_data))]
@@ -56,35 +47,35 @@ namespace Mariana.AVM2.Tests {
             void check(ASObject o) {
                 Assert.IsType<ASNumber>(o);
                 Assert.Same(s_numberClass, o.AS_class);
-                assertNumberEqual(value, ASObject.AS_toNumber(o));
-                assertNumberEqual(value, ASAny.AS_toNumber(new ASAny(o)));
+                AssertHelper.floatIdentical(value, ASObject.AS_toNumber(o));
+                AssertHelper.floatIdentical(value, ASAny.AS_toNumber(new ASAny(o)));
             }
         }
 
         [Fact]
         public void nullShouldConvertToZero() {
-            assertNumberEqual(0.0, (double)(ASObject)null);
-            assertNumberEqual(0.0, ASObject.AS_toNumber(null));
+            AssertHelper.floatIdentical(0.0, (double)(ASObject)null);
+            AssertHelper.floatIdentical(0.0, ASObject.AS_toNumber(null));
         }
 
         [Fact]
         public void undefinedShouldConvertToNaN() {
-            assertNumberEqual(Double.NaN, (double)default(ASAny));
-            assertNumberEqual(Double.NaN, ASAny.AS_toNumber(default));
+            AssertHelper.floatIdentical(Double.NaN, (double)default(ASAny));
+            AssertHelper.floatIdentical(Double.NaN, ASAny.AS_toNumber(default));
         }
 
         [Fact]
         public void constantsShouldHaveCorrectValues() {
-            assertNumberEqual(Double.MaxValue, ASNumber.MAX_VALUE);
-            assertNumberEqual(Double.PositiveInfinity, ASNumber.POSITIVE_INFINITY);
-            assertNumberEqual(Double.NegativeInfinity, ASNumber.NEGATIVE_INFINITY);
-            assertNumberEqual(Double.NaN, ASNumber.NAN);
+            AssertHelper.floatIdentical(Double.MaxValue, ASNumber.MAX_VALUE);
+            AssertHelper.floatIdentical(Double.PositiveInfinity, ASNumber.POSITIVE_INFINITY);
+            AssertHelper.floatIdentical(Double.NegativeInfinity, ASNumber.NEGATIVE_INFINITY);
+            AssertHelper.floatIdentical(Double.NaN, ASNumber.NAN);
 
             Assert.True(ASNumber.MIN_VALUE > 0.0);
             Assert.Equal(0.0, ASNumber.MIN_VALUE / 2.0);
         }
 
-        public static IEnumerable<object[]> shouldConvertToBoolean_data = new (double, bool)[] {
+        public static IEnumerable<object[]> shouldConvertToBoolean_data = TupleHelper.toArrays(
             (0.0, false),
             (NEG_ZERO, false),
             (Double.NaN, false),
@@ -100,8 +91,8 @@ namespace Mariana.AVM2.Tests {
             (Double.Epsilon, true),
             (-Double.Epsilon, true),
             (Double.PositiveInfinity, true),
-            (Double.NegativeInfinity, true),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            (Double.NegativeInfinity, true)
+        );
 
         [Theory]
         [MemberData(nameof(shouldConvertToBoolean_data))]
@@ -113,7 +104,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expected, ASAny.AS_toBoolean(ASAny.AS_fromNumber(value)));
         }
 
-        public static IEnumerable<object[]> shouldConvertToIntUint_data = new (double, int)[] {
+        public static IEnumerable<object[]> shouldConvertToIntUint_data = TupleHelper.toArrays(
             (0.0, 0),
             (NEG_ZERO, 0),
 
@@ -224,8 +215,8 @@ namespace Mariana.AVM2.Tests {
             (Double.MinValue, 0),
             (Double.PositiveInfinity, 0),
             (Double.NegativeInfinity, 0),
-            (Double.NaN, 0),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            (Double.NaN, 0)
+        );
 
         [Theory]
         [MemberData(nameof(shouldConvertToIntUint_data))]
@@ -246,25 +237,25 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(shouldBoxNumberValue_data))]
         public void valueOf_shouldReturnValue(double value) {
-            assertNumberEqual(value, ASNumber.valueOf(value));
-            assertNumberEqual(value, ((ASNumber)(ASObject)value).valueOf());
+            AssertHelper.floatIdentical(value, ASNumber.valueOf(value));
+            AssertHelper.floatIdentical(value, ((ASNumber)(ASObject)value).valueOf());
         }
 
         [Theory]
         [MemberData(nameof(shouldBoxNumberValue_data))]
         public void shouldConvertFromObject(double value) {
-            ASObject obj = new SpyObjectWithConversions {numberValue = value};
+            ASObject obj = new ConvertibleMockObject(numberValue: value);
 
-            assertNumberEqual(value, (double)obj);
-            assertNumberEqual(value, ASObject.AS_toNumber(obj));
-            assertNumberEqual(value, (double)(ASAny)obj);
-            assertNumberEqual(value, ASAny.AS_toNumber((ASAny)obj));
+            AssertHelper.floatIdentical(value, (double)obj);
+            AssertHelper.floatIdentical(value, ASObject.AS_toNumber(obj));
+            AssertHelper.floatIdentical(value, (double)(ASAny)obj);
+            AssertHelper.floatIdentical(value, ASAny.AS_toNumber((ASAny)obj));
         }
 
         [Fact]
         public void classInvokeOrConstruct_shouldConvertFirstArg() {
-            ASObject obj1 = new SpyObjectWithConversions {numberValue = 1.0};
-            ASObject obj2 = new SpyObjectWithConversions {numberValue = Double.NaN};
+            ASObject obj1 = new ConvertibleMockObject(numberValue: 1.0);
+            ASObject obj2 = new ConvertibleMockObject(numberValue: Double.NaN);
 
             check(s_numberClass.invoke(new ASAny[] {}), 0);
             check(s_numberClass.invoke(new ASAny[] {default}), Double.NaN);
@@ -293,7 +284,7 @@ namespace Mariana.AVM2.Tests {
             void check(ASAny o, double value) {
                 Assert.IsType<ASNumber>(o.value);
                 Assert.Same(s_numberClass, o.AS_class);
-                assertNumberEqual(value, ASObject.AS_toNumber(o.value));
+                AssertHelper.floatIdentical(value, ASObject.AS_toNumber(o.value));
             }
         }
 

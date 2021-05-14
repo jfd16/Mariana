@@ -156,7 +156,7 @@ namespace Mariana.AVM2.Tests {
             _verifyPatternFlagsInvariant(pattern);
         }
 
-        public static IEnumerable<object[]> shouldTranspilePatternWithOctalEscapes_data = new (string, string)[] {
+        public static IEnumerable<object[]> shouldTranspilePatternWithOctalEscapes_data = TupleHelper.toArrays(
             (@"\0", @"\x00"),
             (@"\00", @"\x00"),
             (@"\1", @"\x01"),
@@ -201,8 +201,8 @@ namespace Mariana.AVM2.Tests {
             (@"\0/\0:\07/\07:\066/\066:\4/\4:\46/\46:", @"\x00/\x00:\x07/\x07:\x36/\x36:\x04/\x04:\x26/\x26:"),
             (@"abc\2d", @"abc\x02d"),
             (@"abc\27d", @"abc\x17d"),
-            (@"\12\23+\406*\377+abc|\779??_$", @"\x0A\x13+\x206*\xFF+abc|\x3F9??_$"),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            (@"\12\23+\406*\377+abc|\779??_$", @"\x0A\x13+\x206*\xFF+abc|\x3F9??_$")
+        );
 
         [Theory]
         [MemberData(nameof(shouldTranspilePatternWithOctalEscapes_data))]
@@ -210,7 +210,7 @@ namespace Mariana.AVM2.Tests {
             _verifyPatternFlagsInvariant(pattern, expected);
         }
 
-        public static IEnumerable<object[]> shouldEscapeCurlyBracesIfNotValidQuantifier_data = new (string, string)[] {
+        public static IEnumerable<object[]> shouldEscapeCurlyBracesIfNotValidQuantifier_data = TupleHelper.toArrays(
             (@"{", @"\{"),
             (@"}", @"\}"),
             (@"{{{{", @"\{\{\{\{"),
@@ -246,8 +246,8 @@ namespace Mariana.AVM2.Tests {
             (@"abc{1,a}def", @"abc\{1,a\}def"),
             (@"abc{1,23a}def", @"abc\{1,23a\}def"),
             (@"a{1}b{2,}c*?{3,q}z", @"a{1}b{2,}c*?\{3,q\}z"),
-            (@"\p{A}", @"p\{A\}"),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            (@"\p{A}", @"p\{A\}")
+        );
 
         [Theory]
         [MemberData(nameof(shouldEscapeCurlyBracesIfNotValidQuantifier_data))]
@@ -259,7 +259,7 @@ namespace Mariana.AVM2.Tests {
             new Regex(t.transpiledPattern, RegexOptions.ECMAScript | RegexOptions.CultureInvariant);
         }
 
-        public static IEnumerable<object[]> shouldTranspilePatternWithCharSets_data = new (string, string)[] {
+        public static IEnumerable<object[]> shouldTranspilePatternWithCharSets_data = TupleHelper.toArrays(
             ("[a]", null),
             ("[abc]", null),
             ("[aaa]", null),
@@ -311,8 +311,8 @@ namespace Mariana.AVM2.Tests {
             (@"[-\x37][-\u1377][^-\x37][^-\u1377]", @"[\-\x37][\-\u1377][^\-\x37][^\-\u1377]"),
             (@"[\w-\d-\s-\W-\D-\S-][-\w-\d-\s-\W-\D-\S][^\w-\d-\s]", @"[\w\-\d\-\s\-\W\-\D\-\S\-][\-\w\-\d\-\s\-\W\-\D\-\S][^\w\-\d\-\s]"),
             (@"[\w-1\d-1\s-1\W-1\D-1\S-1][z-\wz-\dz-\sz-\Wz-\Dz-\S]", @"[\w\-1\d\-1\s\-1\W\-1\D\-1\S\-1][z\-\wz\-\dz\-\sz\-\Wz\-\Dz\-\S]"),
-            (@"abc[0-9pq]*[.?/{]{1,5}|[1-z]*?tu??v[<->-]{10,}$|^[^ab\w-d]", @"abc[0-9pq]*[.?/{]{1,5}|[1-z]*?tu??v[<->\-]{10,}$|^[^ab\w\-d]"),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            (@"abc[0-9pq]*[.?/{]{1,5}|[1-z]*?tu??v[<->-]{10,}$|^[^ab\w-d]", @"abc[0-9pq]*[.?/{]{1,5}|[1-z]*?tu??v[<->\-]{10,}$|^[^ab\w\-d]")
+        );
 
         [Theory]
         [MemberData(nameof(shouldTranspilePatternWithCharSets_data))]
@@ -320,7 +320,7 @@ namespace Mariana.AVM2.Tests {
             _verifyPatternFlagsInvariant(pattern, expected);
         }
 
-        public static IEnumerable<object[]> shouldTranspilePatternWithCaptureGroups_data = new (string, string, int)[] {
+        public static IEnumerable<object[]> shouldTranspilePatternWithCaptureGroups_data = TupleHelper.toArrays<string, string, int>(
             (@"()", null, 1),
             (@"(a)", null, 1),
             (@"($)", null, 1),
@@ -343,8 +343,8 @@ namespace Mariana.AVM2.Tests {
             (@"ab(([0-9]+[.][0-9]+zzz|(pqr?){5,})*uv\(\)w{1,300}|foo$)eee", null, 3),
             (String.Concat(Enumerable.Repeat("()", 999)), null, 999),
             (String.Concat(Enumerable.Repeat("([0-9]+)*", 999)), null, 999),
-            (String.Concat(Enumerable.Repeat("((([0-9]+)*c)d$)", 333)), null, 999),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3});
+            (String.Concat(Enumerable.Repeat("((([0-9]+)*c)d$)", 333)), null, 999)
+        );
 
         [Theory]
         [MemberData(nameof(shouldTranspilePatternWithCaptureGroups_data))]
@@ -352,7 +352,7 @@ namespace Mariana.AVM2.Tests {
             _verifyPatternFlagsInvariant(pattern, expectedPattern, numGroups);
         }
 
-        public static IEnumerable<object[]> shouldTranspilePatternWithNonCaptureGroups_data = new (string, string, int)[] {
+        public static IEnumerable<object[]> shouldTranspilePatternWithNonCaptureGroups_data = TupleHelper.toArrays<string, string, int>(
             (@"(?:)", null, 0),
             (@"(?:a)", null, 0),
             (@"(?:$)", null, 0),
@@ -401,8 +401,8 @@ namespace Mariana.AVM2.Tests {
             (String.Concat(Enumerable.Repeat("(a)(?:[0-9]+)*", 999)), null, 999),
             (String.Concat(Enumerable.Repeat("(a|b)+(?:[0-9]+)*", 999)), null, 999),
             (String.Concat(Enumerable.Repeat("((?:([0-9]+)*c)d$)", 333)), null, 666),
-            (String.Concat(Enumerable.Repeat("((([0-9]+)*c)d$)(?:e)", 333)), null, 999),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3});
+            (String.Concat(Enumerable.Repeat("((([0-9]+)*c)d$)(?:e)", 333)), null, 999)
+        );
 
         [Theory]
         [MemberData(nameof(shouldTranspilePatternWithNonCaptureGroups_data))]
@@ -410,7 +410,7 @@ namespace Mariana.AVM2.Tests {
             _verifyPatternFlagsInvariant(pattern, expectedPattern, numGroups);
         }
 
-        public static IEnumerable<object[]> shouldTranspilePatternWithNamedCaptureGroups_data = new (string, string, string[])[] {
+        public static IEnumerable<object[]> shouldTranspilePatternWithNamedCaptureGroups_data = TupleHelper.toArrays(
             (@"(?P<a>)", "()", new[] {"a"}),
             (@"(?P<abcd>)", "()", new[] {"abcd"}),
             (@"(?P<a><)(?P<b>>)", "(<)(>)", new[] {"a", "b"}),
@@ -474,8 +474,8 @@ namespace Mariana.AVM2.Tests {
                 String.Concat(Enumerable.Range(0, 333).Select(i => $"(?P<a{i}>(?P<b{i}>xyz))+([123]*)")),
                 String.Concat(Enumerable.Range(0, 333).Select(i => "((xyz))+([123]*)")),
                 Enumerable.Range(0, 333).SelectMany(i => new[] {"a" + i, "b" + i, null}).ToArray()
-            ),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3});
+            )
+        );
 
         [Theory]
         [MemberData(nameof(shouldTranspilePatternWithNamedCaptureGroups_data))]
@@ -483,7 +483,7 @@ namespace Mariana.AVM2.Tests {
             _verifyPatternFlagsInvariant(pattern, expectedPattern, groupNames.Length, groupNames);
         }
 
-        public static IEnumerable<object[]> shouldTranspilePatternWithLookarounds_data = new (string, string, string[])[] {
+        public static IEnumerable<object[]> shouldTranspilePatternWithLookarounds_data = TupleHelper.toArrays(
             (@"(?=)", null, null),
             (@"(?!)", null, null),
             (@"(?<=)", null, null),
@@ -525,8 +525,8 @@ namespace Mariana.AVM2.Tests {
             (String.Concat(Enumerable.Repeat("(?=)", 1000)), null, null),
             (String.Concat(Enumerable.Repeat("(?!)", 1000)), null, null),
             (String.Concat(Enumerable.Repeat("(?<=)", 1000)), null, null),
-            (String.Concat(Enumerable.Repeat("(?<!)", 1000)), null, null),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3});
+            (String.Concat(Enumerable.Repeat("(?<!)", 1000)), null, null)
+        );
 
         [Theory]
         [MemberData(nameof(shouldTranspilePatternWithLookarounds_data))]
@@ -534,7 +534,7 @@ namespace Mariana.AVM2.Tests {
             _verifyPatternFlagsInvariant(pattern, expectedPattern, (groupNames == null) ? 0 : groupNames.Length, groupNames);
         }
 
-        public static IEnumerable<object[]> shouldTranspilePatternWithBackreferences_data = new (string, string, object)[] {
+        public static IEnumerable<object[]> shouldTranspilePatternWithBackreferences_data = TupleHelper.toArrays<string, string, object>(
             (@"()\1", @"()\k<1>", 1),
             (@"(a)\1", @"(a)\k<1>", 1),
             (@"\1(a)", @"\k<1>(a)", 1),
@@ -620,8 +620,8 @@ namespace Mariana.AVM2.Tests {
                 @"\998\999" + String.Concat(Enumerable.Repeat("(a)", 998)) + @"\998\999",
                 @"\k<998>999" + String.Concat(Enumerable.Repeat("(a)", 998)) + @"\k<998>999",
                 998
-            ),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3});
+            )
+        );
 
         [Theory]
         [MemberData(nameof(shouldTranspilePatternWithBackreferences_data))]
@@ -639,7 +639,7 @@ namespace Mariana.AVM2.Tests {
             _verifyPatternFlagsInvariant(pattern, expectedPattern, groupCount, groupNames);
         }
 
-        public static IEnumerable<object[]> shouldTranspilePatternWithNamedBackreferences_data = new (string, string, string[])[] {
+        public static IEnumerable<object[]> shouldTranspilePatternWithNamedBackreferences_data = TupleHelper.toArrays(
             (@"(?P<a>)\k<a>", @"()\k<1>", new[] {"a"}),
             (@"(?P<abcd>)\k<abcd>", @"()\k<1>", new[] {"abcd"}),
             (@"\k<a>(?P<a>)", @"\k<1>()", new[] {"a"}),
@@ -670,8 +670,8 @@ namespace Mariana.AVM2.Tests {
                 String.Concat(Enumerable.Range(1, 999).Select(i => $"\\{i}\\k<a{i}>(?P<a{i}>xyz)+\\{i}\\k<a{i}>")),
                 String.Concat(Enumerable.Range(1, 999).Select(i => $"\\k<{i}>\\k<{i}>(xyz)+\\k<{i}>\\k<{i}>")),
                 Enumerable.Range(1, 999).Select(i => "a" + i).ToArray()
-            ),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3});
+            )
+        );
 
         [Theory]
         [MemberData(nameof(shouldTranspilePatternWithNamedBackreferences_data))]
@@ -679,7 +679,7 @@ namespace Mariana.AVM2.Tests {
             _verifyPatternFlagsInvariant(pattern, expectedPattern, groupNames.Length, groupNames);
         }
 
-        public static IEnumerable<object[]> shouldStripWhiteSpaceAndCommentsInExtendedMode_data = new (string, string, string, object)[] {
+        public static IEnumerable<object[]> shouldStripWhiteSpaceAndCommentsInExtendedMode_data = TupleHelper.toArrays<string, string, string, object>(
             ("    ", null, "", 0),
             (" \n\r\f\t\v ", null, "", 0),
             ("  a  b  c  ", null, "abc", 0),
@@ -708,8 +708,8 @@ namespace Mariana.AVM2.Tests {
             ("a #--- \r  b", null, "ab", 0),
             ("a #--- \n  b", null, "ab", 0),
             ("a [#bc] d", null, "a[#bc]d", 0),
-            ("a (  # ___ \n bc # ___ \n (d*) # *? \n ) #123 \r+", null, "a(bc(d*))+", 2),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3, x.Item4});
+            ("a (  # ___ \n bc # ___ \n (d*) # *? \n ) #123 \r+", null, "a(bc(d*))+", 2)
+        );
 
         [Theory]
         [MemberData(nameof(shouldStripWhiteSpaceAndCommentsInExtendedMode_data))]
@@ -755,7 +755,7 @@ namespace Mariana.AVM2.Tests {
             new Regex(expectedExtended, RegexOptions.ECMAScript | RegexOptions.CultureInvariant);
         }
 
-        public static IEnumerable<object[]> shouldThrowErrorIfPatternInvalid_data = new string[] {
+        public static IEnumerable<object[]> shouldThrowErrorIfPatternInvalid_data = TupleHelper.toArrays(
             @"\",
             @"\\\",
             @"abcd\d\",
@@ -877,8 +877,8 @@ namespace Mariana.AVM2.Tests {
             @"abc\u@45b",
             @"abc\u45b`",
             @"abc\u45g0",
-            @"abc\ug450",
-        }.Select(x => new object[] {x});
+            @"abc\ug450"
+        );
 
         [Theory]
         [MemberData(nameof(shouldThrowErrorIfPatternInvalid_data))]
@@ -928,7 +928,7 @@ namespace Mariana.AVM2.Tests {
             AssertHelper.throwsErrorWithCode(ErrorCode.MARIANA__REGEXP_PARSE_ERROR, () => t.transpile(pattern, true, false));
         }
 
-        public static IEnumerable<object[]> shouldThrowErrorIfGroupLimitExceeded_data = new string[] {
+        public static IEnumerable<object[]> shouldThrowErrorIfGroupLimitExceeded_data = TupleHelper.toArrays(
             String.Concat(Enumerable.Repeat("()", 1000)),
             String.Concat(Enumerable.Repeat("(a)", 1000)),
             String.Concat(Enumerable.Repeat("()", 2000)),
@@ -938,8 +938,8 @@ namespace Mariana.AVM2.Tests {
             String.Concat(Enumerable.Range(1, 1000).Select(i => $"(?P<a{i}>xyz)")),
             String.Concat(Enumerable.Range(1, 2000).Select(i => $"(?P<a{i}>xyz)")),
             String.Concat(Enumerable.Range(1, 500).Select(i => $"(?P<a{i}>xyz)__(xyz)")),
-            String.Concat(Enumerable.Range(1, 500).Select(i => $"(xyz)__(?P<a{i}>xyz)")),
-        }.Select(x => new object[] {x});
+            String.Concat(Enumerable.Range(1, 500).Select(i => $"(xyz)__(?P<a{i}>xyz)"))
+        );
 
         [Theory]
         [MemberData(nameof(shouldThrowErrorIfGroupLimitExceeded_data))]
@@ -978,6 +978,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(groupCount, t.groupCount);
             Assert.Equal(groupNames, t.getGroupNames());
 
+            // Ensure that constructing a Regex does not throw.
             new Regex(expectedTranspiled ?? pattern, RegexOptions.ECMAScript | RegexOptions.CultureInvariant);
         }
 

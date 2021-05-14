@@ -188,7 +188,7 @@ namespace Mariana.AVM2.Core {
             if (receiverType != null) {
                 // Not a static method or constructor.
                 builder.emit(ILOp.ldarg_0);
-                ILEmitHelper.emitTypeCoerce(builder, null, receiverType);
+                builder.emit(ILOp.call, ILEmitHelper.getAnyCastMethod(receiverType));
             }
 
             // Load formal arguments.

@@ -13,7 +13,7 @@ namespace Mariana.AVM2.Tests {
 
         private static readonly Class s_uintClass = Class.fromType<uint>();
 
-        public static IEnumerable<object[]> s_uintTestData = new uint[] {
+        public static IEnumerable<object[]> s_uintTestData = TupleHelper.toArrays<uint>(
             0, 1,
             127, 128, 129,
             255, 256, 257,
@@ -23,8 +23,8 @@ namespace Mariana.AVM2.Tests {
             123456789, 193847113,
             (uint)Int32.MaxValue,
             (uint)Int32.MaxValue + 1,
-            UInt32.MaxValue,
-        }.Select(x => new object[] {x});
+            UInt32.MaxValue
+        );
 
         [Theory]
         [MemberData(nameof(s_uintTestData))]
@@ -86,7 +86,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(value, ((ASuint)(ASObject)value).valueOf());
         }
 
-        public static IEnumerable<object[]> shouldConvertToString_data = new (uint, string)[] {
+        public static IEnumerable<object[]> shouldConvertToString_data = TupleHelper.toArrays<uint, string>(
             (0, "0"),
             (1, "1"),
             (2, "2"),
@@ -109,8 +109,8 @@ namespace Mariana.AVM2.Tests {
             (Int32.MaxValue, "2147483647"),
             ((uint)Int32.MaxValue + 1, "2147483648"),
             (3980245617, "3980245617"),
-            (UInt32.MaxValue, "4294967295"),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            (UInt32.MaxValue, "4294967295")
+        );
 
         [Theory]
         [MemberData(nameof(shouldConvertToString_data))]
@@ -128,7 +128,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expected, ((ASuint)(ASObject)value).AS_toString(10));
         }
 
-        public static IEnumerable<object[]> toString_shouldConvertToString_nonBase10_data = new (uint, int, string)[] {
+        public static IEnumerable<object[]> toString_shouldConvertToString_nonBase10_data = TupleHelper.toArrays<uint, int, string>(
             (0, 2, "0"),
             (0, 3, "0"),
             (0, 16, "0"),
@@ -168,8 +168,8 @@ namespace Mariana.AVM2.Tests {
             (4294967295, 7, "211301422353"),
             (4294967295, 16, "ffffffff"),
             (4294967295, 32, "3vvvvvv"),
-            (4294967295, 36, "1z141z3"),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3});
+            (4294967295, 36, "1z141z3")
+        );
 
         [Theory]
         [MemberData(nameof(toString_shouldConvertToString_nonBase10_data))]
@@ -178,7 +178,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expected, ((ASuint)(ASObject)value).AS_toString(radix));
         }
 
-        public static IEnumerable<object[]> toFixed_toExponential_shouldFormatNumber_data = new (uint, int, string, string)[] {
+        public static IEnumerable<object[]> toFixed_toExponential_shouldFormatNumber_data = TupleHelper.toArrays<uint, int, string, string>(
             (0, 0, "0", "0e+0"),
             (0, 2, "0.00", "0.00e+0"),
             (0, 20, "0.00000000000000000000", "0.00000000000000000000e+0"),
@@ -239,8 +239,8 @@ namespace Mariana.AVM2.Tests {
             (UInt32.MaxValue, 10, "4294967295.0000000000", "4.2949672950e+9"),
             (UInt32.MaxValue, 13, "4294967295.0000000000000", "4.2949672950000e+9"),
             (UInt32.MaxValue, 19, "4294967295.0000000000000000000", "4.2949672950000000000e+9"),
-            (UInt32.MaxValue, 20, "4294967295.00000000000000000000", "4.29496729500000000000e+9"),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3, x.Item4});
+            (UInt32.MaxValue, 20, "4294967295.00000000000000000000", "4.29496729500000000000e+9")
+        );
 
         [Theory]
         [MemberData(nameof(toFixed_toExponential_shouldFormatNumber_data))]
@@ -251,7 +251,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expectedExponential, ((ASuint)(ASObject)value).toExponential(precision));
         }
 
-        public static IEnumerable<object[]> toPrecision_shouldFormatNumber_data = new (uint, int, string)[] {
+        public static IEnumerable<object[]> toPrecision_shouldFormatNumber_data = TupleHelper.toArrays<uint, int, string>(
             (0, 1, "0"),
             (0, 2, "0.0"),
             (0, 5, "0.0000"),
@@ -318,8 +318,8 @@ namespace Mariana.AVM2.Tests {
             (UInt32.MaxValue, 11, "4294967295.0"),
             (UInt32.MaxValue, 13, "4294967295.000"),
             (UInt32.MaxValue, 20, "4294967295.0000000000"),
-            (UInt32.MaxValue, 21, "4294967295.00000000000"),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3});
+            (UInt32.MaxValue, 21, "4294967295.00000000000")
+        );
 
         [Theory]
         [MemberData(nameof(toPrecision_shouldFormatNumber_data))]
@@ -416,7 +416,7 @@ namespace Mariana.AVM2.Tests {
 
         [Fact]
         public void shouldConvertFromObject() {
-            ASObject obj = new SpyObjectWithConversions() {uintValue = 1244};
+            ASObject obj = new ConvertibleMockObject(uintValue: 1244);
 
             Assert.Equal(1244u, (uint)obj);
             Assert.Equal(1244u, ASObject.AS_toUint(obj));
@@ -426,8 +426,8 @@ namespace Mariana.AVM2.Tests {
 
         [Fact]
         public void classInvokeOrConstruct_shouldConvertFirstArg() {
-            ASObject obj = new SpyObjectWithConversions() {uintValue = 1244};
-            ASObject obj2 = new SpyObjectWithConversions() {uintValue = 35667};
+            ASObject obj = new ConvertibleMockObject(uintValue: 1244);
+            ASObject obj2 = new ConvertibleMockObject(uintValue: 35667);
 
             check(s_uintClass.invoke(new ASAny[] {}), 0);
             check(s_uintClass.invoke(new ASAny[] {default}), 0);

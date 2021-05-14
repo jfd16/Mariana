@@ -1151,19 +1151,12 @@ namespace Mariana.AVM2.Core {
         /// <param name="args">The arguments passed to the call.</param>
         /// <param name="result">The return value of the call.</param>
         /// <returns>True, if the call was successful, false otherwise.</returns>
-        ///
-        /// <exception cref="AVM2Exception">
-        /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1006</term>
-        /// <description>The value of this <see cref="ASAny"/> instance is undefined.</description>
-        /// </item>
-        /// </list>
-        /// </exception>
         public bool AS_tryInvoke(ASAny receiver, ReadOnlySpan<ASAny> args, out ASAny result) {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.INVOKE_NON_FUNCTION, "undefined");
-            return this.value.AS_tryInvoke(receiver, args, out result);
+            if (isUndefinedOrNull) {
+                result = default(ASAny);
+                return false;
+            }
+            return m_internalValue.AS_tryInvoke(receiver, args, out result);
         }
 
         /// <summary>
@@ -1172,19 +1165,12 @@ namespace Mariana.AVM2.Core {
         /// <param name="args">The arguments passed to the call.</param>
         /// <param name="result">The object created by the constructor call.</param>
         /// <returns>True, if the call was successful, false otherwise.</returns>
-        ///
-        /// <exception cref="AVM2Exception">
-        /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1006</term>
-        /// <description>The value of this <see cref="ASAny"/> instance is undefined.</description>
-        /// </item>
-        /// </list>
-        /// </exception>
         public bool AS_tryConstruct(ReadOnlySpan<ASAny> args, out ASAny result) {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.INSTANTIATE_NON_CONSTRUCTOR);
-            return this.value.AS_tryConstruct(args, out result);
+            if (isUndefinedOrNull) {
+                result = default(ASAny);
+                return false;
+            }
+            return m_internalValue.AS_tryConstruct(args, out result);
         }
 
         /// <summary>
@@ -1591,8 +1577,8 @@ namespace Mariana.AVM2.Core {
         /// <list type="bullet">
         /// <item>If one of the objects is null or undefined, both objects are equal if and only if
         /// the other object is either null or undefined.</item>
-        /// <item>If the object values of both objects are equal by reference, they are considered
-        /// equal.</item>
+        /// <item>If the object values of both objects are equal by reference (but are not the boxed
+        /// representation of NaN), they are considered equal.</item>
         /// <item>If one of the objects is of a numeric type (int, uint or Number) or Boolean, then
         /// both objects are converted to the Number type and the floating-point number values are
         /// compared.</item>
@@ -1628,8 +1614,11 @@ namespace Mariana.AVM2.Core {
                 // the string "null" or "undefined" with a null or undefined value.
                 return XMLHelper.weakEquals(x, y);
 
-            if (vx == vy)  // Equal by reference, or null == undefined
-                return true;
+            if (vx == vy) {
+                // Equal by reference, or both null. NaN is an exception!
+                return !(vx is ASNumber && Double.IsNaN((double)x));
+            }
+
             if (vx == null || vy == null)
                 return false;
 
@@ -1698,14 +1687,15 @@ namespace Mariana.AVM2.Core {
         /// to the Number type and their floating-point values are compared.
         /// </remarks>
         public static bool AS_lessThan(ASAny x, ASAny y) {
-            ASObject v1 = x.value, v2 = y.value;
+            ASObject vx = x.value, vy = y.value;
 
-            if (v1 == v2 || x.isUndefined || y.isUndefined)
-                // Equal by reference, or one of the values is undefined
+            if (vx == vy || x.isUndefined || y.isUndefined) {
+                // Equal by reference, or one of the values is undefined. NaN will correctly return false here.
                 return false;
+            }
 
-            if (v1 is ASString && v2 is ASString)
-                return String.CompareOrdinal(ASObject.AS_coerceString(v1), ASObject.AS_coerceString(v2)) < 0;
+            if (vx is ASString && vy is ASString)
+                return String.CompareOrdinal(ASObject.AS_coerceString(vx), ASObject.AS_coerceString(vy)) < 0;
 
             return (double)x < (double)y;
         }
@@ -1726,15 +1716,16 @@ namespace Mariana.AVM2.Core {
         /// objects are converted to the Number type and their floating-point values are compared.
         /// </remarks>
         public static bool AS_lessEq(ASAny x, ASAny y) {
-            ASObject v1 = x.value, v2 = y.value;
+            ASObject vx = x.value, vy = y.value;
 
-            if (v1 == v2)
-                // Equal by reference
-                // A comparison involving undefined and null always returns false.
-                return x.isDefined == y.isDefined;
+            if (vx == vy) {
+                // Objects are equal by reference.
+                // The result in this case is true except for null-undefined and NaN.
+                return x.isDefined ? y.isDefined && !(vx is ASNumber && Double.IsNaN((double)vx)) : !y.isDefined;
+            }
 
-            if (v1 is ASString && v2 is ASString)
-                return String.CompareOrdinal(ASObject.AS_coerceString(v1), ASObject.AS_coerceString(v2)) <= 0;
+            if (vx is ASString && vy is ASString)
+                return String.CompareOrdinal(ASObject.AS_coerceString(vx), ASObject.AS_coerceString(vy)) <= 0;
 
             return (double)x <= (double)y;
         }

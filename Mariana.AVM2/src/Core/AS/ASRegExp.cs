@@ -418,7 +418,7 @@ namespace Mariana.AVM2.Core {
 
                 for (int i = 0, n = groups.Count; i < n; i++) {
                     string groupValue = groups[i].Value;
-                    groupArray[(uint)i] = groupValue;
+                    groupArray[i] = groupValue;
 
                     if (i != 0 && m_groupNames != null && m_groupNames[i - 1] != null)
                         namedProps[m_groupNames[i - 1]] = groupValue;

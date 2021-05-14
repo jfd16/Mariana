@@ -195,7 +195,7 @@ namespace Mariana.AVM2.Core {
             if ((options & BindOptions.SEARCH_TRAITS) != 0 && AS_lookupTrait(name, out _) == BindStatus.SUCCESS)
                 return true;
 
-            if (!name.ns.isPublic && (name.localName != null || (options & BindOptions.RUNTIME_NAME) != 0)) {
+            if (name.ns.isPublic && (name.localName != null || (options & BindOptions.RUNTIME_NAME) != 0)) {
                 string key = ASString.AS_convertString(name.localName);
 
                 DynamicPropertyCollection dynamicProperties = AS_dynamicProps;
@@ -515,11 +515,8 @@ namespace Mariana.AVM2.Core {
                     return BindStatus.NOT_FOUND;
                 }
 
-                if (funcToInvoke.value != null) {
-                    return funcToInvoke.value.AS_tryInvoke(receiver, args, out result)
-                        ? BindStatus.SUCCESS
-                        : BindStatus.FAILED_NOTFUNCTION;
-                }
+                if (funcToInvoke.AS_tryInvoke(receiver, args, out result))
+                    return BindStatus.SUCCESS;
 
                 return BindStatus.FAILED_NOTFUNCTION;
             }
@@ -583,10 +580,8 @@ namespace Mariana.AVM2.Core {
                 else
                     return BindStatus.NOT_FOUND;
 
-                if (funcToInvoke.value != null)
-                    return funcToInvoke.value.AS_tryInvoke(receiver, args, out result)
-                        ? BindStatus.SUCCESS
-                        : BindStatus.FAILED_NOTFUNCTION;
+                if (funcToInvoke.AS_tryInvoke(receiver, args, out result))
+                    return BindStatus.SUCCESS;
 
                 return BindStatus.FAILED_NOTFUNCTION;
             }
@@ -646,10 +641,8 @@ namespace Mariana.AVM2.Core {
                     return BindStatus.NOT_FOUND;
                 }
 
-                if (funcToInvoke.value != null)
-                    return funcToInvoke.value.AS_tryConstruct(args, out result)
-                        ? BindStatus.SUCCESS
-                        : BindStatus.FAILED_NOTCONSTRUCTOR;
+                if (funcToInvoke.AS_tryConstruct(args, out result))
+                    return BindStatus.SUCCESS;
 
                 return BindStatus.FAILED_NOTCONSTRUCTOR;
             }
@@ -711,10 +704,8 @@ namespace Mariana.AVM2.Core {
                 else
                     return BindStatus.NOT_FOUND;
 
-                if (funcToInvoke.value != null)
-                    return funcToInvoke.value.AS_tryConstruct(args, out result)
-                        ? BindStatus.SUCCESS
-                        : BindStatus.FAILED_NOTCONSTRUCTOR;
+                if (funcToInvoke.AS_tryConstruct(args, out result))
+                    return BindStatus.SUCCESS;
 
                 return BindStatus.FAILED_NOTCONSTRUCTOR;
             }
@@ -1309,12 +1300,18 @@ namespace Mariana.AVM2.Core {
             ASAny key, ReadOnlySpan<ASAny> args, out ASAny result,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
+            result = default(ASAny);
+
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC) {
                 MethodTrait indexMethod = _getIndexPropertyForKey(key)?.getMethod;
                 if (indexMethod != null) {
                     ASAny func = indexMethod.invoke(this, new ASAny[] {key});
                     ASObject receiver = ((options & BindOptions.NULL_RECEIVER) != 0) ? null : this;
-                    return func.AS_tryInvoke(receiver, args, out result) ? BindStatus.SUCCESS : BindStatus.FAILED_NOTFUNCTION;
+
+                    if (!func.isUndefinedOrNull && func.AS_tryInvoke(receiver, args, out result))
+                        return BindStatus.SUCCESS;
+
+                    return BindStatus.FAILED_NOTFUNCTION;
                 }
             }
 
@@ -1341,6 +1338,8 @@ namespace Mariana.AVM2.Core {
             ASAny key, in NamespaceSet nsSet, ReadOnlySpan<ASAny> args, out ASAny result,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
+            result = default(ASAny);
+
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic)
             {
@@ -1348,7 +1347,11 @@ namespace Mariana.AVM2.Core {
                 if (indexMethod != null) {
                     ASAny func = indexMethod.invoke(this, new ASAny[] {key});
                     ASObject receiver = ((options & BindOptions.NULL_RECEIVER) != 0) ? null : this;
-                    return func.AS_tryInvoke(receiver, args, out result) ? BindStatus.SUCCESS : BindStatus.FAILED_NOTFUNCTION;
+
+                    if (!func.isUndefinedOrNull && func.AS_tryInvoke(receiver, args, out result))
+                        return BindStatus.SUCCESS;
+
+                    return BindStatus.FAILED_NOTFUNCTION;
                 }
             }
 
@@ -1373,11 +1376,17 @@ namespace Mariana.AVM2.Core {
             ASAny key, ReadOnlySpan<ASAny> args, out ASAny result,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
+            result = default(ASAny);
+
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC) {
                 MethodTrait indexMethod = _getIndexPropertyForKey(key)?.getMethod;
                 if (indexMethod != null) {
                     ASAny func = indexMethod.invoke(this, new ASAny[] {key});
-                    return func.AS_tryConstruct(args, out result) ? BindStatus.SUCCESS : BindStatus.FAILED_NOTCONSTRUCTOR;
+
+                    if (!func.isUndefinedOrNull && func.AS_tryConstruct(args, out result))
+                        return BindStatus.SUCCESS;
+
+                    return BindStatus.FAILED_NOTCONSTRUCTOR;
                 }
             }
 
@@ -1404,13 +1413,19 @@ namespace Mariana.AVM2.Core {
             ASAny key, in NamespaceSet nsSet, ReadOnlySpan<ASAny> args, out ASAny result,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
+            result = default(ASAny);
+
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic)
             {
                 MethodTrait indexMethod = _getIndexPropertyForKey(key)?.getMethod;
                 if (indexMethod != null) {
                     ASAny func = indexMethod.invoke(this, new ASAny[] {key});
-                    return func.AS_tryConstruct(args, out result) ? BindStatus.SUCCESS : BindStatus.FAILED_NOTCONSTRUCTOR;
+
+                    if (!func.isUndefinedOrNull && func.AS_tryConstruct(args, out result))
+                        return BindStatus.SUCCESS;
+
+                    return BindStatus.FAILED_NOTCONSTRUCTOR;
                 }
             }
 
@@ -2276,7 +2291,8 @@ namespace Mariana.AVM2.Core {
         /// <list type="bullet">
         /// <item>If one of the objects is null, both objects are equal if and only if the other
         /// object is null.</item>
-        /// <item>If both objects are equal by reference, they are considered equal.</item>
+        /// <item>If both objects are equal by reference (but are not the boxed representation of NaN),
+        /// they are considered equal.</item>
         /// <item>If one of the objects is of a numeric type (int, uint, Number) or Boolean, then both
         /// objects are converted to the Number type and the floating-point number values are
         /// compared.</item>
@@ -2305,8 +2321,10 @@ namespace Mariana.AVM2.Core {
         /// </list>
         /// </remarks>
         public static bool AS_weakEq(ASObject x, ASObject y) {
-            if (x == y)  // Equal by reference, or both null
-                return true;
+            if (x == y) {
+                // Equal by reference, or both null. NaN is an exception!
+                return !(x is ASNumber && Double.IsNaN((double)x));
+            }
 
             var tagSet = new ClassTagSet();
             if (x != null)
@@ -2359,7 +2377,8 @@ namespace Mariana.AVM2.Core {
         /// <list type="bullet">
         /// <item>If one of the objects is null, the objects are equal if and only if the other object
         /// is null.</item>
-        /// <item>If both objects are equal by reference, they are considered equal.</item>
+        /// <item>If both objects are equal by reference (but are not the boxed representation of NaN),
+        /// they are considered equal.</item>
         /// <item>If both the objects are of numeric types (int, uint or Number), then both objects
         /// are converted to the Number type and the floating-point number values are
         /// compared.</item>
@@ -2374,8 +2393,11 @@ namespace Mariana.AVM2.Core {
         /// </list>
         /// </remarks>
         public static bool AS_strictEq(ASObject x, ASObject y) {
-            if (x == y)  // Equal by reference
-                return true;
+            if (x == y) {
+                // Equal by reference, or both null. NaN is an exception!
+                return !(x is ASNumber && Double.IsNaN((double)x));
+            }
+
             if (x == null || y == null)
                 return false;
 
@@ -2419,8 +2441,10 @@ namespace Mariana.AVM2.Core {
         /// to the Number type and their floating-point values are compared.
         /// </remarks>
         public static bool AS_lessThan(ASObject x, ASObject y) {
-            if (x == y) // Equal by reference
+            if (x == y) {
+                // Equal by reference. NaN will correctly return false here.
                 return false;
+            }
 
             if (x is ASString && y is ASString)
                 return String.CompareOrdinal(AS_coerceString(x), AS_coerceString(y)) < 0;
@@ -2444,8 +2468,10 @@ namespace Mariana.AVM2.Core {
         /// objects are converted to the Number type and their floating-point values are compared.
         /// </remarks>
         public static bool AS_lessEq(ASObject x, ASObject y) {
-            if (x == y) // Equal by reference
-                return true;
+            if (x == y) {
+                // Equal by reference, or both null. NaN is an exception!
+                return !(x is ASNumber && Double.IsNaN((double)x));
+            }
 
             if (x is ASString && y is ASString)
                 return String.CompareOrdinal(AS_coerceString(x), AS_coerceString(y)) <= 0;

@@ -158,8 +158,8 @@ namespace Mariana.Common {
         /// a reference type or a value type containing references.
         /// </para>
         /// <remarks>
-        /// The span written to <paramref name="span"/> is guaranteed to refer to the memory associated with the token
-        /// <paramref name="token"/> as long as there are no further calls to the <see cref="allocate(Int32)"/>,
+        /// The span written to <paramref name="span"/> is guaranteed to refer to the memory associated with the returned
+        /// token as long as there are no further calls to the <see cref="allocate(Int32)"/>,
         /// <see cref="resize(DynamicArrayPoolToken{T}, Int32)"/> or <see cref="append(DynamicArrayPoolToken{T}, T)"/>
         /// methods on this instance. These methods may move the data associated with the token to new location in memory,
         /// and <see cref="getSpan(DynamicArrayPoolToken{T})"/> must then be called to get the span for the new backing memory.

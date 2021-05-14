@@ -1,8 +1,8 @@
 using System;
 using System.Runtime.CompilerServices;
-using System.Threading;
 using Mariana.AVM2.Core;
 using Mariana.AVM2.Native;
+using Mariana.AVM2.Tests.Helpers;
 using Xunit;
 
 namespace Mariana.AVM2.Tests {
@@ -10,9 +10,6 @@ namespace Mariana.AVM2.Tests {
     public class ASErrorTest {
 
         private class DerivedError : ASError {}
-
-        private static ApplicationDomain s_domainForStackTraceTest;
-        private static object s_syncLock = new object();
 
         [Fact]
         public void shouldHaveDefaultNameIfNotSet() {
@@ -95,13 +92,6 @@ namespace Mariana.AVM2.Tests {
 
         [Fact]
         public void getStackTrace_shouldGetStackTraceOfConstruction() {
-            LazyInitializer.EnsureInitialized(ref s_domainForStackTraceTest, ref s_syncLock, () => {
-                var domain = new ApplicationDomain();
-                domain.loadNativeClass(typeof(ErrorStackTraceTestClass));
-                domain.loadNativeModule(typeof(ErrorStackTraceTestModule));
-                return domain;
-            });
-
             ErrorStackTraceTestClass.createdError = new ASError("Hello");
             Assert.Equal(
                 "Error: Hello",
@@ -196,6 +186,8 @@ namespace Mariana.AVM2.Tests {
 
     [AVM2ExportClass(nsUri = "abc")]
     public class ErrorStackTraceTestClass : ASObject {
+        static ErrorStackTraceTestClass() => TestAppDomain.ensureClassesLoaded(typeof(ErrorStackTraceTestClass));
+
         [AVM2ExportTrait]
         public static ASError createdError;
 
@@ -233,6 +225,8 @@ namespace Mariana.AVM2.Tests {
 
     [AVM2ExportModule]
     public static class ErrorStackTraceTestModule {
+        static ErrorStackTraceTestModule() => TestAppDomain.ensureClassesLoaded(typeof(ErrorStackTraceTestModule));
+
         [AVM2ExportTrait]
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static void method1() => ErrorStackTraceTestClass.createdError = new ASError("Hello");

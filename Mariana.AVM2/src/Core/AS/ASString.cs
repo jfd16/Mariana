@@ -90,11 +90,80 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="s1">The first string.</param>
         /// <param name="s2">The second string.</param>
+        ///
         /// <returns>The result of the concatenation of the two strings. If any of the strings is
         /// null, the string "null" is used in its place. Note that the result is consistent with
-        /// the semantics of ECMAScript addition operator only if at least one operand is not
-        /// null.</returns>
+        /// the semantics of the ECMAScript addition operator if and only if at least one operand
+        /// is not null.</returns>
         public static string AS_add(string s1, string s2) => (s1 ?? "null") + (s2 ?? "null");
+
+        /// <summary>
+        /// Concatenates three strings and returns the result.
+        /// </summary>
+        /// <param name="s1">The first string.</param>
+        /// <param name="s2">The second string.</param>
+        /// <param name="s3">The third string.</param>
+        ///
+        /// <returns>The result of the concatenation of the three strings. If any of the strings is
+        /// null, the string "null" is used in its place.</returns>
+        public static string AS_add(string s1, string s2, string s3) =>
+            String.Concat(s1 ?? "null", s2 ?? "null", s3 ?? "null");
+
+        /// <summary>
+        /// Concatenates four strings and returns the result.
+        /// </summary>
+        /// <param name="s1">The first string.</param>
+        /// <param name="s2">The second string.</param>
+        /// <param name="s3">The third string.</param>
+        /// <param name="s4">The fourth string.</param>
+        ///
+        /// <returns>The result of the concatenation of the four strings. If any of the strings is
+        /// null, the string "null" is used in its place.</returns>
+        public static string AS_add(string s1, string s2, string s3, string s4) {
+            s1 = s1 ?? "null";
+            s2 = s2 ?? "null";
+            s3 = s3 ?? "null";
+            s4 = s4 ?? "null";
+
+            int totalLength = checked(s1.Length + s2.Length + s3.Length + s4.Length);
+
+            return String.Create(totalLength, (s1, s2, s3, s4), (dest, state) => {
+                Span<char> remaining = dest;
+
+                state.s1.AsSpan().CopyTo(remaining);
+                remaining = remaining.Slice(state.s1.Length);
+                state.s2.AsSpan().CopyTo(remaining);
+                remaining = remaining.Slice(state.s2.Length);
+                state.s3.AsSpan().CopyTo(remaining);
+                remaining = remaining.Slice(state.s3.Length);
+                state.s4.AsSpan().CopyTo(remaining);
+            });
+        }
+
+        /// <summary>
+        /// Concatenates an array of strings and returns the result.
+        /// </summary>
+        /// <param name="strings">An array of strings.</param>
+        ///
+        /// <returns>The result of the concatenation of the strings in the array. If any of the strings
+        /// is null, the string "null" is used in its place.</returns>
+        public static string AS_add(string[] strings) {
+            int totalLength = 0;
+
+            for (int i = 0; i < strings.Length; i++) {
+                string s = strings[i];
+                totalLength = checked(totalLength + ((s != null) ? s.Length : 4));
+            }
+
+            return String.Create(totalLength, strings, (dest, _strings) => {
+                Span<char> remaining = dest;
+                for (int i = 0; i < _strings.Length; i++) {
+                    string s = _strings[i] ?? "null";
+                    s.AsSpan().CopyTo(remaining);
+                    remaining = remaining.Slice(s.Length);
+                }
+            });
+        }
 
         /// <summary>
         /// Returns a value indicating whether the first string is less than the second

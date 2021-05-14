@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using Mariana.AVM2.Tests.Helpers;
 using Xunit;
 
 using static Mariana.AVM2.Core.NumberFormatHelper;
@@ -9,7 +9,7 @@ namespace Mariana.AVM2.Tests {
 
     public class NumberFormatHelperTest {
 
-        public static IEnumerable<object[]> intToString_shouldFormatIntInGivenRadix_data = new (int, int, string)[] {
+        public static IEnumerable<object[]> intToString_shouldFormatIntInGivenRadix_data = TupleHelper.toArrays(
             (0, 2, "0"),
             (0, 3, "0"),
             (0, 10, "0"),
@@ -47,8 +47,8 @@ namespace Mariana.AVM2.Tests {
             (-2147483648, 7, "-104134211162"),
             (-2147483648, 10, "-2147483648"),
             (-2147483648, 32, "-2000000"),
-            (-2147483648, 36, "-zik0zk"),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3});
+            (-2147483648, 36, "-zik0zk")
+        );
 
         [Theory]
         [MemberData(nameof(intToString_shouldFormatIntInGivenRadix_data))]
@@ -56,7 +56,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expected, intToString(value, radix));
         }
 
-        public static IEnumerable<object[]> uintToString_shouldFormatUintInGivenRadix_data = new (uint, int, string)[] {
+        public static IEnumerable<object[]> uintToString_shouldFormatUintInGivenRadix_data = TupleHelper.toArrays<uint, int, string>(
             (0, 2, "0"),
             (0, 3, "0"),
             (0, 10, "0"),
@@ -100,8 +100,8 @@ namespace Mariana.AVM2.Tests {
             (4294967295, 10, "4294967295"),
             (4294967295, 16, "ffffffff"),
             (4294967295, 32, "3vvvvvv"),
-            (4294967295, 36, "1z141z3"),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3});
+            (4294967295, 36, "1z141z3")
+        );
 
         [Theory]
         [MemberData(nameof(uintToString_shouldFormatUintInGivenRadix_data))]
@@ -109,7 +109,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expected, uintToString(value, radix));
         }
 
-        public static IEnumerable<object[]> longToString_shouldFormatIntInGivenRadix_data = new (long, int, string)[] {
+        public static IEnumerable<object[]> longToString_shouldFormatIntInGivenRadix_data = TupleHelper.toArrays(
             (0, 2, "0"),
             (0, 3, "0"),
             (12464877, 2, "101111100011001011101101"),
@@ -144,8 +144,8 @@ namespace Mariana.AVM2.Tests {
             (-Int64.MaxValue, 10, "-9223372036854775807"),
             (-Int64.MaxValue, 14, "-4340724c6c71dc7a7"),
             (-Int64.MaxValue, 16, "-7fffffffffffffff"),
-            (-Int64.MaxValue, 32, "-7vvvvvvvvvvvv"),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3});
+            (-Int64.MaxValue, 32, "-7vvvvvvvvvvvv")
+        );
 
         [Theory]
         [MemberData(nameof(intToString_shouldFormatIntInGivenRadix_data))]
@@ -192,7 +192,7 @@ namespace Mariana.AVM2.Tests {
 
         private static readonly double NEG_ZERO = BitConverter.Int64BitsToDouble(unchecked((long)0x8000000000000000L));
 
-        public static IEnumerable<object[]> doubleToString_shouldFormatScientific_data = new (double, string)[] {
+        public static IEnumerable<object[]> doubleToString_shouldFormatScientific_data = TupleHelper.toArrays(
             (4.9406564584124654e-324, "4.9406564584124654e-324"),
             (9.881312916824931e-324, "9.8813129168249309e-324"),
             (1.9762625833649862e-323, "1.9762625833649862e-323"),
@@ -250,8 +250,8 @@ namespace Mariana.AVM2.Tests {
             (1e+308, "1e+308"),
             (1.79769313486231e+308, "1.79769313486231e+308"),
             (Double.MaxValue, "1.7976931348623157e+308"),
-            (-Double.MaxValue, "-1.7976931348623157e+308"),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            (-Double.MaxValue, "-1.7976931348623157e+308")
+        );
 
         [Theory]
         [MemberData(nameof(doubleToString_shouldFormatScientific_data))]
@@ -259,7 +259,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expected, doubleToString(value));
         }
 
-        public static IEnumerable<object[]> doubleToString_shouldFormatFixed_data = new (double, string)[] {
+        public static IEnumerable<object[]> doubleToString_shouldFormatFixed_data = TupleHelper.toArrays(
             (0, "0"),
             (NEG_ZERO, "0"),
             (Double.NaN, "NaN"),
@@ -291,8 +291,8 @@ namespace Mariana.AVM2.Tests {
             (0.000033425, "0.000033425"),
             (0.000001, "0.000001"),
             (0.0000010000000000000002, "0.0000010000000000000002"),
-            (0.000008, "0.000008"),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            (0.000008, "0.000008")
+        );
 
         [Theory]
         [MemberData(nameof(doubleToString_shouldFormatFixed_data))]
@@ -300,7 +300,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expected, doubleToString(value));
         }
 
-        public static IEnumerable<object[]> stringToDouble_shouldParse_zeroAndInfinity_data = new (string, double)[] {
+        public static IEnumerable<object[]> stringToDouble_shouldParse_zeroAndInfinity_data = TupleHelper.toArrays(
             ("0", 0),
             ("0.0", 0),
             ("+0", 0),
@@ -337,24 +337,18 @@ namespace Mariana.AVM2.Tests {
 
             ("Infinity", Double.PositiveInfinity),
             ("+Infinity", Double.PositiveInfinity),
-            ("-Infinity", Double.NegativeInfinity),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            ("-Infinity", Double.NegativeInfinity)
+        );
 
         [Theory]
         [MemberData(nameof(stringToDouble_shouldParse_zeroAndInfinity_data))]
         public void stringToDouble_shouldParse_zeroAndInfinity(string str, double expected) {
             Assert.True(stringToDouble(str, out double value, out int charsRead));
             Assert.Equal(str.Length, charsRead);
-
-            if (Double.IsNaN(expected))
-                Assert.True(Double.IsNaN(value));
-            else if (expected == 0 && value == 0)
-                Assert.Equal(Double.IsNegative(expected), Double.IsNegative(value));
-            else
-                Assert.Equal(expected, value);
+            AssertHelper.floatIdentical(expected, value);
         }
 
-        public static IEnumerable<object[]> stringToDouble_shouldParse_data_integers = new (string, double)[] {
+        public static IEnumerable<object[]> stringToDouble_shouldParse_data_integers = TupleHelper.toArrays(
             ("1", 1),
             ("-1", -1),
             ("+1", 1),
@@ -401,10 +395,10 @@ namespace Mariana.AVM2.Tests {
             ("1" + new string('0', 308), 1e+308),
             ("+1" + new string('0', 308), 1e+308),
             ("17976931348623157" + new string('0', 292), Double.MaxValue),
-            ("-17976931348623157" + new string('0', 292), -Double.MaxValue),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            ("-17976931348623157" + new string('0', 292), -Double.MaxValue)
+        );
 
-        public static IEnumerable<object[]> stringToDouble_shouldParse_data_fractions = new (string, double)[] {
+        public static IEnumerable<object[]> stringToDouble_shouldParse_data_fractions = TupleHelper.toArrays(
             ("1.0", 1),
             ("1.00000", 1),
             ("+1.0", 1),
@@ -488,10 +482,10 @@ namespace Mariana.AVM2.Tests {
             ("0." + new string('0', 323) + "494065645841246", Double.Epsilon),
             ("0." + new string('0', 323) + "5", Double.Epsilon),
             ("0." + new string('0', 323) + "4", Double.Epsilon),
-            ("0." + new string('0', 323) + "3", Double.Epsilon),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            ("0." + new string('0', 323) + "3", Double.Epsilon)
+        );
 
-        public static IEnumerable<object[]> stringToDouble_shouldParse_data_scientific = new (string, double)[] {
+        public static IEnumerable<object[]> stringToDouble_shouldParse_data_scientific = TupleHelper.toArrays(
             ("1e0", 1),
             ("1e+0", 1),
             ("1e-0", 1),
@@ -596,10 +590,10 @@ namespace Mariana.AVM2.Tests {
             ("3e-324", Double.Epsilon),
             ("1e-323", Double.Epsilon * 2),
             ("3.5e-323", Double.Epsilon * 7),
-            ("6.5e-323", Double.Epsilon * 13),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            ("6.5e-323", Double.Epsilon * 13)
+        );
 
-        public static IEnumerable<object[]> stringToDouble_shouldParse_data_overflow = new (string, double)[] {
+        public static IEnumerable<object[]> stringToDouble_shouldParse_data_overflow = TupleHelper.toArrays(
             ("2e308", Double.PositiveInfinity),
             ("1e+309", Double.PositiveInfinity),
             ("1e+400", Double.PositiveInfinity),
@@ -612,8 +606,8 @@ namespace Mariana.AVM2.Tests {
             ("2e-324", 0),
             ("2.4e-324", 0),
             ("0.000000000024e-314", 0),
-            ("0." + new string('0', 323) + "24", 0),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            ("0." + new string('0', 323) + "24", 0)
+        );
 
         [Theory]
         [MemberData(nameof(stringToDouble_shouldParse_data_integers))]
@@ -626,7 +620,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expected, value);
         }
 
-        public static IEnumerable<object[]> stringToDouble_shouldParseHex_data = new (string, double)[] {
+        public static IEnumerable<object[]> stringToDouble_shouldParseHex_data = TupleHelper.toArrays(
             ("0x0", 0),
             ("-0x0", NEG_ZERO),
             ("0x1", 1),
@@ -648,8 +642,8 @@ namespace Mariana.AVM2.Tests {
             ("0xfffffffffffffb" + new string('f', 242), Double.MaxValue),
             ("0xfffffffffffffc" + new string('0', 242), Double.PositiveInfinity),
             ("0xfffffffffffff8" + new string('0', 243), Double.PositiveInfinity),
-            ("-0xfffffffffffff8" + new string('0', 242), -Double.MaxValue),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            ("-0xfffffffffffff8" + new string('0', 242), -Double.MaxValue)
+        );
 
         [Theory]
         [MemberData(nameof(stringToDouble_shouldParseHex_data))]
@@ -660,7 +654,7 @@ namespace Mariana.AVM2.Tests {
             Assert.False(stringToDouble(str, out _, out _, allowHex: false));
         }
 
-        public static IEnumerable<object[]> stringToDouble_shouldIgnoreLeadingSpaces_data = new (string, double)[] {
+        public static IEnumerable<object[]> stringToDouble_shouldIgnoreLeadingSpaces_data = TupleHelper.toArrays(
             ("   0", 0),
             ("  \r\n\t \f\v 1.5", 1.5),
             ("  \u2000 \u200B  \u2003\u3000  \u205F\n  4.5888", 4.5888),
@@ -670,8 +664,8 @@ namespace Mariana.AVM2.Tests {
             ("     0x400", 1024),
             (" \n\n\n  -0X400", -1024),
             ("   Infinity", Double.PositiveInfinity),
-            ("   -Infinity", Double.NegativeInfinity),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            ("   -Infinity", Double.NegativeInfinity)
+        );
 
         [Theory]
         [MemberData(nameof(stringToDouble_shouldIgnoreLeadingSpaces_data))]
@@ -681,7 +675,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expected, value);
         }
 
-        public static IEnumerable<object[]> stringToDouble_shouldCheckTrailingSpacesIfStrict_data = new (string, double, int, bool)[] {
+        public static IEnumerable<object[]> stringToDouble_shouldCheckTrailingSpacesIfStrict_data = TupleHelper.toArrays(
             ("123", 123, 3, true),
             ("123  ", 123, 3, true),
             ("\t 123  \r\n \u205F  ", 123, 5, true),
@@ -719,8 +713,8 @@ namespace Mariana.AVM2.Tests {
             ("0x1234.", 4660, 6, false),
             ("0x1234.567", 4660, 6, false),
             ("0x1234e+1", 74574, 7, false),
-            ("0xabcdefg", 11259375, 8, false),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3, x.Item4});
+            ("0xabcdefg", 11259375, 8, false)
+        );
 
         [Theory]
         [MemberData(nameof(stringToDouble_shouldCheckTrailingSpacesIfStrict_data))]
@@ -741,7 +735,7 @@ namespace Mariana.AVM2.Tests {
             }
         }
 
-        public static IEnumerable<object[]> stringToDouble_shouldAlwaysFail_data = new string[] {
+        public static IEnumerable<object[]> stringToDouble_shouldAlwaysFail_data = TupleHelper.toArrays(
             "",
             "    ",
             "  \r\n  \t ",
@@ -773,8 +767,8 @@ namespace Mariana.AVM2.Tests {
             "0x.123456",
             "infinity",
             "INFINITY",
-            "inf",
-        }.Select(x => new object[] {x});
+            "inf"
+        );
 
         [Theory]
         [MemberData(nameof(stringToDouble_shouldAlwaysFail_data))]
@@ -785,7 +779,7 @@ namespace Mariana.AVM2.Tests {
             Assert.False(stringToDouble(str, out _, out _, strict: true, allowHex: true));
         }
 
-        public static IEnumerable<object[]> stringToDoubleIntPow2Radix_shouldParseString_data_base2 = new (string, int, double, int)[] {
+        public static IEnumerable<object[]> stringToDoubleIntPow2Radix_shouldParseString_data_base2 = TupleHelper.toArrays(
             ("0", 2, 0, 1),
             ("000000000", 2, 0, 9),
             ("1", 2, 1, 1),
@@ -822,10 +816,10 @@ namespace Mariana.AVM2.Tests {
             ("", 2, 0, 0),
             ("11111111abc", 2, 255, 8),
             ("12345", 2, 1, 1),
-            ("111   ", 2, 7, 3),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3, x.Item4});
+            ("111   ", 2, 7, 3)
+        );
 
-        public static IEnumerable<object[]> stringToDoubleIntPow2Radix_shouldParseString_data_base4 = new (string, int, double, int)[] {
+        public static IEnumerable<object[]> stringToDoubleIntPow2Radix_shouldParseString_data_base4 = TupleHelper.toArrays(
             ("0", 4, 0, 1),
             ("000000000", 4, 0, 9),
             ("1", 4, 1, 1),
@@ -862,10 +856,10 @@ namespace Mariana.AVM2.Tests {
             ("", 4, 0, 0),
             ("13333abc", 4, 511, 5),
             ("12345", 4, 27, 3),
-            ("333   ", 4, 63, 3),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3, x.Item4});
+            ("333   ", 4, 63, 3)
+        );
 
-        public static IEnumerable<object[]> stringToDoubleIntPow2Radix_shouldParseString_data_base8 = new (string, int, double, int)[] {
+        public static IEnumerable<object[]> stringToDoubleIntPow2Radix_shouldParseString_data_base8 = TupleHelper.toArrays(
             ("0", 8, 0, 1),
             ("000000000", 8, 0, 9),
             ("1", 8, 1, 1),
@@ -910,10 +904,10 @@ namespace Mariana.AVM2.Tests {
             ("", 8, 0, 0),
             ("14677abc", 8, 6591, 5),
             ("123456789", 8, 342391, 7),
-            ("333   ", 8, 219, 3),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3, x.Item4});
+            ("333   ", 8, 219, 3)
+        );
 
-        public static IEnumerable<object[]> stringToDoubleIntPow2Radix_shouldParseString_data_base16 = new (string, int, double, int)[] {
+        public static IEnumerable<object[]> stringToDoubleIntPow2Radix_shouldParseString_data_base16 = TupleHelper.toArrays(
             ("0", 16, 0, 1),
             ("000000000", 16, 0, 9),
             ("1", 16, 1, 1),
@@ -962,10 +956,10 @@ namespace Mariana.AVM2.Tests {
             ("g", 16, 0, 0),
             ("176abcf!", 16, 24554447, 7),
             ("1236abcfgh", 16, 305572815, 8),
-            ("333d   ", 16, 13117, 4),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3, x.Item4});
+            ("333d   ", 16, 13117, 4)
+        );
 
-        public static IEnumerable<object[]> stringToDoubleIntPow2Radix_shouldParseString_data_base32 = new (string, int, double, int)[] {
+        public static IEnumerable<object[]> stringToDoubleIntPow2Radix_shouldParseString_data_base32 = TupleHelper.toArrays(
             ("0", 32, 0, 1),
             ("000000000", 32, 0, 9),
             ("1", 32, 1, 1),
@@ -1014,8 +1008,8 @@ namespace Mariana.AVM2.Tests {
             ("", 32, 0, 0),
             ("176b3t9!", 32, 1315278761, 7),
             ("1238tuvw", 32, 1144289247, 7),
-            ("uvu1   ", 32, 1015745, 4),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3, x.Item4});
+            ("uvu1   ", 32, 1015745, 4)
+        );
 
         [Theory]
         [MemberData(nameof(stringToDoubleIntPow2Radix_shouldParseString_data_base2))]
@@ -1029,7 +1023,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expectedCharsRead, charsRead);
         }
 
-        public static IEnumerable<object[]> stringToDoubleIntRadix_shouldParseStringBase10_data = new (string, double, int?)[] {
+        public static IEnumerable<object[]> stringToDoubleIntRadix_shouldParseStringBase10_data = TupleHelper.toArrays<string, double, int?>(
             ("", 0, null),
             ("0", 0, null),
             ("2", 2, null),
@@ -1080,8 +1074,8 @@ namespace Mariana.AVM2.Tests {
             ("  123", 0, 0),
             ("123  ", 123, 3),
             ("1.234e+5", 1, 1),
-            ("1234e+5", 1234, 4),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3});
+            ("1234e+5", 1234, 4)
+        );
 
         [Theory]
         [MemberData(nameof(stringToDoubleIntRadix_shouldParseStringBase10_data))]
@@ -1091,7 +1085,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expectedCharsRead ?? str.Length, charsRead);
         }
 
-        public static IEnumerable<object[]> stringToDoubleIntRadix_shouldParseStringNonBase10_data = new (string, int, double, int?)[] {
+        public static IEnumerable<object[]> stringToDoubleIntRadix_shouldParseStringNonBase10_data = TupleHelper.toArrays<string, int, double, int?>(
             ("", 2, 0, null),
             ("", 3, 0, null),
             ("", 5, 0, null),
@@ -1271,8 +1265,8 @@ namespace Mariana.AVM2.Tests {
             ("!!!", 36, 0, 0),
 
             ("123456     ", 7, 22875, 6),
-            ("123456789abcdefghijklmn\t1234", 24, 2.5212396537812554e+30, 23),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3, x.Item4});
+            ("123456789abcdefghijklmn\t1234", 24, 2.5212396537812554e+30, 23)
+        );
 
         [Theory]
         [MemberData(nameof(stringToDoubleIntRadix_shouldParseStringNonBase10_data))]
@@ -1284,7 +1278,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expectedCharsRead ?? str.Length, charsRead);
         }
 
-        public static IEnumerable<object[]> stringToIntUint_shouldParse_decimal_data = new (string, int)[] {
+        public static IEnumerable<object[]> stringToIntUint_shouldParse_decimal_data = TupleHelper.toArrays(
             ("0", 0),
             ("+0", 0),
             ("-0", 0),
@@ -1319,8 +1313,8 @@ namespace Mariana.AVM2.Tests {
             ("18446744073709551616", 0),
             ("18446744073709551626", 10),
             ("18446744073709551606", -10),
-            ("129127208515967007305", 145993),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            ("129127208515967007305", 145993)
+        );
 
         [Theory]
         [MemberData(nameof(stringToIntUint_shouldParse_decimal_data))]
@@ -1338,7 +1332,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(str.Length, charsRead);
         }
 
-        public static IEnumerable<object[]> stringToIntUint_shouldParse_hex_data = new (string, int)[] {
+        public static IEnumerable<object[]> stringToIntUint_shouldParse_hex_data = TupleHelper.toArrays(
             ("0x0", 0),
             ("0x00000", 0),
             ("-0x0", 0),
@@ -1369,8 +1363,8 @@ namespace Mariana.AVM2.Tests {
             ("0x1674aa6300c764421c0", 0x764421c0),
             ("-0x1674aa6300c764421c0", -0x764421c0),
             ("0x1674aa6300cfffffffd", -3),
-            ("-0x1674aa6300cfffffffd", 3),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            ("-0x1674aa6300cfffffffd", 3)
+        );
 
         [Theory]
         [MemberData(nameof(stringToIntUint_shouldParse_hex_data))]
@@ -1391,7 +1385,7 @@ namespace Mariana.AVM2.Tests {
             Assert.False(stringToUint(str, out _, out _, allowHex: false));
         }
 
-        public static IEnumerable<object[]> stringToIntUint_shouldCheckLeadingAndTrailing_data = new (string, int, int, bool)[] {
+        public static IEnumerable<object[]> stringToIntUint_shouldCheckLeadingAndTrailing_data = TupleHelper.toArrays(
             ("    0", 0, 5, true),
             ("    0   ", 0, 5, true),
             (" \n\t \u200b 30\f\v \u3000", 30, 8, true),
@@ -1413,8 +1407,8 @@ namespace Mariana.AVM2.Tests {
             ("12,345,678", 12, 2, false),
             ("0xabcdefg", 0xabcdef, 8, false),
             ("0y1234", 0, 1, false),
-            ("0x1234.56", 0x1234, 6, false),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3, x.Item4});
+            ("0x1234.56", 0x1234, 6, false)
+        );
 
         [Theory]
         [MemberData(nameof(stringToIntUint_shouldCheckLeadingAndTrailing_data))]
@@ -1448,7 +1442,7 @@ namespace Mariana.AVM2.Tests {
             }
         }
 
-        public static IEnumerable<object[]> stringToIntUint_shouldAlwaysFail_data = new string[] {
+        public static IEnumerable<object[]> stringToIntUint_shouldAlwaysFail_data = TupleHelper.toArrays(
             "",
             "abc",
             "a123",
@@ -1466,8 +1460,8 @@ namespace Mariana.AVM2.Tests {
             "- 1234",
             "(1234)",
             "Infinity",
-            "NaN",
-        }.Select(x => new object[] {x});
+            "NaN"
+        );
 
         [Theory]
         [MemberData(nameof(stringToIntUint_shouldAlwaysFail_data))]
@@ -1482,7 +1476,7 @@ namespace Mariana.AVM2.Tests {
             Assert.False(stringToUint(str, out _, out _, strict: true, allowHex: true));
         }
 
-        public static IEnumerable<object[]> parseArrayIndex_shouldParse_data = new (string, bool?, uint)[] {
+        public static IEnumerable<object[]> parseArrayIndex_shouldParse_data = TupleHelper.toArrays<string, bool?, uint>(
             ("0", null, 0),
             ("1", null, 1),
             ("01", true, 1),
@@ -1494,8 +1488,8 @@ namespace Mariana.AVM2.Tests {
             ("2147483647", null, 2147483647),
             ("4294967294", null, 4294967294u),
             ("4294967295", null, 4294967295u),
-            ("00004294967295", true, 4294967295u),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3});
+            ("00004294967295", true, 4294967295u)
+        );
 
         [Theory]
         [MemberData(nameof(parseArrayIndex_shouldParse_data))]
@@ -1514,7 +1508,7 @@ namespace Mariana.AVM2.Tests {
             }
         }
 
-        public static IEnumerable<object[]> parseArrayIndex_shouldFail_data = new (string, bool?)[] {
+        public static IEnumerable<object[]> parseArrayIndex_shouldFail_data = TupleHelper.toArrays<string, bool?>(
             (null, null),
             ("", null),
             ("01", false),
@@ -1541,8 +1535,8 @@ namespace Mariana.AVM2.Tests {
             ("0x12", null),
             ("123abc", null),
             ("199999999abc", null),
-            ("1999999999abc", null),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            ("1999999999abc", null)
+        );
 
         [Theory]
         [MemberData(nameof(parseArrayIndex_shouldFail_data))]
@@ -1556,7 +1550,7 @@ namespace Mariana.AVM2.Tests {
             }
         }
 
-        public static IEnumerable<object[]> doubleToStringFixedNotation_shouldFormat_data = new (double, int, string)[] {
+        public static IEnumerable<object[]> doubleToStringFixedNotation_shouldFormat_data = TupleHelper.toArrays(
             (0, 0, "0"),
             (NEG_ZERO, 0, "0"),
             (0, 2, "0.00"),
@@ -1648,8 +1642,8 @@ namespace Mariana.AVM2.Tests {
             (Double.PositiveInfinity, 21, "Infinity"),
             (Double.NegativeInfinity, 0, "-Infinity"),
             (Double.NegativeInfinity, 21, "-Infinity"),
-            (Double.NaN, 0, "NaN"),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3});
+            (Double.NaN, 0, "NaN")
+        );
 
         [Theory]
         [MemberData(nameof(doubleToStringFixedNotation_shouldFormat_data))]
@@ -1657,7 +1651,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expected, doubleToStringFixedNotation(value, precision));
         }
 
-        public static IEnumerable<object[]> doubleToStringExpNotation_shouldFormat_data = new (double, int, string)[] {
+        public static IEnumerable<object[]> doubleToStringExpNotation_shouldFormat_data = TupleHelper.toArrays(
             (0, 0, "0e+0"),
             (NEG_ZERO, 0, "0e+0"),
             (0, 2, "0.00e+0"),
@@ -1742,8 +1736,8 @@ namespace Mariana.AVM2.Tests {
             (Double.PositiveInfinity, 20, "Infinity"),
             (Double.NegativeInfinity, 0, "-Infinity"),
             (Double.NegativeInfinity, 20, "-Infinity"),
-            (Double.NaN, 0, "NaN"),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3});
+            (Double.NaN, 0, "NaN")
+        );
 
         [Theory]
         [MemberData(nameof(doubleToStringExpNotation_shouldFormat_data))]
@@ -1751,7 +1745,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expected, doubleToStringExpNotation(value, precision));
         }
 
-        public static IEnumerable<object[]> doubleToStringPrecision_shouldFormat_data = new (double, int, string)[] {
+        public static IEnumerable<object[]> doubleToStringPrecision_shouldFormat_data = TupleHelper.toArrays(
             (0, 1, "0"),
             (NEG_ZERO, 1, "0"),
             (0, 2, "0.0"),
@@ -1945,8 +1939,8 @@ namespace Mariana.AVM2.Tests {
             (Double.NegativeInfinity, 1, "-Infinity"),
             (Double.NegativeInfinity, 21, "-Infinity"),
             (Double.NaN, 1, "NaN"),
-            (Double.NaN, 21, "NaN"),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3});
+            (Double.NaN, 21, "NaN")
+        );
 
         [Theory]
         [MemberData(nameof(doubleToStringPrecision_shouldFormat_data))]
@@ -1955,7 +1949,7 @@ namespace Mariana.AVM2.Tests {
         }
 
         public static IEnumerable<object[]> doubleToStringPow2Radix_shouldFormat_data =
-            new (double, string, string, string, string, string)[] {
+            TupleHelper.toArrays(
                 (0.0, "0", "0", "0", "0", "0"),
                 (NEG_ZERO, "0", "0", "0", "0", "0"),
                 (1.0, "1", "1", "1", "1", "1"),
@@ -2233,8 +2227,8 @@ namespace Mariana.AVM2.Tests {
 
                 (Double.PositiveInfinity, "Infinity", "Infinity", "Infinity", "Infinity", "Infinity"),
                 (Double.NegativeInfinity, "-Infinity", "-Infinity", "-Infinity", "-Infinity", "-Infinity"),
-                (Double.NaN, "NaN", "NaN", "NaN", "NaN", "NaN"),
-            }.Select(x => new object[] {x.Item1, x.Item2, x.Item3, x.Item4, x.Item5, x.Item6});
+                (Double.NaN, "NaN", "NaN", "NaN", "NaN", "NaN")
+            );
 
         [Theory]
         [MemberData(nameof(doubleToStringPow2Radix_shouldFormat_data))]
@@ -2248,7 +2242,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expectedBase32, doubleToStringPow2Radix(value, 32));
         }
 
-        public static IEnumerable<object[]> doubleIntegerToStringRadix_shouldFormat_data = new (double, int, string)[] {
+        public static IEnumerable<object[]> doubleIntegerToStringRadix_shouldFormat_data = TupleHelper.toArrays(
             (0.0, 2, "0"),
             (0.0, 15, "0"),
             (0.0, 20, "0"),
@@ -2609,8 +2603,8 @@ namespace Mariana.AVM2.Tests {
             (Double.NaN, 9, "NaN"),
             (Double.NaN, 16, "NaN"),
             (Double.NaN, 23, "NaN"),
-            (Double.NaN, 36, "NaN"),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3});
+            (Double.NaN, 36, "NaN")
+        );
 
         [Theory]
         [MemberData(nameof(doubleIntegerToStringRadix_shouldFormat_data))]

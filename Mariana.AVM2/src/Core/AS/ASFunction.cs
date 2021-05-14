@@ -70,7 +70,14 @@ namespace Mariana.AVM2.Core {
         public virtual MethodTrait method => null;
 
         /// <summary>
-        /// Gets the stored receiver of a method closure.
+        /// Returns true if this <see cref="ASFunction"/> instance is a method closure, otherwise false.
+        /// </summary>
+        public virtual bool isMethodClosure => false;
+
+        /// <summary>
+        /// Gets the stored receiver of a method closure created from an instance method. If this
+        /// <see cref="ASFunction"/> instance is not a method closure or a method closure of a static
+        /// or global method, the value of this property is null.
         /// </summary>
         public virtual ASObject storedReceiver => null;
 
@@ -78,12 +85,15 @@ namespace Mariana.AVM2.Core {
         /// Creates a delegate from the underlying method of the Function object with the given
         /// receiver.
         /// </summary>
+        ///
         /// <param name="receiver">The receiver ("this" parameter) in calls to the returned delegate.
         /// This is ignored for method closures, which always use their stored receiver. For function
         /// closures, the global object of the application domain of the function's underlying method
-        /// is used as the receiver if this value is null.</param>
+        /// is used as the receiver if this argument is null.</param>
+        ///
         /// <typeparam name="T">The type of the delegate. The signature of this type must be
         /// compatible with that of the underlying method of the Function object.</typeparam>
+        ///
         /// <returns>The created delegate; null if the signature of <typeparamref name="T"/>
         /// is not compatible with that of the underlying method of the Function object, or if
         /// <paramref name="receiver"/> is not of the correct type.</returns>
@@ -223,6 +233,8 @@ namespace Mariana.AVM2.Core {
         public override MethodTrait method => m_method;
 
         public override int length => m_method.paramCount;
+
+        public override bool isMethodClosure => true;
 
         public override ASObject prototype {
             get => base.prototype;

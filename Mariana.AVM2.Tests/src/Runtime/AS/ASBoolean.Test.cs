@@ -83,8 +83,8 @@ namespace Mariana.AVM2.Tests {
 
         [Fact]
         public void shouldConvertFromObject() {
-            ASObject falseObj = new SpyObjectWithConversions() {boolValue = false};
-            ASObject trueObj = new SpyObjectWithConversions() {boolValue = true};
+            ASObject falseObj = new ConvertibleMockObject(boolValue: false);
+            ASObject trueObj = new ConvertibleMockObject(boolValue: true);
 
             Assert.False((bool)falseObj);
             Assert.False(ASObject.AS_toBoolean(falseObj));
@@ -99,8 +99,8 @@ namespace Mariana.AVM2.Tests {
 
         [Fact]
         public void classInvokeOrConstruct_shouldConvertFirstArg() {
-            ASObject falseObj = new SpyObjectWithConversions() {boolValue = false};
-            ASObject trueObj = new SpyObjectWithConversions() {boolValue = true};
+            ASObject falseObj = new ConvertibleMockObject(boolValue: false);
+            ASObject trueObj = new ConvertibleMockObject(boolValue: true);
 
             check(s_booleanClass.invoke(new ASAny[] {}), false);
             check(s_booleanClass.invoke(new ASAny[] {default}), false);

@@ -10,7 +10,7 @@ namespace Mariana.AVM2.Tests {
 
     public class MetadataTagTest {
 
-        public static IEnumerable<object[]> shouldCreateFromKeysAndValues_data = new (string name, string[] keys, string[] values)[] {
+        public static IEnumerable<object[]> shouldCreateFromKeysAndValues_data = TupleHelper.toArrays(
             (
                 "A", null, null
             ),
@@ -51,7 +51,7 @@ namespace Mariana.AVM2.Tests {
                 new[] {"a", "b", "c", "d", "e", "f", "g", "g", "f", null, "d", "c", null, "b", "a"},
                 new[] {"abcd", "efgh", "ijkl", "mnop", "qrst", "uvwx", "yzAB", "<>", "Q", "", "{44", "fj", "OP4", "lli", "9003"}
             )
-        }.Select(x => new object[] {x.name, x.keys, x.values});
+        );
 
         [Theory]
         [MemberData(nameof(shouldCreateFromKeysAndValues_data))]
@@ -68,7 +68,7 @@ namespace Mariana.AVM2.Tests {
             );
         }
 
-        public static IEnumerable<object[]> hasValueAndIndexerTest_data = new (string name, string[] keys, string[] values, string[] failKeys)[] {
+        public static IEnumerable<object[]> hasValueAndIndexerTest_data = TupleHelper.toArrays(
             (
                 "A", null, null, new[] {"a", "b", "c", "d", ""}
             ),
@@ -114,7 +114,7 @@ namespace Mariana.AVM2.Tests {
                 new[] {"abcd", "efgh", "ijkl", "mnop", "qrst", "uvwx", "yzAB", "<>", "Q", "", "{44", "fj", "OP4", "lli", "9003"},
                 new[] {"abcd", "efgh", "ijkl", "<>", "null", "{44"}
             )
-        }.Select(x => new object[] {x.name, x.keys, x.values, x.failKeys});
+        );
 
         [Theory]
         [MemberData(nameof(hasValueAndIndexerTest_data))]
@@ -147,7 +147,7 @@ namespace Mariana.AVM2.Tests {
             }
         }
 
-        public static IEnumerable<object[]> toStringTest_data = new (string name, string[] keys, string[] values, string expected)[] {
+        public static IEnumerable<object[]> toStringTest_data = TupleHelper.toArrays(
             (
                 "A", null, null, "[A]"
             ),
@@ -225,8 +225,8 @@ namespace Mariana.AVM2.Tests {
             ),
             (
                 "ABC\\\"'", new[] {"abc\\\"'"}, new[] {"def\\\"'"}, @"[""ABC\\\""'""(""abc\\\""'"" = ""def\\\""'"")]"
-            ),
-        }.Select(x => new object[] {x.name, x.keys, x.values, x.expected});
+            )
+        );
 
         [Theory]
         [MemberData(nameof(toStringTest_data))]

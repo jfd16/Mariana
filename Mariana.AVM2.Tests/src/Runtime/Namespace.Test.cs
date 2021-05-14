@@ -225,20 +225,20 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(s, ns.uri);
         }
 
-        public static IEnumerable<object[]> toString_shouldReturnStringRepr_data = new object[][] {
-            new object[] { Namespace.any, "*" },
-            new object[] { Namespace.@public, "" },
-            new object[] { new Namespace("hello"), "hello" },
-            new object[] { new Namespace("*"), "*" },
-            new object[] { new Namespace(NamespaceKind.NAMESPACE, "hello"), "hello" },
-            new object[] { new Namespace(NamespaceKind.EXPLICIT, ""), "<explicit >" },
-            new object[] { new Namespace(NamespaceKind.EXPLICIT, "hello"), "<explicit hello>" },
-            new object[] { new Namespace(NamespaceKind.PACKAGE_INTERNAL, "hello"), "<internal hello>" },
-            new object[] { new Namespace(NamespaceKind.PROTECTED, "hello"), "<protected hello>" },
-            new object[] { new Namespace(NamespaceKind.STATIC_PROTECTED, "hello"), "<static protected hello>" },
-            new object[] { Namespace.createPrivate(0), "<private #0>" },
-            new object[] { Namespace.createPrivate(100), "<private #100>" },
-        };
+        public static IEnumerable<object[]> toString_shouldReturnStringRepr_data = TupleHelper.toArrays(
+            (Namespace.any, "*"),
+            (Namespace.@public, ""),
+            (new Namespace("hello"), "hello"),
+            (new Namespace("*"), "*"),
+            (new Namespace(NamespaceKind.NAMESPACE, "hello"), "hello"),
+            (new Namespace(NamespaceKind.EXPLICIT, ""), "<explicit >"),
+            (new Namespace(NamespaceKind.EXPLICIT, "hello"), "<explicit hello>"),
+            (new Namespace(NamespaceKind.PACKAGE_INTERNAL, "hello"), "<internal hello>"),
+            (new Namespace(NamespaceKind.PROTECTED, "hello"), "<protected hello>"),
+            (new Namespace(NamespaceKind.STATIC_PROTECTED, "hello"), "<static protected hello>"),
+            (Namespace.createPrivate(0), "<private #0>"),
+            (Namespace.createPrivate(100), "<private #100>")
+        );
 
         [Theory]
         [MemberData(nameof(toString_shouldReturnStringRepr_data))]

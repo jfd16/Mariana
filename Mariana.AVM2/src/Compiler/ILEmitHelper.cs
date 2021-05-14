@@ -359,7 +359,7 @@ namespace Mariana.AVM2.Compiler {
         /// <returns>A <see cref="MethodInfo"/> representing the casting function.</returns>
         public static MethodInfo getAnyCastMethod(Class toType) {
             return s_anyCastMethods.GetValue(
-                Class.getUnderlyingOrPrimitiveType(toType),
+                toType.underlyingType,
                 x => KnownMembers.anyCast.MakeGenericMethod(x)
             );
         }
@@ -372,7 +372,7 @@ namespace Mariana.AVM2.Compiler {
         /// <returns>A <see cref="MethodInfo"/> representing the casting function.</returns>
         public static MethodInfo getObjectCastMethod(Class toType) {
             return s_objectCastMethods.GetValue(
-                Class.getUnderlyingOrPrimitiveType(toType),
+                toType.underlyingType,
                 x => KnownMembers.objectCast.MakeGenericMethod(x)
             );
         }

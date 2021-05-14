@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using Mariana.Common;
 using Mariana.AVM2.Native;
+using Mariana.Common;
 
 namespace Mariana.AVM2.Core {
 
@@ -121,6 +121,32 @@ namespace Mariana.AVM2.Core {
         /// attempt to change the length of a fixed-length vector will result in an error.</param>
         /// <typeparam name="U">The type of the elements in <paramref name="data"/>.</typeparam>
         public static ASVector<T> fromSpan<U>(ReadOnlySpan<U> data, bool isFixed = false) {
+            var vec = new ASVector<T>(data.Length, isFixed);
+            GenericTypeConverter<U, T>.instance.convertSpan(data, vec.asSpan());
+            return vec;
+        }
+
+        /// <summary>
+        /// Creates a new Vector with data from the given array.
+        /// </summary>
+        ///
+        /// <param name="data">The array containing the elements of the <see cref="ASVector{T}"/> instance
+        /// to be created.</param>
+        /// <param name="isFixed">A Boolean value indicating whether the vector has a fixed length. Any
+        /// attempt to change the length of a fixed-length vector will result in an error.</param>
+        public static ASVector<T> fromTypedArray(T[] data, bool isFixed = false) => fromSpan(new ReadOnlySpan<T>(data), isFixed);
+
+        /// <summary>
+        /// Creates a new Vector with data from the given typed array, converting the elements to
+        /// the vector's element type.
+        /// </summary>
+        ///
+        /// <param name="data">The array containing the elements of the <see cref="ASVector{T}"/> instance
+        /// to be created.</param>
+        /// <param name="isFixed">A Boolean value indicating whether the vector has a fixed length. Any
+        /// attempt to change the length of a fixed-length vector will result in an error.</param>
+        /// <typeparam name="U">The type of the elements in <paramref name="data"/>.</typeparam>
+        public static ASVector<T> fromTypedArray<U>(U[] data, bool isFixed = false) {
             var vec = new ASVector<T>(data.Length, isFixed);
             GenericTypeConverter<U, T>.instance.convertSpan(data, vec.asSpan());
             return vec;
@@ -918,7 +944,7 @@ namespace Mariana.AVM2.Core {
             if (callback == null)
                 return true;
 
-            if (thisObject != null && callback is ASMethodClosure)
+            if (thisObject != null && callback.isMethodClosure)
                 throw ErrorHelper.createError(ErrorCode.CALLBACK_METHOD_THIS_NOT_NULL);
 
             var anyConverter = GenericTypeConverter<T, ASAny>.instance;
@@ -977,7 +1003,7 @@ namespace Mariana.AVM2.Core {
             if (callback == null)
                 return new ASVector<T>();
 
-            if (thisObject != null && callback is ASMethodClosure)
+            if (thisObject != null && callback.isMethodClosure)
                 throw ErrorHelper.createError(ErrorCode.CALLBACK_METHOD_THIS_NOT_NULL);
 
             var anyConverter = GenericTypeConverter<T, ASAny>.instance;
@@ -1032,7 +1058,7 @@ namespace Mariana.AVM2.Core {
             if (callback == null)
                 return;
 
-            if (thisObject != null && callback is ASMethodClosure)
+            if (thisObject != null && callback.isMethodClosure)
                 throw ErrorHelper.createError(ErrorCode.CALLBACK_METHOD_THIS_NOT_NULL);
 
             var anyConverter = GenericTypeConverter<T, ASAny>.instance;
@@ -1169,7 +1195,7 @@ namespace Mariana.AVM2.Core {
             if (callback == null)
                 return new ASVector<T>(m_length);
 
-            if (thisObject != null && callback is ASMethodClosure)
+            if (thisObject != null && callback.isMethodClosure)
                 throw ErrorHelper.createError(ErrorCode.CALLBACK_METHOD_THIS_NOT_NULL);
 
             var convTypeToAny = GenericTypeConverter<T, ASAny>.instance;
@@ -1375,7 +1401,7 @@ namespace Mariana.AVM2.Core {
             if (callback == null)
                 return false;
 
-            if (thisObject != null && callback is ASMethodClosure)
+            if (thisObject != null && callback.isMethodClosure)
                 throw ErrorHelper.createError(ErrorCode.CALLBACK_METHOD_THIS_NOT_NULL);
 
             var anyConverter = GenericTypeConverter<T, ASAny>.instance;
@@ -1433,9 +1459,16 @@ namespace Mariana.AVM2.Core {
                 comparerType = GenericComparerType.STRING;
 
             var comparer = GenericComparer<T>.getComparer(comparerType);
-            bool success = ArraySortHelper.sort(m_data, comparer, (flags & ASArray.UNIQUESORT) != 0, m_length);
+            Array.Sort(m_data, 0, m_length, comparer);
 
-            if (success && (flags & ASArray.DESCENDING) != 0)
+            if ((flags & ASArray.UNIQUESORT) != 0) {
+                for (int i = 0, n = m_length; i + 1 < n; i++) {
+                    if (comparer.Compare(m_data[i], m_data[i + 1]) == 0)
+                        return this;
+                }
+            }
+
+            if ((flags & ASArray.DESCENDING) != 0)
                 reverse();
 
             return this;

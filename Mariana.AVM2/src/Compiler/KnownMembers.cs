@@ -146,8 +146,17 @@ namespace Mariana.AVM2.Compiler {
         public static readonly MI anyAdd =
             getMemberFromExpr<Func<ASAny, ASAny, ASObject>, MI>((x, y) => ASAny.AS_add(x, y));
 
-        public static readonly MI stringAdd =
+        public static readonly MI stringAdd2 =
             getMemberFromExpr<Func<string, string, string>, MI>((x, y) => ASString.AS_add(x, y));
+
+        public static readonly MI stringAdd3 =
+            getMemberFromExpr<Func<string, string, string, string>, MI>((x, y, z) => ASString.AS_add(x, y, z));
+
+        public static readonly MI stringAdd4 =
+            getMemberFromExpr<Func<string, string, string, string, string>, MI>((x, y, z, w) => ASString.AS_add(x, y, z, w));
+
+        public static readonly MI stringAddArray =
+            getMemberFromExpr<Func<string[], string>, MI>(x => ASString.AS_add(x));
 
         public static readonly MI objWeakEq =
             getMemberFromExpr<Func<ASObject, ASObject, bool>, MI>((x, y) => ASObject.AS_weakEq(x, y));

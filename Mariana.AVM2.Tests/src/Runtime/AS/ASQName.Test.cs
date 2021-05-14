@@ -93,7 +93,7 @@ namespace Mariana.AVM2.Tests {
         }
 
         public static IEnumerable<object[]> constructor_shouldCreateFromPrefixUriAndLocalName_data =
-            new (string, string, string, string, string, string)[] {
+            TupleHelper.toArrays(
                 (null, null, null, null, null, "null"),
                 (null, null, "", null, null, ""),
                 (null, null, "a", null, null, "a"),
@@ -133,8 +133,8 @@ namespace Mariana.AVM2.Tests {
                 ("1", "b", null, null, "b", "null"),
                 ("1", "b", "", null, "b", ""),
                 ("1", "b", "a", null, "b", "a"),
-                ("1", "b", "*", null, "b", "*"),
-            }.Select(x => new object[] {x.Item1, x.Item2, x.Item3, x.Item4, x.Item5, x.Item6});
+                ("1", "b", "*", null, "b", "*")
+            );
 
         [Theory]
         [MemberData(nameof(constructor_shouldCreateFromPrefixUriAndLocalName_data))]
@@ -147,7 +147,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expectedUri, qname.uri);
         }
 
-        public static IEnumerable<object[]> constructor_shouldCreateFromNamespaceAndLocalName_data = new (ASNamespace, string, string)[] {
+        public static IEnumerable<object[]> constructor_shouldCreateFromNamespaceAndLocalName_data = TupleHelper.toArrays(
             (ASNamespace.@public, null, "null"),
             (new ASNamespace("a"), null, "null"),
             (new ASNamespace("*"), null, "null"),
@@ -159,8 +159,8 @@ namespace Mariana.AVM2.Tests {
             (ASNamespace.@public, "x", "x"),
             (new ASNamespace("a"), "x", "x"),
             (new ASNamespace("*"), "x", "x"),
-            (new ASNamespace("a", "b"), "x", "x"),
-        }.Select(x => new object[] {x.Item1, x.Item2, x.Item3});
+            (new ASNamespace("a", "b"), "x", "x")
+        );
 
         [Theory]
         [MemberData(nameof(constructor_shouldCreateFromNamespaceAndLocalName_data))]
@@ -189,7 +189,7 @@ namespace Mariana.AVM2.Tests {
             AssertHelper.throwsErrorWithCode(ErrorCode.XML_ILLEGAL_PREFIX_PUBLIC_NAMESPACE, () => new ASQName("a", "", "b"));
         }
 
-        public static IEnumerable<object[]> toString_shouldReturnStringReprOfQName_data = new (ASQName, string)[] {
+        public static IEnumerable<object[]> toString_shouldReturnStringReprOfQName_data = TupleHelper.toArrays(
             (ASQName.any, "*::*"),
             (ASQName.anyNamespace(""), "*::"),
             (ASQName.anyNamespace("*"), "*::*"),
@@ -206,8 +206,8 @@ namespace Mariana.AVM2.Tests {
             (new ASQName("x", "a", "a"), "a::a"),
             (new ASQName("x", "a", "b"), "a::b"),
             (new ASQName("abc", "def"), "abc::def"),
-            (new ASQName("abc", "def", "ghi"), "def::ghi"),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            (new ASQName("abc", "def", "ghi"), "def::ghi")
+        );
 
         [Theory]
         [MemberData(nameof(toString_shouldReturnStringReprOfQName_data))]
@@ -215,7 +215,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expected, qname.AS_toString());
         }
 
-        public static IEnumerable<object[]> getNamespace_shouldGetQNameNamespace_data = new (ASQName, ASNamespace)[] {
+        public static IEnumerable<object[]> getNamespace_shouldGetQNameNamespace_data = TupleHelper.toArrays(
             (ASQName.any, null),
             (ASQName.anyNamespace(""), null),
             (ASQName.anyNamespace("*"), null),
@@ -232,8 +232,8 @@ namespace Mariana.AVM2.Tests {
             (new ASQName("x", "a", "a"), new ASNamespace("x", "a")),
             (new ASQName("x", "a", "b"), new ASNamespace("x", "a")),
             (new ASQName("abc", "def"), new ASNamespace("abc")),
-            (new ASQName("abc", "def", "ghi"), new ASNamespace("abc", "def")),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            (new ASQName("abc", "def", "ghi"), new ASNamespace("abc", "def"))
+        );
 
         [Theory]
         [MemberData(nameof(getNamespace_shouldGetQNameNamespace_data))]
@@ -269,31 +269,65 @@ namespace Mariana.AVM2.Tests {
                     n8f = new ASQName(new ASNamespace("", "c"), "abc"),
                     n9 = new ASQName("*", "a");
 
-            return new (ASQName, ASQName, bool)[] {
-                (null, null, true), (n1a, null, false), (null, n2b, false),
+            return TupleHelper.toArrays(
+                (null, null, true),
+                (n1a, null, false),
+                (null, n2b, false),
 
-                (n1a, n1a, true), (n2a, n2a, true), (n5, n5, true), (n8c, n8c, true),
+                (n1a, n1a, true),
+                (n2a, n2a, true),
+                (n5, n5, true),
+                (n8c, n8c, true),
 
-                (n1a, n1b, true),  (n1a, n1c, true), (n1b, n1c, true), (n1b, n1a, true),
+                (n1a, n1b, true),
+                (n1a, n1c, true),
+                (n1b, n1c, true),
+                (n1b, n1a, true),
 
-                (n2a, n2b, true), (n2b, n2a, true),
+                (n2a, n2b, true),
+                (n2b, n2a, true),
 
-                (n8a, n8b, true), (n8a, n8c, true), (n8a, n8d, true), (n8a, n8e, true), (n8a, n8f, true),
-                (n8d, n8c, true), (n8e, n8c, true), (n8f, n8c, true),
+                (n8a, n8b, true),
+                (n8a, n8c, true),
+                (n8a, n8d, true),
+                (n8a, n8e, true),
+                (n8a, n8f, true),
+                (n8d, n8c, true),
+                (n8e, n8c, true),
+                (n8f, n8c, true),
 
                 (n1a, n2a, false),
 
-                (n2b, n3, false), (n6, n2b, false), (n2a, n9, false), (n9, n2b, false), (n2a, n8c, false),
+                (n2b, n3, false),
+                (n6, n2b, false),
+                (n2a, n9, false),
+                (n9, n2b, false),
+                (n2a, n8c, false),
 
-                (n3, n4, false), (n3, n5, false), (n3, n6, false), (n3, n7, false),
-                (n4, n5, false), (n4, n6, false), (n5, n6, false),
-                (n4, n7, false), (n5, n7, false), (n6, n7, false),
+                (n3, n4, false),
+                (n3, n5, false),
+                (n3, n6, false),
+                (n3, n7, false),
+                (n4, n5, false),
+                (n4, n6, false),
+                (n5, n6, false),
+                (n4, n7, false),
+                (n5, n7, false),
+                (n6, n7, false),
 
-                (n3, n8a, false), (n8b, n5, false), (n8e, n6, false), (n4, n8b, false),
-                (n7, n8f, false), (n6, n8a, false), (n8a, n4, false), (n8d, n5, false),
+                (n3, n8a, false),
+                (n8b, n5, false),
+                (n8e, n6, false),
+                (n4, n8b, false),
+                (n7, n8f, false),
+                (n6, n8a, false),
+                (n8a, n4, false),
+                (n8d, n5, false),
 
-                (n9, n5, false), (n9, n8b, false), (n6, n9, false),
-            }.Select(x => new object[] {x.Item1, x.Item2, x.Item3});
+                (n9, n5, false),
+                (n9, n8b, false),
+                (n6, n9, false)
+            );
         }
 
         [Theory]
@@ -309,7 +343,7 @@ namespace Mariana.AVM2.Tests {
                 Assert.Equal(x.internalGetHashCode(), y.internalGetHashCode());
         }
 
-        public static IEnumerable<object[]> parse_shouldParseStringToQName_data = new (string, ASQName)[] {
+        public static IEnumerable<object[]> parse_shouldParseStringToQName_data = TupleHelper.toArrays(
             (null, ASQName.any),
             ("*", ASQName.any),
             ("*::*", ASQName.any),
@@ -347,8 +381,8 @@ namespace Mariana.AVM2.Tests {
             (" a::b", new ASQName(" a", "b")),
             ("a ::b", new ASQName("a ", "b")),
             ("a:: b", new ASQName("a", " b")),
-            (" a :: b ", new ASQName(" a ", " b ")),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            (" a :: b ", new ASQName(" a ", " b "))
+        );
 
         [Theory]
         [MemberData(nameof(parse_shouldParseStringToQName_data))]
@@ -367,7 +401,7 @@ namespace Mariana.AVM2.Tests {
             }
         }
 
-        public static IEnumerable<object[]> runtimeConstructorTest_data = new (ASAny[], ASQName)[] {
+        public static IEnumerable<object[]> runtimeConstructorTest_data = TupleHelper.toArrays(
             (Array.Empty<ASAny>(), new ASQName("", "")),
 
             (new ASAny[] {ASAny.undefined}, new ASQName("", "default", "undefined")),
@@ -461,8 +495,8 @@ namespace Mariana.AVM2.Tests {
             (new ASAny[] {new ASQName("p", "q", "r"), "a"}, new ASQName("p", "q", "a")),
 
             (new ASAny[] {"a", "b", "c"}, new ASQName("a", "b")),
-            (new ASAny[] {new ASNamespace("x", "y"), "z", "a", "b"}, new ASQName("x", "y", "z")),
-        }.Select(x => new object[] {x.Item1, x.Item2});
+            (new ASAny[] {new ASNamespace("x", "y"), "z", "a", "b"}, new ASQName("x", "y", "z"))
+        );
 
         [Theory]
         [MemberData(nameof(runtimeConstructorTest_data))]

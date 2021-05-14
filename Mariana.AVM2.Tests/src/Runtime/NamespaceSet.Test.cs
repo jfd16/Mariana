@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Mariana.AVM2.Core;
+using Mariana.AVM2.Tests.Helpers;
 using Xunit;
 
 namespace Mariana.AVM2.Tests {
@@ -30,7 +31,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(0, nsSet.getNamespaces().length);
         }
 
-        public static IEnumerable<object[]> ctor_shouldCreateSet_data = new Namespace[][] {
+        public static IEnumerable<object[]> ctor_shouldCreateSet_data = TupleHelper.toArrays(
             new Namespace[0],
             new[] { Namespace.any },
             new[] { Namespace.@public },
@@ -50,8 +51,8 @@ namespace Mariana.AVM2.Tests {
                 new Namespace(NamespaceKind.PACKAGE_INTERNAL, "a"),
                 new Namespace(NamespaceKind.PROTECTED, "b"),
                 new Namespace(NamespaceKind.STATIC_PROTECTED, "c")
-            },
-        }.Select(x => new object[] {x});
+            }
+        );
 
         [Theory]
         [MemberData(nameof(ctor_shouldCreateSet_data))]
@@ -94,7 +95,7 @@ namespace Mariana.AVM2.Tests {
                 Assert.Contains(namespaces[i].isPublic ? "<public>" : namespaces[i].ToString(), parts);
         }
 
-        public static IEnumerable<object[]> containsAny_shouldCheckIfSetContainsAny_data = new (Namespace[], bool)[] {
+        public static IEnumerable<object[]> containsAny_shouldCheckIfSetContainsAny_data = TupleHelper.toArrays(
             (new Namespace[0], false),
             (new[] { Namespace.@public }, false),
             (new[] { Namespace.any }, true),
@@ -133,7 +134,7 @@ namespace Mariana.AVM2.Tests {
                 },
                 true
             )
-        }.Select(x => new object[] {x.Item1, x.Item2});
+        );
 
         [Theory]
         [MemberData(nameof(containsAny_shouldCheckIfSetContainsAny_data))]
@@ -141,7 +142,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expected, (new NamespaceSet(elements)).containsAny);
         }
 
-        public static IEnumerable<object[]> containsPublic_shouldCheckIfSetContainsPublic_data = new (Namespace[], bool)[] {
+        public static IEnumerable<object[]> containsPublic_shouldCheckIfSetContainsPublic_data = TupleHelper.toArrays(
             (new Namespace[0], false),
             (new[] { Namespace.@public }, true),
             (new[] { Namespace.any }, false),
@@ -179,7 +180,7 @@ namespace Mariana.AVM2.Tests {
                 },
                 true
             )
-        }.Select(x => new object[] {x.Item1, x.Item2});
+        );
 
         [Theory]
         [MemberData(nameof(containsPublic_shouldCheckIfSetContainsPublic_data))]
@@ -187,7 +188,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expected, (new NamespaceSet(elements)).containsPublic);
         }
 
-        public static IEnumerable<object[]> contains_shouldCheckIfSetContainsGivenKind_data = new Namespace[][] {
+        public static IEnumerable<object[]> contains_shouldCheckIfSetContainsGivenKind_data = TupleHelper.toArrays(
             new Namespace[0],
 
             new[] { Namespace.any },
@@ -213,7 +214,7 @@ namespace Mariana.AVM2.Tests {
                 new Namespace(NamespaceKind.STATIC_PROTECTED, "e"),
                 Namespace.createPrivate(100),
             }
-        }.Select(x => new object[] {x});
+        );
 
         [Theory]
         [MemberData(nameof(contains_shouldCheckIfSetContainsGivenKind_data))]

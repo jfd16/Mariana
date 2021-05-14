@@ -6,142 +6,6 @@ namespace Mariana.AVM2.Core {
     internal static class ArraySortHelper {
 
         /// <summary>
-        /// Sorts the given array using the given comparer.
-        /// </summary>
-        /// <param name="arr">The array to sort.</param>
-        /// <param name="comparer">The comparer to use for sorting.</param>
-        /// <param name="failOnEqualElements">If this is true, restore the original order of
-        /// <paramref name="arr"/> if two elements compare as equal.</param>
-        /// <param name="length">If specified, only considers the first <paramref name="length"/>
-        /// elements of the array.</param>
-        /// <typeparam name="T">The type of the array.</typeparam>
-        /// <returns>True if the array was sorted, false if it was not (because of elements comparing
-        /// equal with <paramref name="failOnEqualElements"/> set to true.)</returns>
-        public static bool sort<T>(
-            T[] arr, IComparer<T> comparer, bool failOnEqualElements = false, int length = -1)
-        {
-            if (length == -1)
-                length = arr.Length;
-
-            if (length <= 1)
-                return true;
-
-            if (!failOnEqualElements) {
-                Array.Sort(arr, 0, length, comparer);
-                return true;
-            }
-
-            T[] tempCopy = arr.AsSpan(0, length).ToArray();
-            Array.Sort(tempCopy, comparer);
-
-            T prev = tempCopy[0];
-            for (int i = 1; i < length; i++) {
-                T cur = tempCopy[i];
-                if (comparer.Compare(prev, cur) == 0)
-                    return false;
-                prev = cur;
-            }
-
-            tempCopy.AsSpan(0, length).CopyTo(arr);
-            return true;
-        }
-
-        /// <summary>
-        /// Sorts a pair of arrays using the given key comparer.
-        /// </summary>
-        /// <param name="keys">The keys array.</param>
-        /// <param name="values">The values array. This will be sorted using the sort order
-        /// of the <paramref name="keys"/> array.</param>
-        /// <param name="comparer">The comparer to use for sorting.</param>
-        /// <param name="failOnEqualElements">If this is true, the original order of the
-        /// <paramref name="values"/> array is restored if two keys in <paramref name="keys"/>
-        /// compare as equal.</param>
-        /// <param name="length">If specified, only considers the first <paramref name="length"/>
-        /// elements of the keys and values arrays.</param>
-        /// <typeparam name="T">The element type of the keys array.</typeparam>
-        /// <typeparam name="U">The element type of the values array.</typeparam>
-        /// <returns>True if the values array was sorted, false if it was not (because of elements comparing
-        /// equal with <paramref name="failOnEqualElements"/> set to true.)</returns>
-        public static bool sortPair<T, U>(
-            T[] keys, U[] values, IComparer<T> comparer, bool failOnEqualElements = false, int length = -1)
-        {
-            if (length == -1)
-                length = keys.Length;
-
-            if (length <= 1)
-                return true;
-
-            if (!failOnEqualElements) {
-                Array.Sort(keys, values, 0, length, comparer);
-                return true;
-            }
-
-            U[] tempValues = values.AsSpan(0, length).ToArray();
-            Array.Sort(keys, tempValues, 0, length, comparer);
-
-            T prev = keys[0];
-            for (int i = 1; i < length; i++) {
-                T cur = keys[i];
-                if (comparer.Compare(prev, cur) == 0)
-                    return false;
-                prev = cur;
-            }
-
-            tempValues.AsSpan(0, length).CopyTo(values);
-            return true;
-        }
-
-        /// <summary>
-        /// Returns a permutation array that represents the sorted order of the given array.
-        /// The array is not mutated.
-        /// </summary>
-        /// <param name="arr">The array whose sorted permutation is to be obtained.</param>
-        /// <param name="comparer">The comparer to use for sorting.</param>
-        /// <param name="failOnEqualElements">If this is true, return null if two elements in
-        /// <paramref name="arr"/> compare as equal.</param>
-        /// <param name="length">If specified, only considers the first <paramref name="length"/>
-        /// elements of the array.</param>
-        /// <typeparam name="T">The type of the array.</typeparam>
-        /// <returns>A permutation array representing the sorted order of <paramref name="arr"/>.</returns>
-        public static int[] getSortedPermutation<T>(
-            T[] arr, IComparer<T> comparer, bool failOnEqualElements = false, int length = -1)
-        {
-            if (length == -1)
-                length = arr.Length;
-
-            int[] perm = new int[length];
-            for (int i = 0; i < length; i++)
-                perm[i] = i;
-
-            Array.Sort(perm, 0, length, new PermutationComparer<T>(arr, comparer));
-
-            if (failOnEqualElements && length > 1) {
-                T prev = arr[perm[0]];
-                for (int i = 1; i < perm.Length; i++) {
-                    T cur = arr[perm[i]];
-                    if (comparer.Compare(prev, cur) == 0)
-                        return null;
-                    prev = cur;
-                }
-            }
-
-            return perm;
-        }
-
-
-        private class PermutationComparer<T> : IComparer<int> {
-            private T[] m_map;
-            private IComparer<T> m_comparer;
-
-            public PermutationComparer(T[] map, IComparer<T> comparer) {
-                m_map = map;
-                m_comparer = comparer;
-            }
-
-            public int Compare(int x, int y) => m_comparer.Compare(m_map[x], m_map[y]);
-        }
-
-        /// <summary>
         /// A comparer for use with the <see cref="ASArray.sortOn" qualifyHint="true"/>
         /// method for string comparisons.
         /// </summary>
@@ -183,12 +47,11 @@ namespace Mariana.AVM2.Core {
                 var ySpan = m_keys.AsSpan(y, xSpan.Length);
                 StringComparison cmpType = m_compareType;
 
-                for (int i = 0; i < xSpan.Length; i++) {
-                    int result = String.Compare(xSpan[i], ySpan[i], cmpType);
-                    if (result != 0)
-                        return result;
-                }
-                return 0;
+                int result = 0;
+                for (int i = 0; i < xSpan.Length && result == 0; i++)
+                    result = String.Compare(xSpan[i], ySpan[i], cmpType);
+
+                return result;
             }
 
         }
@@ -226,8 +89,25 @@ namespace Mariana.AVM2.Core {
             /// array.</param>
             /// <param name="y">The start index of the second block in the <see cref="m_keys"/>
             /// array.</param>
-            public int Compare(int x, int y) =>
-                m_keys.AsSpan(x, m_blockSize).SequenceCompareTo(m_keys.AsSpan(y, m_blockSize));
+            public int Compare(int x, int y) {
+                var xSpan = m_keys.AsSpan(x, m_blockSize);
+                var ySpan = m_keys.AsSpan(y, xSpan.Length);
+                int result = 0;
+
+                for (int i = 0; i < xSpan.Length && result == 0; i++) {
+                    double xi = xSpan[i], yi = ySpan[i];
+
+                    if (xi == yi)
+                        result = 0;
+                    else if (xi < yi)
+                        result = -1;
+                    else if (Double.IsNaN(yi))
+                        result = Double.IsNaN(xi) ? 0 : -1;
+                    else
+                        result = 1;
+                }
+                return result;
+            }
 
         }
 
@@ -273,13 +153,14 @@ namespace Mariana.AVM2.Core {
             public int Compare(int x, int y) {
                 var xSpan = m_keys.AsSpan(x, m_blockSize);
                 var ySpan = m_keys.AsSpan(y, xSpan.Length);
+                int result = 0;
 
-                for (int i = 0; i < xSpan.Length; i++) {
-                    int result = m_comparers[i].Compare(xSpan[i], ySpan[i]);
-                    if (result != 0)
-                        return m_descendingFlags[i] ? -result : result;
+                for (int i = 0; i < xSpan.Length && result == 0; i++) {
+                    result = m_comparers[i].Compare(xSpan[i], ySpan[i]);
+                    if (m_descendingFlags[i])
+                        result = -result;
                 }
-                return 0;
+                return result;
             }
 
         }

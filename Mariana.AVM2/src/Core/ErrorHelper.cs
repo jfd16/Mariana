@@ -182,10 +182,8 @@ namespace Mariana.AVM2.Core {
             string fromTypeStr, toTypeStr;
 
             if (objOrFromType is ASAny any) {
-                if (any.isUndefined)
-                    fromTypeStr = "undefined";
-                else if (any.isNull)
-                    fromTypeStr = "null";
+                if (any.isUndefinedOrNull)
+                    fromTypeStr = any.ToString();
                 else
                     fromTypeStr = any.AS_class.name.ToString();
             }

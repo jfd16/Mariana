@@ -96,8 +96,10 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="name">The name of the property.</param>
         /// <param name="value">The value of the property.</param>
-        /// <param name="isEnum">True if the property's enumerable flag must be set, otherwise
-        /// false.</param>
+        /// <param name="isEnum">The value of the property's enumerable flag, if a new property is
+        /// being created. If a property with the given name already exists, its enumerable
+        /// flag is not changed. To change the enumerable flag of an existing property, use the
+        /// <see cref="setEnumerable"/> method.</param>
         /// <exception cref="AVM2Exception">ArgumentError #10061: <paramref name="name"/> is null.</exception>
         public void setValue(string name, ASAny value, bool isEnum = true) {
             if (name == null)
@@ -111,7 +113,6 @@ namespace Mariana.AVM2.Core {
                 ref Slot slot = ref m_slots[i];
                 if (slot.hash == hash && slot.name == name) {
                     slot.value = value;
-                    slot.isEnum = isEnum;
                     return;
                 }
                 i = slot.next;
@@ -205,13 +206,11 @@ namespace Mariana.AVM2.Core {
         /// <returns>The index of the next enumerable property after the specified one, or -1 if there
         /// are no more enumerable properties.</returns>
         ///
-        /// <exception cref="AVM2Exception">ArgumentError #10061: <paramref name="name"/> is null.</exception>
-        ///
         /// <remarks>
         /// This method is used to implement ActionScript 3's for-in loops.
         /// </remarks>
         public int getNextIndex(int index) {
-            for (int i = (index < 0) ? 0 : index + 1; i < m_count; i++) {
+            for (int i = Math.Max(index + 1, 0); i < m_count; i++) {
                 if (m_slots[i].isEnum)
                     return i;
             }
@@ -276,18 +275,15 @@ namespace Mariana.AVM2.Core {
 
             int hash = name.GetHashCode();
             int chain = (hash & 0x7FFFFFFF) % m_chainHeads.Length;
-            int prev = -1;
 
             int i = m_chainHeads[chain];
+            ref int nextFromPrev = ref m_chainHeads[chain];
 
             while (i != -1) {
                 ref Slot slot = ref m_slots[i];
 
                 if (slot.hash == hash && slot.name == name) {
-                    if (prev == -1)
-                        m_chainHeads[chain] = slot.next;
-                    else
-                        m_slots[prev].next = slot.next;
+                    nextFromPrev = slot.next;
 
                     slot.name = null;
                     slot.hash = -1;
@@ -301,7 +297,7 @@ namespace Mariana.AVM2.Core {
                     return true;
                 }
 
-                prev = i;
+                nextFromPrev = ref slot.next;
                 i = slot.next;
             }
 
