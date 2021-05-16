@@ -279,7 +279,6 @@ namespace Mariana.AVM2.Core {
         /// <returns>True, if the trait was added to the table; false it is was not added (such as if
         /// another trait with the same name exists).</returns>
         public bool tryAddTrait(Trait trait, bool allowMergeProperties = false) {
-
             if (m_isCorrupted || m_isSealed)
                 return false;
 
@@ -355,7 +354,6 @@ namespace Mariana.AVM2.Core {
             links[chain].chainHead = newIndex;
 
             return true;
-
         }
 
         /// <summary>
@@ -411,8 +409,8 @@ namespace Mariana.AVM2.Core {
         /// <param name="recalculateHashes">If this is set to true, recompute the hash codes from the
         /// trait names, otherwise compute the chains using the existing hash codes.</param>
         private void _resetLinks(bool recalculateHashes) {
-
             int length = m_slots.Length;
+
             Link[] linksForStaticQualified = new Link[length],
                    linksForStaticUnqualified = new Link[length],
                    linksForInstQualified = null,
@@ -433,7 +431,6 @@ namespace Mariana.AVM2.Core {
             }
 
             for (int i = 0, n = m_count; i < n; i++) {
-
                 bool traitIsStatic = m_slots[i].isStatic;
 
                 int qualifiedHash;
@@ -473,7 +470,6 @@ namespace Mariana.AVM2.Core {
                     linksForInstQualified[qualifiedChain].chainHead = i;
                     linksForInstUnqualified[unqualifiedChain].chainHead = i;
                 }
-
             }
 
             m_linksForInstQualified = linksForInstQualified;
@@ -490,7 +486,6 @@ namespace Mariana.AVM2.Core {
         /// <param name="allowHiding">If this is true, declared traits are allowed to hide inherited
         /// traits with the same name without overriding them. Otherwise, hiding is an error.</param>
         public void mergeWithParentClass(ClassTraitTable parentTraitTable, bool allowHiding = false) {
-
             Trait[] parentTraits = parentTraitTable.m_slots;
 
             for (int i = 0, n = parentTraitTable.m_count; i < n; i++) {
@@ -544,10 +539,10 @@ namespace Mariana.AVM2.Core {
                 m_isCorrupted = true;
                 throw ErrorHelper.createError(
                     ErrorCode.MARIANA__CLASS_TRAIT_HIDES_INHERITED,
-                    conflictingTrait.name.ToString(), m_class.name.ToString());
-
+                    conflictingTrait.name.ToString(),
+                    m_class.name.ToString()
+                );
             }
-
         }
 
         /// <summary>
@@ -587,7 +582,6 @@ namespace Mariana.AVM2.Core {
         /// <param name="parentTraitTable">The trait table of a parent interface which is to be merged
         /// into this trait table.</param>
         public void mergeWithParentInterface(ClassTraitTable parentTraitTable) {
-
             Trait[] parentTraits = parentTraitTable.m_slots;
 
             // Since parent interfaces are flattened, we only need to consider the
@@ -615,12 +609,13 @@ namespace Mariana.AVM2.Core {
                     m_isCorrupted = true;
                     throw ErrorHelper.createError(
                         ErrorCode.MARIANA__INTERFACE_COMMON_TRAIT_SIG_MISMATCH,
-                        conflictingTrait.name.ToString(), m_class.name.ToString(),
-                        parentTrait.declaringClass.name.ToString(), conflictingTrait.declaringClass.name.ToString());
+                        conflictingTrait.name.ToString(),
+                        m_class.name.ToString(),
+                        parentTrait.declaringClass.name.ToString(),
+                        conflictingTrait.declaringClass.name.ToString()
+                    );
                 }
-
             }
-
         }
 
         /// <summary>
@@ -681,7 +676,6 @@ namespace Mariana.AVM2.Core {
         /// the order of inheritance of the classes on which they are declared.
         /// </summary>
         public void seal() {
-
             int slotCount = m_count;
 
             // Sort the table so that the traits are ordered in the following manner
@@ -737,7 +731,6 @@ namespace Mariana.AVM2.Core {
 
             _resetLinks(true);
             m_isSealed = true;
-
         }
 
         /// <summary>
@@ -748,7 +741,6 @@ namespace Mariana.AVM2.Core {
         ///
         /// <param name="classArray">The array of classes or interfaces to sort.</param>
         private IEnumerable<Class> _sortClassesByInheritance(Class[] classArray) {
-
             int len = classArray.Length;
             bool[] marked = new bool[len];
             DynamicArray<int> indexStack = new DynamicArray<int>(len);
@@ -788,7 +780,6 @@ namespace Mariana.AVM2.Core {
                     i++;
                 }
             }
-
         }
 
         /// <summary>
@@ -817,8 +808,7 @@ namespace Mariana.AVM2.Core {
         /// <see cref="m_slots"/> array in which the traits will be found. If the range is empty or
         /// the <see cref="seal"/> method has not been called, this is set to -1.</param>
         private void _getSlotIndexBounds(
-            bool includeStatic, bool includeInstance, bool declaredOnly,
-            out int startIndex, out int endIndex)
+            bool includeStatic, bool includeInstance, bool declaredOnly, out int startIndex, out int endIndex)
         {
             if (!m_isSealed) {
                 startIndex = 0;

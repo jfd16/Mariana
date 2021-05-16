@@ -619,8 +619,26 @@ namespace Mariana.AVM2.Compiler {
         public static readonly MI boolValueOf =
             getMemberFromExpr<Func<bool, bool>, MI>(x => ASBoolean.valueOf(x));
 
+        public static readonly MI strToString =
+            getMemberFromExpr<Func<string, string>, MI>(x => ASString.toString(x));
+
         public static readonly MI strValueOf =
             getMemberFromExpr<Func<string, string>, MI>(x => ASString.valueOf(x));
+
+        public static readonly MI strCharAt =
+            getMemberFromExpr<Func<string, double, string>, MI>((x, i) => ASString.charAt(x, i));
+
+        public static readonly MI strCharCodeAt =
+            getMemberFromExpr<Func<string, double, double>, MI>((x, i) => ASString.charCodeAt(x, i));
+
+        public static readonly MI strCharAtIntIndex =
+            getMemberFromExpr<Func<string, int, string>, MI>((x, i) => ASString.charAt(x, i));
+
+        public static readonly MI strCharCodeAtIntIndex =
+            getMemberFromExpr<Func<string, int, double>, MI>((x, i) => ASString.charCodeAt(x, i));
+
+        public static readonly MI strCharAtNative =
+            getMemberFromExpr<Func<string, int, int>, MI>((x, i) => x[i]);
 
         public static readonly CI regexpCtorWithRegexp =
             getMemberFromExpr<Func<ASRegExp, ASRegExp>, CI>(x => new ASRegExp(x));

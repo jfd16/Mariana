@@ -222,7 +222,7 @@ namespace Mariana.AVM2.Core {
         /// code points greater than 0xFFFF must be encoded in their UTF-16 representation, i.e. as a
         /// surrogate pair of two characters.</param>
         /// <returns>The string.</returns>
-        [AVM2ExportTrait]
+        [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         public static string fromCharCode(RestParam codes = default) {
             var codesSpan = codes.getSpan();
             char[] buffer = new char[codesSpan.Length];
@@ -242,23 +242,21 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Returns the string representation of the character at the given position in the string.
         /// </summary>
-        /// <param name="index">The position.</param>
+        /// <param name="index">The position of the character.</param>
         /// <returns>The string representation of the character at position <paramref name="index"/>
         /// in the string, or an empty string if <paramref name="index"/> is out of
         /// bounds.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        [AVM2ExportPrototypeMethod]
-        public string charAt(int index = 0) => charAt(m_value, index);
+        public string charAt(double index = 0) => charAt(m_value, index);
 
         /// <summary>
         /// Returns the code of the character at the given position in the string.
         /// </summary>
-        /// <param name="index">The position.</param>
+        /// <param name="index">The position of the character.</param>
         /// <returns>The code of the character at position <paramref name="index"/> in the string,
         /// or NaN if <paramref name="index"/> is out of bounds.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        [AVM2ExportPrototypeMethod]
-        public double charCodeAt(int index = 0) => charCodeAt(m_value, index);
+        public double charCodeAt(double index = 0) => charCodeAt(m_value, index);
 
         /// <summary>
         /// Converts the objects in an array to strings and concatenates them to the current string.
@@ -266,7 +264,6 @@ namespace Mariana.AVM2.Core {
         /// <param name="args">The arguments to concatenate to the string.</param>
         /// <returns>The concatenated string.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        [AVM2ExportPrototypeMethod]
         public string concat(RestParam args) => concat(m_value, args);
 
         /// <summary>
@@ -279,8 +276,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="startIndex">The position from where to start searching.</param>
         /// <returns>The first position of <paramref name="searchStr"/> in the string.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        [AVM2ExportPrototypeMethod]
-        public int indexOf(string searchStr, int startIndex = 0) => indexOf(m_value, searchStr, startIndex);
+        public int indexOf(string searchStr, double startIndex = 0) => indexOf(m_value, searchStr, startIndex);
 
         /// <summary>
         /// Returns the last position of the string <paramref name="searchStr"/> in the current
@@ -292,8 +288,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="startIndex">The position from where to start searching.</param>
         /// <returns>The first position of <paramref name="searchStr"/> in the string.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        [AVM2ExportPrototypeMethod]
-        public int lastIndexOf(string searchStr, int startIndex = Int32.MaxValue) => lastIndexOf(m_value, searchStr, startIndex);
+        public int lastIndexOf(string searchStr, double startIndex = Int32.MaxValue) => lastIndexOf(m_value, searchStr, startIndex);
 
         /// <summary>
         /// Compares the string to <paramref name="other"/> using a locale-specific comparison.
@@ -303,8 +298,7 @@ namespace Mariana.AVM2.Core {
         /// it is equal to <paramref name="other"/> or a positive number if it is greater than
         /// <paramref name="other"/>.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        [AVM2ExportPrototypeMethod]
-        public int localeCompare(string other) => localeCompare(m_value, other);
+        public int localeCompare(ASAny other) => localeCompare(m_value, other);
 
         /// <summary>
         /// Returns the matches of the given regular expression in the string.
@@ -328,7 +322,6 @@ namespace Mariana.AVM2.Core {
         /// is used for the match
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        [AVM2ExportPrototypeMethod]
         public ASArray match(ASAny regExp = default) => match(m_value, regExp);
 
         /// <summary>
@@ -364,7 +357,6 @@ namespace Mariana.AVM2.Core {
         /// </para>
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        [AVM2ExportPrototypeMethod]
         public string replace(ASAny search = default, ASAny repl = default) => replace(m_value, search, repl);
 
         /// <summary>
@@ -383,7 +375,6 @@ namespace Mariana.AVM2.Core {
         /// <paramref name="regExp"/> parameter in the string, or -1 if no match is
         /// found.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        [AVM2ExportPrototypeMethod]
         public int search(ASAny regExp = default) => search(m_value, regExp);
 
         /// <summary>
@@ -408,8 +399,7 @@ namespace Mariana.AVM2.Core {
         /// <returns>The substring of the string starting at index <paramref name="startIndex"/> and
         /// ending at the index preceding <paramref name="endIndex"/>.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        [AVM2ExportPrototypeMethod]
-        public string slice(int startIndex = 0, int endIndex = Int32.MaxValue) => slice(m_value, startIndex, endIndex);
+        public string slice(double startIndex = 0, double endIndex = Int32.MaxValue) => slice(m_value, startIndex, endIndex);
 
         /// <summary>
         /// Splits the string using a separator (or a regular expression that matches separators) and
@@ -424,13 +414,12 @@ namespace Mariana.AVM2.Core {
         /// as a separator to split the string.
         /// </param>
         /// <param name="limit">The maximum number of split strings, starting from the beginning of
-        /// the input string, to be included in the returned array. If this is negative, there is no
-        /// limit; the returned array will contain all possible split strings.</param>
+        /// the input string, to be included in the returned array. If this is undefined, there is no
+        /// limit.</param>
         ///
         /// <returns>An array containing the split substrings.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        [AVM2ExportPrototypeMethod]
-        public ASArray split(ASAny sep, int limit = -1) => split(m_value, sep, limit);
+        public ASArray split(ASAny sep, ASAny limit = default) => split(m_value, sep, limit);
 
         /// <summary>
         /// Returns the substring of the string starting at <paramref name="startIndex"/> and having
@@ -451,8 +440,7 @@ namespace Mariana.AVM2.Core {
         /// <returns>The substring of the string starting at <paramref name="startIndex"/> and
         /// having <paramref name="len"/> number of characters.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        [AVM2ExportPrototypeMethod]
-        public string substr(int startIndex = 0, int len = Int32.MaxValue) => substr(m_value, startIndex, len);
+        public string substr(double startIndex = 0, double len = Int32.MaxValue) => substr(m_value, startIndex, len);
 
         /// <summary>
         /// Returns the substring of the string starting at index <paramref name="startIndex"/> and
@@ -477,21 +465,19 @@ namespace Mariana.AVM2.Core {
         /// ending at the index preceding <paramref name="endIndex"/>.</returns>
         ///
         /// <remarks>
-        /// This differs from <see cref="slice(Int32, Int32)"/> in how negative values of
+        /// This differs from <see cref="slice(Double, Double)"/> in how negative values of
         /// <paramref name="startIndex"/> and <paramref name="endIndex"/> are handled (they are
-        /// set to 0, whereas in <see cref="slice(Int32, Int32)"/> they are taken as indices relative to
-        /// the end of the string).
+        /// set to 0, but in <see cref="slice(Double, Double)"/> they are taken as indices
+        /// relative to the end of the string).
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        [AVM2ExportPrototypeMethod]
-        public string substring(int startIndex = 0, int endIndex = Int32.MaxValue) => substring(m_value, startIndex, endIndex);
+        public string substring(double startIndex = 0, double endIndex = Int32.MaxValue) => substring(m_value, startIndex, endIndex);
 
         /// <summary>
         /// Converts all alphabetic characters in the string to lowercase in a locale-specific manner.
         /// </summary>
         /// <returns>The string with alphabetic characters converted to lowercase.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        [AVM2ExportPrototypeMethod]
         public string toLocaleLowerCase() => toLocaleLowerCase(m_value);
 
         /// <summary>
@@ -499,7 +485,6 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <returns>Converts all alphabetic characters in the string to uppercase.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        [AVM2ExportPrototypeMethod]
         public string toLocaleUpperCase() => toLocaleUpperCase(m_value);
 
         /// <summary>
@@ -507,7 +492,6 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <returns>Converts all alphabetic characters in the string to lowercase.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        [AVM2ExportPrototypeMethod]
         public string toLowerCase() => toLowerCase(m_value);
 
         /// <summary>
@@ -515,7 +499,6 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <returns>Converts all alphabetic characters in the string to uppercase.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        [AVM2ExportPrototypeMethod]
         public string toUpperCase() => toUpperCase(m_value);
 
         /// <summary>
@@ -530,7 +513,6 @@ namespace Mariana.AVM2.Core {
         /// <see cref="Object.ToString" qualifyHint="true"/> method.
         /// </remarks>
         [AVM2ExportTrait(name = "toString", nsUri = "http://adobe.com/AS3/2006/builtin")]
-        [AVM2ExportPrototypeMethod(name = "toString")]
         public new string AS_toString() => m_value;
 
         /// <summary>
@@ -538,7 +520,6 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <returns>A primitive representation of the object.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        [AVM2ExportPrototypeMethod]
         public new string valueOf() => m_value;
 
         /// <summary>
@@ -615,6 +596,27 @@ namespace Mariana.AVM2.Core {
         public static string AS_convertString(string s) => s ?? "null";
 
         /// <summary>
+        /// Normalizes a floating-point index passed in to String instance methods.
+        /// </summary>
+        /// <param name="index">The index to be normalized.</param>
+        /// <param name="stringLength">The length of the string.</param>
+        /// <param name="isNegativeFromEnd">True to interpret negative indices as relative to the end of
+        /// the string. Otherwise, the normalized index of a negative index is -1.</param>
+        /// <returns>The normalized integer index.</returns>
+        private static int _normalizeIndex(double index, int stringLength, bool isNegativeFromEnd = false) {
+            if (Double.IsNaN(index))
+                return 0;
+
+            if (index > -1.0)
+                return (int)Math.Min(index, (double)stringLength);
+
+            if (!isNegativeFromEnd)
+                return -1;
+
+            return (int)Math.Max(Math.Truncate(index) + (double)stringLength, 0.0);
+        }
+
+        /// <summary>
         /// Returns the string representation of the character at the given position in the string.
         /// </summary>
         /// <param name="s">The string.</param>
@@ -622,13 +624,35 @@ namespace Mariana.AVM2.Core {
         /// <returns>The string representation of the character at position <paramref name="index"/>
         /// in the string, or the empty string if <paramref name="index"/> is out of
         /// bounds.</returns>
-        public static string charAt(string s, int index = 0) {
+        [AVM2ExportPrototypeMethod]
+        public static string charAt(string s, double index = 0) {
+            if (s == null)
+                throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
+
+            int iIndex = _normalizeIndex(index, s.Length);
+            if ((uint)iIndex >= (uint)s.Length)
+                return "";
+
+            int ch = s[iIndex];
+            var cache = s_singleCharCachedValues;
+            return ((uint)ch < (uint)cache.Length) ? cache[ch] : new string((char)ch, 1);
+        }
+
+         /// <summary>
+        /// Returns the string representation of the character at the given position in the string.
+        /// </summary>
+        /// <param name="s">The string.</param>
+        /// <param name="index">The position in the string at which to return the character.</param>
+        /// <returns>The string representation of the character at position <paramref name="index"/>
+        /// in the string, or the empty string if <paramref name="index"/> is out of
+        /// bounds.</returns>
+        public static string charAt(string s, int index) {
             if ((uint)index >= (uint)s.Length)
                 return "";
 
-            char c = s[index];
+            int ch = s[index];
             var cache = s_singleCharCachedValues;
-            return ((uint)c < (uint)cache.Length) ? cache[(int)c] : new string(c, 1);
+            return ((uint)ch < (uint)cache.Length) ? cache[ch] : new string((char)ch, 1);
         }
 
         /// <summary>
@@ -639,8 +663,28 @@ namespace Mariana.AVM2.Core {
         /// <returns>The code point of the character at position <paramref name="index"/> in the
         /// string <paramref name="s"/>, or NaN if <paramref name="index"/> is out of
         /// bounds.</returns>
-        public static double charCodeAt(string s, int index = 0) =>
-            ((uint)index >= (uint)s.Length) ? Double.NaN : (double)s[index];
+        [AVM2ExportPrototypeMethod]
+        public static double charCodeAt(string s, double index = 0) {
+            if (s == null)
+                throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
+
+            int iIndex = _normalizeIndex(index, s.Length);
+            if ((uint)iIndex >= (uint)s.Length)
+                return Double.NaN;
+
+            return (double)s[iIndex];
+        }
+
+        /// <summary>
+        /// Returns the Unicode code point of the character at the given position in the string.
+        /// </summary>
+        /// <param name="s">The string.</param>
+        /// <param name="index">The position in the string at which to return the character.</param>
+        /// <returns>The code point of the character at position <paramref name="index"/> in the
+        /// string <paramref name="s"/>, or NaN if <paramref name="index"/> is out of
+        /// bounds.</returns>
+        public static double charCodeAt(string s, int index) =>
+            (uint)index >= (uint)s.Length ? Double.NaN : (double)s[index];
 
         /// <summary>
         /// Converts the objects in an array to strings and concatenates them to the first string.
@@ -649,6 +693,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="args">The arguments to concatenate to the string.</param>
         /// <returns>The string created by concatenation of the string <paramref name="s"/> with the
         /// strings created from objects in the <paramref name="args"/> array.</returns>
+        [AVM2ExportPrototypeMethod]
         public static string concat(string s, RestParam args) {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
@@ -675,20 +720,26 @@ namespace Mariana.AVM2.Core {
         /// <param name="startIndex">The position from where to start searching.</param>
         /// <returns>The first position of <paramref name="searchStr"/> in
         /// <paramref name="s"/>.</returns>
-        public static int indexOf(string s, string searchStr, int startIndex = 0) {
+        [AVM2ExportPrototypeMethod]
+        public static int indexOf(string s, string searchStr, double startIndex = 0) {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
 
-            if (searchStr == null || startIndex >= s.Length)
+            if (searchStr == null)
                 return -1;
 
-            if (startIndex < 0)
-                startIndex = 0;
+            int iStartIndex = Math.Max(_normalizeIndex(startIndex, s.Length), 0);
+
+            if (searchStr.Length == 0)
+                return iStartIndex;
+
+            if (iStartIndex == s.Length)
+                return -1;
 
             if (searchStr.Length == 1)
-                return s.IndexOf(searchStr[0], startIndex);
+                return s.IndexOf(searchStr[0], iStartIndex);
 
-            return s.IndexOf(searchStr, startIndex, StringComparison.Ordinal);
+            return s.IndexOf(searchStr, iStartIndex, StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -703,20 +754,33 @@ namespace Mariana.AVM2.Core {
         /// searching.</param>
         /// <returns>The first position of <paramref name="searchStr"/> in
         /// <paramref name="s"/>.</returns>
-        public static int lastIndexOf(string s, string searchStr, int startIndex = Int32.MaxValue) {
+        [AVM2ExportPrototypeMethod]
+        public static int lastIndexOf(string s, string searchStr, double startIndex = Int32.MaxValue) {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
 
-            if (searchStr == null || startIndex < 0)
+            if (s.Length < searchStr.Length)
                 return -1;
 
-            if (startIndex >= s.Length)
-                startIndex = s.Length - 1;
+            int iStartIndex;
+
+            if (Double.IsNaN(startIndex))
+                iStartIndex = s.Length;
+            else
+                iStartIndex = _normalizeIndex(startIndex, s.Length);
+
+            if (iStartIndex == -1)
+                return -1;
+
+            if (searchStr.Length == 0)
+                return iStartIndex;
+
+            iStartIndex = Math.Min(iStartIndex, s.Length - searchStr.Length);
 
             if (searchStr.Length == 1)
-                return s.LastIndexOf(searchStr[0], startIndex);
+                return s.LastIndexOf(searchStr[0], iStartIndex);
 
-            return s.LastIndexOf(searchStr, startIndex, StringComparison.Ordinal);
+            return s.LastIndexOf(searchStr, iStartIndex, StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -728,10 +792,11 @@ namespace Mariana.AVM2.Core {
         /// <paramref name="other"/>, zero if <paramref name="s"/> is equal to
         /// <paramref name="other"/> or a positive number if <paramref name="s"/> is greater than
         /// <paramref name="other"/>.</returns>
-        public static int localeCompare(string s, string other) {
+        [AVM2ExportPrototypeMethod]
+        public static int localeCompare(string s, ASAny other) {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
-            return (other == null) ? -1 : String.Compare(s, other, StringComparison.CurrentCulture);
+            return String.Compare(s, ASAny.AS_convertString(other), StringComparison.CurrentCulture);
         }
 
         /// <summary>
@@ -756,6 +821,7 @@ namespace Mariana.AVM2.Core {
         /// <paramref name="regExp"/> is ignored and the match always starts from the beginning of
         /// the target string.
         /// </remarks>
+        [AVM2ExportPrototypeMethod]
         public static ASArray match(string s, ASAny regExp) {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
@@ -811,6 +877,7 @@ namespace Mariana.AVM2.Core {
         /// string). For a literal dollar sign in the replacement string, use "$$".
         /// </para>
         /// </remarks>
+        [AVM2ExportPrototypeMethod]
         public static string replace(string input, ASAny search, ASAny repl) {
             if (input == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
@@ -847,7 +914,7 @@ namespace Mariana.AVM2.Core {
             Match regexMatch = null;
 
             if (searchRegex == null) {
-                matchIndex = indexOf(input, searchString);
+                matchIndex = input.IndexOf(searchString, StringComparison.Ordinal);
                 if (matchIndex == -1)
                     return input;
             }
@@ -904,7 +971,7 @@ namespace Mariana.AVM2.Core {
                     matchIndex = regexMatch.Success ? regexMatch.Index : -1;
                 }
                 else {
-                    matchIndex = indexOf(input, searchString, srcIndex);
+                    matchIndex = input.IndexOf(searchString, srcIndex, StringComparison.Ordinal);
                 }
             } while (matchIndex != -1);
 
@@ -1058,6 +1125,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <returns>The position of the first match of the regular expression in the string, or -1 if
         /// no match is found.</returns>
+        [AVM2ExportPrototypeMethod]
         public static int search(string s, ASAny regExp) {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
@@ -1090,19 +1158,15 @@ namespace Mariana.AVM2.Core {
         /// <returns>The substring of <paramref name="s"/> starting at
         /// <paramref name="startIndex"/> and having <paramref name="length"/> number of
         /// characters.</returns>
-        public static string substr(string s, int startIndex = 0, int length = Int32.MaxValue) {
+        [AVM2ExportPrototypeMethod]
+        public static string substr(string s, double startIndex = 0, double length = Int32.MaxValue) {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
 
-            int strlen = s.Length;
+            int iStartIndex = _normalizeIndex(startIndex, s.Length, isNegativeFromEnd: true);
+            int iLength = Math.Max(_normalizeIndex(length, s.Length - iStartIndex), 0);
 
-            if (startIndex < 0)
-                startIndex = Math.Max(startIndex + strlen, 0);
-
-            if ((uint)startIndex > (uint)strlen || (uint)length > (uint)(strlen - startIndex))
-                length = strlen - startIndex;
-
-            return (startIndex >= strlen || length < 0) ? "" : s.Substring(startIndex, length);
+            return s.Substring(iStartIndex, iLength);
         }
 
         /// <summary>
@@ -1129,19 +1193,18 @@ namespace Mariana.AVM2.Core {
         /// <returns>The substring of <paramref name="s"/> starting at index
         /// <paramref name="startIndex"/> and ending at the index preceding
         /// <paramref name="endIndex"/>.</returns>
-        public static string slice(string s, int startIndex = 0, int endIndex = Int32.MaxValue) {
+        [AVM2ExportPrototypeMethod]
+        public static string slice(string s, double startIndex = 0, double endIndex = Int32.MaxValue) {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
 
-            int strLen = s.Length;
+            int iStartIndex = _normalizeIndex(startIndex, s.Length, isNegativeFromEnd: true);
+            int iEndIndex = _normalizeIndex(endIndex, s.Length, isNegativeFromEnd: true);
 
-            if (startIndex < 0)
-                startIndex = Math.Max(startIndex + strLen, 0);
+            if (iStartIndex > iEndIndex)
+                return "";
 
-            if (endIndex < 0)
-                endIndex = Math.Min(endIndex + strLen, strLen);
-
-            return (endIndex <= startIndex || startIndex >= strLen) ? "" : s.Substring(startIndex, endIndex - startIndex);
+            return s.Substring(iStartIndex, iEndIndex - iStartIndex);
         }
 
         /// <summary>
@@ -1170,26 +1233,25 @@ namespace Mariana.AVM2.Core {
         /// <paramref name="endIndex"/>.</returns>
         ///
         /// <remarks>
-        /// This differs from <see cref="slice(String, Int32, Int32)"/> in how negative values of start
-        /// or end are handled: They are set to 0, where as in <see cref="slice(String, Int32, Int32)"/>
+        /// This differs from <see cref="slice(String, Double, Double)"/> in how negative values of start
+        /// or end are handled: They are set to 0, where as in <see cref="slice(String, Double, Double)"/>
         /// they are set to indices relative to the end of the string).
         /// </remarks>
-        public static string substring(string s, int startIndex = 0, int endIndex = Int32.MaxValue) {
+        [AVM2ExportPrototypeMethod]
+        public static string substring(string s, double startIndex = 0, double endIndex = Int32.MaxValue) {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
 
-            int length = s.Length;
+            int iStartIndex = Math.Max(_normalizeIndex(startIndex, s.Length), 0);
+            int iEndIndex = Math.Max(_normalizeIndex(endIndex, s.Length), 0);
 
-            startIndex = Math.Min(Math.Max(startIndex, 0), length);
-            endIndex = Math.Min(Math.Max(endIndex, 0), length);
-
-            if (startIndex == endIndex)
+            if (iStartIndex == iEndIndex)
                 return "";
 
-            if (endIndex < startIndex)
-                (startIndex, endIndex) = (endIndex, startIndex);
+            if (iEndIndex < iStartIndex)
+                (iStartIndex, iEndIndex) = (iEndIndex, iStartIndex);
 
-            return s.Substring(startIndex, endIndex - startIndex);
+            return s.Substring(iStartIndex, iEndIndex - iStartIndex);
         }
 
         /// <summary>
@@ -1206,131 +1268,156 @@ namespace Mariana.AVM2.Core {
         /// converted to a string, and that string is used as a separator to split the string.
         /// </param>
         /// <param name="limit">The maximum number of split strings, starting from the beginning of
-        /// the input string, to be included in the returned array. If this is negative, there is no
-        /// limit; the returned array will contain all possible split strings.</param>
+        /// the input string, to be included in the returned array. If this is undefined,
+        /// there is no limit.</param>
         ///
         /// <returns>An array containing the split substrings.</returns>
-        public static ASArray split(string s, ASAny sep, int limit = -1) {
+        [AVM2ExportPrototypeMethod]
+        public static ASArray split(string s, ASAny sep, ASAny limit = default) {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
 
-            DynamicArray<string> strList = new DynamicArray<string>();
-            if (sep.value is ASRegExp re)
-                _internalSplitByRegExp(s, re, limit, ref strList);
-            else
-                _internalSplitByString(s, AS_coerceString(sep.value), limit, ref strList);
+            uint uLimit = limit.isUndefined ? UInt32.MaxValue : (uint)limit;
+            uLimit = Math.Min(uLimit, (uint)Int32.MaxValue);
 
-            return ASArray.fromSpan<string>(strList.asSpan());
+            if (sep.value is ASRegExp re)
+                return _internalSplitByRegExp(s, re, (int)uLimit);
+            else
+                return _internalSplitByString(s, ASAny.AS_convertString(sep), (int)uLimit);
         }
 
-        private static void _internalSplitByString(string s, string sep, int limit, ref DynamicArray<string> outList) {
+        private static ASArray _internalSplitByString(string s, string sep, int limit) {
+            ASArray result = new ASArray();
 
             if (limit == 0)
-                return;
+                return result;
 
-            if (sep == null) {
-                outList.add(s);
-                return;
+            if (s.Length == 0) {
+                // From ECMA-262:
+                // If the this object is (or converts to) the empty string, the result depends on whether separator
+                // can match the empty string. If it can, the result array contains no elements. Otherwise,
+                // the result array contains one element, which is the empty string.
+                if (sep.Length > 0)
+                    result.push("");
+
+                return result;
             }
 
-            int strLen = s.Length, lastIndex = 0;
-            bool hitLimit = false;
-
             if (sep.Length == 0) {
-                // Empty-string separator
-                int listSize = (limit > 0) ? Math.Min(limit, s.Length) : s.Length;
-                outList.setCapacity(listSize);
+                // Empty-string separator, split into single characters.
+                ReadOnlySpan<char> span = s.AsSpan(0, Math.Min(limit, s.Length));
 
-                for (int i = 0; i < listSize; i++)
-                    outList.add(new string(s[i], 1));
+                ASObject[] singleCharCache = s_lazySingleCharCachedObjects.value;
+
+                for (int i = 0; i < span.Length; i++) {
+                    int ch = span[i];
+                    ASObject charStrObj = ((uint)ch < (uint)singleCharCache.Length)
+                        ? singleCharCache[ch]
+                        : ASObject.AS_fromString(new string((char)ch, 1));
+
+                    result.push(charStrObj);
+                }
             }
             else if (sep.Length == 1) {
                 // One-character separator
-                char c = sep[0];
-                outList.setCapacity((limit == -1) ? 20 : Math.Min(limit, 20));
 
-                for (int i = 0; i < strLen; i++) {
-                    if (s[i] != c)
-                        continue;
+                char sepChar = sep[0];
+                int lastIndex = 0;
 
-                    outList.add(s.Substring(lastIndex, i - lastIndex));
-                    if (hitLimit)
+                while (result.length < (uint)limit) {
+                    int nextIndex = s.IndexOf(sepChar, lastIndex);
+
+                    if (nextIndex == -1) {
+                        // No more separators found. This correctly handles the case where the separator is
+                        // the last character in the string, adding an empty string at the end.
+                        result.push(s.Substring(lastIndex));
                         break;
-                    lastIndex = i + 1;
-                    hitLimit |= outList.length == limit - 1;
+                    }
+                    else {
+                        result.push(s.Substring(lastIndex, nextIndex - lastIndex));
+                        lastIndex = nextIndex + 1;
+                    }
                 }
             }
             else {
-                outList.setCapacity((limit == -1) ? 16 : Math.Min(limit, 16));
-                int cur = s.IndexOf(sep, 0, StringComparison.Ordinal);
+                int lastIndex = 0;
 
-                while (cur != -1) {
-                    // For each occurence of the separator string
-                    // Get the substring of the source string between the last (or beginning of the string
-                    // for the first occurence) and current occurences of the separator string, excluding the
-                    // separators themselves.
-                    // Add this substring to the return array.
-                    outList.add(s.Substring(lastIndex, cur - lastIndex));
+                while (result.length < limit) {
+                    int nextIndex = s.IndexOf(sep, lastIndex, StringComparison.Ordinal);
 
-                    if (hitLimit)
+                    if (nextIndex == -1) {
+                        // No more separators found. This correctly handles the case where the separator is
+                        // the last character in the string, adding an empty string at the end.
+                        result.push(s.Substring(lastIndex));
                         break;
-                    hitLimit |= outList.length == limit - 1;
-
-                    // Find the next occurence.
-                    lastIndex = cur + sep.Length;
-                    cur = s.IndexOf(sep, lastIndex, StringComparison.Ordinal);
+                    }
+                    else {
+                        result.push(s.Substring(lastIndex, nextIndex - lastIndex));
+                        lastIndex = nextIndex + 1;
+                    }
                 }
             }
 
-            // If the end of the string has been reached without exceeding the limit, add the last split
-            // string (between the final occurence of the separator and the end of the string) to the return
-            // array.
-            if (!hitLimit)
-                outList.add((lastIndex == strLen) ? "" : s.Substring(lastIndex, strLen - lastIndex));
+            return result;
         }
 
-        private static void _internalSplitByRegExp(string s, ASRegExp sep, int limit, ref DynamicArray<string> outList) {
+        private static ASArray _internalSplitByRegExp(string s, ASRegExp sep, int limit) {
+            ASArray result = new ASArray();
+
             if (limit == 0)
-                return;
+                return result;
 
-            outList.setCapacity((limit == -1) ? 20 : Math.Min(limit, 20));
-            int lastIndex = 0;
-            bool hitLimit = false;
+            if (s.Length == 0) {
+                // From ECMA-262:
+                // If the this object is (or converts to) the empty string, the result depends on whether separator
+                // can match the empty string. If it can, the result array contains no elements. Otherwise,
+                // the result array contains one element, which is the empty string.
+                if (!sep.getInternalRegex().IsMatch(s))
+                    result.push("");
 
-            Match m = sep.getInternalRegex().Match(s);
-            if (m.Success && m.Index == 0 && m.Length == 0)
-                // Ignore empty-string matches at the beginning of the string (otherwise, there will be an unwanted
-                // empty string as the first element of the returned array.
-                m = m.NextMatch();
-
-            bool lastMatchEmpty = false;
-
-            while (m.Success) {
-                // Empty-string matches are to be ignored if they occur exactly where the previous match ended.
-                if (m.Length == 0 && m.Index == lastIndex) {
-                    lastMatchEmpty = true;
-                    m = m.NextMatch();
-                    continue;
-                }
-                // For each match:
-                // Get the substring of the source string between the position of the last
-                // match (or the beginning of the string, in case of the first match) and
-                // the current match, excluding the matched substrings.
-                outList.add(s.Substring(lastIndex, m.Index - lastIndex));
-                if (hitLimit)
-                    break;
-                hitLimit |= outList.length == limit - 1;
-
-                // Find the next match.
-                lastIndex = m.Index + m.Length;
-                lastMatchEmpty = m.Length == 0;
-                m = m.NextMatch();
+                return result;
             }
 
-            // If the end of the string has been reached without exceeding the limit, add the last split
-            // string (between the final match and the end of the string) to the return array.
-            if (!hitLimit && (lastIndex != s.Length || !lastMatchEmpty))
-                outList.add((lastIndex == s.Length) ? "" : s.Substring(lastIndex, s.Length - lastIndex));
+            int lastIndex = 0;
+            Match currentMatch = null;
+
+            while (result.length < limit) {
+                if (currentMatch == null)
+                    currentMatch = sep.getInternalRegex().Match(s);
+                else
+                    currentMatch = currentMatch.NextMatch();
+
+                if (!currentMatch.Success) {
+                    result.push(s.Substring(lastIndex));
+                    break;
+                }
+
+                int matchIndex = currentMatch.Index;
+                int matchLength = currentMatch.Length;
+
+                if (matchLength == 0 && (matchIndex == lastIndex || matchIndex == s.Length)) {
+                    // From ECMA-262:
+                    // separator does not match the empty substring at the beginning or end of the input string,
+                    // nor does it match the empty substring at the end of the previous separator match
+                    continue;
+                }
+
+                result.push(s.Substring(lastIndex, matchIndex - lastIndex));
+
+                // From ECMA-262:
+                // If separator is a regular expression that contains capturing parentheses, then each time
+                // separator is matched the results (including any undefined results) of the capturing
+                // parentheses are spliced into the output array.
+                GroupCollection matchGroups = currentMatch.Groups;
+                for (int i = 1; i < matchGroups.Count; i++) {
+                    Group group = matchGroups[i];
+                    result.push(group.Success ? group.Value : ASAny.undefined);
+                }
+
+                lastIndex = matchIndex + matchLength;
+            }
+
+            return result;
         }
 
         /// <summary>
@@ -1338,6 +1425,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="s">The string.</param>
         /// <returns>The string with alphabetic characters converted to lowercase.</returns>
+        [AVM2ExportPrototypeMethod]
         public static string toLowerCase(string s) {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
@@ -1349,6 +1437,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="s">The string.</param>
         /// <returns>The string with alphabetic characters converted to lowercase.</returns>
+        [AVM2ExportPrototypeMethod]
         public static string toLocaleLowerCase(string s) {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
@@ -1360,6 +1449,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="s">The string.</param>
         /// <returns>The string with alphabetic characters converted to uppercase.</returns>
+        [AVM2ExportPrototypeMethod]
         public static string toUpperCase(string s) {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
@@ -1371,11 +1461,21 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="s">The string.</param>
         /// <returns>The string with alphabetic characters converted to uppercase.</returns>
+        [AVM2ExportPrototypeMethod]
         public static string toLocaleUpperCase(string s) {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
             return s.ToUpper(CultureInfo.CurrentCulture);
         }
+
+        /// <summary>
+        /// Returns the given argument. This is used by the ABC compiler for calls to the
+        /// <c>toString</c> method on String values.
+        /// </summary>
+        /// <param name="s">The argument.</param>
+        /// <returns>The value of <paramref name="s"/>.</returns>
+        [AVM2ExportPrototypeMethod]
+        public static string toString(string s) => valueOf(s);
 
         /// <summary>
         /// Returns the given argument. This is used by the ABC compiler for calls to the
@@ -1395,21 +1495,21 @@ namespace Mariana.AVM2.Core {
         /// This is a special method that is called from the AVM2 runtime and by code compiled by the
         /// ABCIL compiler. It must not be called from outside code.
         /// </summary>
-        internal static new ASAny __AS_INVOKE(ReadOnlySpan<ASAny> args) {
-            if (args.Length == 0)
-                return ASAny.AS_fromString("");
-            return ASAny.AS_fromString(ASAny.AS_convertString(args[0]));
-        }
+        internal static new ASAny __AS_INVOKE(ReadOnlySpan<ASAny> args) =>
+            ASAny.AS_fromString((args.Length != 0) ? ASAny.AS_convertString(args[0]) : "");
 
         /// <exclude/>
         /// <summary>
         /// This is a special method that is called from the AVM2 runtime and by code compiled by the
         /// ABCIL compiler. It must not be called from outside code.
         /// </summary>
-        internal static new ASAny __AS_CONSTRUCT(ReadOnlySpan<ASAny> args) {
-            if (args.Length == 0)
-                return ASAny.AS_fromString("");
-            return ASAny.AS_fromString(ASAny.AS_convertString(args[0]));
+        internal static new ASAny __AS_CONSTRUCT(ReadOnlySpan<ASAny> args) => __AS_INVOKE(args);
+
+        internal static void __AS_CLASS_LOADED(ClassImpl klass) {
+            klass.classObject.AS_dynamicProps.setValue(
+                nameof(fromCharCode),
+                klass.getMethod(new QName(Namespace.AS3, nameof(fromCharCode)), TraitScope.STATIC).createMethodClosure()
+            );
         }
 
         private static string[] _prepareSingleCharCachedValues() {
@@ -1438,7 +1538,7 @@ namespace Mariana.AVM2.Core {
                 return s_lazyEmptyString.value;
 
             if (val.Length == 1) {
-                char cv = val[0];
+                int cv = val[0];
                 var cache = s_lazySingleCharCachedObjects.value;
                 if ((uint)cv < (uint)cache.Length)
                     return cache[cv];

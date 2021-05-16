@@ -255,19 +255,35 @@ namespace Mariana.AVM2.Native {
         internal override ASObject prototypeForInstance => m_classForProto.prototypeObject;
 
         protected private override void initClass() {
-            if (underlyingType == typeof(ASVector<>))
+            if (underlyingType == typeof(ASVector<>)) {
                 // We don't want any traits on the unsintantiated Vector class
                 // (It is a class that's only meant to be instantiated, nothing else)
                 return;
+            }
 
             _internalInitTraits();
             _internalInitClassSpecials();
+
+            if (underlyingType.Assembly == s_thisAssembly) {
+                // For internal types, check if a __AS_CLASS_LOADED magic method exists and invoke it.
+                MethodInfo classLoadedMethod = underlyingType.GetMethod(
+                    "__AS_CLASS_LOADED",
+                    BindingFlags.Static | BindingFlags.DeclaredOnly | BindingFlags.NonPublic,
+                    null,
+                    new[] {typeof(ClassImpl)},
+                    null
+                );
+
+                if (classLoadedMethod != null)
+                    classLoadedMethod.Invoke(null, new[] {this});
+            }
         }
 
         private void _internalInitTraits() {
-
             bool isInterface = this.isInterface;
+
             BindingFlags bindingAttr = BindingFlags.Public | BindingFlags.DeclaredOnly | BindingFlags.Instance;
+
             if (!isInterface)
                 bindingAttr |= BindingFlags.Static;
 
@@ -665,7 +681,8 @@ namespace Mariana.AVM2.Native {
                 else if (firstOptionalParamIndex != -1 && !isOptional) {
                     throw ErrorHelper.createError(
                         ErrorCode.MARIANA__NATIVE_CLASS_METHOD_OPTIONAL_PARAMS,
-                        traitName, (declClass == null) ? "<global>" : declClass.name.ToString());
+                        traitName, (declClass == null) ? "<global>" : declClass.name.ToString()
+                    );
                 }
 
                 // Parameter names do not need interning, as parameters are almost never looked up by name.

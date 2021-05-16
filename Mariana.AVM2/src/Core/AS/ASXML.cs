@@ -1,8 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using Mariana.Common;
 using Mariana.AVM2.Native;
+using Mariana.Common;
 
 namespace Mariana.AVM2.Core {
 
@@ -156,6 +156,17 @@ namespace Mariana.AVM2.Core {
             return parse(ASAny.AS_convertString(arg));
         }
 
+        internal static void __AS_CLASS_LOADED(ClassImpl klass) {
+            string[] staticMethods = new[] {nameof(settings), nameof(setSettings), nameof(defaultSettings)};
+
+            for (int i = 0; i < staticMethods.Length; i++) {
+                klass.classObject.AS_dynamicProps.setValue(
+                    staticMethods[i],
+                    klass.getMethod(new QName(Namespace.AS3, staticMethods[i]), TraitScope.STATIC).createMethodClosure()
+                );
+            }
+        }
+
         /// <summary>
         /// Converts an XMLList instance into an XML instance. For an XMLList with exactly one
         /// item, that item is returned.
@@ -199,7 +210,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <returns>An object with properties whose values are the default values for the XML class
         /// static fields.</returns>
-        [AVM2ExportTrait]
+        [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         public static ASObject defaultSettings() {
             ASObject obj = new ASObject();
             DynamicPropertyCollection props = obj.AS_dynamicProps;
@@ -220,7 +231,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <returns>An object with properties whose values are the current values of the XML class
         /// static fields.</returns>
-        [AVM2ExportTrait]
+        [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         public static ASObject settings() {
             ASObject obj = new ASObject();
             DynamicPropertyCollection props = obj.AS_dynamicProps;
@@ -242,7 +253,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="obj">The object whose properties are to be set to the corresponding static
         /// fields of the XML class. If this is null, the static fields will be set to their default
         /// values.</param>
-        [AVM2ExportTrait]
+        [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         public static void setSettings(ASObject obj = null) {
             if (obj == null) {
                 ignoreWhitespace = true;

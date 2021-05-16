@@ -684,6 +684,14 @@ namespace Mariana.AVM2.Compiler {
 
             stack.add(m_compilation.getInstruction(0).blockId);
 
+            void pushChildren(ref DynamicArray<int> _stack, Span<BasicBlock> _blocks, ReadOnlySpan<int> childIds) {
+                for (int i = childIds.Length - 1; i >= 0; i--) {
+                    ref BasicBlock nextBlock = ref _blocks[childIds[i]];
+                    if (nextBlock.postorderIndex == NOT_VISITED)
+                        _stack.add(nextBlock.id);
+                }
+            }
+
             while (stack.length > 0) {
                 ref BasicBlock block = ref blocks[stack[stack.length - 1]];
 
@@ -691,14 +699,6 @@ namespace Mariana.AVM2.Compiler {
                     // Push the block's successors.
                     // If this block is in a try region, its associated catch block(s) should
                     // also be considered as successors.
-
-                    void pushChildren(ref DynamicArray<int> _stack, Span<BasicBlock> _blocks, ReadOnlySpan<int> childIds) {
-                        for (int i = 0; i < childIds.Length; i++) {
-                            ref BasicBlock nextBlock = ref _blocks[childIds[i]];
-                            if (nextBlock.postorderIndex == NOT_VISITED)
-                                _stack.add(nextBlock.id);
-                        }
-                    }
 
                     if (block.excHandlerId != -1) {
                         var catchTargetBlockIds = staticIntArrayPool.getSpan(excHandlers[block.excHandlerId].flattenedCatchTargetBlockIds);

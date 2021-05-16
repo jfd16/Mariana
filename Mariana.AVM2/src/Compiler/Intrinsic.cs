@@ -47,7 +47,14 @@ namespace Mariana.AVM2.Compiler {
             MATH_MAX_2_I        = new Intrinsic(IntrinsicName.MATH_MAX_2_I),
             MATH_MIN_2_U        = new Intrinsic(IntrinsicName.MATH_MIN_2_U),
             MATH_MAX_2_U        = new Intrinsic(IntrinsicName.MATH_MAX_2_U),
-            ARRAY_PUSH_1        = new Intrinsic(IntrinsicName.ARRAY_PUSH_1);
+            ARRAY_PUSH_1        = new Intrinsic(IntrinsicName.ARRAY_PUSH_1),
+            STRING_CHARAT       = new Intrinsic(IntrinsicName.STRING_CHARAT),
+            STRING_CHARAT_I     = new Intrinsic(IntrinsicName.STRING_CHARAT_I),
+            STRING_CHARAT_CMP   = new Intrinsic(IntrinsicName.STRING_CHARAT_CMP),
+            STRING_CCODEAT      = new Intrinsic(IntrinsicName.STRING_CCODEAT),
+            STRING_CCODEAT_I    = new Intrinsic(IntrinsicName.STRING_CCODEAT_I),
+            STRING_CCODEAT_I_I  = new Intrinsic(IntrinsicName.STRING_CCODEAT_I_I),
+            STRING_CCODEAT_CMP  = new Intrinsic(IntrinsicName.STRING_CCODEAT_CMP);
 
         public static Intrinsic VECTOR_T_CALL_1(Class arg) => new Intrinsic(IntrinsicName.VECTOR_T_CALL_1, arg);
         public static Intrinsic VECTOR_T_PUSH_1(Class arg) => new Intrinsic(IntrinsicName.VECTOR_T_PUSH_1, arg);
@@ -121,6 +128,14 @@ namespace Mariana.AVM2.Compiler {
         MATH_MAX_2_U,
         ARRAY_PUSH_1,
         VECTOR_T_PUSH_1,
+
+        STRING_CHARAT,
+        STRING_CHARAT_I,
+        STRING_CHARAT_CMP,
+        STRING_CCODEAT,
+        STRING_CCODEAT_I,
+        STRING_CCODEAT_I_I,
+        STRING_CCODEAT_CMP,
     }
 
 }

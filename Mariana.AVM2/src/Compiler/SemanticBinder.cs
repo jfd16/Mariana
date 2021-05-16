@@ -7,6 +7,25 @@ using Mariana.Common;
 
 namespace Mariana.AVM2.Compiler {
 
+    using static DataNodeTypeHelper;
+    using static DataNodeConstHelper;
+    using static SemanticBinderSpecialTraits;
+
+    internal static class SemanticBinderSpecialTraits {
+        public static readonly Class objectClass = Class.fromType<ASObject>();
+        public static readonly Class arrayClass = Class.fromType<ASArray>();
+        public static readonly Class vectorClass = Class.fromType(typeof(ASVector<>));
+        public static readonly Class vectorAnyClass = Class.fromType<ASVectorAny>();
+        public static readonly Class functionClass = Class.fromType<ASFunction>();
+        public static readonly Trait mathMinTrait = Class.fromType<ASMath>().getTrait("min");
+        public static readonly Trait mathMaxTrait = Class.fromType<ASMath>().getTrait("max");
+        public static readonly Trait strCharAtTrait = Class.fromType<string>().getTrait(new QName(Namespace.AS3, "charAt"));
+        public static readonly Trait strCharCodeAtTrait = Class.fromType<string>().getTrait(new QName(Namespace.AS3, "charCodeAt"));
+        public static readonly Trait arrayLengthTrait = Class.fromType<ASArray>().getTrait("length");
+        public static readonly Trait objHasOwnPropertyTrait = Class.fromType<ASObject>().getTrait(new QName(Namespace.AS3, "hasOwnProperty"));
+
+    }
+
     internal sealed class SemanticBinder {
 
         private MethodCompilation m_compilation;
@@ -36,14 +55,6 @@ namespace Mariana.AVM2.Compiler {
     }
 
     internal sealed class SemanticBinderFirstPass {
-
-        private static readonly Class s_objectClass = Class.fromType<ASObject>();
-        private static readonly Class s_arrayClass = Class.fromType<ASArray>();
-        private static readonly Class s_vectorClass = Class.fromType(typeof(ASVector<>));
-        private static readonly Class s_vectorAnyClass = Class.fromType<ASVectorAny>();
-        private static readonly Class s_functionClass = Class.fromType<ASFunction>();
-        private static readonly Trait s_mathMinTrait = Class.fromType<ASMath>().getTrait("min");
-        private static readonly Trait s_mathMaxTrait = Class.fromType<ASMath>().getTrait("max");
 
         #pragma warning disable 0660, 0661
 
@@ -354,7 +365,7 @@ namespace Mariana.AVM2.Compiler {
                         if (node.constant != source.constant) {
                             node.isConstant = false;
                             node.dataType = DataNodeType.OBJECT;
-                            node.constant = new DataNodeConstant(DataNodeTypeHelper.getClass(nodeType));
+                            node.constant = new DataNodeConstant(getClass(nodeType));
                         }
                         break;
                     }
@@ -364,7 +375,7 @@ namespace Mariana.AVM2.Compiler {
                         break;
                 }
             }
-            else if (DataNodeTypeHelper.isNumeric(nodeType) && DataNodeTypeHelper.isNumeric(sourceType)) {
+            else if (isNumeric(nodeType) && isNumeric(sourceType)) {
                 // If the nodes are of numeric types, the common type is Number.
                 // An exception is when one of them is an integer constant whose value is
                 // in [0, 2^31-1] and thus representable as both a signed and an unsigned int,
@@ -398,10 +409,10 @@ namespace Mariana.AVM2.Compiler {
                 {
                     commonClass = null;
                 }
-                else if (DataNodeTypeHelper.isPrimitive(nodeType)
-                    || DataNodeTypeHelper.isPrimitive(sourceType))
+                else if (isPrimitive(nodeType)
+                    || isPrimitive(sourceType))
                 {
-                    commonClass = s_objectClass;
+                    commonClass = objectClass;
                 }
                 else if (nodeType == DataNodeType.NULL) {
                     commonClass = m_compilation.getDataNodeClass(source);
@@ -449,7 +460,7 @@ namespace Mariana.AVM2.Compiler {
                 // inheritance makes this search expensive performance-wise). Instead
                 // consider the common type to be Object (which is valid as it is a supertype
                 // of anything that can implement an interface).
-                return s_objectClass;
+                return objectClass;
 
             while (x.parent != null) {
                 x = x.parent;
@@ -809,7 +820,7 @@ namespace Mariana.AVM2.Compiler {
                     break;
 
                 case ABCOp.pushdouble:
-                    DataNodeConstHelper.setToConstant(ref pushed, m_compilation.abcFile.resolveDouble(instr.data.pushConst.poolId));
+                    setToConstant(ref pushed, m_compilation.abcFile.resolveDouble(instr.data.pushConst.poolId));
                     break;
 
                 case ABCOp.pushnamespace:
@@ -837,9 +848,9 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode popped = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
             ref DataNode scope = ref m_compilation.getDataNode(instr.data.pushScope.pushedNodeId);
 
-            if (DataNodeTypeHelper.isAnyOrUndefined(popped.dataType)) {
+            if (isAnyOrUndefined(popped.dataType)) {
                 scope.dataType = DataNodeType.OBJECT;
-                scope.constant = new DataNodeConstant(s_objectClass);
+                scope.constant = new DataNodeConstant(objectClass);
                 scope.isConstant = false;
                 scope.isNotNull = false;
             }
@@ -912,7 +923,7 @@ namespace Mariana.AVM2.Compiler {
                     instr.opcode = ABCOp.coerce_s;
                     break;
                 default:
-                    if (coerceToClass == s_objectClass)
+                    if (coerceToClass == objectClass)
                         instr.opcode = ABCOp.convert_o;
                     break;
             }
@@ -922,7 +933,7 @@ namespace Mariana.AVM2.Compiler {
                 return;
             }
 
-            output.dataType = DataNodeTypeHelper.getDataTypeOfClass(coerceToClass);
+            output.dataType = getDataTypeOfClass(coerceToClass);
             if (output.dataType == DataNodeType.OBJECT)
                 output.constant = new DataNodeConstant(coerceToClass);
 
@@ -954,7 +965,7 @@ namespace Mariana.AVM2.Compiler {
             output.isNotNull = false;
             output.constant = default;
 
-            if (DataNodeConstHelper.tryEvalUnaryOp(ref input, ref output, instr.opcode))
+            if (tryEvalUnaryOp(ref input, ref output, instr.opcode))
                 return;
 
             switch (instr.opcode) {
@@ -986,7 +997,7 @@ namespace Mariana.AVM2.Compiler {
 
                 case ABCOp.convert_o:
                     output.dataType = DataNodeType.OBJECT;
-                    output.constant = new DataNodeConstant(s_objectClass);
+                    output.constant = new DataNodeConstant(objectClass);
                     break;
             }
         }
@@ -1001,7 +1012,7 @@ namespace Mariana.AVM2.Compiler {
             output.isNotNull = false;
             output.constant = default;
 
-            if (DataNodeConstHelper.tryEvalUnaryOp(ref input, ref output, instr.opcode))
+            if (tryEvalUnaryOp(ref input, ref output, instr.opcode))
                 return;
 
             switch (instr.opcode) {
@@ -1032,7 +1043,7 @@ namespace Mariana.AVM2.Compiler {
 
             m_localStateChangedFromLastVisit = true;
 
-            if (DataNodeConstHelper.tryEvalUnaryOp(ref input, ref output, instr.opcode))
+            if (tryEvalUnaryOp(ref input, ref output, instr.opcode))
                 return;
 
             output.dataType = (instr.opcode == ABCOp.inclocal_i || instr.opcode == ABCOp.declocal_i)
@@ -1078,7 +1089,7 @@ namespace Mariana.AVM2.Compiler {
                 targetClass = lockedContext.value.getClassByMultiname(mn);
 
             if (ClassTagSet.primitive.contains(targetClass.tag))
-                targetClass = s_objectClass;
+                targetClass = objectClass;
 
             output.dataType = DataNodeType.OBJECT;
             output.constant = new DataNodeConstant(targetClass);
@@ -1097,7 +1108,7 @@ namespace Mariana.AVM2.Compiler {
             output.isConstant = false;
             output.isNotNull = false;
 
-            if (DataNodeConstHelper.tryEvalBinaryOp(ref input1, ref input2, ref output, instr.opcode))
+            if (tryEvalBinaryOp(ref input1, ref input2, ref output, instr.opcode))
                 return;
 
             const int numberAddDataTypeMask =
@@ -1115,7 +1126,7 @@ namespace Mariana.AVM2.Compiler {
 
             if (m_compilation.compileOptions.integerArithmeticMode == IntegerArithmeticMode.AGGRESSIVE
                 && input1.dataType == input2.dataType
-                && DataNodeTypeHelper.isInteger(input1.dataType))
+                && isInteger(input1.dataType))
             {
                 output.dataType = input1.dataType;
             }
@@ -1129,7 +1140,7 @@ namespace Mariana.AVM2.Compiler {
             }
             else {
                 output.dataType = DataNodeType.OBJECT;
-                output.constant = new DataNodeConstant(s_objectClass);
+                output.constant = new DataNodeConstant(objectClass);
                 instr.data.add.argsAreAnyType = (inputTypeBits & anyDataTypeMask) != 0;
             }
 
@@ -1147,7 +1158,7 @@ namespace Mariana.AVM2.Compiler {
             output.isConstant = false;
             output.isNotNull = false;
 
-            if (DataNodeConstHelper.tryEvalBinaryOp(ref input1, ref input2, ref output, instr.opcode))
+            if (tryEvalBinaryOp(ref input1, ref input2, ref output, instr.opcode))
                 return;
 
             ABCOp opcode = instr.opcode;
@@ -1161,8 +1172,7 @@ namespace Mariana.AVM2.Compiler {
                 var integerMode = m_compilation.compileOptions.integerArithmeticMode;
 
                 bool areInputsIntegersOfSameType =
-                    DataNodeTypeHelper.isInteger(input1.dataType)
-                    && DataNodeTypeHelper.isInteger(input2.dataType)
+                    isInteger(input1.dataType) && isInteger(input2.dataType)
                     && (input1.dataType == input2.dataType
                         || (input1.isConstant && input1.constant.intValue >= 0)
                         || (input2.isConstant && input2.constant.intValue >= 0));
@@ -1198,7 +1208,7 @@ namespace Mariana.AVM2.Compiler {
             output.isConstant = false;
             output.isNotNull = false;
 
-            if (DataNodeConstHelper.tryEvalCompareOp(ref input1, ref input2, ref output, instr.opcode))
+            if (tryEvalCompareOp(ref input1, ref input2, ref output, instr.opcode))
                 return;
 
             output.dataType = DataNodeType.BOOL;
@@ -1224,7 +1234,7 @@ namespace Mariana.AVM2.Compiler {
             }
 
             if (targetClass == null)
-                targetClass = s_objectClass;
+                targetClass = objectClass;
 
             output.constant = new DataNodeConstant(targetClass);
         }
@@ -1235,10 +1245,7 @@ namespace Mariana.AVM2.Compiler {
             pushed.dataType = DataNodeType.OBJECT;
             pushed.isNotNull = true;
 
-            Class klass = (instr.opcode == ABCOp.newarray)
-                ? s_arrayClass
-                : s_objectClass;
-
+            Class klass = (instr.opcode == ABCOp.newarray) ? arrayClass : objectClass;
             pushed.constant = new DataNodeConstant(klass);
         }
 
@@ -1255,7 +1262,7 @@ namespace Mariana.AVM2.Compiler {
 
             if (inputIds.Length == 2
                 && defNode.dataType == DataNodeType.CLASS
-                && defNode.constant.classValue == s_vectorClass)
+                && defNode.constant.classValue == vectorClass)
             {
                 ref DataNode argNode = ref m_compilation.getDataNode(inputIds[1]);
                 Class vectorClass = null;
@@ -1263,7 +1270,7 @@ namespace Mariana.AVM2.Compiler {
                 if (argNode.dataType == DataNodeType.CLASS)
                     vectorClass = argNode.constant.classValue.getVectorClass();
                 else if (argNode.dataType == DataNodeType.NULL)
-                    vectorClass = s_vectorAnyClass;
+                    vectorClass = vectorAnyClass;
 
                 if (vectorClass != null) {
                     resultNode.isConstant = true;
@@ -1277,7 +1284,7 @@ namespace Mariana.AVM2.Compiler {
             resultNode.isConstant = false;
             resultNode.isNotNull = true;
             resultNode.dataType = DataNodeType.OBJECT;
-            resultNode.constant = new DataNodeConstant(s_objectClass);
+            resultNode.constant = new DataNodeConstant(objectClass);
         }
 
         private void _visitDxns(ref Instruction instr) {
@@ -1302,7 +1309,7 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode indLocal = ref m_compilation.getDataNode(nodeIds[3]);
 
             objLocal.dataType = DataNodeType.OBJECT;
-            objLocal.constant = new DataNodeConstant(s_objectClass);
+            objLocal.constant = new DataNodeConstant(objectClass);
             objLocal.isNotNull = false;
             indLocal.dataType = DataNodeType.INT;
             indLocal.isNotNull = true;
@@ -1664,7 +1671,7 @@ namespace Mariana.AVM2.Compiler {
 
             obj.dataType = resolvedProp.objectType;
             obj.constant = (resolvedProp.objectClass != null) ? new DataNodeConstant(resolvedProp.objectClass) : default;
-            obj.isConstant = DataNodeTypeHelper.isConstantType(obj.dataType);
+            obj.isConstant = isConstantType(obj.dataType);
             obj.isNotNull = true;
         }
 
@@ -1737,7 +1744,7 @@ namespace Mariana.AVM2.Compiler {
         private void _visitNewFunction(ref Instruction instr) {
             ref DataNode pushed = ref m_compilation.getDataNode(instr.stackPushedNodeId);
             pushed.dataType = DataNodeType.OBJECT;
-            pushed.constant = new DataNodeConstant(s_functionClass);
+            pushed.constant = new DataNodeConstant(functionClass);
             pushed.isNotNull = true;
         }
 
@@ -1800,12 +1807,12 @@ namespace Mariana.AVM2.Compiler {
         /// <returns>True if resolution information could be obtained from a prior scope stack lookup,
         /// otherwise false.</returns>
         private bool _tryGetResolveInfoFromFindProp(ref DataNode objectNode, int multinameId, ref ResolvedProperty resolvedProp) {
-            var objectDefs = m_compilation.getDataNodeDefs(ref objectNode);
-
-            if (objectDefs.Length != 1 || !objectDefs[0].isInstruction)
+            int objPushInstrId = m_compilation.getStackNodePushInstrId(ref objectNode);
+            if (objPushInstrId == -1)
                 return false;
 
-            ref Instruction pushInstr = ref m_compilation.getInstruction(objectDefs[0].instrOrNodeId);
+            ref Instruction pushInstr = ref m_compilation.getInstruction(objPushInstrId);
+
             if ((pushInstr.opcode == ABCOp.findproperty || pushInstr.opcode == ABCOp.findpropstrict)
                 && !pushInstr.data.findProperty.scopeRef.isNull
                 && pushInstr.data.findProperty.multinameId == multinameId)
@@ -1989,10 +1996,10 @@ namespace Mariana.AVM2.Compiler {
 
             if (localName == null) {
                 if ((resolvedProp.objectType == DataNodeType.OBJECT || resolvedProp.objectType == DataNodeType.REST)
-                    && DataNodeTypeHelper.isNumeric(resolvedProp.rtNameType)
+                    && isNumeric(resolvedProp.rtNameType)
                     && (ns.GetValueOrDefault().isPublic || nsSet.GetValueOrDefault().containsPublic))
                 {
-                    Class klass = (resolvedProp.objectType == DataNodeType.REST) ? s_arrayClass : resolvedProp.objectClass;
+                    Class klass = (resolvedProp.objectType == DataNodeType.REST) ? arrayClass : resolvedProp.objectClass;
                     var specials = klass.classSpecials;
 
                     if (specials != null) {
@@ -2207,7 +2214,7 @@ namespace Mariana.AVM2.Compiler {
 
             void setResolvedAtRuntime(ref ResolvedProperty _resolvedProp) {
                 _resolvedProp.objectType = DataNodeType.OBJECT;
-                _resolvedProp.objectClass = s_objectClass;
+                _resolvedProp.objectClass = objectClass;
                 _resolvedProp.propKind = ResolvedPropertyKind.RUNTIME;
                 _resolvedProp.propInfo = null;
             }
@@ -2264,7 +2271,7 @@ namespace Mariana.AVM2.Compiler {
                     else if (type == DataNodeType.THIS)
                         klass = m_compilation.declaringClass;
                     else
-                        klass = DataNodeTypeHelper.getClass(type);
+                        klass = getClass(type);
 
                     if (type == DataNodeType.CLASS) {
                         _resolvedProp.objectClass = constant.classValue;
@@ -2382,7 +2389,7 @@ namespace Mariana.AVM2.Compiler {
 
             if (resolvedProp.propKind != ResolvedPropertyKind.INDEX
                 && resolvedProp.objectType == DataNodeType.OBJECT
-                && (resolvedProp.objectClass == s_objectClass || ClassTagSet.xmlOrXmlList.contains(resolvedProp.objectClass.tag)))
+                && (resolvedProp.objectClass == objectClass || ClassTagSet.xmlOrXmlList.contains(resolvedProp.objectClass.tag)))
             {
                 // getproperty on XML and XMLList (other than index access) is always resolved at runtime.
                 resolvedProp.propKind = ResolvedPropertyKind.RUNTIME;
@@ -2415,7 +2422,7 @@ namespace Mariana.AVM2.Compiler {
                         }
 
                         case TraitType.CONSTANT:
-                            DataNodeConstHelper.setToConstant(ref result, ((ConstantTrait)resolvedTrait).constantValue);
+                            setToConstant(ref result, ((ConstantTrait)resolvedTrait).constantValue);
                             break;
 
                         case TraitType.METHOD: {
@@ -2427,7 +2434,7 @@ namespace Mariana.AVM2.Compiler {
                             }
                             else {
                                 result.dataType = DataNodeType.OBJECT;
-                                result.constant = new DataNodeConstant(s_functionClass);
+                                result.constant = new DataNodeConstant(functionClass);
                             }
                             result.isNotNull = true;
                             break;
@@ -2527,7 +2534,7 @@ namespace Mariana.AVM2.Compiler {
         private void _resolveSetProperty(ref ResolvedProperty resolvedProp, ref DataNode value, bool isInit) {
             if (resolvedProp.propKind != ResolvedPropertyKind.INDEX
                 && resolvedProp.objectType == DataNodeType.OBJECT
-                && (resolvedProp.objectClass == s_objectClass || ClassTagSet.xmlOrXmlList.contains(resolvedProp.objectClass.tag)))
+                && (resolvedProp.objectClass == objectClass || ClassTagSet.xmlOrXmlList.contains(resolvedProp.objectClass.tag)))
             {
                 // setproperty on XML and XMLList (other than index access) is always resolved at runtime.
                 resolvedProp.propKind = ResolvedPropertyKind.RUNTIME;
@@ -2702,27 +2709,27 @@ namespace Mariana.AVM2.Compiler {
             if (isConstruct)
                 return null;
 
-            if ((method == s_mathMinTrait || method == s_mathMaxTrait) && argsOnStackIds.Length == 2) {
+            if ((method == mathMinTrait || method == mathMaxTrait) && argsOnStackIds.Length == 2) {
                 ref DataNode arg1 = ref m_compilation.getDataNode(argsOnStackIds[0]);
                 ref DataNode arg2 = ref m_compilation.getDataNode(argsOnStackIds[1]);
 
                 result.isNotNull = true;
 
-                if ((arg1.dataType == DataNodeType.INT || DataNodeConstHelper.isConstantInt(ref arg1))
-                    && (arg2.dataType == DataNodeType.INT || DataNodeConstHelper.isConstantInt(ref arg2)))
+                if ((arg1.dataType == DataNodeType.INT || isConstantInt(ref arg1))
+                    && (arg2.dataType == DataNodeType.INT || isConstantInt(ref arg2)))
                 {
                     result.dataType = DataNodeType.INT;
-                    return (method == s_mathMinTrait) ? Intrinsic.MATH_MIN_2_I : Intrinsic.MATH_MAX_2_I;
+                    return (method == mathMinTrait) ? Intrinsic.MATH_MIN_2_I : Intrinsic.MATH_MAX_2_I;
                 }
-                else if ((arg1.dataType == DataNodeType.UINT || DataNodeConstHelper.isConstantUint(ref arg1))
-                    && (arg2.dataType == DataNodeType.UINT || DataNodeConstHelper.isConstantUint(ref arg2)))
+                else if ((arg1.dataType == DataNodeType.UINT || isConstantUint(ref arg1))
+                    && (arg2.dataType == DataNodeType.UINT || isConstantUint(ref arg2)))
                 {
                     result.dataType = DataNodeType.UINT;
-                    return (method == s_mathMinTrait) ? Intrinsic.MATH_MIN_2_U : Intrinsic.MATH_MAX_2_U;
+                    return (method == mathMinTrait) ? Intrinsic.MATH_MIN_2_U : Intrinsic.MATH_MAX_2_U;
                 }
                 else {
                     result.dataType = DataNodeType.NUMBER;
-                    return (method == s_mathMinTrait) ? Intrinsic.MATH_MIN_2 : Intrinsic.MATH_MAX_2;
+                    return (method == mathMinTrait) ? Intrinsic.MATH_MIN_2 : Intrinsic.MATH_MAX_2;
                 }
             }
 
@@ -2731,15 +2738,30 @@ namespace Mariana.AVM2.Compiler {
                 && method.name.localName == "push"
                 && method.name.ns == Namespace.AS3)
             {
-                if (method.declaringClass.isVectorInstantiation && method.declaringClass != s_vectorAnyClass) {
+                if (method.declaringClass.isVectorInstantiation && method.declaringClass != vectorAnyClass) {
                     result.dataType = DataNodeType.INT;
                     result.isNotNull = true;
                     return Intrinsic.VECTOR_T_PUSH_1(method.declaringClass);
                 }
-                else if (method.declaringClass == s_arrayClass) {
+                else if (method.declaringClass == arrayClass) {
                     result.dataType = DataNodeType.UINT;
                     result.isNotNull = true;
                     return Intrinsic.ARRAY_PUSH_1;
+                }
+            }
+
+            if ((method == strCharAtTrait || method == strCharCodeAtTrait) && argsOnStackIds.Length == 1) {
+                ref DataNode arg = ref m_compilation.getDataNode(argsOnStackIds[0]);
+
+                if (method == strCharAtTrait) {
+                    result.dataType = DataNodeType.STRING;
+                    result.isNotNull = true;
+                    return isInteger(arg.dataType) ? Intrinsic.STRING_CHARAT_I : Intrinsic.STRING_CHARAT;
+                }
+                else {
+                    result.dataType = DataNodeType.NUMBER;
+                    result.isNotNull = true;
+                    return isInteger(arg.dataType) ? Intrinsic.STRING_CCODEAT_I : Intrinsic.STRING_CCODEAT;
                 }
             }
 
@@ -2752,7 +2774,7 @@ namespace Mariana.AVM2.Compiler {
             int argCount = argsOnStackIds.Length;
 
             void convertType(ref DataNode input, ref DataNode output, DataNodeType toType, ABCOp convertOpcode) {
-                bool isConst = DataNodeConstHelper.tryEvalUnaryOp(ref input, ref output, convertOpcode);
+                bool isConst = tryEvalUnaryOp(ref input, ref output, convertOpcode);
                 if (!isConst) {
                     output.dataType = toType;
                     output.isConstant = false;
@@ -2760,9 +2782,9 @@ namespace Mariana.AVM2.Compiler {
                 }
             }
 
-            if (klass == s_objectClass) {
+            if (klass == objectClass) {
                 result.dataType = DataNodeType.OBJECT;
-                result.constant = new DataNodeConstant(s_objectClass);
+                result.constant = new DataNodeConstant(objectClass);
 
                 if (argCount == 0)
                     return Intrinsic.OBJECT_NEW_0;
@@ -2773,7 +2795,7 @@ namespace Mariana.AVM2.Compiler {
             switch (klass.tag) {
                 case ClassTag.INT: {
                     if (argCount == 0) {
-                        DataNodeConstHelper.setToConstant(ref result, 0);
+                        setToConstant(ref result, 0);
                         return Intrinsic.INT_NEW_0;
                     }
                     else if (argCount == 1) {
@@ -2786,7 +2808,7 @@ namespace Mariana.AVM2.Compiler {
 
                 case ClassTag.UINT: {
                     if (argCount == 0) {
-                        DataNodeConstHelper.setToConstant(ref result, 0);
+                        setToConstant(ref result, 0);
                         result.dataType = DataNodeType.UINT;
                         return Intrinsic.UINT_NEW_0;
                     }
@@ -2800,7 +2822,7 @@ namespace Mariana.AVM2.Compiler {
 
                 case ClassTag.NUMBER: {
                     if (argCount == 0) {
-                        DataNodeConstHelper.setToConstant(ref result, 0);
+                        setToConstant(ref result, 0);
                         return Intrinsic.NUMBER_NEW_0;
                     }
                     else if (argCount == 1) {
@@ -2858,13 +2880,13 @@ namespace Mariana.AVM2.Compiler {
                         }
                         else if (argCount == 1) {
                             ref DataNode input = ref m_compilation.getDataNode(argsOnStackIds[0]);
-                            if (DataNodeTypeHelper.isNumeric(input.dataType) || input.dataType == DataNodeType.STRING)
+                            if (isNumeric(input.dataType) || input.dataType == DataNodeType.STRING)
                                 resolved = Intrinsic.DATE_NEW_1;
                         }
                         else if (argCount <= 7) {
                             bool areAllArgsNumeric = true;
                             for (int i = 0; i < argsOnStackIds.Length && areAllArgsNumeric; i++)
-                                areAllArgsNumeric &= DataNodeTypeHelper.isNumeric(m_compilation.getDataNode(argsOnStackIds[i]).dataType);
+                                areAllArgsNumeric &= isNumeric(m_compilation.getDataNode(argsOnStackIds[i]).dataType);
 
                             if (areAllArgsNumeric)
                                 resolved = Intrinsic.DATE_NEW_7;
@@ -2889,7 +2911,7 @@ namespace Mariana.AVM2.Compiler {
                     }
                     else if (argCount == 1) {
                         ref DataNode input = ref m_compilation.getDataNode(argsOnStackIds[0]);
-                        return DataNodeTypeHelper.isInteger(input.dataType) ? Intrinsic.ARRAY_NEW_1_LEN : null;
+                        return isInteger(input.dataType) ? Intrinsic.ARRAY_NEW_1_LEN : null;
                     }
 
                     return Intrinsic.ARRAY_NEW;
@@ -2900,11 +2922,11 @@ namespace Mariana.AVM2.Compiler {
                         if (argCount == 1) {
                             result.setDataTypeFromClass(klass);
                             result.isNotNull = true;
-                            return (klass == s_vectorAnyClass) ? Intrinsic.VECTOR_ANY_CALL_1 : Intrinsic.VECTOR_T_CALL_1(klass);
+                            return (klass == vectorAnyClass) ? Intrinsic.VECTOR_ANY_CALL_1 : Intrinsic.VECTOR_T_CALL_1(klass);
                         }
                     }
                     else {
-                        if (klass == s_vectorAnyClass && argCount <= 2) {
+                        if (klass == vectorAnyClass && argCount <= 2) {
                             result.setDataTypeFromClass(Class.fromType<ASVector<ASObject>>());
                             result.isNotNull = true;
                             return Intrinsic.VECTOR_ANY_CTOR;
@@ -3074,11 +3096,6 @@ namespace Mariana.AVM2.Compiler {
 
     internal sealed class SemanticBinderSecondPass {
 
-        private static readonly Class s_objectClass = Class.fromType<ASObject>();
-        private static readonly Trait s_arrayLengthTrait = Class.fromType<ASArray>().getTrait("length");
-
-        private static readonly Trait s_objHasOwnPropertyTrait = Class.fromType<ASObject>().getTrait(new QName(Namespace.AS3, "hasOwnProperty"));
-
         private MethodCompilation m_compilation;
         private DynamicArray<int> m_tempIntArray;
         private DynamicArray<int> m_dataNodeIdsWithConstPushConversions;
@@ -3094,12 +3111,13 @@ namespace Mariana.AVM2.Compiler {
             m_hasRestOnScopeStack = false;
 
             var basicBlocks = m_compilation.getBasicBlocks();
+            var reversePostOrder = m_compilation.getBasicBlockReversePostorder();
 
-            for (int i = 0; i < basicBlocks.Length; i++)
-                _visitBasicBlock(ref basicBlocks[i]);
+            for (int i = 0; i < reversePostOrder.Length; i++)
+                _visitBasicBlock(ref basicBlocks[reversePostOrder[i]]);
 
-            for (int i = 0; i < basicBlocks.Length; i++)
-                _checkBlockEntryPhiNodes(ref basicBlocks[i]);
+            for (int i = 0; i < reversePostOrder.Length; i++)
+                _checkBlockEntryPhiNodes(ref basicBlocks[reversePostOrder[i]]);
 
             _checkDataNodeConstPushConversions();
 
@@ -3120,7 +3138,7 @@ namespace Mariana.AVM2.Compiler {
                     for (int i = 0; i < capturedItems.length; i++) {
                         ref readonly var capturedItem = ref capturedItems[i];
                         if (capturedItem.isWithScope && capturedItem.dataType == DataNodeType.OBJECT
-                            && (capturedItem.objClass == s_objectClass || ClassTagSet.xmlOrXmlList.contains(capturedItem.objClass.tag)))
+                            && (capturedItem.objClass == objectClass || ClassTagSet.xmlOrXmlList.contains(capturedItem.objClass.tag)))
                         {
                             m_compilation.setFlag(MethodCompilationFlags.MAY_USE_DXNS);
                             break;
@@ -3192,22 +3210,22 @@ namespace Mariana.AVM2.Compiler {
 
                 switch (node.onPushCoerceType) {
                     case DataNodeType.INT:
-                        isConstConverted = DataNodeConstHelper.tryEvalUnaryOp(ref node, ref dummyOutput, ABCOp.convert_i);
+                        isConstConverted = tryEvalUnaryOp(ref node, ref dummyOutput, ABCOp.convert_i);
                         break;
                     case DataNodeType.UINT:
-                        isConstConverted = DataNodeConstHelper.tryEvalUnaryOp(ref node, ref dummyOutput, ABCOp.convert_u);
+                        isConstConverted = tryEvalUnaryOp(ref node, ref dummyOutput, ABCOp.convert_u);
                         break;
                     case DataNodeType.NUMBER:
-                        isConstConverted = DataNodeConstHelper.tryEvalUnaryOp(ref node, ref dummyOutput, ABCOp.convert_d);
+                        isConstConverted = tryEvalUnaryOp(ref node, ref dummyOutput, ABCOp.convert_d);
                         break;
                     case DataNodeType.STRING:
-                        isConstConverted = DataNodeConstHelper.tryEvalUnaryOp(ref node, ref dummyOutput, ABCOp.coerce_s);
+                        isConstConverted = tryEvalUnaryOp(ref node, ref dummyOutput, ABCOp.coerce_s);
                         break;
                     case DataNodeType.BOOL:
-                        isConstConverted = DataNodeConstHelper.tryEvalUnaryOp(ref node, ref dummyOutput, ABCOp.convert_b);
+                        isConstConverted = tryEvalUnaryOp(ref node, ref dummyOutput, ABCOp.convert_b);
                         break;
                     case DataNodeType.OBJECT:
-                        isConstConverted = DataNodeConstHelper.tryEvalUnaryOp(ref node, ref dummyOutput, ABCOp.convert_o);
+                        isConstConverted = tryEvalUnaryOp(ref node, ref dummyOutput, ABCOp.convert_o);
                         break;
                 }
 
@@ -3544,7 +3562,7 @@ namespace Mariana.AVM2.Compiler {
                 _markStackNodeAsNoPush(ref input1);
                 _markStackNodeAsNoPush(ref input2);
             }
-            else if (!DataNodeTypeHelper.isInteger(output.dataType)) {
+            else if (!isInteger(output.dataType)) {
                 _requireStackNodeAsType(ref input1, DataNodeType.NUMBER, instr.id);
                 _requireStackNodeAsType(ref input2, DataNodeType.NUMBER, instr.id);
             }
@@ -3599,7 +3617,7 @@ namespace Mariana.AVM2.Compiler {
 
             if (output.isConstant || output.dataType == DataNodeType.THIS || output.dataType == DataNodeType.REST)
                 _markStackNodeAsNoPush(ref input);
-            else if (!DataNodeTypeHelper.isAnyOrUndefined(input.dataType))
+            else if (!isAnyOrUndefined(input.dataType))
                 _requireStackNodeObjectOrInterface(ref input, instr.id);
         }
 
@@ -3663,7 +3681,7 @@ namespace Mariana.AVM2.Compiler {
             }
             else {
                 instr.data.compare.compareType = _getComparisonType(ref input1, ref input2, instr.opcode);
-                _checkCompareOperation(ref input1, ref input2, instr.id, instr.data.compare.compareType);
+                _checkCompareOperation(ref input1, ref input2, instr.id, ref instr.data.compare.compareType);
             }
         }
 
@@ -3673,7 +3691,7 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode input2 = ref m_compilation.getDataNode(inputIds[1]);
 
             instr.data.compareBranch.compareType = _getComparisonType(ref input1, ref input2, instr.opcode);
-            _checkCompareOperation(ref input1, ref input2, instr.id, instr.data.compareBranch.compareType);
+            _checkCompareOperation(ref input1, ref input2, instr.id, ref instr.data.compareBranch.compareType);
         }
 
         private void _visitIfTrueFalse(ref Instruction instr) {
@@ -3727,13 +3745,13 @@ namespace Mariana.AVM2.Compiler {
             }
             else if (instr.opcode == ABCOp.pushwith) {
                 Class scopeClass = m_compilation.getDataNodeClass(scope);
-                if (scopeClass == null || scopeClass == s_objectClass || ClassTagSet.xmlOrXmlList.contains(scopeClass.tag))
+                if (scopeClass == null || scopeClass == objectClass || ClassTagSet.xmlOrXmlList.contains(scopeClass.tag))
                     m_hasXmlWithOnScopeStack = true;
             }
 
             if (scope.isConstant || scope.dataType == DataNodeType.THIS || scope.dataType == DataNodeType.REST)
                 _markStackNodeAsNoPush(ref input);
-            else if (DataNodeTypeHelper.isAnyOrUndefined(input.dataType))
+            else if (isAnyOrUndefined(input.dataType))
                 _requireStackNodeAsType(ref input, DataNodeType.OBJECT, instr.id);
         }
 
@@ -3785,7 +3803,7 @@ namespace Mariana.AVM2.Compiler {
             ResolvedProperty dummyResolvedProp = default;
             dummyResolvedProp.propKind = ResolvedPropertyKind.RUNTIME;
             dummyResolvedProp.objectType = DataNodeType.OBJECT;
-            dummyResolvedProp.objectClass = s_objectClass;
+            dummyResolvedProp.objectClass = objectClass;
 
             var multiname = m_compilation.abcFile.resolveMultiname(instr.data.getDescendants.multinameId);
 
@@ -3816,7 +3834,7 @@ namespace Mariana.AVM2.Compiler {
             ABCMultiname multiname = m_compilation.abcFile.resolveMultiname(instr.data.accessProperty.multinameId);
             if (multiname.usesNamespaceSet && resolvedProp.propKind == ResolvedPropertyKind.RUNTIME) {
                 Class objClass = m_compilation.getDataNodeClass(obj);
-                if (objClass == null || objClass == s_objectClass || ClassTagSet.xmlOrXmlList.contains(objClass.tag))
+                if (objClass == null || objClass == objectClass || ClassTagSet.xmlOrXmlList.contains(objClass.tag))
                     m_compilation.setFlag(MethodCompilationFlags.MAY_USE_DXNS);
             }
 
@@ -3853,7 +3871,7 @@ namespace Mariana.AVM2.Compiler {
             ABCMultiname multiname = m_compilation.abcFile.resolveMultiname(instr.data.accessProperty.multinameId);
             if (multiname.usesNamespaceSet && resolvedProp.propKind == ResolvedPropertyKind.RUNTIME) {
                 Class objClass = m_compilation.getDataNodeClass(obj);
-                if (objClass == null || objClass == s_objectClass || ClassTagSet.xmlOrXmlList.contains(objClass.tag))
+                if (objClass == null || objClass == objectClass || ClassTagSet.xmlOrXmlList.contains(objClass.tag))
                     m_compilation.setFlag(MethodCompilationFlags.MAY_USE_DXNS);
             }
 
@@ -3958,7 +3976,7 @@ namespace Mariana.AVM2.Compiler {
             // Check if a runtime binding may access the default XML namespace. This happens
             // when the object is possibly an XML or XMLList instance.
             Class objClass = m_compilation.getDataNodeClass(obj);
-            if (objClass == null || objClass == s_objectClass || ClassTagSet.xmlOrXmlList.contains(objClass.tag))
+            if (objClass == null || objClass == objectClass || ClassTagSet.xmlOrXmlList.contains(objClass.tag))
                 m_compilation.setFlag(MethodCompilationFlags.MAY_USE_DXNS);
         }
 
@@ -4186,7 +4204,7 @@ namespace Mariana.AVM2.Compiler {
                         break;
                     case DataNodeType.FUNCTION:
                     case DataNodeType.REST:
-                        (nodeType, nodeClass) = (DataNodeType.OBJECT, DataNodeTypeHelper.getClass(node.dataType));
+                        (nodeType, nodeClass) = (DataNodeType.OBJECT, getClass(node.dataType));
                         break;
                 }
 
@@ -4202,10 +4220,10 @@ namespace Mariana.AVM2.Compiler {
 
             // Constant conversions/hoisting/integer arithmetic are only considered when the target
             // type is any, Object or a primitive.
-            if (toClass != null && toClass != s_objectClass && !ClassTagSet.primitive.contains(toClass.tag))
+            if (toClass != null && toClass != objectClass && !ClassTagSet.primitive.contains(toClass.tag))
                 return;
 
-            _requireStackNodeAsType(ref node, DataNodeTypeHelper.getDataTypeOfClass(toClass), instrId);
+            _requireStackNodeAsType(ref node, getDataTypeOfClass(toClass), instrId);
         }
 
         private void _requireStackNodeAsType(int nodeId, DataNodeType toType, int instrId) =>
@@ -4234,7 +4252,7 @@ namespace Mariana.AVM2.Compiler {
                 return;
 
             if (toType == DataNodeType.OBJECT
-                && DataNodeTypeHelper.isObjectType(fromType)
+                && isObjectType(fromType)
                 && (fromType != DataNodeType.OBJECT || !node.constant.classValue.isInterface))
             {
                 return;
@@ -4253,7 +4271,7 @@ namespace Mariana.AVM2.Compiler {
             bool canBeHoisted =
                 toType == DataNodeType.ANY
                 || toType == DataNodeType.OBJECT
-                || (DataNodeTypeHelper.isPrimitive(fromType) && DataNodeTypeHelper.isPrimitive(toType));
+                || (isPrimitive(fromType) && isPrimitive(toType));
 
             if (!canBeHoisted)
                 return;
@@ -4281,12 +4299,12 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _requireStackNodeObjectOrAny(ref DataNode node, int instrId) {
-            if (!DataNodeTypeHelper.isAnyOrUndefined(node.dataType))
+            if (!isAnyOrUndefined(node.dataType))
                 _requireStackNodeAsType(ref node, DataNodeType.OBJECT, instrId);
         }
 
         private void _requireStackNodeObjectOrInterface(ref DataNode node, int instrId) {
-            if (!DataNodeTypeHelper.isObjectType(node.dataType))
+            if (!isObjectType(node.dataType))
                 _requireStackNodeAsType(ref node, DataNodeType.OBJECT, instrId);
         }
 
@@ -4388,7 +4406,7 @@ namespace Mariana.AVM2.Compiler {
             if (node.dataType == DataNodeType.REST) {
                 // RestParam only supports getting the length property; for anything else we
                 // need to create the full array.
-                if (trait == s_arrayLengthTrait && m_compilation.getInstruction(instrId).opcode == ABCOp.getproperty)
+                if (trait == arrayLengthTrait && m_compilation.getInstruction(instrId).opcode == ABCOp.getproperty)
                     return true;
 
                 m_compilation.setFlag(MethodCompilationFlags.HAS_REST_ARRAY);
@@ -4404,7 +4422,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="targetType">The target integer type.</param>
         /// <returns>True if any integer arithmetic optimization was made, otherwise false.</returns>
         private bool _checkForFloatToIntegerOp(ref DataNode node, DataNodeType targetType) {
-            if (!DataNodeTypeHelper.isInteger(targetType)
+            if (!isInteger(targetType)
                 || m_compilation.compileOptions.integerArithmeticMode == IntegerArithmeticMode.EXPLICIT_ONLY
                 || m_compilation.getDataNodeUseCount(ref node) > 1)
             {
@@ -4420,7 +4438,7 @@ namespace Mariana.AVM2.Compiler {
             for (int i = 0; i < nodeSet.length; i++) {
                 ref DataNode nodeInSet = ref m_compilation.getDataNode(nodeSet[i]);
 
-                if (!DataNodeTypeHelper.isInteger(nodeInSet.dataType))
+                if (!isInteger(nodeInSet.dataType))
                     nodeInSet.dataType = targetType;
                 else
                     nodeInSet.onPushCoerceType = DataNodeType.UNKNOWN;
@@ -4429,21 +4447,21 @@ namespace Mariana.AVM2.Compiler {
             return true;
 
             bool walk(ref DataNode _node, bool isTopLevel, ref DynamicArray<int> _nodeSet) {
-                if (DataNodeTypeHelper.isInteger(_node.dataType)) {
+                if (isInteger(_node.dataType)) {
                     if (_node.onPushCoerceType != DataNodeType.UNKNOWN)
                         _nodeSet.add(_node.id);
 
                     return true;
                 }
 
-                if (!DataNodeTypeHelper.isNumeric(_node.dataType))
+                if (!isNumeric(_node.dataType))
                     return false;
 
                 Debug.Assert(_node.dataType == DataNodeType.NUMBER);
 
-                var defs = m_compilation.getDataNodeDefs(ref _node);
-
                 if (_node.isPhi) {
+                    var defs = m_compilation.getDataNodeDefs(ref _node);
+
                     for (int i = 0; i < defs.Length; i++) {
                         ref DataNode def = ref m_compilation.getDataNode(defs[i].instrOrNodeId);
                         if (m_compilation.getDataNodeUseCount(ref def) > 1)
@@ -4456,10 +4474,12 @@ namespace Mariana.AVM2.Compiler {
                     return true;
                 }
 
-                if (defs.Length > 1 || !defs[0].isInstruction)
+
+                int pushInstrId = m_compilation.getStackNodePushInstrId(ref _node);
+                if (pushInstrId == -1)
                     return false;
 
-                ref Instruction pushInstr = ref m_compilation.getInstruction(defs[0].instrOrNodeId);
+                ref Instruction pushInstr = ref m_compilation.getInstruction(pushInstrId);
 
                 switch (pushInstr.opcode) {
                     case ABCOp.add:
@@ -4481,7 +4501,7 @@ namespace Mariana.AVM2.Compiler {
                             if (!isTopLevel)
                                 return false;
 
-                            if (!DataNodeTypeHelper.isInteger(left.dataType) || !DataNodeTypeHelper.isInteger(right.dataType))
+                            if (!isInteger(left.dataType) || !isInteger(right.dataType))
                                 return false;
 
                             bool hasSameType =
@@ -4496,7 +4516,7 @@ namespace Mariana.AVM2.Compiler {
                         if (!_areBinOpNodesUsedOnlyOnce(ref left, ref right, out bool isRightDupOfLeft)) {
                             // We allow nodes to be used elsewhere if both of them are known to be of
                             // integral types, as they will be left unchanged.
-                            if (!DataNodeTypeHelper.isInteger(left.dataType) && !DataNodeTypeHelper.isInteger(right.dataType))
+                            if (!isInteger(left.dataType) && !isInteger(right.dataType))
                                 return false;
                         }
 
@@ -4516,7 +4536,7 @@ namespace Mariana.AVM2.Compiler {
                     {
                         ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref pushInstr));
 
-                        if (!DataNodeTypeHelper.isInteger(input.dataType) && m_compilation.getDataNodeUseCount(ref input) > 1)
+                        if (!isInteger(input.dataType) && m_compilation.getDataNodeUseCount(ref input) > 1)
                             return false;
 
                         if (!walk(ref input, false, ref _nodeSet))
@@ -4524,6 +4544,26 @@ namespace Mariana.AVM2.Compiler {
 
                         _nodeSet.add(_node.id);
                         return true;
+                    }
+
+                    case ABCOp.callproperty:
+                    case ABCOp.callproplex:
+                    {
+                        // Check if we can use a specialized intrinsic for String.charCodeAt when the result
+                        // is coerced to an integer (we only do this at the top level)
+                        if (!isTopLevel)
+                            return false;
+
+                        ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(pushInstr.data.callProperty.resolvedPropId);
+
+                        if (resolvedProp.propKind == ResolvedPropertyKind.INTRINSIC
+                            && resolvedProp.propInfo == Intrinsic.STRING_CCODEAT_I)
+                        {
+                            resolvedProp.propInfo = Intrinsic.STRING_CCODEAT_I_I;
+                            _nodeSet.add(_node.id);
+                            return true;
+                        }
+                        return false;
                     }
 
                     default:
@@ -4559,11 +4599,11 @@ namespace Mariana.AVM2.Compiler {
                 if (node.isConstant)
                     return;
 
-                var defs = m_compilation.getDataNodeDefs(node.id);
-                if (defs.Length != 1 || !defs[0].isInstruction)
+                int pushInstrId = m_compilation.getStackNodePushInstrId(ref node);
+                if (pushInstrId == -1)
                     return;
 
-                ref Instruction pushInstr = ref m_compilation.getInstruction(defs[0].instrOrNodeId);
+                ref Instruction pushInstr = ref m_compilation.getInstruction(pushInstrId);
                 if (pushInstr.opcode == ABCOp.add && pushInstr.data.add.isConcatTreeRoot) {
                     pushInstr.data.add.isConcatTreeRoot = false;
                     pushInstr.data.add.isConcatTreeInternalNode = true;
@@ -4641,25 +4681,28 @@ namespace Mariana.AVM2.Compiler {
                 case ABCOp.ifne:
                 {
                     if (inputConst.isConstant) {
-                        if (DataNodeTypeHelper.isInteger(inputVar.dataType) && DataNodeConstHelper.isConstantZero(ref inputConst))
+                        if (isInteger(inputVar.dataType) && isConstantZero(ref inputConst))
                             return isLeftConstant ? ComparisonType.INT_ZERO_L : ComparisonType.INT_ZERO_R;
 
                         if (isStrictEquals && inputConst.dataType == DataNodeType.UNDEFINED
-                            && DataNodeTypeHelper.isAnyOrUndefined(inputVar.dataType))
+                            && isAnyOrUndefined(inputVar.dataType))
                         {
                             // We only use this optimization for strict equality, because with weak equality null and the empty
                             // XMLList equal undefined.
                             return isLeftConstant ? ComparisonType.ANY_UNDEF_L : ComparisonType.ANY_UNDEF_R;
                         }
 
-                        if (inputConst.dataType == DataNodeType.NULL && DataNodeTypeHelper.isObjectType(inputVar.dataType)) {
+                        if (inputConst.dataType == DataNodeType.NULL && inputVar.dataType == DataNodeType.STRING)
+                            return isLeftConstant ? ComparisonType.OBJ_NULL_L : ComparisonType.OBJ_NULL_R;
+
+                        if (inputConst.dataType == DataNodeType.NULL && isObjectType(inputVar.dataType)) {
                             // Optimize the object-null equality only if it is a strict equality, or the object
                             // is known not to be an XML or XMLList. This is because a simple-content XML having
                             // the content "null" is equal to null when using weak equality.
 
                             Class varClass = m_compilation.getDataNodeClass(inputVar);
                             if (isStrictEquals
-                                || (varClass != s_objectClass && !ClassTagSet.xmlOrXmlList.contains(varClass.tag)))
+                                || (varClass != objectClass && !ClassTagSet.xmlOrXmlList.contains(varClass.tag)))
                             {
                                 return isLeftConstant ? ComparisonType.OBJ_NULL_L : ComparisonType.OBJ_NULL_R;
                             }
@@ -4686,14 +4729,14 @@ namespace Mariana.AVM2.Compiler {
                             return ComparisonType.UINT;
                     }
 
-                    bool input1IsNumeric = DataNodeTypeHelper.isNumeric(input1Ty);
-                    bool input2IsNumeric = DataNodeTypeHelper.isNumeric(input2Ty);
+                    bool input1IsNumeric = isNumeric(input1Ty);
+                    bool input2IsNumeric = isNumeric(input2Ty);
 
                     if (input1IsNumeric && input2IsNumeric) {
-                        if (inputVar.dataType == DataNodeType.INT && DataNodeConstHelper.isConstantInt(ref inputConst))
+                        if (inputVar.dataType == DataNodeType.INT && isConstantInt(ref inputConst))
                             return ComparisonType.INT;
 
-                        if (inputVar.dataType == DataNodeType.UINT && DataNodeConstHelper.isConstantUint(ref inputConst))
+                        if (inputVar.dataType == DataNodeType.UINT && isConstantUint(ref inputConst))
                             return ComparisonType.UINT;
 
                         return ComparisonType.NUMBER;
@@ -4705,14 +4748,14 @@ namespace Mariana.AVM2.Compiler {
                         return ComparisonType.NUMBER;
                     }
 
-                    if (DataNodeTypeHelper.isAnyOrUndefined(input1Ty) || DataNodeTypeHelper.isAnyOrUndefined(input2Ty))
+                    if (isAnyOrUndefined(input1Ty) || isAnyOrUndefined(input2Ty))
                         return ComparisonType.ANY;
 
                     Class input1Class = m_compilation.getDataNodeClass(input1);
                     Class input2Class = m_compilation.getDataNodeClass(input2);
                     var inputClassTagSet = new ClassTagSet(input1Class.tag, input2Class.tag);
 
-                    if (input1Class == s_objectClass || input2Class == s_objectClass
+                    if (input1Class == objectClass || input2Class == objectClass
                         || ClassTagSet.primitive.containsAny(inputClassTagSet))
                     {
                         return ComparisonType.OBJECT;
@@ -4739,14 +4782,14 @@ namespace Mariana.AVM2.Compiler {
                 case ABCOp.greaterthan:
                 case ABCOp.ifgt:
                 case ABCOp.ifnle:
-                    if (input1.dataType == DataNodeType.UINT && DataNodeConstHelper.isConstantZero(ref input2))
+                    if (input1.dataType == DataNodeType.UINT && isConstantZero(ref input2))
                         return ComparisonType.INT_ZERO_R;
                     goto default;
 
                 case ABCOp.lessthan:
                 case ABCOp.iflt:
                 case ABCOp.ifnge:
-                    if (input2.dataType == DataNodeType.UINT && DataNodeConstHelper.isConstantZero(ref input1))
+                    if (input2.dataType == DataNodeType.UINT && isConstantZero(ref input1))
                         return ComparisonType.INT_ZERO_L;
                     goto default;
 
@@ -4767,17 +4810,17 @@ namespace Mariana.AVM2.Compiler {
                             return ComparisonType.STRING;
                     }
 
-                    if (DataNodeTypeHelper.isNumeric(input1.dataType) || DataNodeTypeHelper.isNumeric(input2.dataType)) {
-                        if (inputVar.dataType == DataNodeType.INT && DataNodeConstHelper.isConstantInt(ref inputConst))
+                    if (isNumeric(input1.dataType) || isNumeric(input2.dataType)) {
+                        if (inputVar.dataType == DataNodeType.INT && isConstantInt(ref inputConst))
                             return ComparisonType.INT;
 
-                        if (inputVar.dataType == DataNodeType.UINT && DataNodeConstHelper.isConstantUint(ref inputConst))
+                        if (inputVar.dataType == DataNodeType.UINT && isConstantUint(ref inputConst))
                             return ComparisonType.UINT;
 
                         return ComparisonType.NUMBER;
                     }
 
-                    if (DataNodeTypeHelper.isAnyOrUndefined(input1.dataType) || DataNodeTypeHelper.isAnyOrUndefined(input2.dataType))
+                    if (isAnyOrUndefined(input1.dataType) || isAnyOrUndefined(input2.dataType))
                         return ComparisonType.ANY;
 
                     return ComparisonType.OBJECT;
@@ -4785,27 +4828,39 @@ namespace Mariana.AVM2.Compiler {
             }
         }
 
-        private void _checkCompareOperation(ref DataNode left, ref DataNode right, int instrId, ComparisonType cmpType) {
+        private void _checkCompareOperation(ref DataNode left, ref DataNode right, int instrId, ref ComparisonType cmpType) {
             switch (cmpType) {
-                case ComparisonType.INT:
+                case ComparisonType.INT: {
+                    if (_checkForIntrinsicCompareOps(ref left, ref right, ref cmpType))
+                        break;
                     _requireStackNodeAsType(ref left, DataNodeType.INT, instrId);
                     _requireStackNodeAsType(ref right, DataNodeType.INT, instrId);
                     break;
+                }
 
-                case ComparisonType.UINT:
+                case ComparisonType.UINT: {
+                    if (_checkForIntrinsicCompareOps(ref left, ref right, ref cmpType))
+                        break;
                     _requireStackNodeAsType(ref left, DataNodeType.UINT, instrId);
                     _requireStackNodeAsType(ref right, DataNodeType.UINT, instrId);
                     break;
+                }
 
-                case ComparisonType.NUMBER:
+                case ComparisonType.NUMBER: {
+                    if (_checkForIntrinsicCompareOps(ref left, ref right, ref cmpType))
+                        break;
                     _requireStackNodeAsType(ref left, DataNodeType.NUMBER, instrId);
                     _requireStackNodeAsType(ref right, DataNodeType.NUMBER, instrId);
                     break;
+                }
 
-                case ComparisonType.STRING:
+                case ComparisonType.STRING: {
+                    if (_checkForIntrinsicCompareOps(ref left, ref right, ref cmpType))
+                        break;
                     _requireStackNodeAsType(ref left, DataNodeType.STRING, instrId);
                     _requireStackNodeAsType(ref right, DataNodeType.STRING, instrId);
                     break;
+                }
 
                 case ComparisonType.ANY:
                     _requireStackNodeAsType(ref left, DataNodeType.ANY, instrId);
@@ -4847,14 +4902,102 @@ namespace Mariana.AVM2.Compiler {
                     break;
 
                 case ComparisonType.OBJ_NULL_L:
-                    _requireStackNodeObjectOrInterface(ref right, instrId);
+                    if (right.dataType != DataNodeType.STRING)
+                        _requireStackNodeObjectOrInterface(ref right, instrId);
                     _markStackNodeAsNoPush(ref left);
                     break;
 
                 case ComparisonType.OBJ_NULL_R:
-                    _requireStackNodeObjectOrInterface(ref left, instrId);
+                    if (left.dataType != DataNodeType.STRING)
+                        _requireStackNodeObjectOrInterface(ref left, instrId);
                     _markStackNodeAsNoPush(ref right);
                     break;
+            }
+        }
+
+        private bool _checkForIntrinsicCompareOps(ref DataNode left, ref DataNode right, ref ComparisonType cmpType) {
+            // This checks for intrinsic compare patterns.
+            // The only ones implemented currently are:
+            // (string).charAt(int) op (single char const string)
+            // (string).charCodeAt(int) op (int)
+
+            bool isLeftComparand = false;
+
+            Intrinsic intrinsic = checkResultOfStringCharAtIntrinsic(ref left);
+            if (intrinsic == null) {
+                intrinsic = checkResultOfStringCharAtIntrinsic(ref right);
+                if (intrinsic != null)
+                    isLeftComparand = true;
+            }
+
+            if (intrinsic == null)
+                return false;
+
+            ref DataNode indexOpNode = ref (isLeftComparand ? ref right : ref left);
+            ref DataNode comparandNode = ref (isLeftComparand ? ref left : ref right);
+
+            // We don't want the indexOpNode to be used anywhere other than in the comparison.
+            if (m_compilation.getDataNodeUseCount(ref indexOpNode) > 1)
+                return false;
+
+            if (intrinsic == Intrinsic.STRING_CHARAT_I) {
+                // String.charAt can be compared to a single-character string constant.
+                if (!comparandNode.isConstant
+                    || comparandNode.dataType != DataNodeType.STRING
+                    || comparandNode.constant.stringValue.Length != 1)
+                {
+                    return false;
+                }
+
+                _markStackNodeAsNoPush(ref comparandNode);
+                markAsIntrinsicCompare(ref indexOpNode);
+                cmpType = isLeftComparand ? ComparisonType.STR_CHARAT_L : ComparisonType.STR_CHARAT_R;
+                return true;
+            }
+
+            if (intrinsic == Intrinsic.STRING_CCODEAT_I) {
+                // String.charCodeAt can be compared to an integer.
+                if (!isInteger(comparandNode.dataType) && !isConstantUint(ref comparandNode))
+                    return false;
+
+                if (comparandNode.isConstant)
+                    _markStackNodeAsNoPush(ref comparandNode);
+
+                markAsIntrinsicCompare(ref indexOpNode);
+                cmpType = isLeftComparand ? ComparisonType.STR_CHARAT_L : ComparisonType.STR_CHARAT_R;
+                return true;
+            }
+
+            return false;
+
+            Intrinsic checkResultOfStringCharAtIntrinsic(ref DataNode node) {
+                int pushInstrId = m_compilation.getStackNodePushInstrId(ref node);
+                if (pushInstrId == -1)
+                    return null;
+
+                ref Instruction pushInstr = ref m_compilation.getInstruction(pushInstrId);
+                if (pushInstr.opcode != ABCOp.callproperty && pushInstr.opcode != ABCOp.callproplex)
+                    return null;
+
+                ref ResolvedProperty resProp = ref m_compilation.getResolvedProperty(pushInstr.data.callProperty.resolvedPropId);
+
+                if (resProp.propKind != ResolvedPropertyKind.INTRINSIC
+                    || (resProp.propInfo != Intrinsic.STRING_CHARAT_I && resProp.propInfo != Intrinsic.STRING_CCODEAT_I))
+                {
+                    return null;
+                }
+
+                return (Intrinsic)resProp.propInfo;
+            }
+
+            void markAsIntrinsicCompare(ref DataNode node) {
+                ref Instruction pushInstr = ref m_compilation.getInstruction(m_compilation.getStackNodePushInstrId(ref node));
+                ref ResolvedProperty resProp = ref m_compilation.getResolvedProperty(pushInstr.data.callProperty.resolvedPropId);
+
+                if (resProp.propInfo == Intrinsic.STRING_CHARAT_I)
+                    resProp.propInfo = Intrinsic.STRING_CHARAT_CMP;
+                else
+                    resProp.propInfo = Intrinsic.STRING_CCODEAT_CMP;
             }
         }
 
@@ -4885,8 +5028,18 @@ namespace Mariana.AVM2.Compiler {
                     var indexPropInfo = (IndexProperty)resolvedProp.propInfo;
 
                     if (indexPropInfo.getMethod.getParameters()[0].type.tag == ClassTag.NUMBER) {
-                        if (_checkVectorIndexIntCast(ref resolvedProp, ref nameNode))
+                        if (resolvedProp.objectType == DataNodeType.OBJECT
+                            && resolvedProp.objectClass.isVectorInstantiation
+                            && _checkForVectorIndexExprOptimization(ref nameNode, out DataNodeType optIndexType))
+                        {
+                            resolvedProp.rtNameType = optIndexType;
+                            if (optIndexType == DataNodeType.INT)
+                                resolvedProp.propInfo = resolvedProp.objectClass.classSpecials.intIndexProperty;
+                            else
+                                resolvedProp.propInfo = resolvedProp.objectClass.classSpecials.uintIndexProperty;
                             break;
+                        }
+
                         if (resolvedProp.rtNameType != DataNodeType.NUMBER)
                             _requireStackNodeAsType(ref nameNode, DataNodeType.NUMBER, instrId);
                     }
@@ -4927,21 +5080,17 @@ namespace Mariana.AVM2.Compiler {
             }
         }
 
-        private bool _checkVectorIndexIntCast(ref ResolvedProperty resolvedProp, ref DataNode nameNode) {
-            if (resolvedProp.objectType != DataNodeType.OBJECT
-                || !resolvedProp.objectClass.isVectorInstantiation)
-            {
-                return false;
-            }
+        private bool _checkForVectorIndexExprOptimization(ref DataNode nameNode, out DataNodeType integerType) {
+            integerType = DataNodeType.UNKNOWN;
 
             if (m_compilation.getDataNodeUseCount(ref nameNode) > 1)
                 return false;
 
-            var defs = m_compilation.getDataNodeDefs(ref nameNode);
-            if (defs.Length > 1 || !defs[0].isInstruction)
+            int pushInstrId = m_compilation.getStackNodePushInstrId(ref nameNode);
+            if (pushInstrId == -1)
                 return false;
 
-            ref Instruction pushInstr = ref m_compilation.getInstruction(defs[0].instrOrNodeId);
+            ref Instruction pushInstr = ref m_compilation.getInstruction(pushInstrId);
             Debug.Assert(pushInstr.stackPushedNodeId == nameNode.id);
 
             // Optimize expressions of the form x + c and x - c where x is a signed or unsigned
@@ -4958,10 +5107,10 @@ namespace Mariana.AVM2.Compiler {
 
                 double cval;
 
-                if (DataNodeTypeHelper.isInteger(left.dataType)
+                if (isInteger(left.dataType)
                     && right.isConstant
-                    && DataNodeTypeHelper.isInteger(right.dataType)
-                    && DataNodeConstHelper.tryGetConstant(ref right, out cval))
+                    && isInteger(right.dataType)
+                    && tryGetConstant(ref right, out cval))
                 {
                     (double minOffset, double maxOffset) =
                         (left.dataType == DataNodeType.UINT) ? (-2147483648d, 0d) : (-1d, 2147483647d);
@@ -4971,24 +5120,24 @@ namespace Mariana.AVM2.Compiler {
 
                     if (cval >= minOffset && cval <= maxOffset) {
                         nameNode.dataType = left.dataType;
-                        resolvedProp.rtNameType = left.dataType;
+                        integerType = left.dataType;
 
                         left.onPushCoerceType = DataNodeType.UNKNOWN;
                         right.onPushCoerceType = DataNodeType.UNKNOWN;
                     }
                 }
-                else if (DataNodeTypeHelper.isInteger(right.dataType)
+                else if (isInteger(right.dataType)
                     && pushInstr.opcode == ABCOp.add
                     && left.isConstant
-                    && DataNodeTypeHelper.isInteger(left.dataType)
-                    && DataNodeConstHelper.tryGetConstant(ref left, out cval))
+                    && isInteger(left.dataType)
+                    && tryGetConstant(ref left, out cval))
                 {
                     (double minOffset, double maxOffset) =
                         (right.dataType == DataNodeType.UINT) ? (-2147483648d, 0d) : (-1d, 2147483647d);
 
                     if (cval >= minOffset && cval <= maxOffset) {
                         nameNode.dataType = right.dataType;
-                        resolvedProp.rtNameType = right.dataType;
+                        integerType = right.dataType;
 
                         left.onPushCoerceType = DataNodeType.UNKNOWN;
                         right.onPushCoerceType = DataNodeType.UNKNOWN;
@@ -5001,21 +5150,12 @@ namespace Mariana.AVM2.Compiler {
                     || (input.dataType == DataNodeType.UINT && pushInstr.opcode == ABCOp.decrement))
                 {
                     nameNode.dataType = input.dataType;
-                    resolvedProp.rtNameType = input.dataType;
+                    integerType = input.dataType;
                     input.onPushCoerceType = DataNodeType.UNKNOWN;
                 }
             }
 
-            if (resolvedProp.rtNameType == DataNodeType.INT) {
-                resolvedProp.propInfo = resolvedProp.objectClass.classSpecials.intIndexProperty;
-                return true;
-            }
-            else if (resolvedProp.rtNameType == DataNodeType.UINT) {
-                resolvedProp.propInfo = resolvedProp.objectClass.classSpecials.uintIndexProperty;
-                return true;
-            }
-
-            return false;
+            return isInteger(integerType);
         }
 
         private void _checkTraitAccessObject(ref DataNode node, Trait trait, int instrId) {
@@ -5028,7 +5168,7 @@ namespace Mariana.AVM2.Compiler {
                 return;
 
             if (ClassTagSet.primitive.contains(trait.declaringClass.tag))
-                _requireStackNodeAsType(ref node, DataNodeTypeHelper.getDataTypeOfClass(trait.declaringClass), instrId);
+                _requireStackNodeAsType(ref node, getDataTypeOfClass(trait.declaringClass), instrId);
             else
                 _requireStackNodeObjectOrInterface(ref node, instrId);
         }
@@ -5171,6 +5311,33 @@ namespace Mariana.AVM2.Compiler {
                     _requireStackNodeAsType(
                         ref m_compilation.getDataNode(argsOnStack[0]), (Class)intrinsic.arg, instrId);
                     break;
+
+                case IntrinsicName.STRING_CHARAT:
+                case IntrinsicName.STRING_CCODEAT:
+                {
+                    isStaticFunc = false;
+
+                    ref DataNode index = ref m_compilation.getDataNode(argsOnStack[0]);
+
+                    // Since the range of valid integer indices for these intrinsics is the same
+                    // as that for vector indexing (0 to 2^32-1), we can perform the same analysis of
+                    // simple constant add/subtract expressions that we do for vector indexing.
+
+                    if (_checkForVectorIndexExprOptimization(ref index, out _)) {
+                        resolvedProp.propInfo = (intrinsic.name == IntrinsicName.STRING_CHARAT)
+                            ? Intrinsic.STRING_CHARAT_I
+                            : Intrinsic.STRING_CCODEAT_I;
+                    }
+                    else {
+                        _requireStackNodeAsType(ref index, DataNodeType.NUMBER, instrId);
+                    }
+                    break;
+                }
+
+                case IntrinsicName.STRING_CHARAT_I:
+                case IntrinsicName.STRING_CCODEAT_I:
+                    isStaticFunc = false;
+                    break;
             }
 
             if (isStaticFunc && objectId != -1 && m_compilation.getDataNode(objectId).isConstant)
@@ -5185,10 +5352,10 @@ namespace Mariana.AVM2.Compiler {
         /// otherwise false.</returns>
         private static bool _traitInvokeMayUseDefaultXmlNamespace(Trait trait) {
             if (trait is Class klass)
-                return klass == s_objectClass || klass.tag == ClassTag.QNAME || ClassTagSet.xmlOrXmlList.contains(klass.tag);
+                return klass == objectClass || klass.tag == ClassTag.QNAME || ClassTagSet.xmlOrXmlList.contains(klass.tag);
 
             if (trait.traitType == TraitType.METHOD) {
-                return trait == s_objHasOwnPropertyTrait
+                return trait == objHasOwnPropertyTrait
                     || (!trait.isStatic && ClassTagSet.xmlOrXmlList.contains(trait.declaringClass.tag));
             }
 

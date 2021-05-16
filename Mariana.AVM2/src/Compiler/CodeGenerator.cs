@@ -10,6 +10,9 @@ using Mariana.Common;
 
 namespace Mariana.AVM2.Compiler {
 
+    using static DataNodeConstHelper;
+    using static DataNodeTypeHelper;
+
     internal sealed class CodeGenerator {
 
         private readonly struct LocalVarWithClass {
@@ -32,6 +35,16 @@ namespace Mariana.AVM2.Compiler {
             public ILBuilder.Label forwardLabel;
             public bool needsStackStashAndRestore;
             public StaticArrayPoolToken<ILBuilder.Local> stackStashVars;
+        }
+
+        private struct TwoWayBranchEmitInfo {
+            public int trueBlockId;
+            public int falseBlockId;
+            public ILBuilder.Label trueLabel;
+            public ILBuilder.Label falseLabel;
+            public bool trueBlockNeedsTransition;
+            public bool falseBlockNeedsTransition;
+            public bool trueIsFallThrough;
         }
 
         private static readonly Class s_objectClass = Class.fromType<ASObject>();
@@ -113,7 +126,7 @@ namespace Mariana.AVM2.Compiler {
             map[numberClass.getMethod(valueOfName)] = KnownMembers.numberValueOf;
             map[boolClass.getMethod(toStringName)] = KnownMembers.boolToString;
             map[boolClass.getMethod(valueOfName)] = KnownMembers.boolValueOf;
-            map[stringClass.getMethod(toStringName)] = KnownMembers.strValueOf;
+            map[stringClass.getMethod(toStringName)] = KnownMembers.strToString;
             map[stringClass.getMethod(valueOfName)] = KnownMembers.strValueOf;
 
             map[stringClass.getProperty("length").getter] = KnownMembers.strGetLength;
@@ -140,12 +153,23 @@ namespace Mariana.AVM2.Compiler {
                         continue;
                     }
 
+                    ParameterInfo[] paramInfos = method.underlyingMethodInfo.GetParameters();
+                    Type[] paramTypes = new Type[paramInfos.Length + 1];
+                    paramTypes[0] = Class.getUnderlyingOrPrimitiveType(klass);
+
+                    for (int j = 0; j < paramInfos.Length; j++)
+                        paramTypes[j + 1] = paramInfos[j].ParameterType;
+
                     MethodInfo primitiveMethod = klass.underlyingType.GetMethod(
-                        method.underlyingMethodInfo.Name,
-                        BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly
+                        name: method.underlyingMethodInfo.Name,
+                        bindingAttr: BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly,
+                        binder: null,
+                        types: paramTypes,
+                        modifiers: null
                     );
-                    if (primitiveMethod != null)
-                        map[method] = primitiveMethod;
+
+                    Debug.Assert(primitiveMethod != null);
+                    map[method] = primitiveMethod;
                 }
             }
         }
@@ -529,6 +553,42 @@ namespace Mariana.AVM2.Compiler {
                 il.emit(ILOp.blt_un, label1);
 
                 il.releaseTempLocal(curIndexLocal);
+            }
+
+            // Initialize the arguments.callee property.
+            // This is not supported for instance constructors as we cannot create Function objects for them.
+
+            MethodTrait currentMethod = m_compilation.getCurrentMethod();
+
+            if (currentMethod != null) {
+                m_ilBuilder.emit(ILOp.ldloc, arrLocal);
+                m_ilBuilder.emit(ILOp.call, KnownMembers.getObjectDynamicPropCollection, 0);
+                m_ilBuilder.emit(ILOp.ldstr, "callee");
+
+                _emitPushTraitConstant(currentMethod);
+                m_ilBuilder.emit(ILOp.castclass, typeof(MethodTrait));
+
+                if (m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCOPED_FUNCTION)) {
+                    // For a scoped function, arguments.callee is a function closure
+                    // sharing the same scope.
+                    m_ilBuilder.emit(ILOp.ldloc, m_scopedFuncScopeLocal);
+                    m_ilBuilder.emit(ILOp.call, KnownMembers.methodTraitCreateFunctionClosure, -1);
+                }
+                else {
+                    // For an instance or static method, arguments.callee is a method closure with
+                    // the current receiver (null for static methods).
+                    if (m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_INSTANCE_METHOD))
+                        m_ilBuilder.emit(ILOp.ldarg_0);
+                    else
+                        m_ilBuilder.emit(ILOp.ldnull);
+
+                    m_ilBuilder.emit(ILOp.call, KnownMembers.methodTraitCreateMethodClosure, -1);
+                }
+
+                m_ilBuilder.emit(ILOp.call, KnownMembers.anyFromObject, 0);
+                m_ilBuilder.emit(ILOp.ldc_i4_0);    // callee property must have isEnumerable = false
+
+                m_ilBuilder.emit(ILOp.callvirt, KnownMembers.dynamicPropCollectionSet, -4);
             }
         }
 
@@ -1145,7 +1205,7 @@ namespace Mariana.AVM2.Compiler {
                 return;
             }
 
-            if (DataNodeTypeHelper.isAnyOrUndefined(popped.dataType)) {
+            if (isAnyOrUndefined(popped.dataType)) {
                 Debug.Assert(scope.dataType == DataNodeType.OBJECT);
                 _emitTypeCoerceForTopOfStack(ref popped, DataNodeType.OBJECT);
                 isCoercedToObject = true;
@@ -1154,7 +1214,7 @@ namespace Mariana.AVM2.Compiler {
             if (!popped.isNotNull) {
                 // Null reference errors must be thrown when attempting to push a null value onto
                 // the scope stack.
-                Debug.Assert(!DataNodeTypeHelper.isNonNullable(popped.dataType));
+                Debug.Assert(!isNonNullable(popped.dataType));
 
                 var label = m_ilBuilder.createLabel();
                 m_ilBuilder.emit(ILOp.dup);
@@ -1769,61 +1829,71 @@ namespace Mariana.AVM2.Compiler {
                 return;
             }
 
+            if (instr.data.compare.compareType == ComparisonType.STR_CHARAT_L
+                || instr.data.compare.compareType == ComparisonType.STR_CHARAT_R)
+            {
+                // branchEmitInfo is ignored since this instruction is not a branch, so use a dummy value.
+                TwoWayBranchEmitInfo branchEmitInfo = default;
+                _emitStringCharAtIntrinsicCompare(ref instr, ref left, ref right, branchEmitInfo);
+                return;
+            }
+
             if (instr.opcode == ABCOp.equals || instr.opcode == ABCOp.strictequals)
                 emitEquals(ref instr, ref left, ref right);
             else
                 emitCompare(ref instr, ref left, ref right);
 
-            void emitEquals(ref Instruction ins, ref DataNode lt, ref DataNode rt) {
-                var compareType = ins.data.compare.compareType;
+            void emitEquals(ref Instruction _instr, ref DataNode _left, ref DataNode _right) {
+                var compareType = _instr.data.compare.compareType;
+
                 switch (compareType) {
                     case ComparisonType.INT:
                     case ComparisonType.UINT:
-                        _emitTypeCoerceForStackTop2(ref lt, ref rt, DataNodeType.INT, DataNodeType.INT);
+                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.INT, DataNodeType.INT);
                         m_ilBuilder.emit(ILOp.ceq);
                         break;
 
                     case ComparisonType.NUMBER:
-                        _emitTypeCoerceForStackTop2(ref lt, ref rt, DataNodeType.NUMBER, DataNodeType.NUMBER);
+                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.NUMBER, DataNodeType.NUMBER);
                         m_ilBuilder.emit(ILOp.ceq);
                         break;
 
                     case ComparisonType.STRING:
-                        _emitTypeCoerceForStackTop2(ref lt, ref rt, DataNodeType.STRING, DataNodeType.STRING);
+                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.STRING, DataNodeType.STRING);
                         m_ilBuilder.emit(ILOp.call, KnownMembers.strEquals, -1);
                         break;
 
                     case ComparisonType.NAMESPACE:
-                        Debug.Assert(lt.dataType == DataNodeType.NAMESPACE && rt.dataType == DataNodeType.NAMESPACE);
+                        Debug.Assert(_left.dataType == DataNodeType.NAMESPACE && _right.dataType == DataNodeType.NAMESPACE);
                         m_ilBuilder.emit(ILOp.call, KnownMembers.xmlNamespaceEquals, -1);
                         break;
 
                     case ComparisonType.QNAME:
-                        Debug.Assert(lt.dataType == DataNodeType.QNAME && rt.dataType == DataNodeType.QNAME);
+                        Debug.Assert(_left.dataType == DataNodeType.QNAME && _right.dataType == DataNodeType.QNAME);
                         m_ilBuilder.emit(ILOp.call, KnownMembers.xmlQnameEquals, -1);
                         break;
 
                     case ComparisonType.OBJ_REF:
-                        _emitTypeCoerceForStackTop2(ref lt, ref rt, DataNodeType.OBJECT, DataNodeType.OBJECT);
+                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.OBJECT, DataNodeType.OBJECT);
                         m_ilBuilder.emit(ILOp.ceq);
                         break;
 
                     case ComparisonType.OBJECT:
-                        _emitTypeCoerceForStackTop2(ref lt, ref rt, DataNodeType.OBJECT, DataNodeType.OBJECT);
-                        m_ilBuilder.emit(ILOp.call, (ins.opcode == ABCOp.equals) ? KnownMembers.objWeakEq : KnownMembers.objStrictEq, -1);
+                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.OBJECT, DataNodeType.OBJECT);
+                        m_ilBuilder.emit(ILOp.call, (_instr.opcode == ABCOp.equals) ? KnownMembers.objWeakEq : KnownMembers.objStrictEq, -1);
                         break;
 
                     case ComparisonType.ANY:
-                        _emitTypeCoerceForStackTop2(ref lt, ref rt, DataNodeType.ANY, DataNodeType.ANY);
-                        m_ilBuilder.emit(ILOp.call, (ins.opcode == ABCOp.equals) ? KnownMembers.anyWeakEq : KnownMembers.anyStrictEq, -1);
+                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.ANY, DataNodeType.ANY);
+                        m_ilBuilder.emit(ILOp.call, (_instr.opcode == ABCOp.equals) ? KnownMembers.anyWeakEq : KnownMembers.anyStrictEq, -1);
                         break;
 
                     case ComparisonType.INT_ZERO_L:
                     case ComparisonType.INT_ZERO_R:
                     {
-                        var constFlags = (compareType == ComparisonType.INT_ZERO_L) ? lt.flags : rt.flags;
+                        var constFlags = (compareType == ComparisonType.INT_ZERO_L) ? _left.flags : _right.flags;
                         if ((constFlags & DataNodeFlags.NO_PUSH) == 0)
-                            goto case ComparisonType.INT;
+                            goto case ComparisonType.UINT;
 
                         m_ilBuilder.emit(ILOp.ldc_i4_0);
                         m_ilBuilder.emit(ILOp.ceq);
@@ -1833,19 +1903,27 @@ namespace Mariana.AVM2.Compiler {
                     case ComparisonType.OBJ_NULL_L:
                     case ComparisonType.OBJ_NULL_R:
                     {
-                        var constFlags = (compareType == ComparisonType.OBJ_NULL_L) ? lt.flags : rt.flags;
-                        if ((constFlags & DataNodeFlags.NO_PUSH) == 0)
-                            goto case ComparisonType.OBJ_REF;
+                        var constFlags = (compareType == ComparisonType.OBJ_NULL_L) ? _left.flags : _right.flags;
 
-                        m_ilBuilder.emit(ILOp.ldnull);
-                        m_ilBuilder.emit(ILOp.ceq);
+                        if ((constFlags & DataNodeFlags.NO_PUSH) == 0) {
+                            ref DataNode varNode = ref ((compareType == ComparisonType.OBJ_NULL_L) ? ref _right : ref _left);
+
+                            if (_getPushedTypeOfNode(varNode) != DataNodeType.STRING)
+                                _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.OBJECT, DataNodeType.OBJECT);
+
+                            m_ilBuilder.emit(ILOp.ceq);
+                        }
+                        else {
+                            m_ilBuilder.emit(ILOp.ldnull);
+                            m_ilBuilder.emit(ILOp.ceq);
+                        }
                         break;
                     }
 
                     case ComparisonType.ANY_UNDEF_L:
                     case ComparisonType.ANY_UNDEF_R:
                     {
-                        var constFlags = (compareType == ComparisonType.ANY_UNDEF_L) ? lt.flags : rt.flags;
+                        var constFlags = (compareType == ComparisonType.ANY_UNDEF_L) ? _left.flags : _right.flags;
                         if ((constFlags & DataNodeFlags.NO_PUSH) == 0)
                             goto case ComparisonType.ANY;
 
@@ -1882,30 +1960,30 @@ namespace Mariana.AVM2.Compiler {
                 }
             }
 
-            void emitCompare(ref Instruction ins, ref DataNode lt, ref DataNode rt) {
-                var compareType = ins.data.compare.compareType;
+            void emitCompare(ref Instruction _instr, ref DataNode _left, ref DataNode _right) {
+                var compareType = _instr.data.compare.compareType;
 
                 switch (compareType) {
                     case ComparisonType.INT:
-                        _emitTypeCoerceForStackTop2(ref lt, ref rt, DataNodeType.INT, DataNodeType.INT);
-                        emitNumericCompareOp(ins.opcode, false, false);
+                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.INT, DataNodeType.INT);
+                        emitNumericCompareOp(_instr.opcode, false, false);
                         break;
 
                     case ComparisonType.UINT:
-                        _emitTypeCoerceForStackTop2(ref lt, ref rt, DataNodeType.INT, DataNodeType.INT);
-                        emitNumericCompareOp(ins.opcode, true, false);
+                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.INT, DataNodeType.INT);
+                        emitNumericCompareOp(_instr.opcode, true, false);
                         break;
 
                     case ComparisonType.NUMBER:
-                        _emitTypeCoerceForStackTop2(ref lt, ref rt, DataNodeType.NUMBER, DataNodeType.NUMBER);
-                        emitNumericCompareOp(ins.opcode, false, true);
+                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.NUMBER, DataNodeType.NUMBER);
+                        emitNumericCompareOp(_instr.opcode, false, true);
                         break;
 
                     case ComparisonType.STRING: {
-                        _emitTypeCoerceForStackTop2(ref lt, ref rt, DataNodeType.STRING, DataNodeType.STRING);
+                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.STRING, DataNodeType.STRING);
 
                         MethodInfo method = null;
-                        switch (ins.opcode) {
+                        switch (_instr.opcode) {
                             case ABCOp.lessthan:        method = KnownMembers.strLt; break;
                             case ABCOp.lessequals:      method = KnownMembers.strLeq; break;
                             case ABCOp.greaterthan:     method = KnownMembers.strGt; break;
@@ -1917,10 +1995,10 @@ namespace Mariana.AVM2.Compiler {
                     }
 
                     case ComparisonType.OBJECT: {
-                        _emitTypeCoerceForStackTop2(ref lt, ref rt, DataNodeType.OBJECT, DataNodeType.OBJECT);
+                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.OBJECT, DataNodeType.OBJECT);
 
                         MethodInfo method = null;
-                        switch (ins.opcode) {
+                        switch (_instr.opcode) {
                             case ABCOp.lessthan:        method = KnownMembers.objLt; break;
                             case ABCOp.lessequals:      method = KnownMembers.objLeq; break;
                             case ABCOp.greaterthan:     method = KnownMembers.objGt; break;
@@ -1932,10 +2010,10 @@ namespace Mariana.AVM2.Compiler {
                     }
 
                     case ComparisonType.ANY: {
-                        _emitTypeCoerceForStackTop2(ref lt, ref rt, DataNodeType.ANY, DataNodeType.ANY);
+                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.ANY, DataNodeType.ANY);
 
                         MethodInfo method = null;
-                        switch (ins.opcode) {
+                        switch (_instr.opcode) {
                             case ABCOp.lessthan:        method = KnownMembers.anyLt; break;
                             case ABCOp.lessequals:      method = KnownMembers.anyLeq; break;
                             case ABCOp.greaterthan:     method = KnownMembers.anyGt; break;
@@ -1949,9 +2027,9 @@ namespace Mariana.AVM2.Compiler {
                     case ComparisonType.INT_ZERO_L:
                     case ComparisonType.INT_ZERO_R:
                     {
-                        Debug.Assert(ins.opcode == ((compareType == ComparisonType.INT_ZERO_L) ? ABCOp.lessthan : ABCOp.greaterthan));
+                        Debug.Assert(_instr.opcode == ((compareType == ComparisonType.INT_ZERO_L) ? ABCOp.lessthan : ABCOp.greaterthan));
 
-                        var constFlags = (compareType == ComparisonType.INT_ZERO_L) ? lt.flags : rt.flags;
+                        var constFlags = (compareType == ComparisonType.INT_ZERO_L) ? _left.flags : _right.flags;
                         if ((constFlags & DataNodeFlags.NO_PUSH) == 0)
                             goto case ComparisonType.UINT;
 
@@ -1978,12 +2056,12 @@ namespace Mariana.AVM2.Compiler {
                 klass = lockedContext.value.getClassByMultiname(multiname);
 
             if (ClassTagSet.numeric.contains(klass.tag)
-                || !DataNodeTypeHelper.isObjectType(input.dataType))
+                || !isObjectType(input.dataType))
             {
                 _emitTypeCoerceForTopOfStack(ref input, DataNodeType.OBJECT);
             }
 
-            _emitIsOrAsType(klass, instr.opcode);
+            _emitIsOrAsType(klass, instr.opcode, output.id);
         }
 
         private void _visitIsAsTypeLate(ref Instruction instr) {
@@ -1997,12 +2075,12 @@ namespace Mariana.AVM2.Compiler {
                 _emitDiscardTopOfStack(ref typeNode);
 
                 if (ClassTagSet.numeric.contains(klass.tag)
-                    || !DataNodeTypeHelper.isObjectType(objNode.dataType))
+                    || !isObjectType(objNode.dataType))
                 {
                     _emitTypeCoerceForTopOfStack(ref objNode, DataNodeType.OBJECT);
                 }
 
-                _emitIsOrAsType(klass, instr.opcode);
+                _emitIsOrAsType(klass, instr.opcode, output.id);
             }
             else {
                 MethodInfo method = (instr.opcode == ABCOp.istypelate) ? KnownMembers.objIsType : KnownMembers.objAsType;
@@ -2024,7 +2102,7 @@ namespace Mariana.AVM2.Compiler {
         private void _visitTypeof(ref Instruction instr) {
             ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
 
-            if (DataNodeTypeHelper.isAnyOrUndefined(input.dataType)) {
+            if (isAnyOrUndefined(input.dataType)) {
                 m_ilBuilder.emit(ILOp.call, KnownMembers.anyTypeof, 0);
             }
             else {
@@ -2357,7 +2435,7 @@ namespace Mariana.AVM2.Compiler {
                 m_ilBuilder.releaseTempLocal(valueLocal);
 
                 MethodInfo method = null;
-                bool isObjAny = DataNodeTypeHelper.isAnyOrUndefined(_getPushedTypeOfNode(obj));
+                bool isObjAny = isAnyOrUndefined(_getPushedTypeOfNode(obj));
 
                 switch (bindingKind) {
                     case RuntimeBindingKind.QNAME:
@@ -2408,7 +2486,7 @@ namespace Mariana.AVM2.Compiler {
                     multiname, rtNsNodeId, rtNameNodeId, _getPushedClassOfNode(obj), false, out var bindingKind);
 
                 MethodInfo method = null;
-                bool isObjAny = DataNodeTypeHelper.isAnyOrUndefined(obj.dataType);
+                bool isObjAny = isAnyOrUndefined(obj.dataType);
 
                 switch (bindingKind) {
                     case RuntimeBindingKind.QNAME:
@@ -2567,7 +2645,7 @@ namespace Mariana.AVM2.Compiler {
                 _emitPrepareRuntimeBinding(
                     multiname, rtNsNodeId, rtNameNodeId, _getPushedClassOfNode(obj), false, out var bindingKind);
 
-                bool isObjAny = DataNodeTypeHelper.isAnyOrUndefined(obj.dataType);
+                bool isObjAny = isAnyOrUndefined(obj.dataType);
                 MethodInfo method = getRuntimeBindMethod(bindingKind, isObjAny, isConstruct);
 
                 var bindOpts =
@@ -2789,7 +2867,7 @@ namespace Mariana.AVM2.Compiler {
                 multiname, rtNsNodeId, rtNameNodeId, _getPushedClassOfNode(obj), false, out var bindingKind);
 
             MethodInfo method = null;
-            bool isObjAny = DataNodeTypeHelper.isAnyOrUndefined(obj.dataType);
+            bool isObjAny = isAnyOrUndefined(obj.dataType);
 
             switch (bindingKind) {
                 case RuntimeBindingKind.QNAME:
@@ -2938,7 +3016,7 @@ namespace Mariana.AVM2.Compiler {
                         ref m_compilation.getCapturedScopeItems()[scopeRef.idOrCaptureHeight];
 
                     dummyNode.dataType = capturedItem.dataType;
-                    dummyNode.isConstant = DataNodeTypeHelper.isConstantType(capturedItem.dataType);
+                    dummyNode.isConstant = isConstantType(capturedItem.dataType);
 
                     if (capturedItem.objClass != null)
                         dummyNode.constant = new DataNodeConstant(capturedItem.objClass);
@@ -3018,11 +3096,14 @@ namespace Mariana.AVM2.Compiler {
             ref BasicBlock trueBlock = ref m_compilation.getBasicBlock(exitBlockIds[0]);
             ref BasicBlock falseBlock = ref m_compilation.getBasicBlock(exitBlockIds[1]);
 
-            (ILOp ilOp, ILOp ilInvOp) = (instr.opcode == ABCOp.iftrue)
-                ? (ILOp.brtrue, ILOp.brfalse)
-                : (ILOp.brfalse, ILOp.brtrue);
+            TwoWayBranchEmitInfo emitInfo = _getTwoWayBranchEmitInfo(ref thisBlock, ref trueBlock, ref falseBlock);
 
-            _emitTwoWayConditionalBranch(ref thisBlock, ref trueBlock, ref falseBlock, ilOp, ilInvOp);
+            if (emitInfo.trueIsFallThrough)
+                m_ilBuilder.emit((instr.opcode == ABCOp.iftrue) ? ILOp.brfalse : ILOp.brtrue, emitInfo.falseLabel);
+            else
+                m_ilBuilder.emit((instr.opcode == ABCOp.iftrue) ? ILOp.brtrue : ILOp.brfalse, emitInfo.trueLabel);
+
+            _finishTwoWayConditionalBranch(ref thisBlock, emitInfo);
         }
 
         private void _visitBinaryCompareBranch(ref Instruction instr) {
@@ -3030,7 +3111,21 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode left = ref m_compilation.getDataNode(stackPopIds[0]);
             ref DataNode right = ref m_compilation.getDataNode(stackPopIds[1]);
 
+            ref BasicBlock thisBlock = ref m_compilation.getBasicBlockOfInstruction(instr);
+            var exitBlockIds = m_compilation.staticIntArrayPool.getSpan(thisBlock.exitBlockIds);
+            ref BasicBlock trueBlock = ref m_compilation.getBasicBlock(exitBlockIds[0]);
+            ref BasicBlock falseBlock = ref m_compilation.getBasicBlock(exitBlockIds[1]);
+
+            TwoWayBranchEmitInfo branchEmitInfo = _getTwoWayBranchEmitInfo(ref thisBlock, ref trueBlock, ref falseBlock);
+
             ComparisonType cmpType = instr.data.compareBranch.compareType;
+
+            if (cmpType == ComparisonType.STR_CHARAT_L || cmpType == ComparisonType.STR_CHARAT_R) {
+                _emitStringCharAtIntrinsicCompare(ref instr, ref left, ref right, branchEmitInfo);
+                _finishTwoWayConditionalBranch(ref thisBlock, branchEmitInfo);
+                return;
+            }
+
             ILOp ilOp = 0, invIlOp = 0;
 
             switch (cmpType) {
@@ -3122,12 +3217,12 @@ namespace Mariana.AVM2.Compiler {
                 }
             }
 
-            ref BasicBlock thisBlock = ref m_compilation.getBasicBlockOfInstruction(instr);
-            var exitBlockIds = m_compilation.staticIntArrayPool.getSpan(thisBlock.exitBlockIds);
-            ref BasicBlock trueBlock = ref m_compilation.getBasicBlock(exitBlockIds[0]);
-            ref BasicBlock falseBlock = ref m_compilation.getBasicBlock(exitBlockIds[1]);
+            if (branchEmitInfo.trueIsFallThrough)
+                m_ilBuilder.emit(invIlOp, branchEmitInfo.falseLabel);
+            else
+                m_ilBuilder.emit(ilOp, branchEmitInfo.trueLabel);
 
-            _emitTwoWayConditionalBranch(ref thisBlock, ref trueBlock, ref falseBlock, ilOp, invIlOp);
+            _finishTwoWayConditionalBranch(ref thisBlock, branchEmitInfo);
 
             bool isNegativeCompare(ABCOp abcOp) {
                 return abcOp == ABCOp.ifne || abcOp == ABCOp.ifstrictne
@@ -3336,7 +3431,7 @@ namespace Mariana.AVM2.Compiler {
         /// after it has been pushed onto the stack.</returns>
         private Class _getPushedClassOfNode(in DataNode node) {
             return (node.onPushCoerceType != DataNodeType.UNKNOWN)
-                ? DataNodeTypeHelper.getClass(node.onPushCoerceType)
+                ? getClass(node.onPushCoerceType)
                 : m_compilation.getDataNodeClass(node);
         }
 
@@ -3378,13 +3473,13 @@ namespace Mariana.AVM2.Compiler {
                 return true;
 
             if (toType == DataNodeType.OBJECT)
-                return DataNodeTypeHelper.isObjectType(nodeType) || nodeType == DataNodeType.NULL;
+                return isObjectType(nodeType) || nodeType == DataNodeType.NULL;
 
             if (toType == DataNodeType.ANY)
                 return nodeType == DataNodeType.UNDEFINED;
 
-            if (DataNodeTypeHelper.isInteger(toType))
-                return DataNodeTypeHelper.isInteger(nodeType);
+            if (isInteger(toType))
+                return isInteger(nodeType);
 
             return false;
         }
@@ -3517,7 +3612,7 @@ namespace Mariana.AVM2.Compiler {
                         break;
 
                     using (var lockedContext = m_compilation.getContext()) {
-                        Class toClass = DataNodeTypeHelper.getClass(toType);
+                        Class toClass = getClass(toType);
                         if (currentClass == null) {
                             m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForAnyCast(toClass), 0);
                         }
@@ -3543,12 +3638,12 @@ namespace Mariana.AVM2.Compiler {
             Debug.Assert(isForcePushed || !node.isNotPushed);
 
             DataNodeType nodeType = _getPushedTypeOfNode(node);
-            DataNodeType nodeTypeForClass = DataNodeTypeHelper.getDataTypeOfClass(toClass);
+            DataNodeType nodeTypeForClass = getDataTypeOfClass(toClass);
 
             if (nodeTypeForClass != DataNodeType.OBJECT || toClass == s_objectClass) {
                 _emitTypeCoerceForTopOfStack(ref node, nodeTypeForClass, isForcePushed: isForcePushed);
             }
-            else if (DataNodeTypeHelper.isAnyOrUndefined(nodeType)) {
+            else if (isAnyOrUndefined(nodeType)) {
                 using (var lockedContext = m_compilation.getContext())
                     m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForAnyCast(toClass), 0);
             }
@@ -3557,7 +3652,7 @@ namespace Mariana.AVM2.Compiler {
                     return;
 
                 Class nodeClass;
-                if (DataNodeTypeHelper.isObjectType(nodeType)) {
+                if (isObjectType(nodeType)) {
                     nodeClass = _getPushedClassOfNode(node);
                 }
                 else if (nodeType == DataNodeType.REST) {
@@ -3734,21 +3829,16 @@ namespace Mariana.AVM2.Compiler {
             if (node.isPhi || node.slot.kind != DataNodeSlotKind.STACK)
                 return false;
 
-            if (!DataNodeTypeHelper.isNumeric(node.dataType) && node.dataType != DataNodeType.STRING)
+            if (!isNumeric(node.dataType) && node.dataType != DataNodeType.STRING)
                 return false;
 
-            if (DataNodeTypeHelper.isInteger(node.dataType)
-                && node.constant.intValue >= -1 && node.constant.intValue <= 8)
-            {
+            if (isInteger(node.dataType) && node.constant.intValue >= -1 && node.constant.intValue <= 8) {
                 // There are no size savings for emitting a dup instruction for these constants,
                 // as they have single-byte IL opcodes.
                 return false;
             }
 
-            var nodeDefs = m_compilation.getDataNodeDefs(ref node);
-            Debug.Assert(nodeDefs.Length == 1 && nodeDefs[0].isInstruction);
-
-            ref Instruction pushInstr = ref m_compilation.getInstruction(nodeDefs[0].instrOrNodeId);
+            ref Instruction pushInstr = ref m_compilation.getInstruction(m_compilation.getStackNodePushInstrId(ref node));
             if (pushInstr.id == 0)
                 return false;
 
@@ -3837,7 +3927,7 @@ namespace Mariana.AVM2.Compiler {
             }
         }
 
-        private void _emitIsOrAsType(Class klass, ABCOp opcode) {
+        private void _emitIsOrAsType(Class klass, ABCOp opcode, int outputNodeId) {
             if (ClassTagSet.numeric.contains(klass.tag)) {
                 // Special cases for numeric types.
 
@@ -3873,10 +3963,26 @@ namespace Mariana.AVM2.Compiler {
                 using (var lockedContext = m_compilation.getContext())
                     m_ilBuilder.emit(ILOp.isinst, lockedContext.value.getEntityHandle(klass, noPrimitiveTypes: true));
 
-                if (opcode == ABCOp.istype || opcode == ABCOp.istypelate) {
+                // If the opcode is istype/istypelate we need to do a != null comparison to get a Boolean result,
+                // but we don't need to do this if the output node is used only as the input to an iftrue or
+                // iffalse instruction.
+
+                if ((opcode == ABCOp.istype || opcode == ABCOp.istypelate) && !isOutputUsedOnlyInIfTrueOrFalse()) {
                     m_ilBuilder.emit(ILOp.ldnull);
                     m_ilBuilder.emit(ILOp.cgt_un);
                 }
+            }
+
+            bool isOutputUsedOnlyInIfTrueOrFalse() {
+                if (outputNodeId == -1)
+                    return false;
+
+                var nodeUses = m_compilation.getDataNodeUses(outputNodeId);
+                if (nodeUses.Length != 1 || !nodeUses[0].isInstruction)
+                    return false;
+
+                ABCOp useInstrOp = m_compilation.getInstruction(nodeUses[0].instrOrNodeId).opcode;
+                return useInstrOp == ABCOp.iftrue || useInstrOp == ABCOp.iffalse;
             }
         }
 
@@ -4144,10 +4250,10 @@ namespace Mariana.AVM2.Compiler {
 
             using (var lockedContext = m_compilation.getContext()) {
                 if (node.onPushCoerceType != DataNodeType.UNKNOWN && !usePrePushType)
-                    typeSig = lockedContext.value.getTypeSignature(DataNodeTypeHelper.getClass(node.onPushCoerceType));
+                    typeSig = lockedContext.value.getTypeSignature(getClass(node.onPushCoerceType));
                 else if (node.dataType == DataNodeType.REST)
                     typeSig = m_compilation.metadataContext.getTypeSignature(typeof(RestParam));
-                else if (!preserveObjectClass && DataNodeTypeHelper.isObjectType(node.dataType))
+                else if (!preserveObjectClass && isObjectType(node.dataType))
                     typeSig = lockedContext.value.getTypeSignature(s_objectClass);
                 else
                     typeSig = lockedContext.value.getTypeSignature(m_compilation.getDataNodeClass(node));
@@ -4197,7 +4303,7 @@ namespace Mariana.AVM2.Compiler {
 
             // int and uint can share the same local slots in IL.
             var klass = (node.dataType == DataNodeType.UINT)
-                ? DataNodeTypeHelper.getClass(DataNodeType.INT)
+                ? getClass(DataNodeType.INT)
                 : m_compilation.getDataNodeClass(node);
 
             ref var variables = ref ((node.slot.kind == DataNodeSlotKind.SCOPE) ? ref m_scopeVars : ref m_localVars);
@@ -4606,7 +4712,7 @@ namespace Mariana.AVM2.Compiler {
                 multiname, rtNsNodeId, rtNameNodeId, _getPushedClassOfNode(obj), false, out var bindingKind);
 
             MethodInfo method = null;
-            bool isObjAny = DataNodeTypeHelper.isAnyOrUndefined(obj.dataType);
+            bool isObjAny = isAnyOrUndefined(obj.dataType);
 
             switch (bindingKind) {
                 case RuntimeBindingKind.QNAME:
@@ -5181,9 +5287,9 @@ namespace Mariana.AVM2.Compiler {
                 int leftChildId = -1, rightChildId = -1;
 
                 if (!node.isConstant) {
-                    var defs = m_compilation.getDataNodeDefs(node.id);
-                    if (defs.Length == 1 && defs[0].isInstruction) {
-                        ref Instruction pushInstr = ref m_compilation.getInstruction(defs[0].instrOrNodeId);
+                    int pushInstrId = m_compilation.getStackNodePushInstrId(ref node);
+                    if (pushInstrId != -1) {
+                        ref Instruction pushInstr = ref m_compilation.getInstruction(pushInstrId);
                         if (pushInstr.opcode == ABCOp.add && pushInstr.data.add.isConcatTreeInternalNode) {
                             // This is an internal node of the concat tree. We need to recurse into it.
                             isLeaf = false;
@@ -5291,6 +5397,219 @@ namespace Mariana.AVM2.Compiler {
         }
 
         /// <summary>
+        /// Emits the IL for a recognized charAt or charCodeAt comparison pattern.
+        /// </summary>
+        /// <param name="instr">A reference to the <see cref="Instruction"/> representing the
+        /// compare instruction.</param>
+        /// <param name="left">A reference to the <see cref="DataNode"/> representing the left
+        /// operand of the comparison.</param>
+        /// <param name="right">A reference to the <see cref="DataNode"/> representing the right
+        /// operand of the comparison.</param>
+        /// <param name="branchEmitInfo">A <see cref="TwoWayBranchEmitInfo"/> instance, only applicable
+        /// if <paramref name="instr"/> is a compare-and-branch instruction.</param>
+        private void _emitStringCharAtIntrinsicCompare(
+            ref Instruction instr, ref DataNode left, ref DataNode right, in TwoWayBranchEmitInfo branchEmitInfo)
+        {
+            bool isBranch = ABCOpInfo.getInfo(instr.opcode).controlType == ABCOpInfo.ControlType.BRANCH;
+
+            bool isNegative =
+                instr.opcode == ABCOp.ifne
+                || instr.opcode == ABCOp.ifstrictne
+                || ((int)instr.opcode >= (int)ABCOp.ifnlt && (int)instr.opcode <= (int)ABCOp.ifnge);
+
+            bool isLeftComparand = ComparisonType.STR_CHARAT_L
+                == (isBranch ? instr.data.compareBranch.compareType : instr.data.compare.compareType);
+
+            // Determine the "effective" operation to be performed.
+            // If the comparand is on the left then the effective operation is reversed.
+
+            ABCOp effectiveOp = default;
+
+            switch (instr.opcode) {
+                case ABCOp.equals:
+                case ABCOp.ifeq:
+                case ABCOp.ifne:
+                case ABCOp.ifstricteq:
+                case ABCOp.ifstrictne:
+                case ABCOp.strictequals:
+                    effectiveOp = ABCOp.equals;
+                    break;
+                case ABCOp.lessthan:
+                case ABCOp.iflt:
+                case ABCOp.ifnlt:
+                    effectiveOp = isLeftComparand ? ABCOp.greaterthan : ABCOp.lessthan;
+                    break;
+                case ABCOp.lessequals:
+                case ABCOp.ifle:
+                case ABCOp.ifnle:
+                    effectiveOp = isLeftComparand ? ABCOp.greaterequals : ABCOp.lessequals;
+                    break;
+                case ABCOp.greaterthan:
+                case ABCOp.ifgt:
+                case ABCOp.ifngt:
+                    effectiveOp = isLeftComparand ? ABCOp.lessthan : ABCOp.greaterthan;
+                    break;
+                case ABCOp.greaterequals:
+                case ABCOp.ifge:
+                case ABCOp.ifnge:
+                    effectiveOp = isLeftComparand ? ABCOp.lessequals : ABCOp.greaterequals;
+                    break;
+            }
+
+            ref DataNode comparandNode = ref (isLeftComparand ? ref left : ref right);
+
+            // If the comparand is of a numeric type, then this is a charCodeAt compare pattern.
+            // Otherwise it is a string constant and this is a charAt compare pattern.
+            bool isCharCodeAt = isNumeric(comparandNode.dataType);
+
+            bool isComparandConstant = false;
+            int comparandConstValue = 0;
+
+            if (isCharCodeAt) {
+                isComparandConstant = tryGetConstant(ref comparandNode, out comparandConstValue);
+            }
+            else {
+                Debug.Assert(
+                    comparandNode.isConstant
+                    && comparandNode.dataType == DataNodeType.STRING
+                    && comparandNode.constant.stringValue.Length == 1
+                );
+                isComparandConstant = true;
+                comparandConstValue = comparandNode.constant.stringValue[0];
+            }
+
+            // If the index is out of the string bounds, the result of the comparison is false if:
+            // This is a charCodeAt compare pattern (since the result is NaN, for which all compare
+            // operations return false)
+            // Or this is a charAt compare pattern and the operation is not lessthan or lessequals
+            // (charAt returns an empty string, which compares less than a single-character string)
+
+            bool outOfBoundsFail = isCharCodeAt
+                || effectiveOp == ABCOp.equals || effectiveOp == ABCOp.greaterthan || effectiveOp == ABCOp.greaterequals;
+
+            if (isNegative)
+                outOfBoundsFail = !outOfBoundsFail;
+
+            var strTemp = m_ilBuilder.acquireTempLocal(typeof(string));
+            var indexTemp = m_ilBuilder.acquireTempLocal(typeof(int));
+
+            // If the comparand is a non-constant integer in a charCodeAt compare intrinsic, we need another
+            // temporary variable for it.
+            ILBuilder.Local comparandTemp = default;
+            if (!isComparandConstant)
+                comparandTemp = m_ilBuilder.acquireTempLocal(typeof(int));
+
+            if (!isLeftComparand) {
+                if (isComparandConstant)
+                    _emitDiscardTopOfStack(ref right);
+                else
+                    m_ilBuilder.emit(ILOp.stloc, comparandTemp);
+            }
+
+            m_ilBuilder.emit(ILOp.stloc, indexTemp);
+            m_ilBuilder.emit(ILOp.stloc, strTemp);
+
+            if (isLeftComparand) {
+                if (isComparandConstant)
+                    _emitDiscardTopOfStack(ref left);
+                else
+                    m_ilBuilder.emit(ILOp.stloc, comparandTemp);
+            }
+
+            m_ilBuilder.emit(ILOp.ldloc, indexTemp);
+            m_ilBuilder.emit(ILOp.ldloc, strTemp);
+            m_ilBuilder.emit(ILOp.call, KnownMembers.strGetLength, 0);
+
+            if (isBranch) {
+                m_ilBuilder.emit(ILOp.blt_un_s, outOfBoundsFail ? branchEmitInfo.falseLabel : branchEmitInfo.trueLabel);
+
+                m_ilBuilder.emit(ILOp.ldloc, strTemp);
+                m_ilBuilder.emit(ILOp.ldloc, indexTemp);
+                m_ilBuilder.emit(ILOp.call, KnownMembers.strCharAtNative, -1);
+
+                if (isComparandConstant)
+                    m_ilBuilder.emit(ILOp.ldc_i4, comparandConstValue);
+                else
+                    m_ilBuilder.emit(ILOp.ldloc, comparandTemp);
+
+                ILOp ilOp = 0, invIlOp = 0;
+
+                switch (effectiveOp) {
+                    case ABCOp.equals:
+                        (ilOp, invIlOp) = (ILOp.beq, ILOp.bne_un);
+                        break;
+                    case ABCOp.lessthan:
+                        (ilOp, invIlOp) = (ILOp.blt, ILOp.bge);
+                        break;
+                    case ABCOp.greaterequals:
+                        (ilOp, invIlOp) = (ILOp.bge, ILOp.blt);
+                        break;
+                    case ABCOp.greaterthan:
+                        (ilOp, invIlOp) = (ILOp.bgt, ILOp.ble);
+                        break;
+                    case ABCOp.lessequals:
+                        (ilOp, invIlOp) = (ILOp.ble, ILOp.bgt);
+                        break;
+                }
+
+                if (isNegative)
+                    (ilOp, invIlOp) = (invIlOp, ilOp);
+
+                if (branchEmitInfo.trueIsFallThrough)
+                    m_ilBuilder.emit(invIlOp, branchEmitInfo.falseLabel);
+                else
+                    m_ilBuilder.emit(ilOp, branchEmitInfo.trueLabel);
+            }
+            else {
+                var lengthCheckLabel = m_ilBuilder.createLabel();
+                var endLabel = m_ilBuilder.createLabel();
+
+                m_ilBuilder.emit(ILOp.blt_un_s, lengthCheckLabel);
+                m_ilBuilder.emit(ILOp.ldc_i4, outOfBoundsFail ? 0 : 1);
+                m_ilBuilder.emit(ILOp.br_s, endLabel);
+
+                m_ilBuilder.markLabel(lengthCheckLabel);
+
+                m_ilBuilder.emit(ILOp.ldloc, strTemp);
+                m_ilBuilder.emit(ILOp.ldloc, indexTemp);
+                m_ilBuilder.emit(ILOp.call, KnownMembers.strCharAtNative, -1);
+
+                if (isComparandConstant)
+                    m_ilBuilder.emit(ILOp.ldc_i4, comparandConstValue);
+                else
+                    m_ilBuilder.emit(ILOp.ldloc, comparandTemp);
+
+                switch (effectiveOp) {
+                    case ABCOp.equals:
+                        m_ilBuilder.emit(ILOp.ceq);
+                        break;
+                    case ABCOp.lessthan:
+                    case ABCOp.greaterequals:
+                        m_ilBuilder.emit(ILOp.clt);
+                        isNegative = effectiveOp == ABCOp.greaterequals;
+                        break;
+                    case ABCOp.greaterthan:
+                    case ABCOp.lessequals:
+                        m_ilBuilder.emit(ILOp.cgt);
+                        isNegative = effectiveOp == ABCOp.lessequals;
+                        break;
+                }
+
+                if (isNegative) {
+                    m_ilBuilder.emit(ILOp.ldc_i4_0);
+                    m_ilBuilder.emit(ILOp.ceq);
+                }
+                m_ilBuilder.markLabel(endLabel);
+            }
+
+            m_ilBuilder.releaseTempLocal(strTemp);
+            m_ilBuilder.releaseTempLocal(indexTemp);
+
+            if (!isComparandConstant)
+                m_ilBuilder.releaseTempLocal(comparandTemp);
+        }
+
+        /// <summary>
         /// Emits IL for invoking an intrinsic function.
         /// </summary>
         /// <param name="intrinsic">An <see cref="Intrinsic"/> representing the intrinsic function.</param>
@@ -5334,7 +5653,7 @@ namespace Mariana.AVM2.Compiler {
             }
 
             if (intrinsic.name == IntrinsicName.VECTOR_T_PUSH_1) {
-                Debug.Assert(objectId != -1);
+                Debug.Assert(objectId != -1 && !isConstruct);
 
                 var mdContext = m_compilation.metadataContext;
                 var vectorClass = (Class)intrinsic.arg;
@@ -5353,12 +5672,88 @@ namespace Mariana.AVM2.Compiler {
             }
 
             if (intrinsic.name == IntrinsicName.ARRAY_PUSH_1) {
-                Debug.Assert(objectId != -1);
+                Debug.Assert(objectId != -1 && !isConstruct);
+
                 _emitTypeCoerceForTopOfStack(argsOnStack[0], DataNodeType.ANY);
                 m_ilBuilder.emit(ILOp.callvirt, KnownMembers.arrayPushOneArg, -1);
 
                 if (!hasResult)
                     m_ilBuilder.emit(ILOp.pop);
+                return;
+            }
+
+            if (intrinsic.name == IntrinsicName.STRING_CHARAT || intrinsic.name == IntrinsicName.STRING_CCODEAT) {
+                Debug.Assert(objectId != -1 && !isConstruct);
+                _emitTypeCoerceForTopOfStack(argsOnStack[0], DataNodeType.NUMBER);
+
+                MethodInfo method = (intrinsic.name == IntrinsicName.STRING_CHARAT)
+                    ? KnownMembers.strCharAt
+                    : KnownMembers.strCharCodeAt;
+
+                m_ilBuilder.emit(ILOp.call, method, -1);
+                if (!hasResult)
+                    m_ilBuilder.emit(ILOp.pop);
+                return;
+            }
+
+            if (intrinsic.name == IntrinsicName.STRING_CHARAT_I || intrinsic.name == IntrinsicName.STRING_CCODEAT_I) {
+                Debug.Assert(objectId != -1 && !isConstruct);
+                Debug.Assert(isInteger(_getPushedTypeOfNode(m_compilation.getDataNode(argsOnStack[0]))));
+
+                MethodInfo method = (intrinsic.name == IntrinsicName.STRING_CHARAT_I)
+                    ? KnownMembers.strCharAtIntIndex
+                    : KnownMembers.strCharCodeAtIntIndex;
+
+                m_ilBuilder.emit(ILOp.call, method, -1);
+                if (!hasResult)
+                    m_ilBuilder.emit(ILOp.pop);
+                return;
+            }
+
+            if (intrinsic.name == IntrinsicName.STRING_CHARAT_CMP || intrinsic.name == IntrinsicName.STRING_CCODEAT_CMP) {
+                Debug.Assert(objectId != -1 && !isConstruct);
+                Debug.Assert(isInteger(_getPushedTypeOfNode(m_compilation.getDataNode(argsOnStack[0]))));
+
+                // This intrinsic is used when the result of String.charAt() or charCodeAt() is used in
+                // a recognized comparison expression. In this case the actual code generation will be done
+                // when emitting the code for the compare instruction.
+                return;
+            }
+
+            if (intrinsic.name == IntrinsicName.STRING_CCODEAT_I_I) {
+                // This is a specialized intrinsic for String::charCodeAt when the index is an integer and
+                // the result is coerced to an integer, which is implemented using inline IL.
+                // It returns the value 0 when the index is out of bounds.
+                // The CLR JIT should (hopefully) detect the the length check here and remove the internal
+                // length check from the string indexer.
+
+                Debug.Assert(objectId != -1 && !isConstruct);
+                Debug.Assert(isInteger(_getPushedTypeOfNode(m_compilation.getDataNode(argsOnStack[0]))));
+
+                var strTemp = m_ilBuilder.acquireTempLocal(typeof(string));
+                var indexTemp = m_ilBuilder.acquireTempLocal(typeof(int));
+                var label1 = m_ilBuilder.createLabel();
+                var label2 = m_ilBuilder.createLabel();
+
+                m_ilBuilder.emit(ILOp.stloc, indexTemp);
+                m_ilBuilder.emit(ILOp.stloc, strTemp);
+
+                m_ilBuilder.emit(ILOp.ldloc, indexTemp);
+                m_ilBuilder.emit(ILOp.ldloc, strTemp);
+                m_ilBuilder.emit(ILOp.call, KnownMembers.strGetLength, 0);
+                m_ilBuilder.emit(ILOp.blt_un_s, label1);
+
+                m_ilBuilder.emit(ILOp.ldc_i4_0);
+                m_ilBuilder.emit(ILOp.br_s, label2);
+
+                m_ilBuilder.markLabel(label1);
+                m_ilBuilder.emit(ILOp.ldloc, strTemp);
+                m_ilBuilder.emit(ILOp.ldloc, indexTemp);
+                m_ilBuilder.emit(ILOp.call, KnownMembers.strCharAtNative, -1);
+
+                m_ilBuilder.markLabel(label2);
+                m_ilBuilder.releaseTempLocal(strTemp);
+                m_ilBuilder.releaseTempLocal(indexTemp);
                 return;
             }
 
@@ -5688,7 +6083,7 @@ namespace Mariana.AVM2.Compiler {
             m_ilBuilder.emit(ILOp.stloc, newScopeLocal);
 
             for (int i = 0; i < captureItems.Length; i++) {
-                if (DataNodeTypeHelper.isConstantType(captureItems[i].dataType))
+                if (isConstantType(captureItems[i].dataType))
                     continue;
 
                 m_ilBuilder.emit(ILOp.ldloc, newScopeLocal);
@@ -5747,54 +6142,86 @@ namespace Mariana.AVM2.Compiler {
         }
 
         /// <summary>
-        /// Emits a two-way conditional branch.
+        /// Returns a <see cref="TwoWayBranchEmitInfo"/> containing information on how a
+        /// two-way conditional branch is to be emitted.
         /// </summary>
-        /// <param name="fromBlock">A reference to a <see cref="BasicBlock"/> instance representing
-        /// the basic block from which the branch is being made.</param>
-        /// <param name="trueBlock">A reference to a <see cref="BasicBlock"/> instance representing
-        /// the basic block from which control should be transferred to if the condition specified
-        /// by <paramref name="opcode"/> succeeds.</param>
-        /// <param name="falseBlock">A reference to a <see cref="BasicBlock"/> instance representing
-        /// the basic block from which control should be transferred to if the condition specified
-        /// by <paramref name="opcode"/> fails.</param>
-        /// <param name="opcode">The IL opcode for the conditional branch.</param>
-        /// <param name="inverseOpcode">The IL opcode for a conditional branch with the inverse of
-        /// the condition specified by <paramref name="opcode"/>.</param>
-        private void _emitTwoWayConditionalBranch(
-            ref BasicBlock fromBlock, ref BasicBlock trueBlock, ref BasicBlock falseBlock, ILOp opcode, ILOp inverseOpcode)
+        /// <param name="fromBlock">A reference to a <see cref="BasicBlock"/> representing the
+        /// basic block that exits with the two-way branch.</param>
+        /// <param name="trueBlock">A reference to a <see cref="BasicBlock"/> representing the
+        /// basic block that is the target of the true branch.</param>
+        /// <param name="falseBlock">A reference to a <see cref="BasicBlock"/> representing the
+        /// basic block that is the target of the false branch.</param>
+        /// <returns>A <see cref="TwoWayBranchEmitInfo"/> instance.</returns>
+        private TwoWayBranchEmitInfo _getTwoWayBranchEmitInfo(
+            ref BasicBlock fromBlock, ref BasicBlock trueBlock, ref BasicBlock falseBlock)
         {
-            bool isTrueBlockTransitionRequired = _isBlockTransitionRequired(ref fromBlock, ref trueBlock);
-            bool isFalseBlockTransitionRequired = _isBlockTransitionRequired(ref fromBlock, ref falseBlock);
+            TwoWayBranchEmitInfo emitInfo = default;
 
-            if (isTrueBlockTransitionRequired) {
-                if (isFalseBlockTransitionRequired) {
-                    var label = m_ilBuilder.createLabel();
-                    m_ilBuilder.emit(opcode, label);
+            emitInfo.trueBlockId = trueBlock.id;
+            emitInfo.falseBlockId = falseBlock.id;
 
+            emitInfo.trueBlockNeedsTransition = _isBlockTransitionRequired(ref fromBlock, ref trueBlock);
+            emitInfo.falseBlockNeedsTransition = _isBlockTransitionRequired(ref fromBlock, ref falseBlock);
+
+            if (!emitInfo.trueBlockNeedsTransition && !emitInfo.falseBlockNeedsTransition) {
+                emitInfo.trueLabel = _getLabelForJumpToBlock(fromBlock, trueBlock);
+                emitInfo.falseLabel = _getLabelForJumpToBlock(fromBlock, falseBlock);
+                emitInfo.trueIsFallThrough = _isBasicBlockImmediatelyBefore(fromBlock, trueBlock);
+            }
+            else if (emitInfo.trueBlockNeedsTransition && emitInfo.falseBlockNeedsTransition) {
+                emitInfo.trueLabel = m_ilBuilder.createLabel();
+                emitInfo.falseLabel = m_ilBuilder.createLabel();
+            }
+            else if (emitInfo.trueBlockNeedsTransition) {
+                emitInfo.trueLabel = m_ilBuilder.createLabel();
+                emitInfo.falseLabel = _getLabelForJumpToBlock(fromBlock, falseBlock);
+                emitInfo.trueIsFallThrough = true;
+            }
+            else {
+                emitInfo.trueLabel = _getLabelForJumpToBlock(fromBlock, trueBlock);
+                emitInfo.falseLabel = m_ilBuilder.createLabel();
+            }
+
+            return emitInfo;
+        }
+
+        /// <summary>
+        /// Emits the necessary code for a two-way conditional branch. This must be called after emitting
+        /// the conditional branch instruction.
+        /// </summary>
+        /// <param name="fromBlock">A reference to a <see cref="BasicBlock"/> representing the
+        /// basic block that exits with the two-way branch.</param>
+        /// <param name="emitInfo">A <see cref="TwoWayBranchEmitInfo"/> obtained from a call to the
+        /// <see cref="_getTwoWayBranchEmitInfo"/> method.</param>
+        private void _finishTwoWayConditionalBranch(ref BasicBlock fromBlock, in TwoWayBranchEmitInfo emitInfo) {
+            ref BasicBlock trueBlock = ref m_compilation.getBasicBlock(emitInfo.trueBlockId);
+            ref BasicBlock falseBlock = ref m_compilation.getBasicBlock(emitInfo.falseBlockId);
+
+            if (!emitInfo.trueBlockNeedsTransition && !emitInfo.falseBlockNeedsTransition) {
+                // No transitions required. If the fallthrough block is not immediately after the exiting one,
+                // emit an unconditional jump to it.
+
+                ref BasicBlock fallThroughBlock = ref (emitInfo.trueIsFallThrough ? ref trueBlock : ref falseBlock);
+                var fallThroughLabel = emitInfo.trueIsFallThrough ? emitInfo.trueLabel : emitInfo.falseLabel;
+
+                if (!_isBasicBlockImmediatelyBefore(fromBlock, fallThroughBlock))
+                    m_ilBuilder.emit(ILOp.br, fallThroughLabel);
+            }
+            else {
+                Debug.Assert(
+                    emitInfo.trueIsFallThrough == (emitInfo.trueBlockNeedsTransition && !emitInfo.falseBlockNeedsTransition)
+                );
+
+                if (emitInfo.falseBlockNeedsTransition) {
+                    m_ilBuilder.markLabel(emitInfo.falseLabel);
                     _emitBlockTransition(ref fromBlock, ref falseBlock);
                     m_ilBuilder.emit(ILOp.br, _getLabelForJumpToBlock(fromBlock, falseBlock));
-
-                    m_ilBuilder.markLabel(label);
+                }
+                if (emitInfo.trueBlockNeedsTransition) {
+                    m_ilBuilder.markLabel(emitInfo.trueLabel);
                     _emitBlockTransition(ref fromBlock, ref trueBlock);
                     m_ilBuilder.emit(ILOp.br, _getLabelForJumpToBlock(fromBlock, trueBlock));
                 }
-                else {
-                    m_ilBuilder.emit(inverseOpcode, _getLabelForJumpToBlock(fromBlock, falseBlock));
-                    _emitBlockTransition(ref fromBlock, ref trueBlock);
-
-                    if (!_isBasicBlockImmediatelyBefore(fromBlock, trueBlock))
-                        m_ilBuilder.emit(ILOp.br, _getLabelForJumpToBlock(fromBlock, trueBlock));
-                }
-            }
-            else if (_isBasicBlockImmediatelyBefore(fromBlock, trueBlock) && !isFalseBlockTransitionRequired) {
-                m_ilBuilder.emit(inverseOpcode, _getLabelForJumpToBlock(fromBlock, falseBlock));
-            }
-            else {
-                m_ilBuilder.emit(opcode, _getLabelForJumpToBlock(fromBlock, trueBlock));
-                _emitBlockTransition(ref fromBlock, ref falseBlock);
-
-                if (!_isBasicBlockImmediatelyBefore(fromBlock, falseBlock))
-                    m_ilBuilder.emit(ILOp.br, _getLabelForJumpToBlock(fromBlock, falseBlock));
             }
         }
 
@@ -6082,23 +6509,23 @@ namespace Mariana.AVM2.Compiler {
             if (pushedNodeType == phiNode.dataType)
                 return true;
 
-            if (DataNodeTypeHelper.isInteger(pushedNodeType))
-                return DataNodeTypeHelper.isInteger(phiNode.dataType);
+            if (isInteger(pushedNodeType))
+                return isInteger(phiNode.dataType);
 
-            if (DataNodeTypeHelper.isObjectType(pushedNodeType)) {
-                if (!DataNodeTypeHelper.isObjectType(phiNode.dataType))
+            if (isObjectType(pushedNodeType)) {
+                if (!isObjectType(phiNode.dataType))
                     return false;
                 if (_getPushedClassOfNode(node).isInterface)
                     return m_compilation.getDataNodeClass(phiNode).isInterface;
                 return true;
             }
 
-            if (DataNodeTypeHelper.isAnyOrUndefined(pushedNodeType))
-                return DataNodeTypeHelper.isAnyOrUndefined(phiNode.dataType);
+            if (isAnyOrUndefined(pushedNodeType))
+                return isAnyOrUndefined(phiNode.dataType);
 
             if (pushedNodeType == DataNodeType.REST) {
                 Debug.Assert(m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_REST_ARRAY));
-                return DataNodeTypeHelper.isObjectType(phiNode.dataType);
+                return isObjectType(phiNode.dataType);
             }
 
             return false;
@@ -6131,9 +6558,9 @@ namespace Mariana.AVM2.Compiler {
             if (m_compilation.getDataNodeClass(node) == m_compilation.getDataNodeClass(phiNode))
                 return true;
 
-            if (DataNodeTypeHelper.isInteger(node.dataType)) {
+            if (isInteger(node.dataType)) {
                 // int and uint are considered to be the same type when mapping nodes to IL local variables.
-                return DataNodeTypeHelper.isInteger(phiNode.dataType);
+                return isInteger(phiNode.dataType);
             }
 
             return false;
@@ -6224,7 +6651,7 @@ namespace Mariana.AVM2.Compiler {
 
                 m_ilBuilder.emit(ILOp.ldloca, m_excThrownValueLocal);
                 m_ilBuilder.emit(ILOp.call, KnownMembers.anyGetObject, 0);
-                _emitIsOrAsType(errorType, ABCOp.istype);
+                _emitIsOrAsType(errorType, ABCOp.istype, -1);
 
                 if (handler.parentId == -1) {
                     m_ilBuilder.emit(ILOp.br, endFilterLabel);

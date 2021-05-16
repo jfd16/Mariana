@@ -547,6 +547,23 @@ namespace Mariana.AVM2.Compiler {
         }
 
         /// <summary>
+        /// Returns the instruction id of the instruction that pushed the given node onto the stack.
+        /// </summary>
+        /// <param name="node">A reference to a <see cref="DataNode"/> instance.</param>
+        /// <returns>The id of the pushing instruction. If <paramref name="node"/> does not represent
+        /// a node on the stack or is a phi node, returns -1.</returns>
+        public int getStackNodePushInstrId(ref DataNode node) {
+            if (node.slot.kind != DataNodeSlotKind.STACK)
+                return -1;
+
+            var defs = getDataNodeDefs(ref node);
+            if (defs.Length != 1 || !defs[0].isInstruction)
+                return -1;
+
+            return defs[0].instrOrNodeId;
+        }
+
+        /// <summary>
         /// Returns a read-only span containing the ids of the basic blocks in the reverse order of a
         /// postorder traversal of the control flow graph.
         /// </summary>

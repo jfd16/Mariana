@@ -410,18 +410,22 @@ namespace Mariana.AVM2.Core {
 
                 _newLastIndex = match.Index + match.Length;
 
-
                 // Create the group array
                 GroupCollection groups = match.Groups;
                 ASArray groupArray = new ASArray(groups.Count);
                 DynamicPropertyCollection namedProps = groupArray.AS_dynamicProps;
 
                 for (int i = 0, n = groups.Count; i < n; i++) {
-                    string groupValue = groups[i].Value;
-                    groupArray[i] = groupValue;
+                    if (!groups[i].Success) {
+                        groupArray[i] = ASAny.undefined;
+                    }
+                    else {
+                        string groupValue = groups[i].Value;
+                        groupArray[i] = groupValue;
 
-                    if (i != 0 && m_groupNames != null && m_groupNames[i - 1] != null)
-                        namedProps[m_groupNames[i - 1]] = groupValue;
+                        if (i != 0 && m_groupNames != null && m_groupNames[i - 1] != null)
+                            namedProps[m_groupNames[i - 1]] = groupValue;
+                    }
                 }
 
                 namedProps["input"] = str;

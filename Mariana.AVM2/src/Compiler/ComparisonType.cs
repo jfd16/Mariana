@@ -69,13 +69,13 @@ namespace Mariana.AVM2.Compiler {
         INT_ZERO_R,
 
         /// <summary>
-        /// A reference equality or inequality comparison of objects with constant null as
+        /// A reference equality or inequality comparison of objects or strings with constant null as
         /// the left operand.
         /// </summary>
         OBJ_NULL_L,
 
         /// <summary>
-        /// A reference equality or inequality comparison of objects with constant null as
+        /// A reference equality or inequality comparison of objects or strings with constant null as
         /// the right operand.
         /// </summary>
         OBJ_NULL_R,
@@ -91,6 +91,18 @@ namespace Mariana.AVM2.Compiler {
         /// a constant undefined as the left operand.
         /// </summary>
         ANY_UNDEF_R,
+
+        /// <summary>
+        /// Used for the intrinsic expression patterns
+        /// <c>int op str.charCodeAt(int)</c> and <c>const_str op str.charAt(int)</c>
+        /// </summary>
+        STR_CHARAT_L,
+
+        /// <summary>
+        /// Used for the intrinsic expression patterns
+        /// <c>str.charCodeAt(int) op int</c> and <c>str.charAt(int) op const_str</c>
+        /// </summary>
+        STR_CHARAT_R,
 
     }
 
