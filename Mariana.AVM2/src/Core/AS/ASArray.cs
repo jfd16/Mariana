@@ -2018,8 +2018,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="callback">
         /// The callback function to execute for each element. It must take three arguments. The first
         /// argument is the element value, the second argument is the index of the element and the
-        /// third is a reference to the Array instance that called this method. If the callback
-        /// function returns a non-Boolean value, it will be converted to a Boolean. If this is null,
+        /// third is a reference to the Array instance that called this method. If this is null,
         /// this method returns true.
         /// </param>
         /// <param name="thisObject">The object to be used as the "this" object in calls to the
@@ -2066,7 +2065,9 @@ namespace Mariana.AVM2.Core {
                 for (int i = 0; i < valuesSpan.Length; i++) {
                     cbArgsArray[0] = valuesSpan[i].toAny();
                     cbArgsArray[1] = (uint)i;
-                    if (!(bool)callback.AS_invoke(thisObject, cbArgs))
+
+                    ASAny cbResult = callback.AS_invoke(thisObject, cbArgs);
+                    if (!(cbResult.value is ASBoolean && (bool)cbResult))
                         return false;
                 }
             }
@@ -2074,7 +2075,9 @@ namespace Mariana.AVM2.Core {
                 for (uint i = 0, n = m_length; i < n; i++) {
                     cbArgsArray[0] = AS_getElement(i);
                     cbArgsArray[1] = i;
-                    if (!(bool)callback.AS_invoke(thisObject, cbArgs))
+
+                    ASAny cbResult = callback.AS_invoke(thisObject, cbArgs);
+                    if (!(cbResult.value is ASBoolean && (bool)cbResult))
                         return false;
                 }
             }
@@ -2090,8 +2093,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="callback">
         /// The callback function to execute for each element. It must take three arguments. The first
         /// argument is the element value, the second argument is the index of the element and the
-        /// third is a reference to the Array instance that called this method. If the callback
-        /// function returns a non-Boolean value, it will be converted to a Boolean. If this is null,
+        /// third is a reference to the Array instance that called this method. If this is null,
         /// this method returns an empty Array.
         /// </param>
         /// <param name="thisObject">The object to be used as the "this" object in calls to the
@@ -2140,7 +2142,8 @@ namespace Mariana.AVM2.Core {
                 cbArgsArray[0] = val;
                 cbArgsArray[1] = ind;
 
-                if ((bool)callback.AS_invoke(thisObject, _cbArgs)) {
+                ASAny cbReturn = callback.AS_invoke(thisObject, _cbArgs);
+                if (cbReturn.value is ASBoolean && (bool)cbReturn) {
                     resultArray.AS_setElement(resultCount, val);
                     resultCount++;
                 }
@@ -2756,8 +2759,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="callback">
         /// The callback function to execute for each element. It must take three arguments. The first
         /// argument is the element value, the second argument is the index of the element and the
-        /// third is a reference to the Array instance that called this method. If the callback
-        /// function returns a non-Boolean value, it will be converted to a Boolean. If this is null,
+        /// third is a reference to the Array instance that called this method. If this is null,
         /// this method returns false.
         /// </param>
         /// <param name="thisObject">The object to be used as the "this" object in calls to the
@@ -2804,7 +2806,9 @@ namespace Mariana.AVM2.Core {
                 for (int i = 0; i < valuesSpan.Length; i++) {
                     cbArgsArray[0] = m_values[i].toAny();
                     cbArgsArray[1] = (uint)i;
-                    if ((bool)callback.AS_invoke(thisObject, cbArgs))
+
+                    ASAny cbResult = callback.AS_invoke(thisObject, cbArgs);
+                    if (cbResult.value is ASBoolean && (bool)cbResult)
                         return true;
                 }
             }
@@ -2812,7 +2816,9 @@ namespace Mariana.AVM2.Core {
                 for (uint i = 0, n = m_length; i < n; i++) {
                     cbArgsArray[0] = AS_getElement(i);
                     cbArgsArray[1] = i;
-                    if ((bool)callback.AS_invoke(thisObject, cbArgs))
+
+                    ASAny cbResult = callback.AS_invoke(thisObject, cbArgs);
+                    if (cbResult.value is ASBoolean && (bool)cbResult)
                         return true;
                 }
             }

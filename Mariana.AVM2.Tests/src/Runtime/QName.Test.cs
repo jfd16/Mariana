@@ -8,7 +8,7 @@ namespace Mariana.AVM2.Tests {
 
     public class QNameTest {
 
-        public static IEnumerable<object[]> ctor_shouldCreateFromNamespaceAndLocalName_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> constructorTest_withNamespaceAndLocalName_data = TupleHelper.toArrays(
             (Namespace.any, null),
             (Namespace.@public, null),
             (new Namespace("hello"), null),
@@ -27,8 +27,8 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(ctor_shouldCreateFromNamespaceAndLocalName_data))]
-        public void ctor_shouldCreateFromNamespaceAndLocalName(Namespace ns, string localName) {
+        [MemberData(nameof(constructorTest_withNamespaceAndLocalName_data))]
+        public void constructorTest_withNamespaceAndLocalName(Namespace ns, string localName) {
             var qname = new QName(ns, localName);
             Assert.Equal(ns, qname.ns);
             Assert.Equal(localName, qname.localName);
@@ -44,7 +44,7 @@ namespace Mariana.AVM2.Tests {
         [InlineData("hello", null)]
         [InlineData("hello", "*")]
         [InlineData("hello", "hello")]
-        public void ctor_shouldCreateFromUriAndLocalName(string uri, string localName) {
+        public void constructorTest_withUriAndLocalName(string uri, string localName) {
             var qname = new QName(uri, localName);
             Assert.Equal(new Namespace(uri), qname.ns);
             Assert.Equal(localName, qname.localName);
@@ -56,13 +56,13 @@ namespace Mariana.AVM2.Tests {
         [InlineData("hello")]
         [InlineData("foo.bar")]
         [InlineData("foo::bar")]
-        public void publicName_shouldCreatePublicQName(string localName) {
+        public void publicNameMethodTest(string localName) {
             var qname = QName.publicName(localName);
             Assert.True(qname.ns.isPublic);
             Assert.Equal(localName, qname.localName);
         }
 
-        public static IEnumerable<object[]> parse_shouldParseStringToQName_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> parseMethodTest_data = TupleHelper.toArrays(
             (null, default(QName)),
             ("", new QName("", "")),
             ("*", new QName(Namespace.any, "*")),
@@ -98,14 +98,14 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(parse_shouldParseStringToQName_data))]
-        public void parse_shouldParseStringToQName(string str, QName expected) {
+        [MemberData(nameof(parseMethodTest_data))]
+        public void parseMethodTest(string str, QName expected) {
             var qname = QName.parse(str);
             Assert.Equal(expected.ns, qname.ns);
             Assert.Equal(expected.localName, qname.localName);
         }
 
-        public static IEnumerable<object[]> equals_shouldCheckForQNameEquality_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> equals_getHashCode_testData = TupleHelper.toArrays(
             (default(QName), new QName(Namespace.any, null), true),
             (new QName(Namespace.any, "hello"), new QName(Namespace.any, "hello"), true),
             (QName.publicName("hello"), new QName(Namespace.@public, "hello"), true),
@@ -165,12 +165,17 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(equals_shouldCheckForQNameEquality_data))]
-        public void equals_shouldCheckForQNameEquality(QName x, QName y, bool areEqual) {
+        [MemberData(nameof(equals_getHashCode_testData))]
+        public void equalsMethodTest(QName x, QName y, bool areEqual) {
             Assert.Equal(areEqual, x.Equals(y));
             Assert.Equal(areEqual, y.Equals(x));
             Assert.Equal(areEqual, x.Equals((object)y));
             Assert.Equal(areEqual, y.Equals((object)x));
+        }
+
+        [Theory]
+        [MemberData(nameof(equals_getHashCode_testData))]
+        public void equalsOperatorTest(QName x, QName y, bool areEqual) {
             Assert.Equal(areEqual, x == y);
             Assert.Equal(areEqual, y == x);
             Assert.Equal(!areEqual, x != y);
@@ -178,7 +183,7 @@ namespace Mariana.AVM2.Tests {
         }
 
         [Fact]
-        public void equals_shouldNotEqualOtherObject() {
+        public void equalsMethodTest_withNonQNameObject() {
             Assert.False(default(QName).Equals(null));
             Assert.False((new QName("", "a")).Equals(null));
             Assert.False((new QName("", "a")).Equals(new object()));
@@ -186,13 +191,13 @@ namespace Mariana.AVM2.Tests {
         }
 
         [Theory]
-        [MemberData(nameof(equals_shouldCheckForQNameEquality_data))]
-        public void getHashCode_shouldReturnSameHashCodeForEqual(QName x, QName y, bool areEqual) {
+        [MemberData(nameof(equals_getHashCode_testData))]
+        public void getHashCodeMethodTest(QName x, QName y, bool areEqual) {
             if (areEqual)
                 Assert.Equal(x.GetHashCode(), y.GetHashCode());
         }
 
-        public static IEnumerable<object[]> toString_shouldReturnStringRepr_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> toStringMethodTest_data = TupleHelper.toArrays(
             (default(QName), "*::null"),
             (new QName(Namespace.any, "*"), "*::*"),
             (QName.publicName("foo"), "foo"),
@@ -212,9 +217,9 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(toString_shouldReturnStringRepr_data))]
-        public void toString_shouldReturnStringRepr(QName qname, string str) {
-            Assert.Equal(str, qname.ToString());
+        [MemberData(nameof(toStringMethodTest_data))]
+        public void toStringMethodTest(QName qname, string expectedString) {
+            Assert.Equal(expectedString, qname.ToString());
         }
 
         [Theory]
@@ -223,13 +228,13 @@ namespace Mariana.AVM2.Tests {
         [InlineData("hello")]
         [InlineData("foo.bar")]
         [InlineData("foo::bar")]
-        public void implicitFromString_shouldCreatePublicQName(string localName) {
+        public void implicitConvFromStringTest(string localName) {
             QName qname = localName;
             Assert.True(qname.ns.isPublic);
             Assert.Equal(localName, qname.localName);
         }
 
-        public static IEnumerable<object[]> fromObject_shouldCreateQNameFromASObject_data = TupleHelper.toArrays<ASObject, QName>(
+        public static IEnumerable<object[]> fromObjectMethodTest_data = TupleHelper.toArrays<ASObject, QName>(
             (1, QName.publicName("1")),
             (true, QName.publicName("true")),
             ("*", QName.publicName("*")),
@@ -245,12 +250,12 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(fromObject_shouldCreateQNameFromASObject_data))]
-        public void fromObject_shouldCreateQNameFromASObject(ASObject obj, QName expected) {
+        [MemberData(nameof(fromObjectMethodTest_data))]
+        public void fromObjectMethodTest(ASObject obj, QName expected) {
             Assert.Equal(expected, QName.fromObject(obj));
         }
 
-        public static IEnumerable<object[]> fromASQName_shouldCreateQNameFromASQName_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> fromASQNameMethodTest_data = TupleHelper.toArrays(
             (null, default(QName)),
             (new ASQName("abc"), QName.publicName("abc")),
             (new ASQName("ab.c"), QName.publicName("ab.c")),
@@ -260,8 +265,8 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(fromASQName_shouldCreateQNameFromASQName_data))]
-        public void fromASQName_shouldCreateQNameFromASQName(ASQName obj, QName expected) {
+        [MemberData(nameof(fromASQNameMethodTest_data))]
+        public void fromASQNameMethodTest(ASQName obj, QName expected) {
             Assert.Equal(expected, QName.fromASQName(obj));
         }
     }

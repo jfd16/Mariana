@@ -67,7 +67,7 @@ namespace Mariana.AVM2.Tests {
                 functions: new (Func<ASAny[], ASAny> func, int argCount)[] {
                     (null, argCount: 0),
                     (a => a[0], argCount: 1),
-                    (a => a[0], argCount: 3),
+                    (a => (bool)a[0], argCount: 3),
                 }
             );
 
@@ -117,6 +117,7 @@ namespace Mariana.AVM2.Tests {
                 (a => (bool)a[0], argCount: 1),
                 (a => !(bool)a[0], argCount: 1),
                 (a => !a[0].isUndefined, argCount: 3),
+                (a => 1, argCount: 1),
             };
 
             addTestCase(
@@ -277,7 +278,7 @@ namespace Mariana.AVM2.Tests {
                     if (args.Length >= 3)
                         AssertHelper.identical(array.instance, args[2]);
 
-                    if (!(bool)call.returnValue) {
+                    if (!(call.returnValue.value is ASBoolean && (bool)call.returnValue)) {
                         Assert.False(result);
                         Assert.Equal(i + 1, callRecords.Length);
                         return;
@@ -338,7 +339,7 @@ namespace Mariana.AVM2.Tests {
                     if (args.Length >= 3)
                         AssertHelper.identical(array.instance, args[2]);
 
-                    if ((bool)call.returnValue) {
+                    if (call.returnValue.value is ASBoolean && (bool)call.returnValue) {
                         Assert.True(result);
                         Assert.Equal(i + 1, callRecords.Length);
                         return;
@@ -625,6 +626,7 @@ namespace Mariana.AVM2.Tests {
                 (a => (bool)a[0], argCount: 1),
                 (a => !(bool)a[0], argCount: 1),
                 (a => !a[0].isUndefined, argCount: 3),
+                (a => 1, argCount: 1),
             };
 
             addTestCase(
@@ -801,7 +803,7 @@ namespace Mariana.AVM2.Tests {
                     if (args.Length >= 3)
                         AssertHelper.identical(array.instance, args[2]);
 
-                    if ((bool)call.returnValue) {
+                    if (call.returnValue.value is ASBoolean && (bool)call.returnValue) {
                         Assert.True(resultIndex < result.length);
                         Assert.True(result.AS_hasElement(resultIndex));
                         AssertHelper.identical(result.AS_getElement(resultIndex), arrayElements[i]);

@@ -162,8 +162,9 @@ namespace Mariana.AVM2.Core {
         //[AVM2ExportTrait(name = "toString", nsName = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod(name = "toString")]
         public virtual new string AS_toString() {
-            string name = ASObject.AS_convertString(this.name);
-            return (message == null || message.Length == 0) ? name : name + ": " + message;
+            string name = this.name ?? "null";
+            string message = this.message ?? "null";
+            return (message.Length == 0) ? name : name + ": " + message;
         }
 
     }

@@ -135,6 +135,9 @@ namespace Mariana.AVM2.Compiler {
         private const int OBJECT_TYPE_MASK =
             ~(PRIMITIVE_MASK | ANY_UNDEFINED_MASK | (1 << (int)DataNodeType.REST) | (1 << (int)DataNodeType.UNKNOWN));
 
+        private const int STRING_NULL_MASK =
+            (1 << (int)DataNodeType.STRING) | (1 << (int)DataNodeType.NULL);
+
         private static DynamicArray<Class> s_elementTypeToClassMap = new DynamicArray<Class>(32, true) {
             [(int)DataNodeType.ANY] = null,
             [(int)DataNodeType.UNDEFINED] = null,
@@ -193,7 +196,7 @@ namespace Mariana.AVM2.Compiler {
         public static bool isAnyOrUndefined(DataNodeType type) => ((1 << (int)type) & ANY_UNDEFINED_MASK) != 0;
 
         /// <summary>
-        /// Returns a value indicating whether the given data type is an object type
+        /// Returns a value indicating whether the given data type is an object type.
         /// </summary>
         /// <param name="type">A value from the <see cref="DataNodeType"/> enumeration.</param>
         /// <returns>True if <paramref name="type"/> is an object type, otherwise false.</returns>
@@ -205,6 +208,15 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="type">A value from the <see cref="DataNodeType"/> enumeration.</param>
         /// <returns>True if <paramref name="type"/> is a constant type, otherwise false.</returns>
         public static bool isConstantType(DataNodeType type) => ((1 << (int)type) & CONSTANT_TYPE_MASK) != 0;
+
+        /// <summary>
+        /// Returns a value indicating whether the given data type is <see cref="DataNodeType.STRING"/>
+        /// or <see cref="DataNodeType.NULL"/>.
+        /// </summary>
+        /// <param name="type">A value from the <see cref="DataNodeType"/> enumeration.</param>
+        /// <returns>True if <paramref name="type"/> is <see cref="DataNodeType.STRING"/>
+        /// or <see cref="DataNodeType.NULL"/>, otherwise false.</returns>
+        public static bool isStringOrNull(DataNodeType type) => ((1 << (int)type) & STRING_NULL_MASK) != 0;
 
         /// <summary>
         /// Returns the class corresponding to the given data type.

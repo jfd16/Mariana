@@ -10,7 +10,7 @@ namespace Mariana.AVM2.Tests {
 
     public class MetadataTagTest {
 
-        public static IEnumerable<object[]> shouldCreateFromKeysAndValues_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> constructorTest_data = TupleHelper.toArrays(
             (
                 "A", null, null
             ),
@@ -54,8 +54,8 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(shouldCreateFromKeysAndValues_data))]
-        public void shouldCreateFromKeysAndValues(string name, IEnumerable<string> keys, IEnumerable<string> values) {
+        [MemberData(nameof(constructorTest_data))]
+        public void constructorTest(string name, IEnumerable<string> keys, IEnumerable<string> values) {
             values = values ?? Enumerable.Empty<string>();
             keys = keys ?? Enumerable.Repeat<string>(null, values.Count());
 

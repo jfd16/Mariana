@@ -1,10 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
-using Xunit;
-
 using Mariana.AVM2.Core;
 using Mariana.AVM2.Tests.Helpers;
+using Xunit;
 
 namespace Mariana.AVM2.Tests {
 
@@ -13,7 +12,7 @@ namespace Mariana.AVM2.Tests {
         private static readonly Class s_klass = Class.fromType<ASNamespace>();
 
         [Fact]
-        public void publicNamespace_shouldHaveEmptyPrefixAndUri() {
+        public void publicNamespaceShouldHaveEmptyPrefixAndUri() {
             Assert.Equal("", ASNamespace.@public.prefix);
             Assert.Equal("", ASNamespace.@public.uri);
         }
@@ -23,7 +22,7 @@ namespace Mariana.AVM2.Tests {
         [InlineData("", "", "")]
         [InlineData("*", null, "*")]
         [InlineData("hello", null, "hello")]
-        public void constructor_shouldCreateFromUri(string uri, string expectedPrefix, string expectedUri) {
+        public void constructorTest_withUri(string uri, string expectedPrefix, string expectedUri) {
             var ns = new ASNamespace(uri);
             Assert.Equal(expectedUri, ns.uri);
             Assert.Equal(expectedPrefix, ns.prefix);
@@ -40,7 +39,7 @@ namespace Mariana.AVM2.Tests {
         [InlineData("abc", "*", "abc", "*")]
         [InlineData("a-b", "hello", "a-b", "hello")]
         [InlineData("_123", "hello", "_123", "hello")]
-        public void constructor_shouldCreateFromUriAndPrefix(string prefix, string uri, string expectedPrefix, string expectedUri) {
+        public void constructorTest_withUriAndPrefix(string prefix, string uri, string expectedPrefix, string expectedUri) {
             var ns = new ASNamespace(prefix, uri);
             Assert.Equal(expectedUri, ns.uri);
             Assert.Equal(expectedPrefix, ns.prefix);
@@ -49,7 +48,7 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [InlineData(null)]
         [InlineData("a")]
-        public void constructor_shouldThrowIfEmptyUriAndNonEmptyPrefix(string prefix) {
+        public void constructorTest_emptyUriAndNonEmptyPrefix(string prefix) {
             AssertHelper.throwsErrorWithCode(ErrorCode.XML_ILLEGAL_PREFIX_PUBLIC_NAMESPACE, () => new ASNamespace(prefix, ""));
         }
 
@@ -57,7 +56,7 @@ namespace Mariana.AVM2.Tests {
         [InlineData(" ")]
         [InlineData("1ab")]
         [InlineData("-ab")]
-        public void constructor_shouldNotSetPrefixIfNotValidName(string prefix) {
+        public void constructorTest_prefixIsNotValidXmlName(string prefix) {
             var ns = new ASNamespace(prefix, "hello");
             Assert.Null(ns.prefix);
         }
@@ -79,19 +78,24 @@ namespace Mariana.AVM2.Tests {
 
         [Theory]
         [MemberData(nameof(testNamespaceData))]
-        public void prefixProperty_shouldReturnPrefixOrUndefined(ASNamespace ns) {
+        public void prefixPropertyTest(ASNamespace ns) {
             ASAny expected = (ns.prefix == null) ? ASAny.undefined : ns.prefix;
             Assert.Equal(expected, ns.AS_prefix);
         }
 
         [Theory]
         [MemberData(nameof(testNamespaceData))]
-        public void toString_valueOf_shouldReturnUri(ASNamespace ns) {
+        public void toStringMethodTest(ASNamespace ns) {
             Assert.Equal(ns.uri, ns.AS_toString());
+        }
+
+        [Theory]
+        [MemberData(nameof(testNamespaceData))]
+        public void valueOfMethodTest(ASNamespace ns) {
             Assert.Equal(ns.uri, ns.valueOf());
         }
 
-        public static IEnumerable<object[]> equals_shouldCheckIfUrisEqual_data() {
+        public static IEnumerable<object[]> equalsMethodTest_data() {
             foreach (var x in testNamespaceData) {
                 foreach (var y in testNamespaceData)
                     yield return new object[] {x[0], y[0]};
@@ -103,8 +107,8 @@ namespace Mariana.AVM2.Tests {
         }
 
         [Theory]
-        [MemberData(nameof(equals_shouldCheckIfUrisEqual_data))]
-        public void equals_shouldCheckIfUrisEqual(ASNamespace x, ASNamespace y) {
+        [MemberData(nameof(equalsMethodTest_data))]
+        public void equalsMethodTest(ASNamespace x, ASNamespace y) {
             Assert.Equal(x?.uri == y?.uri, ASNamespace.AS_equals(x, y));
         }
 
@@ -149,6 +153,32 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
+        [MemberData(nameof(testNamespaceData))]
+        public void forInIterationTest(ASNamespace ns) {
+            int index = 0;
+            AssertHelper.valueIdentical(ASAny.undefined, ns.AS_nameAtIndex(index));
+            AssertHelper.valueIdentical(ASAny.undefined, ns.AS_valueAtIndex(index));
+
+            index = ns.AS_nextIndex(index);
+            AssertHelper.valueIdentical("uri", ns.AS_nameAtIndex(index));
+            AssertHelper.valueIdentical(ns.uri, ns.AS_valueAtIndex(index));
+
+            index = ns.AS_nextIndex(index);
+            AssertHelper.valueIdentical("prefix", ns.AS_nameAtIndex(index));
+            AssertHelper.valueIdentical(ns.AS_prefix, ns.AS_valueAtIndex(index));
+
+            index = ns.AS_nextIndex(index);
+            Assert.Equal(0, index);
+        }
+
+        [Theory]
+        [MemberData(nameof(testNamespaceData))]
+        public void propertyIsEnumerableMethodTest(ASNamespace ns) {
+            Assert.True(ns.propertyIsEnumerable("uri"));
+            Assert.True(ns.propertyIsEnumerable("prefix"));
+        }
+
+        [Theory]
         [MemberData(nameof(runtimeConstructorTest_data))]
         public void runtimeConstructorTest(ASAny[] args, ASNamespace expected) {
             ASObject result;
@@ -176,7 +206,7 @@ namespace Mariana.AVM2.Tests {
         }
 
         [Fact]
-        public void setDefault_shouldSetThreadDefaultNamespace() {
+        public void setDefaultMethodTest() {
             ASNamespace.setDefault(new ASNamespace("a"));
             Assert.Equal("", ASNamespace.getDefault().prefix);
             Assert.Equal("a", ASNamespace.getDefault().uri);
@@ -211,7 +241,7 @@ namespace Mariana.AVM2.Tests {
         }
 
         [Fact]
-        public void setDefault_shouldSetThreadDefaultNamespaceAndGetOld() {
+        public void setDefaultMethodTest_getOldDefault() {
             ASNamespace oldDefault;
 
             ASNamespace.setDefault(new ASNamespace("a"));

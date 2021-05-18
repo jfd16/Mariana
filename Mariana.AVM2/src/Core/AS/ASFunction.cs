@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using Mariana.AVM2.Native;
 using Mariana.Common;
 
@@ -186,6 +187,38 @@ namespace Mariana.AVM2.Core {
         /// it can have a prototype and be used to construct objects with prototype inheritance.
         /// </remarks>
         public static ASFunction createEmpty() => new ASFunction();
+
+        /// <summary>
+        /// Checks if two <see cref="ASFunction"/> instances are equal. Two instances are equal if they are
+        /// the same (by reference) or are both method closures for the same method with the same receiver.
+        /// </summary>
+        ///
+        /// <param name="func1">The first <see cref="ASFunction"/> instance.</param>
+        /// <param name="func2">The second <see cref="ASFunction"/> instance.</param>
+        /// <returns>True if <paramref name="func1"/> and <paramref name="func2"/> are equal, otherwise
+        /// false.</returns>
+        ///
+        /// <remarks>This method is called when Function objects are compared using the weak equality
+        /// or strict equality operators.</remarks>
+        internal static bool internalEquals(ASFunction func1, ASFunction func2) {
+            if (func1 == func2)
+                return true;
+
+            return func1.isMethodClosure && func2.isMethodClosure
+                && func1.method == func2.method
+                && func1.storedReceiver == func2.storedReceiver;
+        }
+
+        /// <summary>
+        /// Returns a hash code for this <see cref="ASFunction"/> instance that is consistent with
+        /// the <see cref="internalEquals"/> method.
+        /// </summary>
+        ///
+        /// <returns>A hash code for this <see cref="ASFunction"/> instance.</returns>
+        ///
+        /// <remarks>This is called from <see cref="ASObject.GetHashCode"/>.</remarks>
+        internal int internalGetHashCode() =>
+            RuntimeHelpers.GetHashCode(method) ^ RuntimeHelpers.GetHashCode(storedReceiver);
 
         /// <exclude/>
         /// <summary>

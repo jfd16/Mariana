@@ -411,6 +411,9 @@ namespace Mariana.AVM2.Core {
         /// <param name="obj">The <see cref="ASAny"/> instance to convert to a QName.</param>
         /// <param name="isAttr">Set this to true if the QName is to be used as an attribute name.</param>
         public static ASQName objectToQName(ASAny obj, bool isAttr) {
+            if (obj.isUndefined)
+                return new ASQName("");
+
             if (obj.value is ASQName qname)
                 return qname;
 

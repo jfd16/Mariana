@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Mariana.AVM2.Core;
 using Mariana.AVM2.Native;
@@ -9,186 +10,191 @@ namespace Mariana.AVM2.Tests {
 
     public class ASErrorTest {
 
-        private class DerivedError : ASError {}
+        public static IEnumerable<object[]> namePropertyTest_data = TupleHelper.toArrays(
+            (new ASError(), "Error"),
+            (new ASError("Hello"), "Error"),
+            (new ASError("Hello", 123), "Error"),
+            (new ASErrorTest_DerivedError(), "Error"),
 
-        [Fact]
-        public void shouldHaveDefaultNameIfNotSet() {
-            Assert.Equal("Error", (new ASError()).name);
-            Assert.Equal("Error", (new ASError("Hello")).name);
-            Assert.Equal("Error", (new ASError("Hello", 123)).name);
-            Assert.Equal("Error", (new DerivedError()).name);
+            (new ASArgumentError(), "ArgumentError"),
+            (new ASDefinitionError(), "DefinitionError"),
+            (new ASEvalError(), "EvalError"),
+            (new ASRangeError(), "RangeError"),
+            (new ASReferenceError(), "ReferenceError"),
+            (new ASSecurityError(), "SecurityError"),
+            (new ASSyntaxError(), "SyntaxError"),
+            (new ASTypeError(), "TypeError"),
+            (new ASURIError(), "URIError"),
+            (new ASVerifyError(), "VerifyError")
+        );
+
+        [Theory]
+        [MemberData(nameof(namePropertyTest_data))]
+        public void namePropertyTest_noNameProvided(ASError obj, string expectedName) {
+            Assert.Equal(expectedName, obj.name);
+        }
+
+        public static IEnumerable<object[]> messagePropertyTest_data = TupleHelper.toArrays(
+            (new ASError(), ""),
+            (new ASError("Hello"), "Hello"),
+            (new ASErrorTest_DerivedError(), ""),
+            (new ASError("Hello", 1234), "Hello"),
+            (new ASError(null), null),
+            (new ASError(null, 1234), null)
+        );
+
+        [Theory]
+        [MemberData(nameof(messagePropertyTest_data))]
+        public void messagePropertyTest(ASError obj, string message) {
+            Assert.Equal(message, obj.message);
+        }
+
+        public static IEnumerable<object[]> errorIDPropertyTest_data = TupleHelper.toArrays(
+            (new ASError(), 0),
+            (new ASError("Hello"), 0),
+            (new ASErrorTest_DerivedError(), 0),
+            (new ASError("Hello", 1234), 1234),
+            (new ASError(null), 0),
+            (new ASError(null, 1234), 1234)
+        );
+
+        [Theory]
+        [MemberData(nameof(errorIDPropertyTest_data))]
+        public void errorIDPropertyTest(ASError obj, int expectedID) {
+            Assert.Equal(expectedID, obj.errorID);
+        }
+
+        public static IEnumerable<object[]> toStringMethodTest_data = TupleHelper.toArrays(
+            (new ASError(), "Error"),
+            (new ASError(null), "Error: null"),
+            (new ASError("Hello"), "Error: Hello"),
+
+            (new ASError("Hello", 1234), "Error: Hello"),
+            (new ASError(null, 1234), "Error: null"),
+            (new ASError("", 1234), "Error"),
+
+            (new ASError() {name = null}, "null"),
+            (new ASError(null) {name = null}, "null: null"),
+            (new ASError("Hello") {name = null}, "null: Hello"),
+
+            (new ASError() {name = "Foo"}, "Foo"),
+            (new ASError(null) {name = "Foo"}, "Foo: null"),
+            (new ASError("Hello") {name = "Foo"}, "Foo: Hello"),
+
+            (new ASErrorTest_DerivedError(), "Error"),
+            (new ASErrorTest_DerivedError() {message = null}, "Error: null"),
+            (new ASErrorTest_DerivedError() {message = "Hello"}, "Error: Hello"),
+            (new ASErrorTest_DerivedError() {name = "Foo", message = "Hello"}, "Foo: Hello")
+        );
+
+        [Theory]
+        [MemberData(nameof(toStringMethodTest_data))]
+        public void toStringMethodTest(ASError error, string expected) {
+            Assert.Equal(expected, error.ToString());
         }
 
         [Fact]
-        public void shouldGetMessage() {
-            Assert.Equal("", (new ASError()).message);
-            Assert.Equal("Hello", (new ASError("Hello")).message);
-            Assert.Equal("Hello", (new ASError("Hello", 1234)).message);
-            Assert.Null((new ASError(null)).message);
-            Assert.Null((new ASError(null, 1234)).message);
-        }
-
-        [Fact]
-        public void shouldGetErrorID() {
-            Assert.Equal(0, (new ASError()).errorID);
-            Assert.Equal(0, (new ASError("Hello")).errorID);
-            Assert.Equal(1234, (new ASError("Hello", 1234)).errorID);
-            Assert.Equal(0, (new ASError(null)).errorID);
-            Assert.Equal(1234, (new ASError(null, 1234)).errorID);
-        }
-
-        [Fact]
-        public void toString_shouldFormatObject() {
-            var err = new ASError();
+        public void toStringMethodTest_nameAndMessageChanged() {
+            ASError err = new ASError();
 
             err.message = null;
-            Assert.Equal("Error", err.AS_toString());
+            Assert.Equal("Error: null", err.AS_toString());
             err.message = "";
             Assert.Equal("Error", err.AS_toString());
             err.message = "Hello";
             Assert.Equal("Error: Hello", err.AS_toString());
-
             err.name = "Error2";
-
-            err.message = null;
-            Assert.Equal("Error2", err.AS_toString());
-            err.message = "";
-            Assert.Equal("Error2", err.AS_toString());
-            err.message = "Hello";
             Assert.Equal("Error2: Hello", err.AS_toString());
-
-            err.name = "";
-
-            err.message = null;
-            Assert.Equal("", err.AS_toString());
-            err.message = "";
-            Assert.Equal("", err.AS_toString());
-            err.message = "Hello";
-            Assert.Equal(": Hello", err.AS_toString());
-
-            err.name = null;
-
-            err.message = null;
-            Assert.Equal("null", err.AS_toString());
-            err.message = "";
-            Assert.Equal("null", err.AS_toString());
-            err.message = "Hello";
-            Assert.Equal("null: Hello", err.AS_toString());
         }
 
-        [Fact]
-        public void builtinErrors_shouldHaveNames() {
-            Assert.Equal("ArgumentError", (new ASArgumentError()).name);
-            Assert.Equal("DefinitionError", (new ASDefinitionError()).name);
-            Assert.Equal("EvalError", (new ASEvalError()).name);
-            Assert.Equal("RangeError", (new ASRangeError()).name);
-            Assert.Equal("ReferenceError", (new ASReferenceError()).name);
-            Assert.Equal("SecurityError", (new ASSecurityError()).name);
-            Assert.Equal("SyntaxError", (new ASSyntaxError()).name);
-            Assert.Equal("TypeError", (new ASTypeError()).name);
-            Assert.Equal("URIError", (new ASURIError()).name);
-            Assert.Equal("VerifyError", (new ASVerifyError()).name);
-        }
-
-        [Fact]
-        public void getStackTrace_shouldGetStackTraceOfConstruction() {
-            ErrorStackTraceTestClass.createdError = new ASError("Hello");
-            Assert.Equal(
-                "Error: Hello",
-                ErrorStackTraceTestClass.createdError.getStackTrace()
-            );
-
-            ErrorStackTraceTestModule.method1();
-            Assert.Equal(
+        public static IEnumerable<object[]> getStackTraceMethodTest_data = TupleHelper.toArrays<Action, string>(
+            (
+                () => ErrorStackTraceTestClass.createdError = new ASError("Hello"),
+                "Error: Hello"
+            ),
+            (
+                ErrorStackTraceTestModule.method1,
                 "Error: Hello\n" +
-                "    at global/method1()",
-                ErrorStackTraceTestClass.createdError.getStackTrace()
-            );
-
-            ErrorStackTraceTestModule.method4();
-            Assert.Equal(
+                "    at global/method1()"
+            ),
+            (
+                ErrorStackTraceTestModule.method4,
                 "Error: Hello\n" +
-                "    at global/method1()",
-                ErrorStackTraceTestClass.createdError.getStackTrace()
-            );
-
-            ErrorStackTraceTestModule.method3();
-            Assert.Equal(
+                "    at global/method1()"
+            ),
+            (
+                ErrorStackTraceTestModule.method3,
                 "Error: Hello\n" +
                 "    at abc::ErrorStackTraceTestClass/abc::__method4()\n" +
-                "    at global/method3()",
-                ErrorStackTraceTestClass.createdError.getStackTrace()
-            );
-
-            ErrorStackTraceTestClass.method4();
-            Assert.Equal(
+                "    at global/method3()"
+            ),
+            (
+                ErrorStackTraceTestClass.method4,
                 "Error: Hello\n" +
-                "    at abc::ErrorStackTraceTestClass/abc::__method4()",
-                ErrorStackTraceTestClass.createdError.getStackTrace()
-            );
-
-            (new ErrorStackTraceTestClass(null)).method2(0);
-            Assert.Equal(
+                "    at abc::ErrorStackTraceTestClass/abc::__method4()"
+            ),
+            (
+                () => (new ErrorStackTraceTestClass(null)).method2(0),
                 "Error: Hello\n" +
-                "    at abc::ErrorStackTraceTestClass/abc::__method4()",
-                ErrorStackTraceTestClass.createdError.getStackTrace()
-            );
-
-            (new ErrorStackTraceTestClass(null)).method2();
-            Assert.Equal(
+                "    at abc::ErrorStackTraceTestClass/abc::__method4()"
+            ),
+            (
+                () => (new ErrorStackTraceTestClass(null)).method2(),
                 "Error: Hello\n" +
                 "    at abc::ErrorStackTraceTestClass/abc::__method4()\n" +
-                "    at abc::ErrorStackTraceTestClass/method2()",
-                ErrorStackTraceTestClass.createdError.getStackTrace()
-            );
-
-            (new ErrorStackTraceTestClass(null)).method1();
-            Assert.Equal(
+                "    at abc::ErrorStackTraceTestClass/method2()"
+            ),
+            (
+                () => (new ErrorStackTraceTestClass(null)).method1(),
                 "Error: Hello\n" +
                 "    at abc::ErrorStackTraceTestClass/abc::__method4()\n" +
                 "    at abc::ErrorStackTraceTestClass/method2()\n" +
-                "    at abc::ErrorStackTraceTestClass/method1()",
-                ErrorStackTraceTestClass.createdError.getStackTrace()
-            );
-
-            new ErrorStackTraceTestClass(0);
-            Assert.Equal(
+                "    at abc::ErrorStackTraceTestClass/method1()"
+            ),
+            (
+                () => new ErrorStackTraceTestClass(0),
                 "Error: Hello\n" +
                 "    at abc::ErrorStackTraceTestClass/abc::__method4()\n" +
                 "    at abc::ErrorStackTraceTestClass/method2()\n" +
-                "    at abc::ErrorStackTraceTestClass/method1()",
-                ErrorStackTraceTestClass.createdError.getStackTrace()
-            );
-
-            new ErrorStackTraceTestClass();
-            Assert.Equal(
+                "    at abc::ErrorStackTraceTestClass/method1()"
+            ),
+            (
+                () => new ErrorStackTraceTestClass(),
                 "Error: Hello\n" +
                 "    at abc::ErrorStackTraceTestClass/abc::__method4()\n" +
                 "    at abc::ErrorStackTraceTestClass/method2()\n" +
                 "    at abc::ErrorStackTraceTestClass/method1()\n" +
-                "    at abc::ErrorStackTraceTestClass()",
-                ErrorStackTraceTestClass.createdError.getStackTrace()
-            );
-
-            ErrorStackTraceTestModule.method2();
-            Assert.Equal(
+                "    at abc::ErrorStackTraceTestClass()"
+            ),
+            (
+                ErrorStackTraceTestModule.method2,
                 "Error: Hello\n" +
                 "    at abc::ErrorStackTraceTestClass/abc::__method4()\n" +
                 "    at abc::ErrorStackTraceTestClass/method2()\n" +
                 "    at abc::ErrorStackTraceTestClass/method1()\n" +
                 "    at abc::ErrorStackTraceTestClass()\n" +
-                "    at global/abc::__method2()",
-                ErrorStackTraceTestClass.createdError.getStackTrace()
-            );
-        }
+                "    at global/abc::__method2()"
+            )
+        );
 
+        [Theory]
+        [MemberData(nameof(getStackTraceMethodTest_data))]
+        public void getStackTraceMethodTest(Action errorConstructor, string expectedStackTrace) {
+            errorConstructor();
+            Assert.Equal(expectedStackTrace, ErrorStackTraceTestClass.createdError.getStackTrace());
+        }
+    }
+
+    [AVM2ExportClass]
+    public class ASErrorTest_DerivedError : ASError {
+        static ASErrorTest_DerivedError() => TestAppDomain.ensureClassesLoaded(typeof(ASErrorTest_DerivedError));
     }
 
     [AVM2ExportClass(nsUri = "abc")]
     public class ErrorStackTraceTestClass : ASObject {
         static ErrorStackTraceTestClass() => TestAppDomain.ensureClassesLoaded(typeof(ErrorStackTraceTestClass));
 
-        [AVM2ExportTrait]
+        [ThreadStatic]
         public static ASError createdError;
 
         [AVM2ExportTrait]

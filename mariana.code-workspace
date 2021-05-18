@@ -12,5 +12,8 @@
             "k--kato.docomment",
             "bowlerhatllc.vscode-nextgenas",
         ]
+    },
+    "settings": {
+        "jupyter.jupyterServerType": "local"
     }
 }

@@ -298,7 +298,7 @@ namespace Mariana.AVM2.Core {
         /// it is equal to <paramref name="other"/> or a positive number if it is greater than
         /// <paramref name="other"/>.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        public int localeCompare(ASAny other) => localeCompare(m_value, other);
+        public int localeCompare(ASAny other = default) => localeCompare(m_value, other);
 
         /// <summary>
         /// Returns the matches of the given regular expression in the string.
@@ -596,22 +596,40 @@ namespace Mariana.AVM2.Core {
         public static string AS_convertString(string s) => s ?? "null";
 
         /// <summary>
-        /// Normalizes a floating-point index passed in to String instance methods.
+        /// Converts a floating-point index passed in to some String instance methods to an integer index.
         /// </summary>
-        /// <param name="index">The index to be normalized.</param>
-        /// <param name="stringLength">The length of the string.</param>
-        /// <param name="isNegativeFromEnd">True to interpret negative indices as relative to the end of
-        /// the string. Otherwise, the normalized index of a negative index is -1.</param>
-        /// <returns>The normalized integer index.</returns>
-        private static int _normalizeIndex(double index, int stringLength, bool isNegativeFromEnd = false) {
+        /// <param name="index">The floating-point index.</param>
+        /// <returns>The integer index computed from <paramref name="index"/>. If the integer index is
+        /// negative, returns -1. If the integer index is greater than the maximum value for the
+        /// <see cref="Int32"/> type, returns the maximum value.</returns>
+        private static int _indexToInteger(double index) {
+            if (Double.IsNaN(index))
+                return 0;
+
+            if (index <= -1.0)
+                return -1;
+
+            if (index >= (double)Int32.MaxValue)
+                return Int32.MaxValue;
+
+            return (int)index;
+        }
+
+        /// <summary>
+        /// Converts a floating-point index used in some String instance methods to an integer index,
+        /// treating negative indices as relative to the end of the string.
+        /// </summary>
+        /// <param name="index">The floating-point index.</param>
+        /// <param name="stringLength">The length of the string relative to which negative indices are
+        /// to be converted, and to which positive indices are to be bounded.</param>
+        /// <returns>The integer index. This is always non-negative and not greater than
+        /// <paramref name="stringLength"/></returns>
+        private static int _relativeIndexToInteger(double index, int stringLength) {
             if (Double.IsNaN(index))
                 return 0;
 
             if (index > -1.0)
                 return (int)Math.Min(index, (double)stringLength);
-
-            if (!isNegativeFromEnd)
-                return -1;
 
             return (int)Math.Max(Math.Truncate(index) + (double)stringLength, 0.0);
         }
@@ -625,20 +643,9 @@ namespace Mariana.AVM2.Core {
         /// in the string, or the empty string if <paramref name="index"/> is out of
         /// bounds.</returns>
         [AVM2ExportPrototypeMethod]
-        public static string charAt(string s, double index = 0) {
-            if (s == null)
-                throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
+        public static string charAt(string s, double index = 0) => charAt(s, _indexToInteger(index));
 
-            int iIndex = _normalizeIndex(index, s.Length);
-            if ((uint)iIndex >= (uint)s.Length)
-                return "";
-
-            int ch = s[iIndex];
-            var cache = s_singleCharCachedValues;
-            return ((uint)ch < (uint)cache.Length) ? cache[ch] : new string((char)ch, 1);
-        }
-
-         /// <summary>
+        /// <summary>
         /// Returns the string representation of the character at the given position in the string.
         /// </summary>
         /// <param name="s">The string.</param>
@@ -664,16 +671,7 @@ namespace Mariana.AVM2.Core {
         /// string <paramref name="s"/>, or NaN if <paramref name="index"/> is out of
         /// bounds.</returns>
         [AVM2ExportPrototypeMethod]
-        public static double charCodeAt(string s, double index = 0) {
-            if (s == null)
-                throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
-
-            int iIndex = _normalizeIndex(index, s.Length);
-            if ((uint)iIndex >= (uint)s.Length)
-                return Double.NaN;
-
-            return (double)s[iIndex];
-        }
+        public static double charCodeAt(string s, double index = 0) => charCodeAt(s, _indexToInteger(index));
 
         /// <summary>
         /// Returns the Unicode code point of the character at the given position in the string.
@@ -710,8 +708,8 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Returns the first position of the string <paramref name="searchStr"/> in
-        /// <paramref name="s"/> after <paramref name="startIndex"/>, or -1 if
+        /// Returns the index of the first occurence of the string <paramref name="searchStr"/> in
+        /// <paramref name="s"/> at or after <paramref name="startIndex"/>, or -1 if
         /// <paramref name="searchStr"/> is not found in <paramref name="s"/>.
         /// </summary>
         ///
@@ -728,13 +726,13 @@ namespace Mariana.AVM2.Core {
             if (searchStr == null)
                 return -1;
 
-            int iStartIndex = Math.Max(_normalizeIndex(startIndex, s.Length), 0);
+            int iStartIndex = Math.Min(Math.Max(_indexToInteger(startIndex), 0), s.Length);
+
+            if (iStartIndex > s.Length - searchStr.Length)
+                return -1;
 
             if (searchStr.Length == 0)
                 return iStartIndex;
-
-            if (iStartIndex == s.Length)
-                return -1;
 
             if (searchStr.Length == 1)
                 return s.IndexOf(searchStr[0], iStartIndex);
@@ -743,15 +741,17 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Returns the last position of the string <paramref name="searchStr"/> in
-        /// <paramref name="s"/> before <paramref name="startIndex"/>, or -1 if
+        /// Returns the index of the last occurence of the string <paramref name="searchStr"/> in
+        /// <paramref name="s"/> at or before <paramref name="startIndex"/>, or -1 if
         /// <paramref name="searchStr"/> is not found in <paramref name="s"/>.
         /// </summary>
         ///
         /// <param name="s">The string to search for <paramref name="searchStr"/>.</param>
         /// <param name="searchStr">The string to match in <paramref name="s"/>.</param>
         /// <param name="startIndex">The position in <paramref name="s"/> from where to start
-        /// searching.</param>
+        /// searching. For a match to be valid, the index of the first character of the substring
+        /// of <paramref name="s"/> that matches <paramref name="searchStr"/> must be not greater
+        /// than this index.</param>
         /// <returns>The first position of <paramref name="searchStr"/> in
         /// <paramref name="s"/>.</returns>
         [AVM2ExportPrototypeMethod]
@@ -759,28 +759,25 @@ namespace Mariana.AVM2.Core {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
 
-            if (s.Length < searchStr.Length)
+            if (searchStr == null)
                 return -1;
 
-            int iStartIndex;
+            // For lastIndexOf, startIndex = NaN should be taken as infinity (not zero) as per ECMA-262 spec
+            int iStartIndex = Double.IsNaN(startIndex) ? s.Length : _indexToInteger(startIndex);
+            iStartIndex = Math.Min(iStartIndex, s.Length - searchStr.Length);
 
-            if (Double.IsNaN(startIndex))
-                iStartIndex = s.Length;
-            else
-                iStartIndex = _normalizeIndex(startIndex, s.Length);
-
-            if (iStartIndex == -1)
+            if (iStartIndex < 0)
                 return -1;
 
             if (searchStr.Length == 0)
                 return iStartIndex;
 
-            iStartIndex = Math.Min(iStartIndex, s.Length - searchStr.Length);
-
             if (searchStr.Length == 1)
                 return s.LastIndexOf(searchStr[0], iStartIndex);
 
-            return s.LastIndexOf(searchStr, iStartIndex, StringComparison.Ordinal);
+            // String.LastIndexOf in .NET takes startIndex to be the maximum index of the last character of
+            // the match, not the first character as in ECMAScript/AS3. So we need to adjust the startIndex.
+            return s.LastIndexOf(searchStr, iStartIndex + searchStr.Length - 1, StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -793,7 +790,7 @@ namespace Mariana.AVM2.Core {
         /// <paramref name="other"/> or a positive number if <paramref name="s"/> is greater than
         /// <paramref name="other"/>.</returns>
         [AVM2ExportPrototypeMethod]
-        public static int localeCompare(string s, ASAny other) {
+        public static int localeCompare(string s, ASAny other = default) {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
             return String.Compare(s, ASAny.AS_convertString(other), StringComparison.CurrentCulture);
@@ -891,11 +888,8 @@ namespace Mariana.AVM2.Core {
                 replString = ASAny.AS_convertString(repl);
 
             // If search is not a RegExp, convert to a string.
-            if (searchRegex == null) {
+            if (searchRegex == null)
                 searchString = ASAny.AS_convertString(search);
-                if (searchString.Length == 0)
-                    return input;
-            }
 
             // isGlobal is true if all matches in the input string are to be replaced.
             // Otherwise, only the first match is replaced.
@@ -925,185 +919,66 @@ namespace Mariana.AVM2.Core {
                 matchIndex = regexMatch.Index;
             }
 
-            bool mustResolveReplString =
-                searchRegex != null && replString != null && replString.IndexOf('$') != -1;
+            ParsedReplaceString parsedReplString = default;
 
-            int replLength = (replString != null && !mustResolveReplString) ? replString.Length : -1;
+            if (searchRegex != null && replString != null)
+                parsedReplString = new ParsedReplaceString(replString, searchRegex.groupCount);
 
-            char[] replBuffer = new char[input.Length];
-            int replBufIndex = 0;
-            int srcIndex = 0;
+            int srcLastIndex = 0;
+            var resultBuilder = new ReplaceResultBuilder(input, replString);
 
-            do {
-                string matchedString = (searchRegex != null) ? regexMatch.Value : searchString;
-                string strForThisReplace = getCurrentReplaceString();
+            while (true) {
+                int matchLength = (searchRegex != null) ? regexMatch.Length : searchString.Length;
+                resultBuilder.addSourceStringSpan(srcLastIndex, matchIndex - srcLastIndex);
 
-                int midLength = matchIndex - srcIndex;
+                if (replFunction != null)
+                    resultBuilder.addOtherString(getCurrentReplaceStringFromCallback());
+                else if (searchRegex != null)
+                    parsedReplString.resolveWithMatch(regexMatch, ref resultBuilder);
+                else
+                    resultBuilder.addReplaceStringSpan(0, replString.Length);
 
-                // Check that the buffer has sufficient space for the intermediate portion
-                // (and the replacement string, if it does not have any references to resolve)
-                int bufferCapacityNeeded = mustResolveReplString ? midLength : midLength + replLength;
-                if (replBuffer.Length - replBufIndex < bufferCapacityNeeded) {
-                    DataStructureUtil.resizeArray(
-                        ref replBuffer, replBufIndex, replBufIndex + bufferCapacityNeeded, false);
-                }
+                srcLastIndex = matchIndex + matchLength;
 
-                input.CopyTo(srcIndex, replBuffer, replBufIndex, midLength);
-                replBufIndex += midLength;
-
-                if (mustResolveReplString) {
-                    resolveReplaceStringWithCurrentMatch();
-                }
-                else {
-                    strForThisReplace.CopyTo(0, replBuffer, replBufIndex, replLength);
-                    replBufIndex += replLength;
-                }
-
-                srcIndex += midLength + matchedString.Length;
-
-                if (!isGlobal)
+                if (!isGlobal) {
                     // For a non-global replace, exit after the first match.
                     break;
+                }
 
                 // Do the next match.
                 if (searchRegex != null) {
                     regexMatch = regexMatch.NextMatch();
-                    matchIndex = regexMatch.Success ? regexMatch.Index : -1;
+                    if (!regexMatch.Success)
+                        break;
+
+                    matchIndex = regexMatch.Index;
                 }
                 else {
-                    matchIndex = input.IndexOf(searchString, srcIndex, StringComparison.Ordinal);
+                    int nextMatchStart = matchIndex + Math.Max(matchLength, 1);
+                    matchIndex = -1;
+
+                    if (nextMatchStart <= searchString.Length)
+                        matchIndex = input.IndexOf(searchString, nextMatchStart, StringComparison.Ordinal);
+
+                    if (matchIndex == -1)
+                        break;
                 }
-            } while (matchIndex != -1);
+            }
 
-            // Copy the remaining part of the source string, after the last replacement (the 'tail')
-            int tailLength = input.Length - srcIndex;
-            if (replBufIndex + tailLength > replBuffer.Length)
-                DataStructureUtil.resizeArray(ref replBuffer, replBufIndex, replBufIndex + tailLength, true);
+            resultBuilder.addSourceStringSpan(srcLastIndex, input.Length - srcLastIndex);
+            return resultBuilder.makeResult();
 
-            input.CopyTo(srcIndex, replBuffer, replBufIndex, tailLength);
-
-            if (searchRegex != null && searchRegex.global)
-                searchRegex.lastIndex = 0;
-
-            return new string(replBuffer, 0, replBufIndex + tailLength);
-
-            string getCurrentReplaceString() {
-                // Returns the replacement string for the current match, without substituting $-references.
-
-                if (replFunction == null)
-                    return replString;
-
+            string getCurrentReplaceStringFromCallback() {
                 if (regexMatch == null) {
                     callbackArgs[0] = searchString;
                 }
                 else {
                     GroupCollection groups = regexMatch.Groups;
                     for (int i = 0; i < groups.Count; i++)
-                        callbackArgs[i] = groups[i].Value;
+                        callbackArgs[i] = groups[i].Success ? groups[i].Value : ASAny.undefined;
                 }
-
                 callbackArgs[callbackArgs.Length - 2] = matchIndex;
                 return ASAny.AS_convertString(replFunction.AS_invoke(ASAny.@null, callbackArgs));
-            }
-
-            void resolveReplaceStringWithCurrentMatch() {
-                GroupCollection groups = regexMatch.Groups;
-                ReadOnlySpan<char> replStrSpan = replString;
-
-                while (replStrSpan.Length > 0) {
-                    int substIndex = replStrSpan.IndexOf('$');
-                    ReadOnlySpan<char> preSubst, subst;
-
-                    if (substIndex == -1 || substIndex == replStrSpan.Length - 1) {
-                        preSubst = replStrSpan;
-                        subst = default;
-                        replStrSpan = default;
-                    }
-                    else {
-                        preSubst = replStrSpan.Slice(0, substIndex);
-
-                        switch (replStrSpan[substIndex + 1]) {
-                            case '$':
-                                // Escape, literal dollar sign
-                                subst = replStrSpan.Slice(substIndex, 1);
-                                replStrSpan = replStrSpan.Slice(substIndex + 2);
-                                break;
-
-                            case '&':
-                            case '0':
-                                // Matched string
-                                subst = regexMatch.Value;
-                                replStrSpan = replStrSpan.Slice(substIndex + 2);
-                                break;
-
-                            case '`':
-                                // String preceding the matched string
-                                subst = input.AsSpan(0, regexMatch.Index);
-                                replStrSpan = replStrSpan.Slice(substIndex + 2);
-                                break;
-
-                            case '\'':
-                                // String following the matched string
-                                subst = input.AsSpan(regexMatch.Index + regexMatch.Length);
-                                replStrSpan = replStrSpan.Slice(substIndex + 2);
-                                break;
-
-                            default: {
-                                // Try to find a capturing group number.
-                                // If the group number is greater than the number of groups in the regex,
-                                // interpret these references as literals.
-
-                                int index = readGroupIndex(replStrSpan.Slice(substIndex + 1), groups.Count, out int charsRead);
-                                if (index == -1) {
-                                    subst = replStrSpan.Slice(substIndex, 1);
-                                    replStrSpan = replStrSpan.Slice(substIndex + 1);
-                                }
-                                else {
-                                    var group = groups[index];
-                                    subst = input.AsSpan(group.Index, group.Length);
-                                    replStrSpan = replStrSpan.Slice(substIndex + charsRead + 1);
-                                }
-                                break;
-                            }
-                        }
-                    }
-
-                    int totalLength = preSubst.Length + subst.Length;
-                    if (replBuffer.Length - replBufIndex < totalLength)
-                        DataStructureUtil.resizeArray(ref replBuffer, replBufIndex, replBufIndex + totalLength, false);
-
-                    preSubst.CopyTo(replBuffer.AsSpan(replBufIndex));
-                    subst.CopyTo(replBuffer.AsSpan(replBufIndex + preSubst.Length));
-                    replBufIndex += totalLength;
-                }
-            }
-
-            int readGroupIndex(ReadOnlySpan<char> span, int groupCount, out int charsRead) {
-                charsRead = 0;
-                char first = span[0];
-
-                if ((uint)(first - '0') > 9)
-                    return -1;
-
-                if (span.Length >= 2) {
-                    // Attempt to find a two-digit number.
-                    char second = span[1];
-                    if ((uint)(second - '0') <= 9) {
-                        int twoDigitIndex = (first - '0') * 10 + (second - '0');
-                        if (twoDigitIndex < groupCount) {
-                            charsRead = 2;
-                            return twoDigitIndex;
-                        }
-                    }
-                }
-
-                int oneDigitIndex = first - '0';
-                if (oneDigitIndex < groupCount) {
-                    charsRead = 1;
-                    return oneDigitIndex;
-                }
-
-                return -1;
             }
         }
 
@@ -1163,8 +1038,10 @@ namespace Mariana.AVM2.Core {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
 
-            int iStartIndex = _normalizeIndex(startIndex, s.Length, isNegativeFromEnd: true);
-            int iLength = Math.Max(_normalizeIndex(length, s.Length - iStartIndex), 0);
+            int iStartIndex = _relativeIndexToInteger(startIndex, s.Length);
+
+            int iLength = Math.Max(_indexToInteger(length), 0);
+            iLength = Math.Min(iLength, s.Length - iStartIndex);
 
             return s.Substring(iStartIndex, iLength);
         }
@@ -1198,8 +1075,8 @@ namespace Mariana.AVM2.Core {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
 
-            int iStartIndex = _normalizeIndex(startIndex, s.Length, isNegativeFromEnd: true);
-            int iEndIndex = _normalizeIndex(endIndex, s.Length, isNegativeFromEnd: true);
+            int iStartIndex = _relativeIndexToInteger(startIndex, s.Length);
+            int iEndIndex = _relativeIndexToInteger(endIndex, s.Length);
 
             if (iStartIndex > iEndIndex)
                 return "";
@@ -1234,16 +1111,16 @@ namespace Mariana.AVM2.Core {
         ///
         /// <remarks>
         /// This differs from <see cref="slice(String, Double, Double)"/> in how negative values of start
-        /// or end are handled: They are set to 0, where as in <see cref="slice(String, Double, Double)"/>
-        /// they are set to indices relative to the end of the string).
+        /// or end index are handled: They are set to 0, where as in <see cref="slice(String, Double, Double)"/>
+        /// they are treated as indices relative to the end of the string).
         /// </remarks>
         [AVM2ExportPrototypeMethod]
         public static string substring(string s, double startIndex = 0, double endIndex = Int32.MaxValue) {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
 
-            int iStartIndex = Math.Max(_normalizeIndex(startIndex, s.Length), 0);
-            int iEndIndex = Math.Max(_normalizeIndex(endIndex, s.Length), 0);
+            int iStartIndex = Math.Min(Math.Max(_indexToInteger(startIndex), 0), s.Length);
+            int iEndIndex = Math.Min(Math.Max(_indexToInteger(endIndex), 0), s.Length);
 
             if (iStartIndex == iEndIndex)
                 return "";
@@ -1353,7 +1230,7 @@ namespace Mariana.AVM2.Core {
                     }
                     else {
                         result.push(s.Substring(lastIndex, nextIndex - lastIndex));
-                        lastIndex = nextIndex + 1;
+                        lastIndex = nextIndex + sep.Length;
                     }
                 }
             }
@@ -1545,6 +1422,238 @@ namespace Mariana.AVM2.Core {
             }
 
             return new ASString(val);
+        }
+
+        /// <summary>
+        /// Helper for constructing replacement strings for the replace() method with minimal intermediate
+        /// allocations.
+        /// </summary>
+        private struct ReplaceResultBuilder {
+
+            private struct Slice {
+                public int id;
+                public int start;
+                public int length;
+            }
+
+            private const int SOURCE_STR_ID = -1;
+            private const int REPL_STR_ID = -2;
+
+            private string m_sourceString;
+            private string m_replaceString;
+            private int m_resultLength;
+
+            private DynamicArray<Slice> m_resultSlices;
+            private DynamicArray<string> m_otherStrings;
+
+            public ReplaceResultBuilder(string sourceStr, string replaceStr) {
+                m_sourceString = sourceStr;
+                m_replaceString = replaceStr;
+                m_resultSlices = new DynamicArray<Slice>();
+                m_otherStrings = new DynamicArray<string>();
+                m_resultLength = 0;
+            }
+
+            public void addSourceStringSpan(int start) => addSourceStringSpan(start, m_sourceString.Length - start);
+
+            public void addSourceStringSpan(int start, int length) {
+                if (length == 0)
+                    return;
+
+                m_resultSlices.add(new Slice {id = SOURCE_STR_ID, start = start, length = length});
+                m_resultLength += length;
+            }
+
+            public void addReplaceStringSpan(int start, int length) {
+                if (length == 0)
+                    return;
+
+                m_resultSlices.add(new Slice {id = REPL_STR_ID, start = start, length = length});
+                m_resultLength += length;
+            }
+
+            public void addOtherString(string str) => addOtherString(str, 0, str.Length);
+
+            public void addOtherString(string str, int start, int length) {
+                if (length == 0)
+                    return;
+
+                m_resultSlices.add(new Slice {id = m_otherStrings.length, start = start, length = length});
+                m_otherStrings.add(str);
+                m_resultLength += length;
+            }
+
+            public string makeResult() => String.Create(m_resultLength, this, _internalWriteResult);
+
+            private static void _internalWriteResult(Span<char> resultSpan, ReplaceResultBuilder builder) {
+                ReadOnlySpan<Slice> slices = builder.m_resultSlices.asSpan();
+                Span<char> remaining = resultSpan;
+
+                for (int i = 0; i < slices.Length; i++) {
+                    ref readonly Slice slice = ref slices[i];
+
+                    string sliceStr;
+                    if (slice.id == SOURCE_STR_ID)
+                        sliceStr = builder.m_sourceString;
+                    else if (slice.id == REPL_STR_ID)
+                        sliceStr = builder.m_replaceString;
+                    else
+                        sliceStr = builder.m_otherStrings[slice.id];
+
+                    sliceStr.AsSpan(slice.start, slice.length).CopyTo(remaining);
+                    remaining = remaining.Slice(slice.length);
+                }
+            }
+
+        }
+
+        /// <summary>
+        /// Represents a parsed replacement string containing references to capturing groups that
+        /// must be substituted during replacement.
+        /// </summary>
+        private struct ParsedReplaceString {
+
+            private enum TokenType : byte {
+                LITERAL,
+                MATCH,
+                GROUP,
+                BEFORE,
+                AFTER,
+            }
+
+            private readonly struct Token {
+                public readonly TokenType type;
+                public readonly int startIndexOrGroup;
+                public readonly int length;
+
+                public Token(TokenType type, int startIndexOrGroup = 0, int length = 0) {
+                    this.type = type;
+                    this.startIndexOrGroup = startIndexOrGroup;
+                    this.length = length;
+                }
+            }
+
+            private DynamicArray<Token> m_tokens;
+
+            public ParsedReplaceString(string replString, int groupCount) {
+                m_tokens = new DynamicArray<Token>();
+
+                int curIndex = 0;
+
+                while (curIndex < replString.Length) {
+                    int placeholderIndex = replString.IndexOf('$', curIndex);
+
+                    if (placeholderIndex == -1 || placeholderIndex == replString.Length - 1) {
+                        m_tokens.add(new Token(TokenType.LITERAL, curIndex, replString.Length - curIndex));
+                        break;
+                    }
+
+                    switch (replString[placeholderIndex + 1]) {
+                        case '$':
+                            // Escape, literal dollar sign
+                            m_tokens.add(new Token(TokenType.LITERAL, curIndex, placeholderIndex - curIndex + 1));
+                            curIndex = placeholderIndex + 2;
+                            break;
+
+                        case '&':
+                            // Matched string
+                            if (placeholderIndex != curIndex)
+                                m_tokens.add(new Token(TokenType.LITERAL, curIndex, placeholderIndex - curIndex));
+                            m_tokens.add(new Token(TokenType.MATCH));
+                            curIndex = placeholderIndex + 2;
+                            break;
+
+                        case '`':
+                        case '\'':
+                            // String preceding/following the matched string
+                            if (placeholderIndex != curIndex)
+                                m_tokens.add(new Token(TokenType.LITERAL, curIndex, placeholderIndex - curIndex));
+                            m_tokens.add(new Token((replString[placeholderIndex + 1] == '`') ? TokenType.BEFORE : TokenType.AFTER));
+                            curIndex = placeholderIndex + 2;
+                            break;
+
+                        default: {
+                            // Try to find a capturing group number.
+                            // If the group number is 0 or greater than the number of groups in the regex,
+                            // interpret these references as literals.
+
+                            int groupNumber = _readGroupNumber(replString.AsSpan(placeholderIndex + 1), groupCount, out int charsRead);
+
+                            if (groupNumber == -1 || groupNumber == 0) {
+                                m_tokens.add(new Token(TokenType.LITERAL, curIndex, placeholderIndex - curIndex + 1));
+                                curIndex = placeholderIndex + 1;
+                            }
+                            else {
+                                if (placeholderIndex != curIndex)
+                                    m_tokens.add(new Token(TokenType.LITERAL, curIndex, placeholderIndex - curIndex));
+
+                                m_tokens.add(new Token(TokenType.GROUP, groupNumber));
+                                curIndex = placeholderIndex + charsRead + 1;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+
+            private static int _readGroupNumber(ReadOnlySpan<char> span, int groupCount, out int charsRead) {
+                charsRead = 0;
+                char first = span[0];
+
+                if ((uint)(first - '0') > 9)
+                    return -1;
+
+                if (span.Length >= 2) {
+                    // Attempt to find a two-digit number.
+                    char second = span[1];
+                    if ((uint)(second - '0') <= 9) {
+                        int twoDigitIndex = (first - '0') * 10 + (second - '0');
+                        if (twoDigitIndex <= groupCount) {
+                            charsRead = 2;
+                            return twoDigitIndex;
+                        }
+                    }
+                }
+
+                int oneDigitNum = first - '0';
+                if (oneDigitNum <= groupCount) {
+                    charsRead = 1;
+                    return oneDigitNum;
+                }
+
+                return -1;
+            }
+
+            public void resolveWithMatch(Match match, ref ReplaceResultBuilder resultBuilder) {
+                var tokens = m_tokens.asSpan();
+
+                for (int i = 0; i < tokens.Length; i++) {
+                    ref readonly Token tk = ref tokens[i];
+
+                    switch (tk.type) {
+                        case TokenType.LITERAL:
+                            resultBuilder.addReplaceStringSpan(tk.startIndexOrGroup, tk.length);
+                            break;
+                        case TokenType.MATCH:
+                            resultBuilder.addSourceStringSpan(match.Index, match.Length);
+                            break;
+                        case TokenType.BEFORE:
+                            resultBuilder.addSourceStringSpan(0, match.Index);
+                            break;
+                        case TokenType.AFTER:
+                            resultBuilder.addSourceStringSpan(match.Index + match.Length);
+                            break;
+
+                        case TokenType.GROUP: {
+                            Group group = match.Groups[tk.startIndexOrGroup];
+                            if (group.Success)
+                                resultBuilder.addSourceStringSpan(group.Index, group.Length);
+                            break;
+                        }
+                    }
+                }
+            }
+
         }
 
     }

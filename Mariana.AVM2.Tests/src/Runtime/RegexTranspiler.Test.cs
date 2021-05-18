@@ -1,11 +1,10 @@
 using System;
-using System.Linq;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
-using Xunit;
-
 using Mariana.AVM2.Core;
 using Mariana.AVM2.Tests.Helpers;
+using Xunit;
 
 namespace Mariana.AVM2.Tests {
 
@@ -17,8 +16,8 @@ namespace Mariana.AVM2.Tests {
         [InlineData("hello")]
         [InlineData("~`!@%&-_=:;]'/\"<>,")]
         [InlineData("\x00\x01\x05\ud800\udfff\uffff")]
-        public void shouldTranspilePatternWithoutSpecialChars(string pattern) {
-            _verifyPatternFlagsInvariant(pattern);
+        public void transpileTest_noSpecialChars(string pattern) {
+            verifyPatternWithAllFlagCombinations(pattern);
         }
 
         [Theory]
@@ -31,8 +30,8 @@ namespace Mariana.AVM2.Tests {
         [InlineData(@"ab\c\*de\nfg\h\&i\$", @"abc\*de\nfgh&i\$")]
         [InlineData(@"\X33", "X33")]
         [InlineData(@"\U033A", "U033A")]
-        public void shouldTranspilePatternWithEscapedChars(string pattern, string expected = null) {
-            _verifyPatternFlagsInvariant(pattern, expected);
+        public void transpileTest_withEscapedChars(string pattern, string expected = null) {
+            verifyPatternWithAllFlagCombinations(pattern, expected);
         }
 
         [Theory]
@@ -45,8 +44,8 @@ namespace Mariana.AVM2.Tests {
         [InlineData(@"a*b")]
         [InlineData(@"a*b+&*?c")]
         [InlineData(@"\.*\n+\^*?q??\???")]
-        public void shouldTranspilePatternWithQuantifiers(string pattern) {
-            _verifyPatternFlagsInvariant(pattern);
+        public void transpileTest_withQuantifiers(string pattern) {
+            verifyPatternWithAllFlagCombinations(pattern);
         }
 
         [Theory]
@@ -62,8 +61,8 @@ namespace Mariana.AVM2.Tests {
         [InlineData(@"a{2147483647}")]
         [InlineData(@"a{2147483647,}")]
         [InlineData(@"a{2147483647,2147483647}")]
-        public void shouldTranspilePatternWithNumericQuantifiers(string pattern) {
-            _verifyPatternFlagsInvariant(pattern);
+        public void transpileTest_withNumericQuantifiers(string pattern) {
+            verifyPatternWithAllFlagCombinations(pattern);
         }
 
         [Theory]
@@ -73,8 +72,8 @@ namespace Mariana.AVM2.Tests {
         [InlineData("abcd$")]
         [InlineData(@"abc^def$gh")]
         [InlineData(@"^\^abc\w*?\$$")]
-        public void shouldTranspilePatternWithStartEndAnchors(string pattern) {
-            _verifyPatternFlagsInvariant(pattern);
+        public void transpileTest_withStartAndEndAnchors(string pattern) {
+            verifyPatternWithAllFlagCombinations(pattern);
         }
 
         [Theory]
@@ -86,8 +85,8 @@ namespace Mariana.AVM2.Tests {
         [InlineData("a|b|c|d")]
         [InlineData(@"a*|b+?|cdef{1,2}|\r\w\S??")]
         [InlineData(@"^abc*|def?g+$|h")]
-        public void shouldTranspilePatternWithPipe(string pattern) {
-            _verifyPatternFlagsInvariant(pattern);
+        public void transpileTest_withPipe(string pattern) {
+            verifyPatternWithAllFlagCombinations(pattern);
         }
 
         [Theory]
@@ -96,7 +95,7 @@ namespace Mariana.AVM2.Tests {
         [InlineData(@"abc.*\n\[$", @"abc[\s\S]*\n\[$")]
         [InlineData(@".*.+.*?.+?.{1}.{1,}.{1,2}", @"[\s\S]*[\s\S]+[\s\S]*?[\s\S]+?[\s\S]{1}[\s\S]{1,}[\s\S]{1,2}")]
         [InlineData(@"^.$|ab.c|d", @"^[\s\S]$|ab[\s\S]c|d")]
-        public void shouldTranspilePatternWithDot(string pattern, string expectedInDotAllMode) {
+        public void transpileTest_withDot(string pattern, string expectedInDotAllMode) {
             var t = new RegexTranspiler();
 
             t.transpile(pattern, false, false);
@@ -124,36 +123,40 @@ namespace Mariana.AVM2.Tests {
         [InlineData(@"\w\d\s\W\D\S")]
         [InlineData(@"\w*\d+\s??abc\w|^\d*_*$")]
         [InlineData(@"\w{0}\s{5,}\d+\w{20,30}")]
-        public void shouldTranspilePatternWithBuiltinClasses(string pattern) {
-            _verifyPatternFlagsInvariant(pattern);
+        public void transpileTest_withBuiltInClasses(string pattern) {
+            verifyPatternWithAllFlagCombinations(pattern);
         }
 
+        public static IEnumerable<object[]> transpileTest_withHexEscapes_data = TupleHelper.toArrays(
+            @"\x00",
+            @"\x09",
+            @"\x30",
+            @"\x3d",
+            @"\x3D",
+            @"\xa4",
+            @"\xA4",
+            @"\xff",
+            @"\xFF",
+            @"abc\x49+|\xa0*993\d$",
+            @"\u0000",
+            @"\u0038",
+            @"\u0497",
+            @"\u8956",
+            @"\uaaaa",
+            @"\uffff",
+            @"\uAAAA",
+            @"\uFFFF",
+            @"\u9c3d",
+            @"\u9C3D",
+            @"\u9c3D",
+            @"\u9C3d",
+            @"\x20_*\u03fd+|\ud834\udf4B\x7c|\u3c3E{4,5}g$"
+        );
+
         [Theory]
-        [InlineData(@"\x00")]
-        [InlineData(@"\x09")]
-        [InlineData(@"\x30")]
-        [InlineData(@"\x3d")]
-        [InlineData(@"\x3D")]
-        [InlineData(@"\xa4")]
-        [InlineData(@"\xA4")]
-        [InlineData(@"\xff")]
-        [InlineData(@"\xFF")]
-        [InlineData(@"abc\x49+|\xa0*993\d$")]
-        [InlineData(@"\u0000")]
-        [InlineData(@"\u0038")]
-        [InlineData(@"\u0497")]
-        [InlineData(@"\u8956")]
-        [InlineData(@"\uaaaa")]
-        [InlineData(@"\uffff")]
-        [InlineData(@"\uAAAA")]
-        [InlineData(@"\uFFFF")]
-        [InlineData(@"\u9c3d")]
-        [InlineData(@"\u9C3D")]
-        [InlineData(@"\u9c3D")]
-        [InlineData(@"\u9C3d")]
-        [InlineData(@"\x20_*\u03fd+|\ud834\udf4B\x7c|\u3c3E{4,5}g$")]
-        public void shouldTranspilePatternWithHexEscapes(string pattern) {
-            _verifyPatternFlagsInvariant(pattern);
+        [MemberData(nameof(transpileTest_withHexEscapes_data))]
+        public void transpileTest_withHexEscapes(string pattern) {
+            verifyPatternWithAllFlagCombinations(pattern);
         }
 
         public static IEnumerable<object[]> shouldTranspilePatternWithOctalEscapes_data = TupleHelper.toArrays(
@@ -207,10 +210,10 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(shouldTranspilePatternWithOctalEscapes_data))]
         public void shouldTranspilePatternWithOctalEscapes(string pattern, string expected) {
-            _verifyPatternFlagsInvariant(pattern, expected);
+            verifyPatternWithAllFlagCombinations(pattern, expected);
         }
 
-        public static IEnumerable<object[]> shouldEscapeCurlyBracesIfNotValidQuantifier_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> transpileTest_curlyBracesNotInQuantifier_data = TupleHelper.toArrays(
             (@"{", @"\{"),
             (@"}", @"\}"),
             (@"{{{{", @"\{\{\{\{"),
@@ -250,8 +253,8 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(shouldEscapeCurlyBracesIfNotValidQuantifier_data))]
-        public void shouldEscapeCurlyBracesIfNotValidQuantifier(string pattern, string expected) {
+        [MemberData(nameof(transpileTest_curlyBracesNotInQuantifier_data))]
+        public void transpileTest_curlyBracesNotInQuantifier(string pattern, string expected) {
             var t = new RegexTranspiler();
             t.transpile(pattern, false, false);
             Assert.Equal(expected, t.transpiledPattern);
@@ -259,7 +262,7 @@ namespace Mariana.AVM2.Tests {
             new Regex(t.transpiledPattern, RegexOptions.ECMAScript | RegexOptions.CultureInvariant);
         }
 
-        public static IEnumerable<object[]> shouldTranspilePatternWithCharSets_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> transpileTest_withCharClasses_data = TupleHelper.toArrays(
             ("[a]", null),
             ("[abc]", null),
             ("[aaa]", null),
@@ -315,12 +318,12 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(shouldTranspilePatternWithCharSets_data))]
-        public void shouldTranspilePatternWithCharSets(string pattern, string expected = null) {
-            _verifyPatternFlagsInvariant(pattern, expected);
+        [MemberData(nameof(transpileTest_withCharClasses_data))]
+        public void transpileTest_withCharClasses(string pattern, string expected = null) {
+            verifyPatternWithAllFlagCombinations(pattern, expected);
         }
 
-        public static IEnumerable<object[]> shouldTranspilePatternWithCaptureGroups_data = TupleHelper.toArrays<string, string, int>(
+        public static IEnumerable<object[]> transpileTest_withCaptureGroups_data = TupleHelper.toArrays<string, string, int>(
             (@"()", null, 1),
             (@"(a)", null, 1),
             (@"($)", null, 1),
@@ -347,12 +350,12 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(shouldTranspilePatternWithCaptureGroups_data))]
-        public void shouldTranspilePatternWithCaptureGroups(string pattern, string expectedPattern, int numGroups) {
-            _verifyPatternFlagsInvariant(pattern, expectedPattern, numGroups);
+        [MemberData(nameof(transpileTest_withCaptureGroups_data))]
+        public void transpileTest_withCaptureGroups(string pattern, string expectedPattern, int numGroups) {
+            verifyPatternWithAllFlagCombinations(pattern, expectedPattern, numGroups);
         }
 
-        public static IEnumerable<object[]> shouldTranspilePatternWithNonCaptureGroups_data = TupleHelper.toArrays<string, string, int>(
+        public static IEnumerable<object[]> transpileTest_withNonCaptureGroups_data = TupleHelper.toArrays<string, string, int>(
             (@"(?:)", null, 0),
             (@"(?:a)", null, 0),
             (@"(?:$)", null, 0),
@@ -405,12 +408,12 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(shouldTranspilePatternWithNonCaptureGroups_data))]
-        public void shouldTranspilePatternWithNonCaptureGroups(string pattern, string expectedPattern, int numGroups) {
-            _verifyPatternFlagsInvariant(pattern, expectedPattern, numGroups);
+        [MemberData(nameof(transpileTest_withNonCaptureGroups_data))]
+        public void transpileTest_withNonCaptureGroups(string pattern, string expectedPattern, int numGroups) {
+            verifyPatternWithAllFlagCombinations(pattern, expectedPattern, numGroups);
         }
 
-        public static IEnumerable<object[]> shouldTranspilePatternWithNamedCaptureGroups_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> transpileTest_withNamedCaptureGroups_data = TupleHelper.toArrays(
             (@"(?P<a>)", "()", new[] {"a"}),
             (@"(?P<abcd>)", "()", new[] {"abcd"}),
             (@"(?P<a><)(?P<b>>)", "(<)(>)", new[] {"a", "b"}),
@@ -478,12 +481,12 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(shouldTranspilePatternWithNamedCaptureGroups_data))]
-        public void shouldTranspilePatternWithNamedCaptureGroups(string pattern, string expectedPattern, string[] groupNames) {
-            _verifyPatternFlagsInvariant(pattern, expectedPattern, groupNames.Length, groupNames);
+        [MemberData(nameof(transpileTest_withNamedCaptureGroups_data))]
+        public void transpileTest_withNamedCaptureGroups(string pattern, string expectedPattern, string[] groupNames) {
+            verifyPatternWithAllFlagCombinations(pattern, expectedPattern, groupNames.Length, groupNames);
         }
 
-        public static IEnumerable<object[]> shouldTranspilePatternWithLookarounds_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> transpileTest_withLookarounds_data = TupleHelper.toArrays(
             (@"(?=)", null, null),
             (@"(?!)", null, null),
             (@"(?<=)", null, null),
@@ -529,12 +532,12 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(shouldTranspilePatternWithLookarounds_data))]
-        public void shouldTranspilePatternWithLookarounds(string pattern, string expectedPattern, string[] groupNames) {
-            _verifyPatternFlagsInvariant(pattern, expectedPattern, (groupNames == null) ? 0 : groupNames.Length, groupNames);
+        [MemberData(nameof(transpileTest_withLookarounds_data))]
+        public void transpileTest_withLookarounds(string pattern, string expectedPattern, string[] groupNames) {
+            verifyPatternWithAllFlagCombinations(pattern, expectedPattern, (groupNames == null) ? 0 : groupNames.Length, groupNames);
         }
 
-        public static IEnumerable<object[]> shouldTranspilePatternWithBackreferences_data = TupleHelper.toArrays<string, string, object>(
+        public static IEnumerable<object[]> transpileTest_withBackreferences_data = TupleHelper.toArrays<string, string, object>(
             (@"()\1", @"()\k<1>", 1),
             (@"(a)\1", @"(a)\k<1>", 1),
             (@"\1(a)", @"\k<1>(a)", 1),
@@ -624,8 +627,8 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(shouldTranspilePatternWithBackreferences_data))]
-        public void shouldTranspilePatternWithBackreferences(string pattern, string expectedPattern, object groupCountOrNames) {
+        [MemberData(nameof(transpileTest_withBackreferences_data))]
+        public void transpileTest_withBackreferences(string pattern, string expectedPattern, object groupCountOrNames) {
             int groupCount;
             string[] groupNames;
 
@@ -636,10 +639,10 @@ namespace Mariana.AVM2.Tests {
             else
                 (groupCount, groupNames) = (0, null);
 
-            _verifyPatternFlagsInvariant(pattern, expectedPattern, groupCount, groupNames);
+            verifyPatternWithAllFlagCombinations(pattern, expectedPattern, groupCount, groupNames);
         }
 
-        public static IEnumerable<object[]> shouldTranspilePatternWithNamedBackreferences_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> transpileTest_withNamedBackreferences_data = TupleHelper.toArrays(
             (@"(?P<a>)\k<a>", @"()\k<1>", new[] {"a"}),
             (@"(?P<abcd>)\k<abcd>", @"()\k<1>", new[] {"abcd"}),
             (@"\k<a>(?P<a>)", @"\k<1>()", new[] {"a"}),
@@ -674,12 +677,12 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(shouldTranspilePatternWithNamedBackreferences_data))]
-        public void shouldTranspilePatternWithNamedBackreferences(string pattern, string expectedPattern, string[] groupNames) {
-            _verifyPatternFlagsInvariant(pattern, expectedPattern, groupNames.Length, groupNames);
+        [MemberData(nameof(transpileTest_withNamedBackreferences_data))]
+        public void transpileTest_withNamedBackreferences(string pattern, string expectedPattern, string[] groupNames) {
+            verifyPatternWithAllFlagCombinations(pattern, expectedPattern, groupNames.Length, groupNames);
         }
 
-        public static IEnumerable<object[]> shouldStripWhiteSpaceAndCommentsInExtendedMode_data = TupleHelper.toArrays<string, string, string, object>(
+        public static IEnumerable<object[]> transpileTest_withExtendedModeWhiteSpaceAndComments_data = TupleHelper.toArrays<string, string, string, object>(
             ("    ", null, "", 0),
             (" \n\r\f\t\v ", null, "", 0),
             ("  a  b  c  ", null, "abc", 0),
@@ -712,8 +715,8 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(shouldStripWhiteSpaceAndCommentsInExtendedMode_data))]
-        public void shouldStripWhiteSpaceAndCommentsInExtendedMode(
+        [MemberData(nameof(transpileTest_withExtendedModeWhiteSpaceAndComments_data))]
+        public void transpileTest_withExtendedModeWhiteSpaceAndComments(
             string pattern, string expectedNonExtended, string expectedExtended, object groupCountOrNames)
         {
             int groupCount;
@@ -755,7 +758,7 @@ namespace Mariana.AVM2.Tests {
             new Regex(expectedExtended, RegexOptions.ECMAScript | RegexOptions.CultureInvariant);
         }
 
-        public static IEnumerable<object[]> shouldThrowErrorIfPatternInvalid_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> transpileTest_invalidPattern_data = TupleHelper.toArrays(
             @"\",
             @"\\\",
             @"abcd\d\",
@@ -881,9 +884,9 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(shouldThrowErrorIfPatternInvalid_data))]
-        public void shouldThrowErrorIfPatternInvalid(string pattern) {
-            _verifyPatternErrorFlagsInvariant(pattern);
+        [MemberData(nameof(transpileTest_invalidPattern_data))]
+        public void transpileTest_invalidPattern(string pattern) {
+            verifyPatternInvalidWithAllFlagCombinations(pattern);
         }
 
         [Theory]
@@ -902,7 +905,7 @@ namespace Mariana.AVM2.Tests {
         [InlineData("( ?<=a)")]
         [InlineData("( ?<!a)")]
         [InlineData("( ?P<x>a)")]
-        public void shouldThrowErrorIfPatternInvalidExtended(string pattern) {
+        public void transpileTest_invalidPattern_extendedModeOnly(string pattern) {
             var t = new RegexTranspiler();
 
             t.transpile(pattern, false, false);
@@ -918,7 +921,7 @@ namespace Mariana.AVM2.Tests {
         [InlineData("a*#[q-p]")]
         [InlineData("a*#*+")]
         [InlineData("a (  # ) \n bc # ) \n (d*) # *? \n ) #123 \r+")]
-        public void shouldThrowErrorIfPatternInvalidNonExtended(string pattern) {
+        public void transpileTest_invalidPattern_nonExtendedModeOnly(string pattern) {
             var t = new RegexTranspiler();
 
             t.transpile(pattern, false, true);
@@ -928,7 +931,7 @@ namespace Mariana.AVM2.Tests {
             AssertHelper.throwsErrorWithCode(ErrorCode.MARIANA__REGEXP_PARSE_ERROR, () => t.transpile(pattern, true, false));
         }
 
-        public static IEnumerable<object[]> shouldThrowErrorIfGroupLimitExceeded_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> transpileTest_captureGroupLimitExceeded_data = TupleHelper.toArrays(
             String.Concat(Enumerable.Repeat("()", 1000)),
             String.Concat(Enumerable.Repeat("(a)", 1000)),
             String.Concat(Enumerable.Repeat("()", 2000)),
@@ -942,12 +945,12 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(shouldThrowErrorIfGroupLimitExceeded_data))]
-        public void shouldThrowErrorIfGroupLimitExceeded(string pattern) {
-            _verifyPatternErrorFlagsInvariant(pattern);
+        [MemberData(nameof(transpileTest_captureGroupLimitExceeded_data))]
+        public void transpileTest_captureGroupLimitExceeded(string pattern) {
+            verifyPatternInvalidWithAllFlagCombinations(pattern);
         }
 
-        private void _verifyPatternFlagsInvariant(
+        private void verifyPatternWithAllFlagCombinations(
             string pattern,
             string expectedTranspiled = null,
             int groupCount = 0,
@@ -982,7 +985,7 @@ namespace Mariana.AVM2.Tests {
             new Regex(expectedTranspiled ?? pattern, RegexOptions.ECMAScript | RegexOptions.CultureInvariant);
         }
 
-        private void _verifyPatternErrorFlagsInvariant(string pattern) {
+        private void verifyPatternInvalidWithAllFlagCombinations(string pattern) {
             var t = new RegexTranspiler();
 
             AssertHelper.throwsErrorWithCode(ErrorCode.MARIANA__REGEXP_PARSE_ERROR, () => t.transpile(pattern, false, false));

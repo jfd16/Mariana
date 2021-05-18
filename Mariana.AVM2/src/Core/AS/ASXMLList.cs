@@ -1836,69 +1836,76 @@ namespace Mariana.AVM2.Core {
         /// merging adjacent text nodes and removing empty text nodes.
         /// </summary>
         /// <returns>This method always returns the instance on which it is called.</returns>
+        ///
+        /// <remarks>Any elements removed from the list by this method that are not root elements
+        /// will also be removed from their parents.</remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
         public ASXMLList normalize() {
             DynamicArray<string> tempList = new DynamicArray<string>();
-            bool mustCompact = false;
+            bool areElementsRemoved = false;
 
-            for (int i = 0, n = m_items.length; i < n; i++) {
+            int curIndex = 0;
 
-                ASXML childNode = m_items[i];
+            while (curIndex < m_items.length) {
+                ASXML childNode = m_items[curIndex];
 
-                if (childNode.nodeType != XMLNodeType.TEXT && childNode.nodeType != XMLNodeType.CDATA) {
-                    if (childNode.nodeType == XMLNodeType.ELEMENT)
-                        childNode.normalize();
+                if (!childNode.isTextOrCDATA) {
+                    childNode.normalize();
+                    curIndex++;
                     continue;
                 }
 
-                int runNodes = 1;
-                int runChars = childNode.nodeText.Length;
+                // Find a run of consecutive text nodes starting at the current position.
 
-                for (int j = i + 1; j < n; j++) {
-                    if (m_items[j].nodeType != XMLNodeType.TEXT && m_items[j].nodeType != XMLNodeType.CDATA)
-                        break;
-                    runNodes++;
-                    runChars += m_items[j].nodeText.Length;
+                int runEndIndex = curIndex + 1;
+                int runLength = m_items[curIndex].nodeText.Length;
+
+                while (runEndIndex < m_items.length && m_items[runEndIndex].isTextOrCDATA) {
+                    runLength += m_items[runEndIndex].nodeText.Length;
+                    runEndIndex++;
                 }
 
-                if (runChars == 0) {
-                    for (int j = i; j < i + runNodes; j++) {
-                        if (m_items[j].parent() != null)
-                            m_items[j].parent().internalDeleteChildOrAttr(m_items[j]);
-                        m_items[j] = null;
-                    }
-                    mustCompact = true;
+                // Concatenate all the node values in the run.
+
+                string mergedText;
+
+                if (runLength == 0) {
+                    mergedText = "";
                 }
-                else if (runNodes != 1) {
-                    string concatText;
+                else if (runEndIndex - curIndex == 1) {
+                    mergedText = childNode.nodeText;
+                }
+                else if (runEndIndex - curIndex == 2) {
+                    mergedText = childNode.nodeText + m_items[curIndex + 1].nodeText;
+                }
+                else {
+                    for (int i = curIndex; i < runEndIndex; i++)
+                        tempList.add(m_items[i].nodeText);
 
-                    if (runNodes == 2) {
-                        concatText = m_items[i].nodeText + m_items[i + 1].nodeText;
-                    }
-                    else {
-                        for (int j = i; j < i + runNodes; j++)
-                            tempList.add(m_items[j].nodeText);
-                        concatText = String.Join("", tempList.getUnderlyingArray(), 0, tempList.length);
-                        tempList.clear();
-                    }
-
-                    childNode.nodeText = concatText;
-
-                    for (int j = i + 1; j < i + runNodes; j++) {
-                        if (m_items[j].parent() != null)
-                            m_items[j].parent().internalDeleteChildOrAttr(m_items[j]);
-                        m_items[j] = null;
-                    }
-
-                    mustCompact = true;
+                    mergedText = String.Join("", tempList.getUnderlyingArray(), 0, tempList.length);
+                    tempList.clear();
                 }
 
-                i += runNodes - 1;
+                childNode.nodeText = mergedText;
 
+                // If the run contains only empty text nodes, delete the entire run.
+                // Otherwise don't delete the first element (which contains the concatenated text)
+
+                int deleteStartIndex = (runLength == 0) ? curIndex : curIndex + 1;
+                areElementsRemoved |= deleteStartIndex < runEndIndex;
+
+                for (int i = deleteStartIndex; i < runEndIndex; i++) {
+                    if (m_items[i].parent() != null)
+                        m_items[i].parent().internalDeleteChildOrAttr(m_items[i]);
+
+                    m_items[i] = null;
+                }
+
+                curIndex = runEndIndex;
             }
 
-            if (mustCompact) {
+            if (areElementsRemoved) {
                 Span<ASXML> compacted = DataStructureUtil.compactNulls(m_items.asSpan());
                 m_items = new DynamicArray<ASXML>(m_items.getUnderlyingArray(), compacted.Length);
             }

@@ -269,12 +269,6 @@ namespace Mariana.AVM2.Core {
             else if (t == typeof(bool)) {
                 comparerSet.defaultCmp = (GenericComparer<T>)(object)new InternalGenericComparers.Boolean();
             }
-            else if (t == typeof(ASNamespace)) {
-                comparerSet.defaultCmp = (GenericComparer<T>)(object)new InternalGenericComparers.Namespace();
-            }
-            else if (t == typeof(ASQName)) {
-                comparerSet.defaultCmp = (GenericComparer<T>)(object)new InternalGenericComparers.QName();
-            }
             else if (t == typeof(ASAny)) {
                 comparerSet.defaultCmp = (GenericComparer<T>)(object)new InternalGenericComparers.AnyType();
             }
@@ -517,89 +511,6 @@ namespace Mariana.AVM2.Core {
 
             public override bool spansEqual(ReadOnlySpan<bool> span1, ReadOnlySpan<bool> span2)
                 => span1.SequenceEqual(span2);
-        }
-
-        internal sealed class Namespace : GenericComparer<ASNamespace> {
-
-            public override bool Equals(ASNamespace x, ASNamespace y) => ASNamespace.AS_equals(x, y);
-
-            public override int Compare(ASNamespace x, ASNamespace y) =>
-                System.String.Compare(x.AS_toString(), y.AS_toString(), StringComparison.Ordinal);
-
-            public override int GetHashCode(ASNamespace x) => x.uri.GetHashCode();
-
-            public override int indexOf(ReadOnlySpan<ASNamespace> span, ASNamespace item) {
-                for (int i = 0; i < span.Length; i++) {
-                    if (ASNamespace.AS_equals(span[i], item))
-                        return i;
-                }
-                return -1;
-            }
-
-            public override int lastIndexOf(ReadOnlySpan<ASNamespace> span, ASNamespace item) {
-                for (int i = span.Length - 1; i >= 0; i--) {
-                    if (ASNamespace.AS_equals(span[i], item))
-                        return i;
-                }
-                return -1;
-            }
-
-            public override bool spansEqual(ReadOnlySpan<ASNamespace> span1, ReadOnlySpan<ASNamespace> span2) {
-                if (span1.Length != span2.Length)
-                    return false;
-
-                for (int i = 0; i < span1.Length; i++) {
-                    if (!ASNamespace.AS_equals(span1[i], span2[i]))
-                        return false;
-                }
-
-                return true;
-            }
-
-        }
-
-        internal sealed class QName : GenericComparer<ASQName> {
-
-            public override bool Equals(ASQName x, ASQName y) {
-                return ASQName.AS_equals(x, y);
-            }
-
-            public override int Compare(ASQName x, ASQName y) {
-                return System.String.Compare(x.AS_toString(), y.AS_toString(), StringComparison.Ordinal);
-            }
-
-            public override int GetHashCode(ASQName x) {
-                return x.internalGetHashCode();
-            }
-
-            public override int indexOf(ReadOnlySpan<ASQName> span, ASQName item) {
-                for (int i = 0; i < span.Length; i++) {
-                    if (ASQName.AS_equals(span[i], item))
-                        return i;
-                }
-                return -1;
-            }
-
-            public override int lastIndexOf(ReadOnlySpan<ASQName> span, ASQName item) {
-                for (int i = span.Length - 1; i >= 0; i--) {
-                    if (ASQName.AS_equals(span[i], item))
-                        return i;
-                }
-                return -1;
-            }
-
-            public override bool spansEqual(ReadOnlySpan<ASQName> span1, ReadOnlySpan<ASQName> span2) {
-                if (span1.Length != span2.Length)
-                    return false;
-
-                for (int i = 0; i < span1.Length; i++) {
-                    if (!ASQName.AS_equals(span1[i], span2[i]))
-                        return false;
-                }
-
-                return true;
-            }
-
         }
 
         internal sealed class Object<T> : GenericComparer<T> where T : ASObject {

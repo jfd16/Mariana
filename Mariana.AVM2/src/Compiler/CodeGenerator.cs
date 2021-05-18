@@ -1688,7 +1688,11 @@ namespace Mariana.AVM2.Compiler {
                     }
                     else {
                         // Not part of a concat tree. Just a simple binary concatenation.
-                        _emitTypeCoerceForStackTop2(ref left, ref right, DataNodeType.STRING, DataNodeType.STRING);
+                        // The concatentation helpers convert null strings to "null", so don't emit conversions
+                        // if both operands are already strings.
+                        bool useConvertStr = !isStringOrNull(_getPushedTypeOfNode(left)) && !isStringOrNull(_getPushedTypeOfNode(right));
+
+                        _emitTypeCoerceForStackTop2(ref left, ref right, DataNodeType.STRING, DataNodeType.STRING, useConvertStr);
                         m_ilBuilder.emit(ILOp.call, KnownMembers.stringAdd2, -1);
                     }
                     break;
@@ -3158,7 +3162,7 @@ namespace Mariana.AVM2.Compiler {
 
                 case ComparisonType.QNAME:
                     Debug.Assert(left.dataType == DataNodeType.QNAME && right.dataType == DataNodeType.QNAME);
-                    m_ilBuilder.emit(ILOp.call, KnownMembers.xmlNamespaceEquals, -1);
+                    m_ilBuilder.emit(ILOp.call, KnownMembers.xmlQnameEquals, -1);
                     (ilOp, invIlOp) = isNegativeCompare(instr.opcode) ? (ILOp.brfalse, ILOp.brtrue) : (ILOp.brtrue, ILOp.brfalse);
                     break;
 
@@ -3445,8 +3449,14 @@ namespace Mariana.AVM2.Compiler {
             if (pushedNode.isNotPushed)
                 return;
 
-            if (pushedNode.onPushCoerceType != DataNodeType.UNKNOWN)
-                _emitTypeCoerceForTopOfStack(ref pushedNode, pushedNode.onPushCoerceType, usePrePushType: true);
+            if (pushedNode.onPushCoerceType != DataNodeType.UNKNOWN) {
+                _emitTypeCoerceForTopOfStack(
+                    ref pushedNode,
+                    pushedNode.onPushCoerceType,
+                    usePrePushType: true,
+                    useConvertStr: (pushedNode.flags & DataNodeFlags.PUSH_CONVERT_STRING) != 0
+                );
+            }
 
             if ((pushedNode.flags & DataNodeFlags.PUSH_OPTIONAL_PARAM) != 0) {
                 TypeSignature optParamTypeSig;
@@ -3568,7 +3578,12 @@ namespace Mariana.AVM2.Compiler {
             Debug.Assert(node.dataType != DataNodeType.REST || m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_REST_ARRAY));
 
             DataNodeType nodeType = usePrePushType ? node.dataType : _getPushedTypeOfNode(node);
-            bool needsStringConv = useConvertStr && toType == DataNodeType.STRING && !node.isNotNull;
+
+            bool needsStringConv =
+                useConvertStr
+                && toType == DataNodeType.STRING
+                && !node.isNotNull
+                && (usePrePushType || (node.flags & DataNodeFlags.PUSH_CONVERT_STRING) == 0);
 
             // We don't exit early if toType is OBJECT because the node type may be an
             // interface, and conversion requires a cast to the Object class. ILEmitHelper
@@ -3596,8 +3611,8 @@ namespace Mariana.AVM2.Compiler {
                     break;
 
                 case DataNodeType.STRING:
-                    if (useConvertStr || node.dataType != DataNodeType.NULL)
-                        ILEmitHelper.emitTypeCoerceToString(m_ilBuilder, currentClass, useConvertStr);
+                    if (needsStringConv || node.dataType != DataNodeType.NULL)
+                        ILEmitHelper.emitTypeCoerceToString(m_ilBuilder, currentClass, needsStringConv);
                     break;
 
                 case DataNodeType.OBJECT:
@@ -3711,20 +3726,24 @@ namespace Mariana.AVM2.Compiler {
         /// is to be coerced.</param>
         /// <param name="toType2">The type to which the value represented by <paramref name="node2"/>
         /// is to be coerced.</param>
+        /// <param name="useConvertStr">Set to true to use convert_s semantics (instead of
+        /// coerce_s) when coercing to a string.</param>
         private void _emitTypeCoerceForStackTop2(
-            ref DataNode node1, ref DataNode node2, DataNodeType toType1, DataNodeType toType2)
+            ref DataNode node1, ref DataNode node2, DataNodeType toType1, DataNodeType toType2, bool useConvertStr = false)
         {
             Debug.Assert(((node1.flags | node2.flags) & DataNodeFlags.NO_PUSH) == 0);
 
-            if (_isTrivialTypeConversion(_getPushedTypeOfNode(node1), toType1)) {
-                _emitTypeCoerceForTopOfStack(ref node2, toType2);
+            if (_isTrivialTypeConversion(_getPushedTypeOfNode(node1), toType1)
+                && (!useConvertStr || toType1 != DataNodeType.STRING || node1.isNotNull))
+            {
+                _emitTypeCoerceForTopOfStack(ref node2, toType2, useConvertStr: useConvertStr);
                 return;
             }
 
             var stashVar = _emitStashTopOfStack(ref node2, preserveObjectClass: false);
-            _emitTypeCoerceForTopOfStack(ref node1, toType1);
+            _emitTypeCoerceForTopOfStack(ref node1, toType1, useConvertStr: useConvertStr);
             _emitUnstash(stashVar);
-            _emitTypeCoerceForTopOfStack(ref node2, toType2);
+            _emitTypeCoerceForTopOfStack(ref node2, toType2, useConvertStr: useConvertStr);
         }
 
         /// <summary>
@@ -5328,7 +5347,12 @@ namespace Mariana.AVM2.Compiler {
             m_ilBuilder.emit(ILOp.stloc, strArrayLocal);
 
             for (int i = leafNodeIdsSpan.Length - 1; i >= 0; i--) {
-                _emitTypeCoerceForTopOfStack(leafNodeIdsSpan[i], DataNodeType.STRING);
+                ref DataNode leafNode = ref m_compilation.getDataNode(leafNodeIdsSpan[i]);
+
+                // Don't emit string conversions for string arguments because the concatenation
+                // helper does the null to "null" conversion.
+                if (!isStringOrNull(_getPushedTypeOfNode(leafNode)))
+                    _emitTypeCoerceForTopOfStack(leafNodeIdsSpan[i], DataNodeType.STRING, useConvertStr: true);
 
                 m_ilBuilder.emit(ILOp.stloc, strTempLocal);
                 m_ilBuilder.emit(ILOp.ldloc, strArrayLocal);
@@ -5354,7 +5378,7 @@ namespace Mariana.AVM2.Compiler {
                 ref DataNode node = ref m_compilation.getDataNode(argsOnStack[i]);
                 DataNodeType pushedType = _getPushedTypeOfNode(node);
 
-                if (pushedType != DataNodeType.STRING && pushedType != DataNodeType.NULL) {
+                if (!isStringOrNull(pushedType)) {
                     heightOfFirstNonString = i;
                     break;
                 }
@@ -5369,13 +5393,20 @@ namespace Mariana.AVM2.Compiler {
                 var stashVars = m_tempLocalArray.asSpan();
 
                 for (int i = 0; i < stashVars.Length; i++) {
-                    _emitTypeCoerceForTopOfStack(argsOnStack[argsOnStack.Length - i - 1], DataNodeType.STRING);
+                    ref DataNode node = ref m_compilation.getDataNode(argsOnStack[argsOnStack.Length - i - 1]);
+
+                    // Don't emit string conversions for string arguments because the concatenation
+                    // helper does the null to "null" conversion.
+                    if (!isStringOrNull(_getPushedTypeOfNode(node)))
+                        _emitTypeCoerceForTopOfStack(ref node, DataNodeType.STRING, useConvertStr: true);
+
                     var stashLocal = m_ilBuilder.acquireTempLocal(typeof(string));
                     m_ilBuilder.emit(ILOp.stloc, stashLocal);
+
                     stashVars[stashVars.Length - i - 1] = stashLocal;
                 }
 
-                _emitTypeCoerceForTopOfStack(argsOnStack[heightOfFirstNonString], DataNodeType.STRING);
+                _emitTypeCoerceForTopOfStack(argsOnStack[heightOfFirstNonString], DataNodeType.STRING, useConvertStr: true);
 
                 for (int i = 0; i < stashVars.Length; i++) {
                     m_ilBuilder.emit(ILOp.ldloc, stashVars[i]);
@@ -5879,7 +5910,7 @@ namespace Mariana.AVM2.Compiler {
                 case IntrinsicName.XML_CALL_1:
                 case IntrinsicName.XML_NEW_1:
                 {
-                    if (arg1.dataType == DataNodeType.STRING || arg1.dataType == DataNodeType.NULL) {
+                    if (isStringOrNull(arg1.dataType)) {
                         m_ilBuilder.emit(ILOp.call, KnownMembers.xmlParse, 0);
                         break;
                     }
@@ -5904,7 +5935,7 @@ namespace Mariana.AVM2.Compiler {
                 case IntrinsicName.XMLLIST_CALL_1:
                 case IntrinsicName.XMLLIST_NEW_1:
                 {
-                    if (arg1.dataType == DataNodeType.STRING || arg1.dataType == DataNodeType.NULL) {
+                    if (isStringOrNull(arg1.dataType)) {
                         m_ilBuilder.emit(ILOp.call, KnownMembers.xmlListParse, 0);
                         break;
                     }

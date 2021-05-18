@@ -280,7 +280,7 @@ namespace Mariana.AVM2.Core {
 
             if (m_prototypeObject == null) {
                 m_prototypeObject = ASObject.AS_createWithPrototype(parent?.prototypeObject);
-                m_prototypeObject.AS_dynamicProps["constructor"] = m_classObject;
+                m_prototypeObject.AS_dynamicProps.setValue("constructor", m_classObject, isEnum: false);
             }
 
             if (m_traitTable == null)

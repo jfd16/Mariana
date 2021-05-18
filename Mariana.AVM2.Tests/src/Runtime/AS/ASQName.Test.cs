@@ -1,19 +1,18 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Xunit;
-
 using Mariana.AVM2.Core;
 using Mariana.AVM2.Tests.Helpers;
+using Xunit;
 
 namespace Mariana.AVM2.Tests {
 
     public class ASQNameTest {
 
-        private static readonly Class s_klass = Class.fromType<ASQName>();
+        private static readonly Class s_qnameClass = Class.fromType<ASQName>();
 
         [Fact]
-        public void anyName_shouldHaveNullNamespaceAndAnyLocalName() {
+        public void anyNameShouldHaveNullNamespaceAndAnyLocalName() {
             Assert.Null(ASQName.any.uri);
             Assert.Null(ASQName.any.prefix);
             Assert.Equal("*", ASQName.any.localName);
@@ -25,7 +24,7 @@ namespace Mariana.AVM2.Tests {
         [InlineData("*", "*")]
         [InlineData("a", "a")]
         [InlineData("abc", "abc")]
-        public void anyNamespace_shouldHaveNullNamespace(string localName, string expectedLocalName) {
+        public void anyNamespaceMethodTest(string localName, string expectedLocalName) {
             var qname = ASQName.anyNamespace(localName);
             Assert.Null(qname.uri);
             Assert.Null(qname.prefix);
@@ -37,7 +36,7 @@ namespace Mariana.AVM2.Tests {
         [InlineData("", "", "a", "")]
         [InlineData("*", null, null, "*")]
         [InlineData("b", "", "a", "b")]
-        public void constructor_shouldCreateFromLocalName(
+        public void constructorTest_withLocalName(
             string localName, string expectedPrefix, string expectedUri, string expectedLocalName)
         {
             var oldDefault = ASNamespace.getDefault();
@@ -54,28 +53,32 @@ namespace Mariana.AVM2.Tests {
             }
         }
 
+        public static IEnumerable<object[]> constructorTest_withUriAndLocalName_data = TupleHelper.toArrays(
+            (null, null, null, null, "null"),
+            (null, "", null, null, ""),
+            (null, "a", null, null, "a"),
+            (null, "*", null, null, "*"),
+            ("", null, "", "", "null"),
+            ("", "", "", "", ""),
+            ("", "a", "", "", "a"),
+            ("", "*", "", "", "*"),
+            ("a", null, null, "a", "null"),
+            ("a", "", null, "a", ""),
+            ("a", "a", null, "a", "a"),
+            ("a", "*", null, "a", "*"),
+            ("b", null, null, "b", "null"),
+            ("b", "", null, "b", ""),
+            ("b", "a", null, "b", "a"),
+            ("b", "*", null, "b", "*"),
+            ("*", null, null, "*", "null"),
+            ("*", "", null, "*", ""),
+            ("*", "a", null, "*", "a"),
+            ("*", "*", null, "*", "*")
+        );
+
         [Theory]
-        [InlineData(null, null, null, null, "null")]
-        [InlineData(null, "", null, null, "")]
-        [InlineData(null, "a", null, null, "a")]
-        [InlineData(null, "*", null, null, "*")]
-        [InlineData("", null, "", "", "null")]
-        [InlineData("", "", "", "", "")]
-        [InlineData("", "a", "", "", "a")]
-        [InlineData("", "*", "", "", "*")]
-        [InlineData("a", null, null, "a", "null")]
-        [InlineData("a", "", null, "a", "")]
-        [InlineData("a", "a", null, "a", "a")]
-        [InlineData("a", "*", null, "a", "*")]
-        [InlineData("b", null, null, "b", "null")]
-        [InlineData("b", "", null, "b", "")]
-        [InlineData("b", "a", null, "b", "a")]
-        [InlineData("b", "*", null, "b", "*")]
-        [InlineData("*", null, null, "*", "null")]
-        [InlineData("*", "", null, "*", "")]
-        [InlineData("*", "a", null, "*", "a")]
-        [InlineData("*", "*", null, "*", "*")]
-        public void constructor_shouldCreateFromUriAndLocalName(
+        [MemberData(nameof(constructorTest_withUriAndLocalName_data))]
+        public void constructorTest_withUriAndLocalName(
             string uri, string localName, string expectedPrefix, string expectedUri, string expectedLocalName)
         {
             var oldDefault = ASNamespace.getDefault();
@@ -92,7 +95,7 @@ namespace Mariana.AVM2.Tests {
             }
         }
 
-        public static IEnumerable<object[]> constructor_shouldCreateFromPrefixUriAndLocalName_data =
+        public static IEnumerable<object[]> constructorTest_withPrefixUriAndLocalName_data =
             TupleHelper.toArrays(
                 (null, null, null, null, null, "null"),
                 (null, null, "", null, null, ""),
@@ -137,8 +140,8 @@ namespace Mariana.AVM2.Tests {
             );
 
         [Theory]
-        [MemberData(nameof(constructor_shouldCreateFromPrefixUriAndLocalName_data))]
-        public void constructor_shouldCreateFromPrefixUriAndLocalName(
+        [MemberData(nameof(constructorTest_withPrefixUriAndLocalName_data))]
+        public void constructorTest_withPrefixUriAndLocalName(
             string prefix, string uri, string localName, string expectedPrefix, string expectedUri, string expectedLocalName)
         {
             var qname = new ASQName(prefix, uri, localName);
@@ -147,7 +150,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expectedUri, qname.uri);
         }
 
-        public static IEnumerable<object[]> constructor_shouldCreateFromNamespaceAndLocalName_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> constructorTest_withNamespaceAndLocalName_data = TupleHelper.toArrays(
             (ASNamespace.@public, null, "null"),
             (new ASNamespace("a"), null, "null"),
             (new ASNamespace("*"), null, "null"),
@@ -163,8 +166,8 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(constructor_shouldCreateFromNamespaceAndLocalName_data))]
-        public void constructor_shouldCreateFromNamespaceAndLocalName(
+        [MemberData(nameof(constructorTest_withNamespaceAndLocalName_data))]
+        public void constructorTest_withNamespaceAndLocalName(
             ASNamespace ns, string localName, string expectedLocalName)
         {
             var qname = new ASQName(ns, localName);
@@ -174,22 +177,23 @@ namespace Mariana.AVM2.Tests {
         }
 
         [Fact]
-        public void valueOf_shouldReturnSameObject() {
-            var qname1 = new ASQName("a");
-            var qname2 = new ASQName("a", "b");
-            var qname3 = new ASQName("a", "b", "c");
-
-            Assert.Same(qname1, qname1.valueOf());
-            Assert.Same(qname2, qname2.valueOf());
-            Assert.Same(qname3, qname3.valueOf());
-        }
-
-        [Fact]
-        public void constructor_shouldThrowIfEmptyUriAndNonEmptyPrefix() {
+        public void constructorTest_emptyUriAndNonEmptyPrefix() {
             AssertHelper.throwsErrorWithCode(ErrorCode.XML_ILLEGAL_PREFIX_PUBLIC_NAMESPACE, () => new ASQName("a", "", "b"));
         }
 
-        public static IEnumerable<object[]> toString_shouldReturnStringReprOfQName_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> valueOfMethodTest_data = TupleHelper.toArrays(
+            new ASQName("a"),
+            new ASQName("a", "b"),
+            new ASQName("a", "b", "c")
+        );
+
+        [Theory]
+        [MemberData(nameof(valueOfMethodTest_data))]
+        public void valueOfMethodTest(ASQName qname) {
+            Assert.Same(qname, qname.valueOf());
+        }
+
+        public static IEnumerable<object[]> toStringMethodTest_data = TupleHelper.toArrays(
             (ASQName.any, "*::*"),
             (ASQName.anyNamespace(""), "*::"),
             (ASQName.anyNamespace("*"), "*::*"),
@@ -210,12 +214,12 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(toString_shouldReturnStringReprOfQName_data))]
-        public void toString_shouldReturnStringReprOfQName(ASQName qname, string expected) {
+        [MemberData(nameof(toStringMethodTest_data))]
+        public void toStringMethodTest(ASQName qname, string expected) {
             Assert.Equal(expected, qname.AS_toString());
         }
 
-        public static IEnumerable<object[]> getNamespace_shouldGetQNameNamespace_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> getNamespaceMethodTest_data = TupleHelper.toArrays(
             (ASQName.any, null),
             (ASQName.anyNamespace(""), null),
             (ASQName.anyNamespace("*"), null),
@@ -236,8 +240,8 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(getNamespace_shouldGetQNameNamespace_data))]
-        public void getNamespace_shouldGetQNameNamespace(ASQName qname, ASNamespace expectedNs) {
+        [MemberData(nameof(getNamespaceMethodTest_data))]
+        public void getNamespaceMethodTest(ASQName qname, ASNamespace expectedNs) {
             var ns = qname.getNamespace();
             if (ns == null) {
                 Assert.Null(expectedNs);
@@ -248,7 +252,7 @@ namespace Mariana.AVM2.Tests {
             }
         }
 
-        public static IEnumerable<object[]> equals_shouldCheckIfUriAndLocalNameEqual_data() {
+        public static IEnumerable<object[]> equals_getHashCode_testData() {
             ASQName n1a = ASQName.any,
                     n1b = ASQName.anyNamespace("*"),
                     n1c = new ASQName("*");
@@ -331,19 +335,12 @@ namespace Mariana.AVM2.Tests {
         }
 
         [Theory]
-        [MemberData(nameof(equals_shouldCheckIfUriAndLocalNameEqual_data))]
-        public void equals_shouldCheckIfUriAndLocalNameEqual(ASQName x, ASQName y, bool expected) {
-            Assert.Equal(expected, ASQName.AS_equals(x, y));
+        [MemberData(nameof(equals_getHashCode_testData))]
+        public void equalsMethodTest(ASQName x, ASQName y, bool areEqual) {
+            Assert.Equal(areEqual, ASQName.AS_equals(x, y));
         }
 
-        [Theory]
-        [MemberData(nameof(equals_shouldCheckIfUriAndLocalNameEqual_data))]
-        public void getHashCode_shouldReturnSameHashCodeForEqual(ASQName x, ASQName y, bool expected) {
-            if (expected && x != null && y != null)
-                Assert.Equal(x.internalGetHashCode(), y.internalGetHashCode());
-        }
-
-        public static IEnumerable<object[]> parse_shouldParseStringToQName_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> parseMethodTest_data = TupleHelper.toArrays(
             (null, ASQName.any),
             ("*", ASQName.any),
             ("*::*", ASQName.any),
@@ -385,8 +382,8 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(parse_shouldParseStringToQName_data))]
-        public void parse_shouldParseStringToQName(string str, ASQName expected) {
+        [MemberData(nameof(parseMethodTest_data))]
+        public void parseMethodTest(string str, ASQName expected) {
             var oldDefault = ASNamespace.getDefault();
             ASNamespace.setDefault(new ASNamespace("a"));
 
@@ -399,6 +396,40 @@ namespace Mariana.AVM2.Tests {
             finally {
                 ASNamespace.setDefault(oldDefault);
             }
+        }
+
+        public static IEnumerable<object[]> forInIterationTest_data = TupleHelper.toArrays(
+            new ASQName("*"),
+            new ASQName("abc"),
+            new ASQName("abc", "def"),
+            new ASQName("abc", "*"),
+            new ASQName("abc", "def", "ghi")
+        );
+
+        [Theory]
+        [MemberData(nameof(forInIterationTest_data))]
+        public void forInIterationTest(ASQName qname) {
+            int index = 0;
+            AssertHelper.valueIdentical(ASAny.undefined, qname.AS_nameAtIndex(index));
+            AssertHelper.valueIdentical(ASAny.undefined, qname.AS_valueAtIndex(index));
+
+            index = qname.AS_nextIndex(index);
+            AssertHelper.valueIdentical("uri", qname.AS_nameAtIndex(index));
+            AssertHelper.valueIdentical(qname.uri, qname.AS_valueAtIndex(index));
+
+            index = qname.AS_nextIndex(index);
+            AssertHelper.valueIdentical("localName", qname.AS_nameAtIndex(index));
+            AssertHelper.valueIdentical(qname.localName, qname.AS_valueAtIndex(index));
+
+            index = qname.AS_nextIndex(index);
+            Assert.Equal(0, index);
+        }
+
+        [Theory]
+        [MemberData(nameof(forInIterationTest_data))]
+        public void propertyIsEnumerableMethodTest(ASQName qname) {
+            Assert.True(qname.propertyIsEnumerable("uri"));
+            Assert.True(qname.propertyIsEnumerable("localName"));
         }
 
         public static IEnumerable<object[]> runtimeConstructorTest_data = TupleHelper.toArrays(
@@ -507,13 +538,13 @@ namespace Mariana.AVM2.Tests {
             try {
                 ASObject result;
 
-                result = s_klass.invoke(args).value;
+                result = s_qnameClass.invoke(args).value;
                 Assert.IsType<ASQName>(result);
                 Assert.Equal(expected.prefix, ((ASQName)result).prefix);
                 Assert.Equal(expected.uri, ((ASQName)result).uri);
                 Assert.Equal(expected.localName, ((ASQName)result).localName);
 
-                result = s_klass.construct(args).value;
+                result = s_qnameClass.construct(args).value;
                 Assert.IsType<ASQName>(result);
                 Assert.Equal(expected.prefix, ((ASQName)result).prefix);
                 Assert.Equal(expected.uri, ((ASQName)result).uri);

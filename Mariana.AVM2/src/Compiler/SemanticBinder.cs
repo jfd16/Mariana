@@ -7,8 +7,8 @@ using Mariana.Common;
 
 namespace Mariana.AVM2.Compiler {
 
-    using static DataNodeTypeHelper;
     using static DataNodeConstHelper;
+    using static DataNodeTypeHelper;
     using static SemanticBinderSpecialTraits;
 
     internal static class SemanticBinderSpecialTraits {
@@ -394,9 +394,7 @@ namespace Mariana.AVM2.Compiler {
                 node.isConstant = false;
                 node.constant = default;
             }
-            else if ((nodeType == DataNodeType.STRING && sourceType == DataNodeType.NULL)
-                || (nodeType == DataNodeType.NULL && sourceType == DataNodeType.STRING))
-            {
+            else if (isStringOrNull(nodeType) && isStringOrNull(sourceType)) {
                 node.dataType = DataNodeType.STRING;
                 node.isConstant = false;
                 node.constant = default;
@@ -2991,11 +2989,8 @@ namespace Mariana.AVM2.Compiler {
                         ref DataNode arg1 = ref m_compilation.getDataNode(argsOnStackIds[0]);
                         ref DataNode arg2 = ref m_compilation.getDataNode(argsOnStackIds[1]);
 
-                        if ((arg1.dataType == DataNodeType.STRING || arg1.dataType == DataNodeType.NULL)
-                            && (arg2.dataType == DataNodeType.STRING || arg2.dataType == DataNodeType.NULL))
-                        {
+                        if (isStringOrNull(arg1.dataType) && isStringOrNull(arg2.dataType))
                             return Intrinsic.NAMESPACE_NEW_2;
-                        }
                     }
 
                     return null;
@@ -3026,29 +3021,16 @@ namespace Mariana.AVM2.Compiler {
                         ref DataNode arg1 = ref m_compilation.getDataNode(argsOnStackIds[0]);
                         ref DataNode arg2 = ref m_compilation.getDataNode(argsOnStackIds[1]);
 
-                        if ((arg1.dataType == DataNodeType.STRING
-                                || arg1.dataType == DataNodeType.NULL
-                                || arg1.dataType == DataNodeType.NAMESPACE)
-                            && (arg2.dataType == DataNodeType.STRING
-                                || arg2.dataType == DataNodeType.NULL))
-                        {
-                            if (arg1.isConstant && arg2.isConstant) {
+                        if ((isStringOrNull(arg1.dataType) || arg1.dataType == DataNodeType.NAMESPACE) && isStringOrNull(arg2.dataType)) {
+                            if (arg1.isConstant && arg2.isConstant && arg1.isNotNull && arg2.isNotNull) {
+                                Namespace ns = (arg1.dataType == DataNodeType.STRING)
+                                    ? new Namespace(arg1.constant.stringValue)
+                                    : arg1.constant.namespaceValue;
+                                string localName = arg2.constant.stringValue;
+
                                 result.isConstant = true;
-
-                                Namespace ns = Namespace.any;
-                                string localName = null;
-
-                                if (arg1.dataType == DataNodeType.STRING)
-                                    ns = new Namespace(arg1.constant.stringValue);
-                                else if (arg1.dataType == DataNodeType.NAMESPACE)
-                                    ns = arg1.constant.namespaceValue;
-
-                                if (arg2.dataType == DataNodeType.STRING)
-                                    localName = arg2.constant.stringValue;
-
                                 result.constant = new DataNodeConstant(new QName(ns, localName));
                             }
-
                             return Intrinsic.QNAME_NEW_2;
                         }
                     }
@@ -3583,8 +3565,18 @@ namespace Mariana.AVM2.Compiler {
                 _requireStackNodeAsType(ref input1, inputType, instr.id);
                 _requireStackNodeAsType(ref input2, inputType, instr.id);
 
-                if (inputType == DataNodeType.STRING)
+                if (inputType == DataNodeType.STRING) {
                     _checkForStringConcatTree(ref instr, ref input1, ref input2);
+
+                    // If any string conversions were hoisted, set a flag to perform the conversions
+                    // using convert_s semantics instead of coerce_s.
+
+                    if (input1.onPushCoerceType == DataNodeType.STRING)
+                        input1.flags |= DataNodeFlags.PUSH_CONVERT_STRING;
+
+                    if (input2.onPushCoerceType == DataNodeType.STRING)
+                        input2.flags |= DataNodeFlags.PUSH_CONVERT_STRING;
+                }
             }
         }
 
@@ -4676,6 +4668,12 @@ namespace Mariana.AVM2.Compiler {
             }
 
             switch (opcode) {
+                case ABCOp.strictequals:
+                case ABCOp.ifstricteq:
+                case ABCOp.ifstrictne:
+                    isStrictEquals = true;
+                    goto case ABCOp.equals;
+
                 case ABCOp.equals:
                 case ABCOp.ifeq:
                 case ABCOp.ifne:
@@ -4717,9 +4715,9 @@ namespace Mariana.AVM2.Compiler {
 
                     switch (commonType) {
                         case DataNodeType.NAMESPACE:
-                            return ComparisonType.NAMESPACE;
+                            return isStrictEquals ? ComparisonType.OBJ_REF : ComparisonType.NAMESPACE;
                         case DataNodeType.QNAME:
-                            return ComparisonType.QNAME;
+                            return isStrictEquals ? ComparisonType.OBJ_REF : ComparisonType.QNAME;
                         case DataNodeType.STRING:
                             return ComparisonType.STRING;
                         case DataNodeType.INT:
@@ -4742,12 +4740,6 @@ namespace Mariana.AVM2.Compiler {
                         return ComparisonType.NUMBER;
                     }
 
-                    if (!isStrictEquals
-                        && (input1IsNumeric || input2IsNumeric || input1Ty == DataNodeType.BOOL || input2Ty == DataNodeType.BOOL))
-                    {
-                        return ComparisonType.NUMBER;
-                    }
-
                     if (isAnyOrUndefined(input1Ty) || isAnyOrUndefined(input2Ty))
                         return ComparisonType.ANY;
 
@@ -4755,27 +4747,24 @@ namespace Mariana.AVM2.Compiler {
                     Class input2Class = m_compilation.getDataNodeClass(input2);
                     var inputClassTagSet = new ClassTagSet(input1Class.tag, input2Class.tag);
 
+                    if (!isStrictEquals && ClassTagSet.primitive.containsAll(inputClassTagSet)) {
+                        // Weak equality on primitive types is always numeric, unless both are strings.
+                        return ComparisonType.NUMBER;
+                    }
+
                     if (input1Class == objectClass || input2Class == objectClass
                         || ClassTagSet.primitive.containsAny(inputClassTagSet))
                     {
                         return ComparisonType.OBJECT;
                     }
 
-                    var specialEqTagSet = ClassTagSet.specialStrictEquality;
-                    if (!isStrictEquals)
-                        specialEqTagSet = specialEqTagSet.add(ClassTagSet.xmlOrXmlList);
+                    var specialEqTagSet = isStrictEquals ? ClassTagSet.specialStrictEquality : ClassTagSet.specialWeakEquality;
 
                     if (specialEqTagSet.containsAll(inputClassTagSet))
                         return ComparisonType.OBJECT;
 
                     return ComparisonType.OBJ_REF;
                 }
-
-                case ABCOp.strictequals:
-                case ABCOp.ifstricteq:
-                case ABCOp.ifstrictne:
-                    isStrictEquals = true;
-                    goto case ABCOp.equals;
 
                 // For unsigned integers, consider x > 0 or 0 < x to be a not-equals-zero comparison.
 

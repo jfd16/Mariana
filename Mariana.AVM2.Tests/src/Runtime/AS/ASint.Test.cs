@@ -10,47 +10,6 @@ namespace Mariana.AVM2.Tests {
 
     public class ASintTest {
 
-        private static readonly Class s_intClass = Class.fromType<int>();
-
-        public static IEnumerable<object[]> s_intTestData = TupleHelper.toArrays(
-            0, 1, -1, 2, -2,
-            127, 128, 129, -127, -128, -129,
-            255, 256, 257,
-            4718, 9993,
-            32767, 32768, 32769, -32767, -32768, -32769,
-            65535, 65536, 65537,
-            123456789, 193847113,
-            Int32.MaxValue, Int32.MinValue, -Int32.MaxValue
-        );
-
-        [Theory]
-        [MemberData(nameof(s_intTestData))]
-        public void shouldBoxIntegerValue(int value) {
-            ASObject asObj = value;
-            check(asObj);
-
-            ASAny asAny = value;
-            check(asAny.value);
-
-            check(ASObject.AS_fromInt(value));
-            check(ASAny.AS_fromInt(value).value);
-
-            void check(ASObject o) {
-                Assert.IsType<ASint>(o);
-                Assert.Same(s_intClass, o.AS_class);
-                Assert.Equal(value, ASObject.AS_toInt(o));
-                Assert.Equal(value, ASAny.AS_toInt(new ASAny(o)));
-            }
-        }
-
-        [Fact]
-        public void nullAndUndefinedShouldConvertToZero() {
-            Assert.Equal(0, (int)(ASObject)null);
-            Assert.Equal(0, ASObject.AS_toInt(null));
-            Assert.Equal(0, (int)default(ASAny));
-            Assert.Equal(0, ASAny.AS_toInt(default));
-        }
-
         [Fact]
         public void constantsShouldHaveCorrectValues() {
             Assert.Equal(Int32.MinValue, ASint.MIN_VALUE);
@@ -58,86 +17,24 @@ namespace Mariana.AVM2.Tests {
         }
 
         [Theory]
-        [MemberData(nameof(s_intTestData))]
-        public void shouldConvertToIntNumberBoolean(int value) {
-            Assert.Equal((uint)value, (uint)(ASObject)value);
-            Assert.Equal((uint)value, ASObject.AS_toUint(ASObject.AS_fromInt(value)));
-            Assert.Equal((uint)value, (uint)(ASAny)value);
-            Assert.Equal((uint)value, ASAny.AS_toUint(ASAny.AS_fromInt(value)));
-
-            Assert.Equal((double)value, (double)(ASObject)value);
-            Assert.Equal((double)value, ASObject.AS_toNumber(ASObject.AS_fromInt(value)));
-            Assert.Equal((double)value, (double)(ASAny)value);
-            Assert.Equal((double)value, ASAny.AS_toNumber(ASAny.AS_fromInt(value)));
-
-            Assert.Equal(value != 0, (bool)(ASObject)value);
-            Assert.Equal(value != 0, ASObject.AS_toBoolean(ASObject.AS_fromInt(value)));
-            Assert.Equal(value != 0, (bool)(ASAny)value);
-            Assert.Equal(value != 0, ASAny.AS_toBoolean(ASAny.AS_fromInt(value)));
-        }
-
-        [Theory]
-        [MemberData(nameof(s_intTestData))]
-        public void valueOf_shouldReturnValue(int value) {
+        [InlineData(0)]
+        [InlineData(100)]
+        [InlineData(-100)]
+        [InlineData(Int32.MaxValue)]
+        [InlineData(Int32.MinValue)]
+        public void valueOfMethodTest(int value) {
             Assert.Equal(value, ASint.valueOf(value));
             Assert.Equal(value, ((ASint)(ASObject)value).valueOf());
         }
 
-        public static IEnumerable<object[]> shouldConvertToString_data = TupleHelper.toArrays(
-            (0, "0"),
-            (1, "1"),
-            (2, "2"),
-            (-1, "-1"),
-            (-2, "-2"),
-            (48, "48"),
-            (-75, "-75"),
-            (127, "127"),
-            (128, "128"),
-            (129, "129"),
-            (-127, "-127"),
-            (-128, "-128"),
-            (-129, "-129"),
-            (255, "255"),
-            (256, "256"),
-            (257, "257"),
-            (32767, "32767"),
-            (32768, "32768"),
-            (32769, "32769"),
-            (-32767, "-32767"),
-            (-32768, "-32768"),
-            (-32769, "-32769"),
-            (65535, "65535"),
-            (65536, "65536"),
-            (65537, "65537"),
-            (7564194, "7564194"),
-            (1234567890, "1234567890"),
-            (-2135497086, "-2135497086"),
-            (Int32.MaxValue, "2147483647"),
-            (Int32.MinValue, "-2147483648")
-        );
-
-        [Theory]
-        [MemberData(nameof(shouldConvertToString_data))]
-        public void shouldConvertToString(int value, string expected) {
-            Assert.Equal(expected, (string)(ASObject)value);
-            Assert.Equal(expected, ASObject.AS_coerceString(ASObject.AS_fromInt(value)));
-            Assert.Equal(expected, ASObject.AS_convertString(ASObject.AS_fromInt(value)));
-            Assert.Equal(expected, (string)(ASAny)value);
-            Assert.Equal(expected, ASAny.AS_coerceString(ASAny.AS_fromInt(value)));
-            Assert.Equal(expected, ASAny.AS_convertString(ASAny.AS_fromInt(value)));
-
-            Assert.Equal(expected, ASint.AS_convertString(value));
-            Assert.Equal(expected, ASint.toString(value, 10));
-            Assert.Equal(expected, ((ASint)(ASObject)value).AS_toString());
-            Assert.Equal(expected, ((ASint)(ASObject)value).AS_toString(10));
-        }
-
-        public static IEnumerable<object[]> toString_shouldConvertToString_nonBase10_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> toStringMethodTest_data = TupleHelper.toArrays(
             (0, 2, "0"),
             (0, 3, "0"),
+            (0, 10, "0"),
             (0, 16, "0"),
             (0, 36, "0"),
             (1, 2, "1"),
+            (1, 10, "1"),
             (1, 32, "1"),
             (2, 2, "10"),
             (6, 6, "10"),
@@ -146,33 +43,37 @@ namespace Mariana.AVM2.Tests {
             (12464877, 2, "101111100011001011101101"),
             (19383400, 5, "14430232100"),
             (784392, 8, "2774010"),
+            (18473992, 10, "18473992"),
             (64738329, 16, "3dbd419"),
             (34443113, 26, "2n9h93"),
             (34224, 32, "11dg"),
             (95849993, 36, "1l2ebt"),
             (-3563757, 3, "-20201001120000"),
             (-395933, 8, "-1405235"),
+            (-8384629, 10, "-8384629"),
             (-755345, 16, "-b8691"),
             (-6574788, 26, "-ea20c"),
             (-124353444, 32, "-3miut4"),
             (2147483647, 2, "1111111111111111111111111111111"),
             (2147483647, 7, "104134211161"),
+            (2147483647, 10, "2147483647"),
             (2147483647, 32, "1vvvvvv"),
             (2147483647, 36, "zik0zj"),
             (-2147483648, 2, "-10000000000000000000000000000000"),
             (-2147483648, 7, "-104134211162"),
+            (-2147483648, 10, "-2147483648"),
             (-2147483648, 32, "-2000000"),
             (-2147483648, 36, "-zik0zk")
         );
 
         [Theory]
-        [MemberData(nameof(toString_shouldConvertToString_nonBase10_data))]
-        public void toString_shouldConvertToString_nonBase10(int value, int radix, string expected) {
+        [MemberData(nameof(toStringMethodTest_data))]
+        public void toStringMethodTest(int value, int radix, string expected) {
             Assert.Equal(expected, ASint.toString(value, radix));
             Assert.Equal(expected, ((ASint)(ASObject)value).AS_toString(radix));
         }
 
-        public static IEnumerable<object[]> toFixed_toExponential_shouldFormatNumber_data = TupleHelper.toArrays(
+        private static (int val, int precision, string tofixed, string toexp)[] toFixed_toExponential_testData = new[] {
             (0, 0, "0", "0e+0"),
             (0, 2, "0.00", "0.00e+0"),
             (0, 20, "0.00000000000000000000", "0.00000000000000000000e+0"),
@@ -237,18 +138,27 @@ namespace Mariana.AVM2.Tests {
             (Int32.MinValue, 13, "-2147483648.0000000000000", "-2.1474836480000e+9"),
             (Int32.MinValue, 19, "-2147483648.0000000000000000000", "-2.1474836480000000000e+9"),
             (Int32.MinValue, 20, "-2147483648.00000000000000000000", "-2.14748364800000000000e+9")
-        );
+        };
+
+        public static IEnumerable<object[]> toFixedMethodTest_data = toFixed_toExponential_testData.Select(x => new object[] {x.val, x.precision, x.tofixed});
 
         [Theory]
-        [MemberData(nameof(toFixed_toExponential_shouldFormatNumber_data))]
-        public void toFixed_toExponential_shouldFormatNumber(int value, int precision, string expectedFixed, string expectedExponential) {
-            Assert.Equal(expectedFixed, ASint.toFixed(value, precision));
-            Assert.Equal(expectedFixed, ((ASint)(ASObject)value).toFixed(precision));
-            Assert.Equal(expectedExponential, ASint.toExponential(value, precision));
-            Assert.Equal(expectedExponential, ((ASint)(ASObject)value).toExponential(precision));
+        [MemberData(nameof(toFixedMethodTest_data))]
+        public void toFixedMethodTest(int value, int precision, string expected) {
+            Assert.Equal(expected, ASint.toFixed(value, precision));
+            Assert.Equal(expected, ((ASint)(ASObject)value).toFixed(precision));
         }
 
-        public static IEnumerable<object[]> toPrecision_shouldFormatNumber_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> toExponentialMethodTest_data = toFixed_toExponential_testData.Select(x => new object[] {x.val, x.precision, x.toexp});
+
+        [Theory]
+        [MemberData(nameof(toExponentialMethodTest_data))]
+        public void toExponentialMethodTest(int value, int precision, string expected) {
+            Assert.Equal(expected, ASint.toExponential(value, precision));
+            Assert.Equal(expected, ((ASint)(ASObject)value).toExponential(precision));
+        }
+
+        public static IEnumerable<object[]> toPrecisionMethodTest_data = TupleHelper.toArrays(
             (0, 1, "0"),
             (0, 2, "0.0"),
             (0, 5, "0.0000"),
@@ -322,8 +232,8 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(toPrecision_shouldFormatNumber_data))]
-        public void toPrecision_shouldFormatNumber(int value, int precision, string expected) {
+        [MemberData(nameof(toPrecisionMethodTest_data))]
+        public void toPrecisionMethodTest(int value, int precision, string expected) {
             Assert.Equal(expected, ASint.toPrecision(value, precision));
             Assert.Equal(expected, ((ASint)(ASObject)value).toPrecision(precision));
         }
@@ -338,7 +248,7 @@ namespace Mariana.AVM2.Tests {
         [InlineData(-1234567890, "~1234567890")]
         [InlineData(Int32.MaxValue, "2147483647")]
         [InlineData(Int32.MinValue, "~2147483648")]
-        public void toLocaleString_shouldFormatNumber(int value, string expected) {
+        public void toLocaleStringMethodTest(int value, string expected) {
             CultureInfo oldCulture = CultureInfo.CurrentCulture;
             try {
                 CultureInfo.CurrentCulture = new CultureInfo("en-US") {
@@ -358,42 +268,15 @@ namespace Mariana.AVM2.Tests {
         [InlineData(-100)]
         [InlineData(Int32.MaxValue)]
         [InlineData(Int32.MinValue)]
-        public void toFixed_toExponential_toPrecision_shouldThrowOnInvalidPrecision(int value) {
-            check(() => ASint.toFixed(value, -1));
-            check(() => ASint.toFixed(value, 21));
-            check(() => ASint.toFixed(value, -1000));
-            check(() => ASint.toFixed(value, 1000));
+        public void toFixedMethodTest_invalidPrecision(int value) {
+            int[] precisions = {-1, 21, -1000, 1000};
+            const ErrorCode errCode = ErrorCode.NUMBER_PRECISION_OUT_OF_RANGE;
 
-            check(() => ((ASint)(ASObject)value).toFixed(-1));
-            check(() => ((ASint)(ASObject)value).toFixed(21));
-            check(() => ((ASint)(ASObject)value).toFixed(-1000));
-            check(() => ((ASint)(ASObject)value).toFixed(1000));
-
-            check(() => ASint.toExponential(value, -1));
-            check(() => ASint.toExponential(value, 21));
-            check(() => ASint.toExponential(value, -1000));
-            check(() => ASint.toExponential(value, 1000));
-
-            check(() => ((ASint)(ASObject)value).toExponential(-1));
-            check(() => ((ASint)(ASObject)value).toExponential(21));
-            check(() => ((ASint)(ASObject)value).toExponential(-1000));
-            check(() => ((ASint)(ASObject)value).toExponential(1000));
-
-            check(() => ASint.toPrecision(value, 0));
-            check(() => ASint.toPrecision(value, -1));
-            check(() => ASint.toPrecision(value, 22));
-            check(() => ASint.toPrecision(value, -1000));
-            check(() => ASint.toPrecision(value, 1000));
-
-            check(() => ((ASint)(ASObject)value).toPrecision(0));
-            check(() => ((ASint)(ASObject)value).toPrecision(-1));
-            check(() => ((ASint)(ASObject)value).toPrecision(22));
-            check(() => ((ASint)(ASObject)value).toPrecision(-1000));
-            check(() => ((ASint)(ASObject)value).toPrecision(1000));
-
-            void check(Action f) => AssertHelper.throwsErrorWithCode(ErrorCode.NUMBER_PRECISION_OUT_OF_RANGE, f);
+            for (int i = 0; i < precisions.Length; i++) {
+                AssertHelper.throwsErrorWithCode(errCode, () => ASint.toFixed(value, precisions[i]));
+                AssertHelper.throwsErrorWithCode(errCode, () => ((ASint)(ASObject)value).toFixed(precisions[i]));
+            }
         }
-
 
         [Theory]
         [InlineData(0)]
@@ -401,67 +284,78 @@ namespace Mariana.AVM2.Tests {
         [InlineData(-100)]
         [InlineData(Int32.MaxValue)]
         [InlineData(Int32.MinValue)]
-        public void toString_shouldThrowOnInvalidRadix(int value) {
-            check(() => ASint.toString(value, -1));
-            check(() => ASint.toString(value, 0));
-            check(() => ASint.toString(value, 1));
-            check(() => ASint.toString(value, 37));
-            check(() => ASint.toString(value, -1000));
-            check(() => ASint.toString(value, 1000));
+        public void toExponentialMethodTest_invalidPrecision(int value) {
+            int[] precisions = {-1, 21, -1000, 1000};
+            const ErrorCode errCode = ErrorCode.NUMBER_PRECISION_OUT_OF_RANGE;
 
-            check(() => ((ASint)(ASObject)value).AS_toString(-1));
-            check(() => ((ASint)(ASObject)value).AS_toString(0));
-            check(() => ((ASint)(ASObject)value).AS_toString(1));
-            check(() => ((ASint)(ASObject)value).AS_toString(37));
-            check(() => ((ASint)(ASObject)value).AS_toString(-1000));
-            check(() => ((ASint)(ASObject)value).AS_toString(1000));
-
-            void check(Action f) => AssertHelper.throwsErrorWithCode(ErrorCode.NUMBER_RADIX_OUT_OF_RANGE, f);
+            for (int i = 0; i < precisions.Length; i++) {
+                AssertHelper.throwsErrorWithCode(errCode, () => ASint.toExponential(value, precisions[i]));
+                AssertHelper.throwsErrorWithCode(errCode, () => ((ASint)(ASObject)value).toExponential(precisions[i]));
+            }
         }
 
-        [Fact]
-        public void shouldConvertFromObject() {
-            ASObject obj = new ConvertibleMockObject(intValue: 1244);
+        [Theory]
+        [InlineData(0)]
+        [InlineData(100)]
+        [InlineData(-100)]
+        [InlineData(Int32.MaxValue)]
+        [InlineData(Int32.MinValue)]
+        public void toPrecisionMethodTest_invalidPrecision(int value) {
+            int[] precisions = {0, -1, 22, -1000, 1000};
+            const ErrorCode errCode = ErrorCode.NUMBER_PRECISION_OUT_OF_RANGE;
 
-            Assert.Equal(1244, (int)obj);
-            Assert.Equal(1244, ASObject.AS_toInt(obj));
-            Assert.Equal(1244, (int)(ASAny)obj);
-            Assert.Equal(1244, ASAny.AS_toInt((ASAny)obj));
+            for (int i = 0; i < precisions.Length; i++) {
+                AssertHelper.throwsErrorWithCode(errCode, () => ASint.toPrecision(value, precisions[i]));
+                AssertHelper.throwsErrorWithCode(errCode, () => ((ASint)(ASObject)value).toPrecision(precisions[i]));
+            }
         }
 
-        [Fact]
-        public void classInvokeOrConstruct_shouldConvertFirstArg() {
-            ASObject obj = new ConvertibleMockObject(intValue: 1244);
+        [Theory]
+        [InlineData(0)]
+        [InlineData(100)]
+        [InlineData(-100)]
+        [InlineData(Int32.MaxValue)]
+        [InlineData(Int32.MinValue)]
+        public void toStringMethodTest_invalidRadix(int value) {
+            int[] radices = {-1, 0, 1, 37, -1000, 1000};
+            const ErrorCode errCode = ErrorCode.NUMBER_RADIX_OUT_OF_RANGE;
+
+            for (int i = 0; i < radices.Length; i++) {
+                AssertHelper.throwsErrorWithCode(errCode, () => ASint.toString(value, radices[i]));
+                AssertHelper.throwsErrorWithCode(errCode, () => ((ASint)(ASObject)value).AS_toString(radices[i]));
+            }
+        }
+
+        public static IEnumerable<object[]> intClassRuntimeInvokeAndConstructTest_data() {
+            ASObject obj1 = new ConvertibleMockObject(intValue: 1244);
             ASObject obj2 = new ConvertibleMockObject(intValue: 35667);
 
-            check(s_intClass.invoke(new ASAny[] {}), 0);
-            check(s_intClass.invoke(new ASAny[] {default}), 0);
-            check(s_intClass.invoke(new ASAny[] {ASAny.@null}), 0);
-            check(s_intClass.invoke(new ASAny[] {obj}), 1244);
-            check(s_intClass.invoke(new ASAny[] {obj2}), 35667);
+            return TupleHelper.toArrays(
+                (Array.Empty<ASAny>(), 0),
+                (new ASAny[] {default}, 0),
+                (new ASAny[] {ASAny.@null}, 0),
+                (new ASAny[] {obj1}, 1244),
+                (new ASAny[] {obj2}, 35667),
+                (new ASAny[] {default, obj1}, 0),
+                (new ASAny[] {ASAny.@null, obj1}, 0),
+                (new ASAny[] {obj1, obj2}, 1244),
+                (new ASAny[] {obj2, obj1}, 35667),
+                (new ASAny[] {obj1, obj2, default, obj1}, 1244)
+            );
+        }
 
-            check(s_intClass.invoke(new ASAny[] {default, obj}), 0);
-            check(s_intClass.invoke(new ASAny[] {ASAny.@null, obj}), 0);
-            check(s_intClass.invoke(new ASAny[] {obj, obj2}), 1244);
-            check(s_intClass.invoke(new ASAny[] {obj2, obj}), 35667);
-            check(s_intClass.invoke(new ASAny[] {obj, obj2, default, obj}), 1244);
+        [Theory]
+        [MemberData(nameof(intClassRuntimeInvokeAndConstructTest_data))]
+        public void intClassRuntimeInvokeAndConstructTest(ASAny[] args, int expected) {
+            Class klass = Class.fromType(typeof(int));
 
-            check(s_intClass.construct(new ASAny[] {}), 0);
-            check(s_intClass.construct(new ASAny[] {default}), 0);
-            check(s_intClass.construct(new ASAny[] {ASAny.@null}), 0);
-            check(s_intClass.construct(new ASAny[] {obj}), 1244);
-            check(s_intClass.construct(new ASAny[] {obj2}), 35667);
+            check(klass.invoke(args));
+            check(klass.construct(args));
 
-            check(s_intClass.construct(new ASAny[] {default, obj}), 0);
-            check(s_intClass.construct(new ASAny[] {ASAny.@null, obj}), 0);
-            check(s_intClass.construct(new ASAny[] {obj, obj2}), 1244);
-            check(s_intClass.construct(new ASAny[] {obj2, obj}), 35667);
-            check(s_intClass.construct(new ASAny[] {obj, obj2, default, obj}), 1244);
-
-            void check(ASAny o, int value) {
-                Assert.IsType<ASint>(o.value);
-                Assert.Same(s_intClass, o.AS_class);
-                Assert.Equal(value, ASObject.AS_toInt(o.value));
+            void check(ASAny result) {
+                Assert.IsType<ASint>(result.value);
+                Assert.Same(klass, result.AS_class);
+                Assert.Equal(expected, ASObject.AS_toInt(result.value));
             }
         }
 

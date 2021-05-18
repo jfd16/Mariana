@@ -893,6 +893,7 @@ namespace Mariana.AVM2.Tests {
                 ranges.Add((start, 0.0));
                 ranges.Add((start, -(double)(arrayLength - end) - 1.0));
                 ranges.Add((start, -(double)arrayLength));
+                ranges.Add((start, Double.NegativeInfinity));
             }
 
             if (start == arrayLength && end == arrayLength) {
@@ -900,6 +901,10 @@ namespace Mariana.AVM2.Tests {
                 ranges.Add((start + 100000.0, end + 200000.0));
                 ranges.Add((start + 200000.0, end + 100000.0));
                 ranges.Add((Double.PositiveInfinity, Double.PositiveInfinity));
+            }
+
+            if (start == 0 && end == arrayLength) {
+                ranges.Add((Double.NegativeInfinity, Double.PositiveInfinity));
             }
 
             return ranges;

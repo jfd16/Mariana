@@ -210,17 +210,23 @@ namespace Mariana.AVM2.Compiler {
         PUSH_OPTIONAL_PARAM = 1024,
 
         /// <summary>
+        /// The node is a stack node that must be converted to a string using <c>convert_s</c> semantics
+        /// after being pushed.
+        /// </summary>
+        PUSH_CONVERT_STRING = 2048,
+
+        /// <summary>
         /// Indicates that a local variable assignment is eligible for write-through optimization.
         /// This is used for local nodes that are a source to a single phi node and have no other
         /// uses.
         /// </summary>
-        LOCAL_WRITE_THROUGH = 2048,
+        LOCAL_WRITE_THROUGH = 4096,
 
         /// <summary>
         /// Indicates that property binding on the node where the name is a multiname with a
         /// namespace set must always be deferred to runtime, even when the node type is known.
         /// </summary>
-        LATE_MULTINAME_BINDING = 4096,
+        LATE_MULTINAME_BINDING = 8192,
 
     }
 

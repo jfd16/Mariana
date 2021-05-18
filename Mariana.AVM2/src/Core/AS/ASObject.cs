@@ -2196,9 +2196,8 @@ namespace Mariana.AVM2.Core {
         /// <c>valueOf()</c>); for any other object, the number hint is used (<c>valueOf()</c>
         /// is called before <c>toString()</c>).
         /// </remarks>
-        public static ASAny AS_toPrimitive(ASObject obj) {
-            return (obj is ASDate) ? AS_toPrimitiveStringHint(obj) : AS_toPrimitiveNumHint(obj);
-        }
+        public static ASAny AS_toPrimitive(ASObject obj) =>
+            (obj is ASDate) ? AS_toPrimitiveStringHint(obj) : AS_toPrimitiveNumHint(obj);
 
         /// <summary>
         /// Converts the given object to a primitive object with string hint.
@@ -2222,16 +2221,19 @@ namespace Mariana.AVM2.Core {
         /// does not return a primitive object.
         /// </remarks>
         public static ASAny AS_toPrimitiveStringHint(ASObject obj) {
+            if (AS_isPrimitive(obj))
+                return obj;
+
             if (obj == null)
                 return ASAny.@null;
 
             ASAny result;
             result = obj.AS_callProperty(QName.publicName("toString"), Array.Empty<ASAny>());
-            if (result.value == null || ClassTagSet.primitive.contains(result.AS_class.tag))
+            if (result.isUndefinedOrNull || ClassTagSet.primitive.contains(result.AS_class.tag))
                 return result;
 
             result = obj.AS_callProperty(QName.publicName("valueOf"), Array.Empty<ASAny>());
-            if (result.value == null || ClassTagSet.primitive.contains(result.AS_class.tag))
+            if (result.isUndefinedOrNull || ClassTagSet.primitive.contains(result.AS_class.tag))
                 return result;
 
             throw ErrorHelper.createError(ErrorCode.CANNOT_CONVERT_OBJECT_TO_PRIMITIVE);
@@ -2259,16 +2261,19 @@ namespace Mariana.AVM2.Core {
         /// does not return a primitive object.
         /// </remarks>
         public static ASAny AS_toPrimitiveNumHint(ASObject obj) {
+            if (AS_isPrimitive(obj))
+                return obj;
+
             if (obj == null)
                 return ASAny.@null;
 
             ASAny result;
             result = obj.AS_callProperty(QName.publicName("valueOf"), Array.Empty<ASAny>());
-            if (result.value == null || ClassTagSet.primitive.contains(result.AS_class.tag))
+            if (result.isUndefinedOrNull || ClassTagSet.primitive.contains(result.AS_class.tag))
                 return result;
 
             result = obj.AS_callProperty(QName.publicName("toString"), Array.Empty<ASAny>());
-            if (result.value == null || ClassTagSet.primitive.contains(result.AS_class.tag))
+            if (result.isUndefinedOrNull || ClassTagSet.primitive.contains(result.AS_class.tag))
                 return result;
 
             throw ErrorHelper.createError(ErrorCode.CANNOT_CONVERT_OBJECT_TO_PRIMITIVE);
@@ -2293,9 +2298,9 @@ namespace Mariana.AVM2.Core {
         /// object is null.</item>
         /// <item>If both objects are equal by reference (but are not the boxed representation of NaN),
         /// they are considered equal.</item>
-        /// <item>If one of the objects is of a numeric type (int, uint, Number) or Boolean, then both
-        /// objects are converted to the Number type and the floating-point number values are
-        /// compared.</item>
+        /// <item>If one of the objects is of a numeric type (int, uint, Number) or Boolean and
+        /// the other is of a primitive type, then both objects are converted to the Number type and
+        /// the floating-point number values are compared.</item>
         /// <item>If both the objects are strings, the string values are compared. The comparison is
         /// based on character code points and is locale-independent.</item>
         /// <item>Two Namespace objects are equal if they have the same URI.</item>
@@ -2317,6 +2322,8 @@ namespace Mariana.AVM2.Core {
         /// operand.</item>
         /// <item>If one of the objects is an XML object having simple content, both objects are
         /// converted to strings and a string comparison is done.</item>
+        /// <item>If one of the objects is of a primitive type, the other object is converted to
+        /// a primitive and compared to the primitive value.</item>
         /// <item>Otherwise, the two objects are not equal.</item>
         /// </list>
         /// </remarks>
@@ -2332,18 +2339,30 @@ namespace Mariana.AVM2.Core {
             if (y != null)
                 tagSet = tagSet.add(y.AS_class.tag);
 
-            if (ClassTagSet.xmlOrXmlList.containsAny(tagSet))
+            if (ClassTagSet.xmlOrXmlList.containsAny(tagSet)) {
                 // null equals a simple-content XML object with "null", so do this check first.
                 return XMLHelper.weakEquals(x, y);
+            }
 
             if (x == null || y == null)
                 return false;
 
-            if (ClassTagSet.numericOrBool.containsAny(tagSet))
-                return (double)x == (double)y;
+            if (ClassTagSet.primitive.containsAll(tagSet)) {
+                if (ClassTagSet.numericOrBool.containsAny(tagSet))
+                    return (double)x == (double)y;
+                else
+                    return (string)x == (string)y;
+            }
 
-            if (tagSet.isSingle(ClassTag.STRING))
-                return (string)x == (string)y;
+            if (ClassTagSet.primitive.containsAny(tagSet)) {
+                // Although ECMAScript requires ToPrimitive to be called with no hint in this
+                // case (and this is what JS engines in most web browsers do), Flash seems to
+                // be using a Number hint, which always calls valueOf before toString.
+                // The difference is only observed when one of the operands is a Date object,
+                // so `new Date(1000) == 1000` is true and `new Date(1000) == String(new Date(1000))`
+                // is not, but the results would be opposite if we go strictly by the ECMA spec.
+                return ASAny.AS_weakEq(AS_toPrimitiveNumHint(x), AS_toPrimitiveNumHint(y));
+            }
 
             if (tagSet.isSingle(ClassTag.QNAME)) {
                 // We don't call ASQName.AS_equals here because it does the reference equal
@@ -2355,11 +2374,8 @@ namespace Mariana.AVM2.Core {
             if (tagSet.isSingle(ClassTag.NAMESPACE))
                 return ((ASNamespace)x).uri == ((ASNamespace)y).uri;
 
-            if (tagSet.isSingle(ClassTag.FUNCTION)) {
-                return x is ASMethodClosure mc1 && y is ASMethodClosure mc2
-                    && mc1.method == mc2.method
-                    && mc1.storedReceiver == mc2.storedReceiver;
-            }
+            if (tagSet.isSingle(ClassTag.FUNCTION))
+                return ASFunction.internalEquals((ASFunction)x, (ASFunction)y);
 
             return false;
         }
@@ -2375,18 +2391,15 @@ namespace Mariana.AVM2.Core {
         /// <remarks>
         /// <para>The comparison is done as follows (in order):</para>
         /// <list type="bullet">
-        /// <item>If one of the objects is null, the objects are equal if and only if the other object
-        /// is null.</item>
-        /// <item>If both objects are equal by reference (but are not the boxed representation of NaN),
-        /// they are considered equal.</item>
+        /// <item>null compares equal only to null.</item>
+        /// <item>If both objects are identical (by reference), but are not the boxed representation
+        /// of NaN, they are considered equal.</item>
         /// <item>If both the objects are of numeric types (int, uint or Number), then both objects
         /// are converted to the Number type and the floating-point number values are
         /// compared.</item>
+        /// <item>If both the objects are of the Boolean type, the Boolean values are compared.</item>
         /// <item>If both the objects are Strings, the string values are compared. The comparison is
         /// based on character code points and is locale-independent.</item>
-        /// <item>If both the objects are of the Namespace type, they are equal if they have the same
-        /// URIs. If both are of the QName type, they are equal if their namespace URIs and local
-        /// names are equal.</item>
         /// <item>Otherwise, the two objects are not equal. Unlike weak equality, strict equality
         /// considers XML and XMLList objects as ordinary objects and they are compared by reference
         /// only.</item>
@@ -2409,19 +2422,12 @@ namespace Mariana.AVM2.Core {
             if (tagSet.isSingle(ClassTag.STRING))
                 return (string)x == (string)y;
 
-            if (tagSet.isSingle(ClassTag.QNAME)) {
-                ASQName qname1 = (ASQName)x, qname2 = (ASQName)y;
-                return qname1.localName == qname2.localName && qname1.uri == qname2.uri;
-            }
+            // We don't need to compare Boolean values here because each of the two Boolean
+            // values has exactly one boxed object associated with it, so if they are not
+            // reference-identical, they are definitely not equal.
 
-            if (tagSet.isSingle(ClassTag.NAMESPACE))
-                return ((ASNamespace)x).uri == ((ASNamespace)y).uri;
-
-            if (tagSet.isSingle(ClassTag.FUNCTION)) {
-                return x is ASMethodClosure mc1 && y is ASMethodClosure mc2
-                    && mc1.method == mc2.method
-                    && mc1.storedReceiver == mc2.storedReceiver;
-            }
+            if (tagSet.isSingle(ClassTag.FUNCTION))
+                return ASFunction.internalEquals((ASFunction)x, (ASFunction)y);
 
             return false;
         }
@@ -2512,7 +2518,7 @@ namespace Mariana.AVM2.Core {
         /// comparison is based on character code points and is locale-independent. Otherwise, the
         /// objects are converted to the Number type and their floating-point values are compared.
         /// </remarks>
-        public static bool AS_greaterThan(ASObject x, ASObject y) => AS_greaterThan(y, x);
+        public static bool AS_greaterThan(ASObject x, ASObject y) => AS_lessThan(y, x);
 
         /// <summary>
         /// Adds two objects using the definition of the addition (+) operator in ActionScript 3.
@@ -2546,8 +2552,9 @@ namespace Mariana.AVM2.Core {
 
             if (ClassTagSet.numericOrBool.containsAll(tagSet))
                 return (double)x + (double)y;
+
             if (ClassTagSet.stringOrDate.containsAny(tagSet))
-                return ASObject.AS_convertString(x) + ASObject.AS_convertString(y);
+                return AS_convertString(x) + AS_convertString(y);
 
             if (ClassTagSet.xmlOrXmlList.containsAll(tagSet) && x != null && y != null)
                 return XMLHelper.concatenateXMLObjects(x, y);
@@ -2556,9 +2563,9 @@ namespace Mariana.AVM2.Core {
             ASAny prim2 = AS_toPrimitive(y);
 
             tagSet = default;
-            if (prim1.value != null)
+            if (!prim1.isUndefinedOrNull)
                 tagSet = tagSet.add(prim1.AS_class.tag);
-            if (prim2.value != null)
+            if (!prim2.isUndefinedOrNull)
                 tagSet = tagSet.add(prim2.AS_class.tag);
 
             if (ClassTagSet.numericOrBool.containsAll(tagSet))
@@ -3038,10 +3045,8 @@ namespace Mariana.AVM2.Core {
                     return AS_coerceNumber().GetHashCode();
                 case ClassTag.STRING:
                     return AS_coerceString().GetHashCode();
-                case ClassTag.NAMESPACE:
-                    return ((ASNamespace)this).uri.GetHashCode();
-                case ClassTag.QNAME:
-                    return ((ASQName)this).internalGetHashCode();
+                case ClassTag.FUNCTION:
+                    return ((ASFunction)this).internalGetHashCode();
                 default:
                     return base.GetHashCode();
             }

@@ -8,7 +8,7 @@ namespace Mariana.AVM2.Tests {
     public class MetadataTagCollectionTest {
 
         [Fact]
-        public void emptyCollection_shouldBeEmpty() {
+        public void emptyCollectionShouldBeEmpty() {
             MetadataTagCollection empty;
 
             empty = MetadataTagCollection.empty;
@@ -27,7 +27,7 @@ namespace Mariana.AVM2.Tests {
         }
 
         [Fact]
-        public void getTags_shouldGetAllTags() {
+        public void getTagsMethodTest() {
             var tags = new MetadataTag[] {
                 new MetadataTag("A", default, default),
                 new MetadataTag("A", default, default),
@@ -47,7 +47,7 @@ namespace Mariana.AVM2.Tests {
         }
 
         [Fact]
-        public void getTag_shouldGetFirstTagWithName() {
+        public void getTagMethodTest() {
             var tags = new MetadataTag[] {
                 new MetadataTag("A", default, default),
                 new MetadataTag("A", default, default),

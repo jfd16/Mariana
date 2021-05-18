@@ -9,7 +9,7 @@ namespace Mariana.AVM2.Tests {
     public class NamespaceTest {
 
         [Fact]
-        public void anyNamespace_shouldHaveKindAnyAndUriNull() {
+        public void anyNamespaceShouldHaveKindAnyAndUriNull() {
             Assert.Equal(NamespaceKind.ANY, Namespace.any.kind);
             Assert.Equal(NamespaceKind.ANY, default(Namespace).kind);
             Assert.Null(Namespace.any.uri);
@@ -17,25 +17,19 @@ namespace Mariana.AVM2.Tests {
         }
 
         [Fact]
-        public void publicNamespace_shouldHaveKindNamespaceAndUriEmpty() {
+        public void publicNamespaceShouldHaveKindNamespaceAndUriEmpty() {
             Assert.Equal(NamespaceKind.NAMESPACE, Namespace.@public.kind);
             Assert.Equal("", Namespace.@public.uri);
         }
 
-        [Fact]
-        public void singleArgCtor_shouldCreateAnyNamespaceWthNullUri() {
-            var ns = new Namespace(null);
-            Assert.Equal(NamespaceKind.ANY, ns.kind);
-            Assert.Null(ns.uri);
-        }
-
         [Theory]
+        [InlineData(null)]
         [InlineData("")]
         [InlineData("*")]
         [InlineData("hello")]
         public void singleArgCtor_shouldCreateNamespaceWithUri(string uri) {
             var ns = new Namespace(uri);
-            Assert.Equal(NamespaceKind.NAMESPACE, ns.kind);
+            Assert.Equal((uri != null) ? NamespaceKind.NAMESPACE : NamespaceKind.ANY, ns.kind);
             Assert.Equal(uri, ns.uri);
         }
 
@@ -50,10 +44,20 @@ namespace Mariana.AVM2.Tests {
         [InlineData(NamespaceKind.PROTECTED, "hello")]
         [InlineData(NamespaceKind.STATIC_PROTECTED, "")]
         [InlineData(NamespaceKind.STATIC_PROTECTED, "hello")]
-        public void ctor_shouldCreateNamespaceWithKindAndUri(NamespaceKind kind, string uri) {
+        public void constructorTest_withKindAndUri(NamespaceKind kind, string uri) {
             var ns = new Namespace(kind, uri);
             Assert.Equal(kind, ns.kind);
             Assert.Equal(uri, ns.uri);
+        }
+
+        [Theory]
+        [InlineData(NamespaceKind.NAMESPACE, null)]
+        [InlineData(NamespaceKind.EXPLICIT, null)]
+        [InlineData(NamespaceKind.PACKAGE_INTERNAL, null)]
+        [InlineData(NamespaceKind.PROTECTED, null)]
+        [InlineData(NamespaceKind.STATIC_PROTECTED, null)]
+        internal void constructorTest_withKindAndNullUri(NamespaceKind kind, string uri) {
+            AssertHelper.throwsErrorWithCode(ErrorCode.MARIANA__NAMESPACE_NULL_NAME, () => new Namespace(kind, uri));
         }
 
         [Theory]
@@ -69,23 +73,13 @@ namespace Mariana.AVM2.Tests {
         [InlineData((NamespaceKind)((int)NamespaceKind.PRIVATE + 1), null, ErrorCode.MARIANA__INVALID_NS_CATEGORY)]
         [InlineData((NamespaceKind)((int)NamespaceKind.PRIVATE + 1), "", ErrorCode.MARIANA__INVALID_NS_CATEGORY)]
         [InlineData((NamespaceKind)((int)NamespaceKind.PRIVATE + 1), "hello", ErrorCode.MARIANA__INVALID_NS_CATEGORY)]
-        internal void ctor_shouldThrowOnInvalidKind(NamespaceKind kind, string uri, ErrorCode errCode) {
-            var exc = Assert.Throws<AVM2Exception>(() => { new Namespace(kind, uri); });
+        internal void constructorTest_withInvalidKind(NamespaceKind kind, string uri, ErrorCode errCode) {
+            var exc = Assert.Throws<AVM2Exception>(() => new Namespace(kind, uri));
             Assert.Equal(errCode, (ErrorCode)((ASError)exc.thrownValue).errorID);
         }
 
-        [Theory]
-        [InlineData(NamespaceKind.NAMESPACE, null)]
-        [InlineData(NamespaceKind.EXPLICIT, null)]
-        [InlineData(NamespaceKind.PACKAGE_INTERNAL, null)]
-        [InlineData(NamespaceKind.PROTECTED, null)]
-        [InlineData(NamespaceKind.STATIC_PROTECTED, null)]
-        internal void ctor_shouldThrowOnNullUri(NamespaceKind kind, string uri) {
-            AssertHelper.throwsErrorWithCode(ErrorCode.MARIANA__NAMESPACE_NULL_NAME, () => new Namespace(kind, uri));
-        }
-
         [Fact]
-        public void createPrivate_shouldCreatePrivateNamespace() {
+        public void createPrivateMethodTest() {
             var ns1 = Namespace.createPrivate();
             var ns2 = Namespace.createPrivate();
             var ns3 = Namespace.createPrivate();
@@ -101,9 +95,12 @@ namespace Mariana.AVM2.Tests {
             Assert.NotEqual(ns1.privateNamespaceId, ns2.privateNamespaceId);
             Assert.NotEqual(ns1.privateNamespaceId, ns3.privateNamespaceId);
             Assert.NotEqual(ns2.privateNamespaceId, ns3.privateNamespaceId);
+        }
 
-            ns1 = Namespace.createPrivate(0);
-            ns2 = Namespace.createPrivate(10);
+        [Fact]
+        public void createPrivateMethodTest_withIdSpecified() {
+            var ns1 = Namespace.createPrivate(0);
+            var ns2 = Namespace.createPrivate(10);
 
             Assert.Equal(0, ns1.privateNamespaceId);
             Assert.Equal(10, ns2.privateNamespaceId);
@@ -116,9 +113,16 @@ namespace Mariana.AVM2.Tests {
         }
 
         [Fact]
-        public void privateNamespaceId_shouldGetId() {
+        public void createPrivateMethodTest_idExceedsMaxValue() {
+            AssertHelper.throwsErrorWithCode(ErrorCode.MARIANA__PRIVATE_NS_LIMIT_EXCEEDED, () => Namespace.createPrivate(-1));
+            AssertHelper.throwsErrorWithCode(ErrorCode.MARIANA__PRIVATE_NS_LIMIT_EXCEEDED, () => Namespace.createPrivate(0xFFFFFFF + 1));
+        }
+
+        [Fact]
+        public void privateNamespaceIdPropertyTest() {
             Assert.Equal(0, Namespace.createPrivate(0).privateNamespaceId);
             Assert.Equal(10, Namespace.createPrivate(10).privateNamespaceId);
+
             Assert.Equal(-1, Namespace.any.privateNamespaceId);
             Assert.Equal(-1, Namespace.@public.privateNamespaceId);
             Assert.Equal(-1, (new Namespace("a")).privateNamespaceId);
@@ -126,13 +130,7 @@ namespace Mariana.AVM2.Tests {
         }
 
         [Fact]
-        public void createPrivate_shouldThrowWhenIdExceedsMaxValue() {
-            AssertHelper.throwsErrorWithCode(ErrorCode.MARIANA__PRIVATE_NS_LIMIT_EXCEEDED, () => Namespace.createPrivate(-1));
-            AssertHelper.throwsErrorWithCode(ErrorCode.MARIANA__PRIVATE_NS_LIMIT_EXCEEDED, () => Namespace.createPrivate(0xFFFFFFF + 1));
-        }
-
-        [Fact]
-        public void isPublic_shouldReturnTrueForPublicNamespace() {
+        public void isPublicPropertyTest() {
             Assert.True(Namespace.@public.isPublic);
             Assert.True((new Namespace("")).isPublic);
             Assert.True((new Namespace(NamespaceKind.NAMESPACE, "")).isPublic);
@@ -145,47 +143,39 @@ namespace Mariana.AVM2.Tests {
             Assert.False(Namespace.createPrivate(1).isPublic);
         }
 
-        public static IEnumerable<object[]> equals_shouldCheckForNamespaceEquality_data = new object[][] {
-            new object[] { Namespace.any, Namespace.any, true },
-            new object[] { new Namespace(""), Namespace.@public, true },
-            new object[] { new Namespace("hello"), new Namespace("hello"), true },
-            new object[] { new Namespace("hello"), new Namespace(NamespaceKind.NAMESPACE, "hello"), true },
-            new object[] {
-                new Namespace(NamespaceKind.PROTECTED, "hello"),
-                new Namespace(NamespaceKind.PROTECTED, "hello"),
-                true
-            },
-            new object[] { Namespace.createPrivate(0), Namespace.createPrivate(0), true },
-            new object[] { Namespace.createPrivate(100), Namespace.createPrivate(100), true },
-
-            new object[] { new Namespace(""), Namespace.any, false },
-            new object[] { new Namespace(""), new Namespace("hello"), false },
-            new object[] { new Namespace("world"), new Namespace("hello"), false },
-            new object[] { new Namespace("world"), Namespace.any, false },
-            new object[] { new Namespace("hello"), new Namespace(NamespaceKind.EXPLICIT, "hello"), false },
-            new object[] {
-                new Namespace(NamespaceKind.PACKAGE_INTERNAL, "hello"),
-                new Namespace(NamespaceKind.EXPLICIT, "hello"),
-                false
-            },
-            new object[] {
-                new Namespace(NamespaceKind.PACKAGE_INTERNAL, "hello"),
-                new Namespace(NamespaceKind.EXPLICIT, "world"),
-                false
-            },
-            new object[] { Namespace.any, Namespace.createPrivate(0), false },
-            new object[] { new Namespace("hello"), Namespace.createPrivate(0), false },
-            new object[] { Namespace.createPrivate(0), Namespace.createPrivate(1), false },
-            new object[] { Namespace.createPrivate(), Namespace.createPrivate(), false },
-        };
+        public static IEnumerable<object[]> equals_getHashCode_testData = TupleHelper.toArrays(
+            (Namespace.any, Namespace.any, true),
+            (new Namespace(""), Namespace.@public, true),
+            (new Namespace("hello"), new Namespace("hello"), true),
+            (new Namespace("hello"), new Namespace(NamespaceKind.NAMESPACE, "hello"), true),
+            (new Namespace(NamespaceKind.PROTECTED, "hello"), new Namespace(NamespaceKind.PROTECTED, "hello"), true),
+            (Namespace.createPrivate(0), Namespace.createPrivate(0), true),
+            (Namespace.createPrivate(100), Namespace.createPrivate(100), true),
+            (new Namespace(""), Namespace.any, false),
+            (new Namespace(""), new Namespace("hello"), false),
+            (new Namespace("world"), new Namespace("hello"), false),
+            (new Namespace("world"), Namespace.any, false),
+            (new Namespace("hello"), new Namespace(NamespaceKind.EXPLICIT, "hello"), false),
+            (new Namespace(NamespaceKind.PACKAGE_INTERNAL, "hello"), new Namespace(NamespaceKind.EXPLICIT, "hello"), false),
+            (new Namespace(NamespaceKind.PACKAGE_INTERNAL, "hello"), new Namespace(NamespaceKind.EXPLICIT, "world"), false),
+            (Namespace.any, Namespace.createPrivate(0), false),
+            (new Namespace("hello"), Namespace.createPrivate(0), false),
+            (Namespace.createPrivate(0), Namespace.createPrivate(1), false),
+            (Namespace.createPrivate(), Namespace.createPrivate(), false)
+        );
 
         [Theory]
-        [MemberData(nameof(equals_shouldCheckForNamespaceEquality_data))]
-        public void equals_shouldCheckForNamespaceEquality(Namespace ns1, Namespace ns2, bool areEqual) {
+        [MemberData(nameof(equals_getHashCode_testData))]
+        public void equalsMethodTest(Namespace ns1, Namespace ns2, bool areEqual) {
             Assert.Equal(areEqual, ns1.Equals(ns2));
             Assert.Equal(areEqual, ns2.Equals(ns1));
             Assert.Equal(areEqual, ns1.Equals((object)ns2));
             Assert.Equal(areEqual, ns2.Equals((object)ns1));
+        }
+
+        [Theory]
+        [MemberData(nameof(equals_getHashCode_testData))]
+        public void equalsOperatorTest(Namespace ns1, Namespace ns2, bool areEqual) {
             Assert.Equal(areEqual, ns1 == ns2);
             Assert.Equal(areEqual, ns2 == ns1);
             Assert.Equal(!areEqual, ns1 != ns2);
@@ -193,25 +183,31 @@ namespace Mariana.AVM2.Tests {
         }
 
         [Theory]
-        [MemberData(nameof(equals_shouldCheckForNamespaceEquality_data))]
-        public void getHashCode_shouldReturnSameHashCodeForEqual(Namespace ns1, Namespace ns2, bool areEqual) {
+        [MemberData(nameof(equals_getHashCode_testData))]
+        public void getHashCodeMethodTest(Namespace ns1, Namespace ns2, bool areEqual) {
             if (areEqual)
                 Assert.Equal(ns1.GetHashCode(), ns2.GetHashCode());
         }
 
         [Fact]
-        public void equals_shouldNotEqualOtherObject() {
+        public void equalsMethodTest_withNonNamespaceObject() {
             Assert.False((new Namespace("hello")).Equals((object)"hello"));
             Assert.False((new Namespace("hello")).Equals((object)null));
             Assert.False((new Namespace("hello")).Equals(new object()));
+            Assert.False(Namespace.any.Equals((object)null));
         }
 
-        [Fact]
-        public void fromASNamespace_shouldCreateNamespaceWithSameUri() {
-            Assert.Equal(Namespace.any, Namespace.fromASNamespace(null));
-            Assert.Equal(Namespace.@public, Namespace.fromASNamespace(new ASNamespace("")));
-            Assert.Equal(new Namespace("hello"), Namespace.fromASNamespace(new ASNamespace("hello")));
-            Assert.Equal(new Namespace("hello"), Namespace.fromASNamespace(new ASNamespace("p", "hello")));
+        public static IEnumerable<object[]> fromASNamespaceMethodTest_data = TupleHelper.toArrays(
+            (null, Namespace.any),
+            (new ASNamespace(""), Namespace.@public),
+            (new ASNamespace("hello"), new Namespace("hello")),
+            (new ASNamespace("p", "hello"), new Namespace("hello"))
+        );
+
+        [Theory]
+        [MemberData(nameof(fromASNamespaceMethodTest_data))]
+        public void fromASNamespaceMethodTest(ASNamespace namespaceObj, Namespace expected) {
+            Assert.Equal(expected, Namespace.fromASNamespace(namespaceObj));
         }
 
         [Theory]
@@ -219,13 +215,13 @@ namespace Mariana.AVM2.Tests {
         [InlineData("")]
         [InlineData("*")]
         [InlineData("hello")]
-        public void implicitConvFromString_shouldCreateNamespaceWithUri(string s) {
-            Namespace ns = s;
-            Assert.Equal((s == null) ? NamespaceKind.ANY : NamespaceKind.NAMESPACE, ns.kind);
-            Assert.Equal(s, ns.uri);
+        public void implicitConvFromStringTest(string strToConvert) {
+            Namespace ns = strToConvert;
+            Assert.Equal((strToConvert == null) ? NamespaceKind.ANY : NamespaceKind.NAMESPACE, ns.kind);
+            Assert.Equal(strToConvert, ns.uri);
         }
 
-        public static IEnumerable<object[]> toString_shouldReturnStringRepr_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> toStringMethodTest_data = TupleHelper.toArrays(
             (Namespace.any, "*"),
             (Namespace.@public, ""),
             (new Namespace("hello"), "hello"),
@@ -241,8 +237,8 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(toString_shouldReturnStringRepr_data))]
-        public void toString_shouldReturnStringRepr(Namespace ns, string expected) {
+        [MemberData(nameof(toStringMethodTest_data))]
+        public void toStringMethodTest(Namespace ns, string expected) {
             Assert.Equal(expected, ns.ToString());
         }
 

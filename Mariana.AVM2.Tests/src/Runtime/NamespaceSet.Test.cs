@@ -10,14 +10,14 @@ namespace Mariana.AVM2.Tests {
     public class NamespaceSetTest {
 
         [Fact]
-        public void defaultValue_shouldBeEmpty() {
+        public void defaultValueShouldBeEmpty() {
             NamespaceSet nsSet = default;
             Assert.Equal(0, nsSet.count);
             Assert.Equal(0, nsSet.getNamespaces().length);
         }
 
         [Fact]
-        public void ctor_shouldCreateEmptySetFromNullOrEmptyArray() {
+        public void constructorTest_withNullOrEmptySet() {
             NamespaceSet nsSet = new NamespaceSet(null);
             Assert.Equal(0, nsSet.count);
             Assert.Equal(0, nsSet.getNamespaces().length);
@@ -31,7 +31,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(0, nsSet.getNamespaces().length);
         }
 
-        public static IEnumerable<object[]> ctor_shouldCreateSet_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> constructorTest_data = TupleHelper.toArrays(
             new Namespace[0],
             new[] { Namespace.any },
             new[] { Namespace.@public },
@@ -55,8 +55,8 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(ctor_shouldCreateSet_data))]
-        public void ctor_shouldCreateSet(Namespace[] elements) {
+        [MemberData(nameof(constructorTest_data))]
+        public void constructorTest(Namespace[] elements) {
             NamespaceSet nsSet;
             HashSet<Namespace> hashSet = elements.ToHashSet();
 
@@ -71,11 +71,11 @@ namespace Mariana.AVM2.Tests {
             Assert.Subset(hashSet, nsSet.getNamespaces().ToHashSet());
         }
 
-        public static IEnumerable<object[]> toString_shouldReturnStringRepr_data = ctor_shouldCreateSet_data;
+        public static IEnumerable<object[]> toStringMethodTest_data = constructorTest_data;
 
         [Theory]
-        [MemberData(nameof(toString_shouldReturnStringRepr_data))]
-        public void toString_shouldReturnStringRepr(Namespace[] elements) {
+        [MemberData(nameof(toStringMethodTest_data))]
+        public void toStringMethodTest(Namespace[] elements) {
             var nsSet = new NamespaceSet(elements);
             var str = nsSet.ToString();
 
@@ -95,7 +95,7 @@ namespace Mariana.AVM2.Tests {
                 Assert.Contains(namespaces[i].isPublic ? "<public>" : namespaces[i].ToString(), parts);
         }
 
-        public static IEnumerable<object[]> containsAny_shouldCheckIfSetContainsAny_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> containsAnyPropertyTest_data = TupleHelper.toArrays(
             (new Namespace[0], false),
             (new[] { Namespace.@public }, false),
             (new[] { Namespace.any }, true),
@@ -137,12 +137,12 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(containsAny_shouldCheckIfSetContainsAny_data))]
-        public void containsAny_shouldCheckIfSetContainsAny(Namespace[] elements, bool expected) {
+        [MemberData(nameof(containsAnyPropertyTest_data))]
+        public void containsAnyPropertyTest(Namespace[] elements, bool expected) {
             Assert.Equal(expected, (new NamespaceSet(elements)).containsAny);
         }
 
-        public static IEnumerable<object[]> containsPublic_shouldCheckIfSetContainsPublic_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> containsPublicPropertyTest_data = TupleHelper.toArrays(
             (new Namespace[0], false),
             (new[] { Namespace.@public }, true),
             (new[] { Namespace.any }, false),
@@ -183,12 +183,12 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(containsPublic_shouldCheckIfSetContainsPublic_data))]
-        public void containsPublic_shouldCheckIfSetContainsPublic(Namespace[] elements, bool expected) {
+        [MemberData(nameof(containsPublicPropertyTest_data))]
+        public void containsPublicPropertyTest(Namespace[] elements, bool expected) {
             Assert.Equal(expected, (new NamespaceSet(elements)).containsPublic);
         }
 
-        public static IEnumerable<object[]> contains_shouldCheckIfSetContainsGivenKind_data = TupleHelper.toArrays(
+        public static IEnumerable<object[]> containsMethodTest_withKind_data = TupleHelper.toArrays(
             new Namespace[0],
 
             new[] { Namespace.any },
@@ -217,8 +217,8 @@ namespace Mariana.AVM2.Tests {
         );
 
         [Theory]
-        [MemberData(nameof(contains_shouldCheckIfSetContainsGivenKind_data))]
-        public void contains_shouldCheckIfSetContainsGivenKind(Namespace[] elements) {
+        [MemberData(nameof(containsMethodTest_withKind_data))]
+        public void containsMethodTest_withKind(Namespace[] elements) {
             var kinds = (NamespaceKind[])Enum.GetValues(typeof(NamespaceKind));
             var set = new NamespaceSet(elements);
 
@@ -228,7 +228,7 @@ namespace Mariana.AVM2.Tests {
             }
         }
 
-        public static IEnumerable<object[]> contains_shouldCheckIfSetContainsGivenUri_data() {
+        public static IEnumerable<object[]> containsMethodTest_withUri_data() {
             var elements = new Namespace[][] {
                 new Namespace[0],
                 new[] { Namespace.any },
@@ -269,14 +269,14 @@ namespace Mariana.AVM2.Tests {
         }
 
         [Theory]
-        [MemberData(nameof(contains_shouldCheckIfSetContainsGivenUri_data))]
-        public void contains_shouldCheckIfSetContainsGivenUri(Namespace[] elements, string uri) {
+        [MemberData(nameof(containsMethodTest_withUri_data))]
+        public void containsMethodTest_withUri(Namespace[] elements, string uri) {
             var nsSet = new NamespaceSet(elements);
             var hasUri = uri != null && elements.Contains(new Namespace(uri));
             Assert.Equal(hasUri, nsSet.contains(uri));
         }
 
-        public static IEnumerable<object[]> contains_shouldCheckIfSetContainsGivenNamespace_data() {
+        public static IEnumerable<object[]> containsMethodTest_withNamespace_data() {
             var elements = new Namespace[][] {
                 new Namespace[0],
                 new[] { Namespace.any },
@@ -327,8 +327,8 @@ namespace Mariana.AVM2.Tests {
         }
 
         [Theory]
-        [MemberData(nameof(contains_shouldCheckIfSetContainsGivenNamespace_data))]
-        public void contains_shouldCheckIfSetContainsGivenNamespace(Namespace[] elements, Namespace ns) {
+        [MemberData(nameof(containsMethodTest_withNamespace_data))]
+        public void containsMethodTest_withNamespace(Namespace[] elements, Namespace ns) {
             var nsSet = new NamespaceSet(elements);
             Assert.Equal(elements.Contains(ns), nsSet.contains(ns));
         }

@@ -142,8 +142,14 @@ namespace Mariana.AVM2.Core {
         /// Contains all types for which the strict equality (===) operation is not the same as
         /// reference equality.
         /// </summary>
-        public static readonly ClassTagSet specialStrictEquality =
-            primitive.add(new ClassTagSet(ClassTag.NAMESPACE, ClassTag.QNAME, ClassTag.FUNCTION));
+        public static readonly ClassTagSet specialStrictEquality = primitive.add(ClassTag.FUNCTION);
+
+        /// <summary>
+        /// Contains all types for which the weak equality (===) operation is not the same as
+        /// reference equality.
+        /// </summary>
+        public static readonly ClassTagSet specialWeakEquality =
+            specialStrictEquality.add(new ClassTagSet(ClassTag.NAMESPACE, ClassTag.QNAME, ClassTag.XML, ClassTag.XML_LIST));
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private ClassTagSet(int mask) => m_mask = mask;

@@ -178,6 +178,34 @@ namespace Mariana.AVM2.Core {
         [AVM2ExportPrototypeMethod]
         public new ASQName valueOf() => this;
 
+        /// <inheritdoc/>
+        public override int AS_nextIndex(int index) => (index >= 2) ? 0 : index + 1;
+
+        /// <inheritdoc/>
+        public override ASAny AS_nameAtIndex(int index) {
+            if (index == 1)
+                return nameof(uri);
+            if (index == 2)
+                return nameof(localName);
+            return ASAny.undefined;
+        }
+
+        /// <inheritdoc/>
+        public override ASAny AS_valueAtIndex(int index) {
+            if (index == 1)
+                return uri;
+            if (index == 2)
+                return localName;
+            return ASAny.undefined;
+        }
+
+        /// <inheritdoc/>
+        [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
+        public override bool propertyIsEnumerable(ASAny name = default) {
+            string nameStr = ASAny.AS_convertString(name);
+            return nameStr == nameof(uri) || nameStr == nameof(localName);
+        }
+
         /// <summary>
         /// Returns a value indicating whether two <see cref="ASQName"/> instances are equal
         /// according to the definition of the strict equality (===) operator in AS3.
@@ -210,22 +238,6 @@ namespace Mariana.AVM2.Core {
         /// <see cref="prefix"/> and <see cref="uri"/> fields.
         /// </remarks>
         public ASNamespace getNamespace() => (uri == null) ? null : ASNamespace.unsafeCreate(prefix, uri);
-
-        /// <summary>
-        /// Returns a hash code for the <see cref="ASQName"/> object.
-        /// </summary>
-        /// <remarks>
-        /// This is called from the <see cref="ASObject.GetHashCode" qualifyHint="true"/> method
-        /// when the object passed is a QName.
-        /// </remarks>
-        internal int internalGetHashCode() {
-            int hash = 0;
-            hash += (uri == null) ? 0 : uri.GetHashCode();
-            hash *= 1194163;
-            hash += localName.GetHashCode();
-            hash *= 5598379;
-            return hash;
-        }
 
         /// <summary>
         /// Parses a string into an <see cref="ASQName"/> object.

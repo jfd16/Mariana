@@ -914,8 +914,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="callback">
         /// The callback function to execute for each element. It must take three arguments. The first
         /// argument is the element value, the second argument is the index of the element and the
-        /// third is a reference to the <see cref="ASVector{T}"/> instance that called this method. If the callback
-        /// function returns a non-Boolean value, it will be converted to a Boolean.
+        /// third is a reference to the <see cref="ASVector{T}"/> instance that called this method.
         /// </param>
         /// <param name="thisObject">The object to be used as the "this" object in calls to the
         /// callback function. If <paramref name="callback"/> is a method closure, this parameter
@@ -957,7 +956,9 @@ namespace Mariana.AVM2.Core {
             for (int i = 0; i < span.Length; i++) {
                 cbArgsArray[0] = anyConverter.convert(span[i]);
                 cbArgsArray[1] = i;
-                if (!(bool)callback.AS_invoke(thisObject, cbArgs))
+
+                ASAny cbResult = callback.AS_invoke(thisObject, cbArgs);
+                if (!(cbResult.value is ASBoolean && (bool)cbResult))
                     return false;
             }
 
@@ -974,7 +975,6 @@ namespace Mariana.AVM2.Core {
         /// The callback function to execute for each element. It must take three arguments. The first
         /// argument is the element value, the second argument is the index of the element and the
         /// third is a reference to the <see cref="ASVector{T}"/> instance that called this method.
-        /// If the callback function returns a non-boolean value, it will be converted to a boolean.
         /// </param>
         /// <param name="thisObject">The object to be used as the "this" object in calls to the
         /// callback function. If <paramref name="callback"/> is a method closure, this parameter
@@ -1017,7 +1017,9 @@ namespace Mariana.AVM2.Core {
             for (int i = 0; i < span.Length; i++) {
                 cbArgsArray[0] = anyConverter.convert(span[i]);
                 cbArgsArray[1] = i;
-                if ((bool)callback.AS_invoke(thisObject, cbArgs))
+
+                ASAny cbReturn = callback.AS_invoke(thisObject, cbArgs);
+                if (cbReturn.value is ASBoolean && (bool)cbReturn)
                     result.push(span[i]);
             }
 
@@ -1372,8 +1374,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="callback">
         /// The callback function to execute for each element. It must take three arguments. The first
         /// argument is the element value, the second argument is the index of the element and the
-        /// third is a reference to the <see cref="ASVector{T}"/> instance that called this method. If the callback
-        /// function returns a non-Boolean value, it will be converted to a Boolean.
+        /// third is a reference to the <see cref="ASVector{T}"/> instance that called this method.
         /// </param>
         /// <param name="thisObject">The object to be used as the "this" object in calls to the
         /// callback function. If <paramref name="callback"/> is a method closure, this parameter
@@ -1413,7 +1414,9 @@ namespace Mariana.AVM2.Core {
             for (int i = 0; i < span.Length; i++) {
                 cbArgsArray[0] = anyConverter.convert(span[i]);
                 cbArgsArray[1] = i;
-                if ((bool)callback.AS_invoke(thisObject, cbArgs))
+
+                ASAny cbResult = callback.AS_invoke(thisObject, cbArgs);
+                if (cbResult.value is ASBoolean && (bool)cbResult)
                     return true;
             }
 

@@ -145,6 +145,34 @@ namespace Mariana.AVM2.Core {
         [AVM2ExportPrototypeMethod]
         public new string valueOf() => uri;
 
+        /// <inheritdoc/>
+        public override int AS_nextIndex(int index) => (index >= 2) ? 0 : index + 1;
+
+        /// <inheritdoc/>
+        public override ASAny AS_nameAtIndex(int index) {
+            if (index == 1)
+                return nameof(uri);
+            if (index == 2)
+                return nameof(prefix);
+            return ASAny.undefined;
+        }
+
+        /// <inheritdoc/>
+        public override ASAny AS_valueAtIndex(int index) {
+            if (index == 1)
+                return uri;
+            if (index == 2)
+                return AS_prefix;
+            return ASAny.undefined;
+        }
+
+        /// <inheritdoc/>
+        [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
+        public override bool propertyIsEnumerable(ASAny name = default) {
+            string nameStr = ASAny.AS_convertString(name);
+            return nameStr == nameof(uri) || nameStr == nameof(prefix);
+        }
+
         /// <summary>
         /// Returns a value indicating whether two <see cref="ASNamespace"/> instances are equal
         /// according to the definition of the strict equality (===) operator in AS3.
