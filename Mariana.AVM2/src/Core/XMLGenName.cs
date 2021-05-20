@@ -105,7 +105,7 @@ namespace Mariana.AVM2.Core {
             char firstChar = localName[0];
 
             if (qname.ns.isPublic && (uint)(firstChar - '0') <= 9) {
-                NumberFormatHelper.parseArrayIndex(localName, false, out uint arrindex);
+                NumberFormatHelper.parseArrayIndex(localName, allowLeadingZeroes: false, out uint arrindex);
                 if ((int)arrindex >= 0)
                     return new XMLGenName(index: (int)arrindex, isIndex: true, isAttr: isAttr);
             }
@@ -140,7 +140,7 @@ namespace Mariana.AVM2.Core {
                 char firstChar = localName[0];
 
                 if (nsSet.containsPublic && (uint)(firstChar - '0') <= 9) {
-                    NumberFormatHelper.parseArrayIndex(localName, false, out uint arrindex);
+                    NumberFormatHelper.parseArrayIndex(localName, allowLeadingZeroes: false, out uint arrindex);
                     int index = (int)arrindex;
                     if (index >= 0)
                         return new XMLGenName(index: index, isIndex: true, isAttr: isAttr);
@@ -204,7 +204,7 @@ namespace Mariana.AVM2.Core {
             char firstChar = localName[0];
 
             if ((uint)(firstChar - '0') <= 9 && (qname == null || (uri != null && uri.Length == 0))) {
-                NumberFormatHelper.parseArrayIndex(localName, false, out uint arrindex);
+                NumberFormatHelper.parseArrayIndex(localName, allowLeadingZeroes: false, out uint arrindex);
                 if ((int)arrindex >= 0)
                     return new XMLGenName(index: (int)arrindex, isIndex: true, isAttr: isAttr);
             }
@@ -261,7 +261,7 @@ namespace Mariana.AVM2.Core {
                 char firstChar = localName[0];
 
                 if (nsSet.containsPublic && (uint)(firstChar - '0') <= 9) {
-                    NumberFormatHelper.parseArrayIndex(localName, false, out uint arrindex);
+                    NumberFormatHelper.parseArrayIndex(localName, allowLeadingZeroes: false, out uint arrindex);
                     if ((int)arrindex >= 0)
                         return new XMLGenName(index: (int)arrindex, isIndex: true, isAttr: isAttr);
                 }

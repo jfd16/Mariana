@@ -55,7 +55,7 @@ namespace Mariana.AVM2.Core {
         }
 
         private void _init() {
-            m_prettyPrint = ASXML.prettyPrint;
+            m_prettyPrint = ASXML.prettyPrinting;
 
             if (m_prettyPrint) {
                 int indentSize = ASXML.prettyIndent;
@@ -88,7 +88,6 @@ namespace Mariana.AVM2.Core {
         }
 
         private void _writeNode(ASXML node) {
-
             m_iterator = node.getDescendantEnumerator(true);
 
             while (m_iterator.MoveNext()) {
@@ -126,6 +125,8 @@ namespace Mariana.AVM2.Core {
                     case XMLNodeType.CDATA: {
                         string text = cur.nodeText;
                         if (text.IndexOf("]]>", StringComparison.Ordinal) != -1) {
+                            // If a CDATA node contains "]]>", it would be invalid XML when output as CDATA.
+                            // So output it as an ordinary text node with proper escaping.
                             _writeText(text);
                         }
                         else {
@@ -140,7 +141,6 @@ namespace Mariana.AVM2.Core {
 
             while (m_tagStack.length != 0)
                 _exitCurrentElement();
-
         }
 
         /// <summary>
@@ -296,10 +296,14 @@ namespace Mariana.AVM2.Core {
                 if (match.uri != qname.uri || (match.prefix.Length == 0 && isAttr))
                     continue;
 
+                // Found a candidate prefix, check if it is hidden by another one declared
+                // between the current element and the one declaring the prefix.
+
                 bool isHidden = false;
                 for (int j = m_nsInScope.length - 1; j > i; j--) {
                     if (match.prefix != m_nsInScope[j].prefix)
                         continue;
+
                     if (match.uri != m_nsInScope[j].uri) {
                         isHidden = true;
                         break;
@@ -312,17 +316,16 @@ namespace Mariana.AVM2.Core {
                 return match.prefix;
             }
 
+            // No prefixes are available, so generate a temporary one.
+            // The temporary prefix is only used in the output string, it does not get stored in the element.
+
             while (true) {
                 string tmpPrefix = "_p" + ASuint.AS_convertString(m_nextTempPrefixId + 1);
                 m_nextTempPrefixId++;
 
                 bool mayConflict = false;
-                for (int i = m_nsInScope.length - 1; i >= 0; i--) {
-                    if (tmpPrefix == m_nsInScope[i].prefix) {
-                        mayConflict = true;
-                        break;
-                    }
-                }
+                for (int i = m_nsInScope.length - 1; i >= 0 && !mayConflict; i--)
+                    mayConflict |= tmpPrefix == m_nsInScope[i].prefix;
 
                 if (mayConflict)
                     continue;

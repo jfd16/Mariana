@@ -358,7 +358,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && name.ns.isPublic
-                && NumberFormatHelper.parseArrayIndex(name.localName, true, out uint index))
+                && NumberFormatHelper.parseArrayIndex(name.localName, allowLeadingZeroes: true, out uint index))
             {
                 return AS_hasElement(index);
             }
@@ -372,7 +372,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic
-                && NumberFormatHelper.parseArrayIndex(name, true, out uint index))
+                && NumberFormatHelper.parseArrayIndex(name, allowLeadingZeroes: true, out uint index))
             {
                 return AS_hasElement(index);
             }
@@ -386,7 +386,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && name.ns.isPublic
-                && NumberFormatHelper.parseArrayIndex(name.localName, true, out uint index))
+                && NumberFormatHelper.parseArrayIndex(name.localName, allowLeadingZeroes: true, out uint index))
             {
                 value = AS_getElement(index);
                 return BindStatus.SUCCESS;
@@ -401,7 +401,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic
-                && NumberFormatHelper.parseArrayIndex(name, true, out uint index))
+                && NumberFormatHelper.parseArrayIndex(name, allowLeadingZeroes: true, out uint index))
             {
                 value = AS_getElement(index);
                 return BindStatus.SUCCESS;
@@ -416,7 +416,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && name.ns.isPublic
-                && NumberFormatHelper.parseArrayIndex(name.localName, true, out uint index))
+                && NumberFormatHelper.parseArrayIndex(name.localName, allowLeadingZeroes: true, out uint index))
             {
                 AS_setElement(index, value.value);
                 return BindStatus.SUCCESS;
@@ -431,7 +431,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic
-                && NumberFormatHelper.parseArrayIndex(name, true, out uint index))
+                && NumberFormatHelper.parseArrayIndex(name, allowLeadingZeroes: true, out uint index))
             {
                 AS_setElement(index, value.value);
                 return BindStatus.SUCCESS;
@@ -445,7 +445,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && name.ns.isPublic
-                && NumberFormatHelper.parseArrayIndex(name.localName, true, out uint index))
+                && NumberFormatHelper.parseArrayIndex(name.localName, allowLeadingZeroes: true, out uint index))
             {
                 return AS_deleteElement(index);
             }
@@ -459,7 +459,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic
-                && NumberFormatHelper.parseArrayIndex(name, true, out uint index))
+                && NumberFormatHelper.parseArrayIndex(name, allowLeadingZeroes: true, out uint index))
             {
                 return AS_deleteElement(index);
             }
@@ -473,7 +473,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && name.ns.isPublic
-                && NumberFormatHelper.parseArrayIndex(name.localName, true, out uint index))
+                && NumberFormatHelper.parseArrayIndex(name.localName, allowLeadingZeroes: true, out uint index))
             {
                 ASObject f = AS_getElement(index);
                 return f.AS_tryInvoke(this, args, out result) ? BindStatus.SUCCESS : BindStatus.FAILED_NOTFUNCTION;
@@ -488,7 +488,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic
-                && NumberFormatHelper.parseArrayIndex(name, true, out uint index))
+                && NumberFormatHelper.parseArrayIndex(name, allowLeadingZeroes: true, out uint index))
             {
                 ASObject f = AS_getElement(index);
                 return f.AS_tryInvoke(this, args, out result) ? BindStatus.SUCCESS : BindStatus.FAILED_NOTFUNCTION;
@@ -503,7 +503,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && name.ns.isPublic
-                && NumberFormatHelper.parseArrayIndex(name.localName, true, out uint index))
+                && NumberFormatHelper.parseArrayIndex(name.localName, allowLeadingZeroes: true, out uint index))
             {
                 ASObject f = AS_getElement(index);
                 return f.AS_tryConstruct(args, out result) ? BindStatus.SUCCESS : BindStatus.FAILED_NOTCONSTRUCTOR;
@@ -518,7 +518,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic
-                && NumberFormatHelper.parseArrayIndex(name, true, out uint index))
+                && NumberFormatHelper.parseArrayIndex(name, allowLeadingZeroes: true, out uint index))
             {
                 ASObject f = AS_getElement(index);
                 return f.AS_tryConstruct(args, out result) ? BindStatus.SUCCESS : BindStatus.FAILED_NOTCONSTRUCTOR;
@@ -1075,7 +1075,7 @@ namespace Mariana.AVM2.Core {
                 return (uint)name < (uint)length;
 
             string str = (string)name;
-            if (NumberFormatHelper.parseArrayIndex(str, true, out uint index))
+            if (NumberFormatHelper.parseArrayIndex(str, allowLeadingZeroes: true, out uint index))
                 return index < (uint)length;
 
             return false;

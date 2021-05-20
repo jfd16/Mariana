@@ -40,17 +40,13 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Creates a new, empty XMLList.
         /// </summary>
-        public ASXMLList() {
-
-        }
+        public ASXMLList() { }
 
         /// <summary>
         /// Creates a new XMLList and initializes it with the given items.
         /// </summary>
         /// <param name="items">A span containing the XML nodes to add to the created list.</param>
-        public ASXMLList(ReadOnlySpan<ASXML> items) {
-            _initItems(items.ToArray(), items.Length, true);
-        }
+        public ASXMLList(ReadOnlySpan<ASXML> items) => _initItems(items.ToArray(), items.Length, true);
 
         /// <summary>
         /// Creates a new XMLList instance.
@@ -64,10 +60,10 @@ namespace Mariana.AVM2.Core {
         /// <param name="targetNameIsAttr">If this XMLList must contain attributes, set this to true.
         /// Only applicable if <paramref name="targetObject"/> is not null.</param>
         internal ASXMLList(
-            ASXML[] items, int length, bool noCopy,
-            ASObject targetObject = null, bool targetNameIsAttr = false)
+            ASXML[] items, int length, bool noCopy, ASObject targetObject = null, bool targetNameIsAttr = false)
         {
             _initItems(items, length, noCopy);
+
             if (targetObject != null)
                 m_link = new LinkInfo(targetObject, null, null, targetNameIsAttr);
         }
@@ -88,6 +84,7 @@ namespace Mariana.AVM2.Core {
             ASXML[] items, int length, bool noCopy, ASObject targetObject, in XMLGenName targetName)
         {
             _initItems(items, length, noCopy);
+
             if (targetObject != null)
                 m_link = new LinkInfo(targetObject, targetName.uri, targetName.localName, targetName.isAttr);
         }
@@ -165,13 +162,12 @@ namespace Mariana.AVM2.Core {
 
             ASXML[] arr = {xml};
             ASQName qname = xml.internalGetName();
-            bool isAttr = xml.nodeType == XMLNodeType.ATTRIBUTE;
 
             if (qname == null)
-                return new ASXMLList(arr, 1, true, xml.parent(), isAttr);
+                return new ASXMLList(arr, 1, noCopy: true, xml.parent(), xml.isAttribute);
 
-            XMLGenName targetName = XMLGenName.qualifiedName(qname.uri, qname.localName, isAttr);
-            return new ASXMLList(arr, 1, true, xml.parent(), targetName);
+            var targetName = XMLGenName.qualifiedName(qname.uri, qname.localName, xml.isAttribute);
+            return new ASXMLList(arr, 1, noCopy: true, xml.parent(), targetName);
         }
 
         /// <summary>
@@ -277,17 +273,24 @@ namespace Mariana.AVM2.Core {
         public static bool AS_weakEq(ASXMLList list1, ASXMLList list2) {
             if (list1 == list2)
                 return true;
+
             if (list1 == null || list2 == null || list1.m_items.length != list2.m_items.length)
                 return false;
 
-            ref var arr1 = ref list1.m_items;
-            ref var arr2 = ref list2.m_items;
-            for (int i = 0, n = list1.m_items.length; i < n; i++) {
-                if (!ASXML.AS_weakEq(arr1[i], arr2[i]))
+            ReadOnlySpan<ASXML> span1 = list1.m_items.asSpan();
+            ReadOnlySpan<ASXML> span2 = list2.m_items.asSpan();
+
+            for (int i = 0; i < span1.Length; i++) {
+                if (!ASXML.AS_weakEq(span1[i], span2[i]))
                     return false;
             }
+
             return true;
         }
+
+        /// <inheritdoc/>
+        // XMLList to string conversions should ignore any overridden XMLList.prototype.toString method
+        protected override string AS_coerceString() => AS_toString();
 
         #region Property binding methods
 
@@ -346,7 +349,9 @@ namespace Mariana.AVM2.Core {
             var genName = XMLGenName.fromQName(name, options);
 
             if (name.ns.kind != NamespaceKind.NAMESPACE && name.ns.kind != NamespaceKind.ANY) {
-                value = new ASXMLList(Array.Empty<ASXML>(), 0, true, this, genName.isAttr);
+                value = new ASXMLList(
+                    Array.Empty<ASXML>(), 0, noCopy: true, targetObject: this, targetNameIsAttr: genName.isAttr);
+
                 return BindStatus.SUCCESS;
             }
 
@@ -355,7 +360,7 @@ namespace Mariana.AVM2.Core {
                 return BindStatus.SUCCESS;
             }
 
-            var resultList = new ASXMLList(Array.Empty<ASXML>(), 0, true, this, genName);
+            var resultList = new ASXMLList(Array.Empty<ASXML>(), 0, noCopy: true, targetObject: this, targetName: genName);
             for (int i = 0, n = m_items.length; i < n; i++)
                 m_items[i].internalFetchNodesByGenName(genName, ref resultList.m_items);
 
@@ -380,7 +385,7 @@ namespace Mariana.AVM2.Core {
                 return BindStatus.SUCCESS;
             }
 
-            var resultList = new ASXMLList(Array.Empty<ASXML>(), 0, true, this, genName);
+            var resultList = new ASXMLList(Array.Empty<ASXML>(), 0, noCopy: true, targetObject: this, targetName: genName);
             for (int i = 0, n = m_items.length; i < n; i++)
                 m_items[i].internalFetchNodesByGenName(genName, ref resultList.m_items);
 
@@ -461,7 +466,7 @@ namespace Mariana.AVM2.Core {
             for (int i = 0, n = m_items.length; i < n; i++)
                 m_items[i].internalFetchDescByGenName(genName, ref list);
 
-            result = new ASXMLList(list.getUnderlyingArray(), list.length, true);
+            result = new ASXMLList(list.getUnderlyingArray(), list.length, noCopy: true);
             return (list.length == 0) ? BindStatus.SOFT_SUCCESS : BindStatus.SUCCESS;
         }
 
@@ -484,7 +489,7 @@ namespace Mariana.AVM2.Core {
             for (int i = 0, n = m_items.length; i < n; i++)
                 m_items[i].internalFetchDescByGenName(genName, ref list);
 
-            result = new ASXMLList(list.getUnderlyingArray(), list.length, true);
+            result = new ASXMLList(list.getUnderlyingArray(), list.length, noCopy: true);
             return (list.length == 0) ? BindStatus.SOFT_SUCCESS : BindStatus.SUCCESS;
         }
 
@@ -547,7 +552,9 @@ namespace Mariana.AVM2.Core {
             for (int i = 0, n = m_items.length; i < n; i++)
                 m_items[i].internalFetchNodesByGenName(genName, ref list);
 
-            value = new ASXMLList(list.getUnderlyingArray(), list.length, true, this, genName);
+            value = new ASXMLList(
+                list.getUnderlyingArray(), list.length, noCopy: true, targetObject: this, targetName: genName);
+
             return (list.length == 0) ? BindStatus.SOFT_SUCCESS : BindStatus.SUCCESS;
         }
 
@@ -572,7 +579,9 @@ namespace Mariana.AVM2.Core {
             for (int i = 0, n = m_items.length; i < n; i++)
                 m_items[i].internalFetchNodesByGenName(genName, ref list);
 
-            value = new ASXMLList(list.getUnderlyingArray(), list.length, true, this, genName);
+            value = new ASXMLList(
+                list.getUnderlyingArray(), list.length, noCopy: true, targetObject: this, targetName: genName);
+
             return (list.length == 0) ? BindStatus.SOFT_SUCCESS : BindStatus.SUCCESS;
         }
 
@@ -645,7 +654,7 @@ namespace Mariana.AVM2.Core {
             for (int i = 0, n = m_items.length; i < n; i++)
                 m_items[i].internalFetchDescByGenName(genName, ref list);
 
-            result = new ASXMLList(list.getUnderlyingArray(), list.length, true);
+            result = new ASXMLList(list.getUnderlyingArray(), list.length, noCopy: true);
             return (list.length == 0) ? BindStatus.SOFT_SUCCESS : BindStatus.SUCCESS;
         }
 
@@ -669,7 +678,7 @@ namespace Mariana.AVM2.Core {
             for (int i = 0, n = m_items.length; i < n; i++)
                 m_items[i].internalFetchDescByGenName(genName, ref list);
 
-            result = new ASXMLList(list.getUnderlyingArray(), list.length, true);
+            result = new ASXMLList(list.getUnderlyingArray(), list.length, noCopy: true);
             return (list.length == 0) ? BindStatus.SOFT_SUCCESS : BindStatus.SUCCESS;
         }
 
@@ -887,32 +896,21 @@ namespace Mariana.AVM2.Core {
         /// <param name="index">The index.</param>
         /// <param name="value">The value to assign to the given index.</param>
         private void _internalSetPropIndex(int index, ASAny value) {
+            bool isAppend = index >= m_items.length;
+
+            if (isAppend && (m_link == null || m_link.target == null)) {
+                // Fast path for an unlinked XMLList (no target object)
+                _internalAppendFast(value);
+                return;
+            }
+
             ASXML resolvedValue = null;
             ASXML appendAfterNode = null;
-            string assignText = null;
-            bool isAppend = false;
 
-            if (index >= m_items.length) {
-                if (m_link == null || m_link.target == null) {
-                    // Fast path for an unlinked XMLList (no target object)
-                    assignText = _getTextForAssignment(value);
-                    if (assignText != null) {
-                        m_items.add(ASXML.createNode(XMLNodeType.TEXT, null, assignText));
-                        return;
-                    }
+            string stringForTextAssign = null;
 
-                    if (value.value is ASXMLList valueXmlList) {
-                        for (int i = 0, n = valueXmlList.m_items.length; i < n; i++)
-                            m_items.add(valueXmlList.m_items[i]);
-                    }
-                    else {
-                        m_items.add((ASXML)value.value);
-                    }
-                    return;
-                }
-
+            if (isAppend) {
                 index = m_items.length;
-                isAppend = true;
 
                 // Call ResolveValue on the target object. Since this implementation of ResolveValue
                 // returns the element of a single-element XMLList, we only need to cast the result
@@ -921,7 +919,7 @@ namespace Mariana.AVM2.Core {
                     ? targetXmlList._internalResolveValue() as ASXML
                     : m_link.target as ASXML;
 
-                if (resolvedValue == null || resolvedValue.nodeType != XMLNodeType.ELEMENT)
+                if (resolvedValue == null || !resolvedValue.isElement)
                     return;
 
                 if (m_link.isAttribute) {
@@ -932,17 +930,14 @@ namespace Mariana.AVM2.Core {
 
                     foreach (ASXML attr in resolvedValue.getAttributeEnumerator()) {
                         ASQName attrName = attr.internalGetName();
-                        if (attrName.localName == m_link.localName
-                            && (m_link.uri == null || m_link.uri == attrName.uri))
-                        {
+                        if (attrName.localName == m_link.localName && (m_link.uri == null || m_link.uri == attrName.uri))
                             return;
-                        }
                     }
 
-                    ASXML newAttr = resolvedValue.createChildNode(
-                        XMLNodeType.ATTRIBUTE, new ASQName(m_link.uri, m_link.localName));
+                    ASXML newAttr = resolvedValue.createChildNode(XMLNodeType.ATTRIBUTE, new ASQName(m_link.uri, m_link.localName));
                     if (newAttr == null)
                         return;
+
                     m_items.add(newAttr);
                 }
                 else {
@@ -959,56 +954,64 @@ namespace Mariana.AVM2.Core {
                         }
                     }
 
-                    if (appendAfterNode == null)
-                        // Insert after the last child.
+                    if (appendAfterNode == null) {
+                        // Otherwise insert after the last child.
                         appendAfterNode = resolvedValue.getChildAtIndex(-1);
+                    }
 
                     // If a target property local name exists and the value being assigned
                     // is a text node or a primitive value, create a child element into which
                     // the text will be inserted.
 
-                    assignText = _getTextForAssignment(value);
+                    stringForTextAssign = XMLHelper.tryGetStringFromObjectOrNode(value);
 
-                    if (m_link.localName != null && assignText != null) {
-                        ASQName newElemName;
-
-                        if (value.value is ASXML valueXml){
-                            newElemName = valueXml.internalGetName();
-                        }
-                        else if (value.value is ASXMLList valueXmlList
-                            && valueXmlList.m_link != null && valueXmlList.m_link.localName != null)
-                        {
-                            newElemName = new ASQName(valueXmlList.m_link.uri, valueXmlList.m_link.localName);
-                        }
-                        else {
-                            newElemName = new ASQName(m_link.uri, m_link.localName);
-                        }
+                    if (m_link.localName != null && stringForTextAssign != null) {
+                        ASQName newElemName = new ASQName(m_link.uri, m_link.localName);
 
                         ASXML newElem = ASXML.createNode(XMLNodeType.ELEMENT, newElemName);
                         if (newElem == null)
                             return;
 
-                        resolvedValue.internalInsertChildAfter(appendAfterNode, newElem, false);
+                        resolvedValue.internalInsertChildAfter(appendAfterNode, newElem, mustCopy: false);
                         m_items.add(newElem);
                     }
                 }
             }
 
-            if (index < m_items.length && m_items[index].nodeType == XMLNodeType.ATTRIBUTE) {
+            if (m_items[index] != null && m_items[index].isAttribute) {
                 // Assign to an attribute.
                 m_items[index].nodeText = XMLHelper.objectToAttrString(value);
                 return;
             }
 
-            if (!isAppend && assignText == null)
-                assignText = _getTextForAssignment(value);
+            // Check if the value being assigned is a primitive string (or an XML/XMLList with a single
+            // text node, which is equivalent to a primitive string).
+            // Don't repeat this check if we went through the append path, as it was already done there.
 
-            if (assignText != null)
-                _internalAssignIndexString(index, assignText, resolvedValue, appendAfterNode);
+            if (!isAppend && stringForTextAssign == null)
+                stringForTextAssign = XMLHelper.tryGetStringFromObjectOrNode(value);
+
+            if (stringForTextAssign != null)
+                _internalAssignIndexString(index, stringForTextAssign, resolvedValue, appendAfterNode);
             else if (value.value is ASXMLList valueXmlList)
                 _internalAssignIndexXMLList(index, valueXmlList, resolvedValue, appendAfterNode);
             else
                 _internalAssignIndexXML(index, (ASXML)value.value, resolvedValue, appendAfterNode);
+        }
+
+        private void _internalAppendFast(ASAny value) {
+            string text = XMLHelper.tryGetStringFromObjectOrNode(value);
+
+            if (text != null) {
+                m_items.add(ASXML.createNode(XMLNodeType.TEXT, null, text));
+            }
+            else if (value.value is ASXMLList valueXmlList) {
+                for (int i = 0; i < valueXmlList.m_items.length; i++)
+                    m_items.add(valueXmlList[i]);
+            }
+            else {
+                m_items.add((ASXML)value);
+            }
         }
 
         private ASObject _internalResolveValue() {
@@ -1027,8 +1030,6 @@ namespace Mariana.AVM2.Core {
 
             QName qname = new QName(m_link.uri, m_link.localName);
             BindOptions bindOptions = BindOptions.SEARCH_DYNAMIC;
-            if (m_link.isAttribute)
-                bindOptions |= BindOptions.ATTRIBUTE;
 
             if (!(baseObj.AS_getProperty(qname, bindOptions).value is ASXMLList target))
                 return null;
@@ -1050,8 +1051,7 @@ namespace Mariana.AVM2.Core {
 
             if (baseNode != null) {
                 // Optimize this case.
-                XMLNodeType nodeType = m_link.isAttribute ? XMLNodeType.ATTRIBUTE : XMLNodeType.ELEMENT;
-                return baseNode.createChildNode(nodeType, new ASQName(m_link.uri, m_link.localName));
+                return baseNode.createChildNode(XMLNodeType.ELEMENT, new ASQName(m_link.uri, m_link.localName));
             }
 
             baseObj.AS_setProperty(qname, "", bindOptions);
@@ -1061,59 +1061,42 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Returns the string for a primitive string assignment, or null if the given value
-        /// is not a primitive.
-        /// </summary>
-        /// <returns>The primitive string, or null if <paramref name="obj"/> is not a primitive
-        /// value, an XML text or attribute node, or an XMLList containing exactly one such node.</returns>
-        /// <param name="obj">An ActionScript object.</param>
-        private string _getTextForAssignment(ASAny obj) {
-            ASXML xml = obj.value as ASXML;
-            ASXMLList xmlList = obj.value as ASXMLList;
-
-            if (xmlList != null && xmlList.length() == 1) {
-                xml = xmlList[0];
-                xmlList = null;
-            }
-
-            if (xml != null)
-                return (xml.nodeType == XMLNodeType.TEXT || xml.nodeType == XMLNodeType.ATTRIBUTE) ? xml.nodeText : null;
-
-            if (xmlList != null)
-                return null;
-
-            return ASAny.AS_convertString(obj);
-        }
-
-        /// <summary>
         /// Assigns a primitive string to the given index in this XMLList.
         /// </summary>
         /// <param name="index">The index to be assigned to.</param>
-        /// <param name="str">The string value to be assigned to <paramref name="index"/>.</param>
+        /// <param name="value">The string value to be assigned to <paramref name="index"/>.</param>
         /// <param name="appendTarget">An append target, used if an item must be added to this
         /// list. Pass null if no append target is needed.</param>
         /// <param name="appendAfter">If an append target is given, the child of the append target
         /// after which the added node must be inserted into it.</param>
-        private void _internalAssignIndexString(int index, string str, ASXML appendTarget, ASXML appendAfter) {
-            ASXML nodeToAssign = (index == m_items.length) ? null : m_items[index];
+        private void _internalAssignIndexString(int index, string value, ASXML appendTarget, ASXML appendAfter) {
+            ASXML nodeToAssign = (index < m_items.length) ? m_items[index] : null;
 
-            if (nodeToAssign != null && nodeToAssign.nodeType == XMLNodeType.ELEMENT) {
-                nodeToAssign.internalClear();
-                if (str.Length != 0)
-                    nodeToAssign.createChildNode(XMLNodeType.TEXT, null, str);
-                return;
+            if (nodeToAssign == null) {
+                // Appending a new value into this XMLList.
+                var textNode = ASXML.createNode(XMLNodeType.TEXT, null, value);
+                if (appendTarget != null)
+                    appendTarget.internalInsertChildAfter(appendAfter, textNode, mustCopy: false);
+
+                m_items.add(textNode);
             }
-
-            ASXML newNode = ASXML.createNode(XMLNodeType.TEXT, null, str);
-            if (nodeToAssign != null) {
-                if (nodeToAssign.parent() != null)
-                    newNode = nodeToAssign.parent().internalReplaceChild(nodeToAssign, newNode, false);
-                m_items[index] = newNode;
+            else if (nodeToAssign.isElement) {
+                // Assigning to an element: Replace all of its existing children with a single text node.
+                // Don't change anything in this list.
+                nodeToAssign.internalClearChildren();
+                if (value.Length != 0) {
+                    var textNode = ASXML.createNode(XMLNodeType.TEXT, null, value);
+                    nodeToAssign.internalInsertChildAfter(null, textNode, mustCopy: false);
+                }
             }
             else {
-                if (appendTarget != null)
-                    appendTarget.internalInsertChildAfter(appendAfter, newNode, false);
-                m_items.add(newNode);
+                // Assigning to some other node type: Replace that node with a new text node.
+                // If the node is not a root, replace it in its parent as well.
+                var textNode = ASXML.createNode(XMLNodeType.TEXT, null, value);
+                if (nodeToAssign.parent() != null)
+                    textNode = nodeToAssign.parent().internalReplaceChild(nodeToAssign, textNode, mustCopy: false);
+
+                m_items[index] = textNode;
             }
         }
 
@@ -1127,18 +1110,25 @@ namespace Mariana.AVM2.Core {
         /// <param name="appendAfter">If an append target is given, the child of the append target
         /// after which the added node must be inserted into it.</param>
         private void _internalAssignIndexXML(int index, ASXML xml, ASXML appendTarget, ASXML appendAfter) {
-            ASXML nodeToAssign = (index == m_items.length) ? null : m_items[index];
+            ASXML nodeToAssign = (index < m_items.length) ? m_items[index] : null;
+            ASXML assignedNode = xml;
 
-            if (nodeToAssign != null) {
-                if (nodeToAssign.parent() != null)
-                    xml = nodeToAssign.parent().internalReplaceChild(nodeToAssign, xml, true);
-                m_items[index] = xml;
+            if (nodeToAssign == null) {
+                // Appending a new node into this list.
+                if (appendTarget != null)
+                    assignedNode = appendTarget.internalInsertChildAfter(appendAfter, xml, mustCopy: true);
             }
             else {
-                if (appendTarget != null)
-                    xml = appendTarget.internalInsertChildAfter(appendAfter, xml, true);
-                m_items.add(xml);
+                // Replace an existing node.
+                // If the node is not a root, replace it in its parent as well.
+                if (nodeToAssign.parent() != null)
+                    assignedNode = nodeToAssign.parent().internalReplaceChild(nodeToAssign, xml, mustCopy: true);
             }
+
+            if (index == m_items.length)
+                m_items.add(assignedNode);
+            else
+                m_items[index] = assignedNode;
         }
 
         /// <summary>
@@ -1151,53 +1141,40 @@ namespace Mariana.AVM2.Core {
         /// <param name="appendAfter">If an append target is given, the child of the append target
         /// after which the added node must be inserted into it.</param>
         private void _internalAssignIndexXMLList(int index, ASXMLList xmlList, ASXML appendTarget, ASXML appendAfter) {
-            int nNewItems = xmlList.m_items.length;
-
-            if (nNewItems == 0) {
+            if (xmlList.length() == 0) {
+                // Assigning an empty XMLList is the same as deleting at that index.
                 _internalDeletePropIndex(index);
                 return;
             }
 
-            if (nNewItems == 1) {
-                _internalAssignIndexXML(index, xmlList.m_items[0], appendTarget, appendAfter);
+            // Assign the first element.
+            _internalAssignIndexXML(index, xmlList[0], appendTarget, appendAfter);
+
+            ReadOnlySpan<ASXML> restItems = xmlList.getItems().asSpan(1);
+            if (restItems.Length == 0)
                 return;
-            }
 
-            if (index == m_items.length && appendTarget == null) {
-                for (int i = 0; i < nNewItems; i++)
-                    m_items.add(xmlList.m_items[i]);
-                return;
-            }
+            // Splice the remaining elements into this list and into the child list of the parent
+            // node where the first item was inserted.
 
-            ASXML nodeToAssign = (index == m_items.length) ? null : m_items[index];
-            Span<ASXML> newItems;
+            int shiftLength = m_items.length - (index + 1);
 
-            if (nodeToAssign != null && nodeToAssign.parent() != null) {
-                newItems = xmlList.m_items.toArray(true);
-                nodeToAssign.parent().internalReplaceChild(nodeToAssign, newItems, true);
-            }
-            else if (nodeToAssign == null && appendTarget != null) {
-                newItems = new ASXML[nNewItems];
-                for (int i = 0; i < nNewItems; i++) {
-                    ASXML newItem = appendTarget.internalInsertChildAfter(appendAfter, xmlList.m_items[i], true);
-                    newItems[i] = newItem;
-                    appendAfter = newItem;
+            m_items.addDefault(restItems.Length);
+            Span<ASXML> thisListItems = m_items.asSpan();
+
+            thisListItems.Slice(index + 1, shiftLength).CopyTo(thisListItems.Slice(index + 1 + restItems.Length));
+            restItems.CopyTo(thisListItems.Slice(index + 1));
+
+            if (thisListItems[index].parent() != null) {
+                ASXML insertLocation = thisListItems[index];
+                ASXML insertParent = insertLocation.parent();
+
+                for (int i = 0; i < restItems.Length; i++) {
+                    ASXML insertedChild = insertParent.internalInsertChildAfter(insertLocation, restItems[i], mustCopy: true);
+                    thisListItems[index + i + 1] = insertedChild;
+                    insertLocation = insertedChild;
                 }
             }
-            else {
-                newItems = xmlList.m_items.asSpan();
-            }
-
-            if (index == m_items.length) {
-                m_items.addDefault(nNewItems);
-            }
-            else {
-                int shiftSize = m_items.length - index - 1;
-                m_items.addDefault(nNewItems - 1);
-                m_items.asSpan(index + 1, shiftSize).CopyTo(m_items.asSpan(index + nNewItems, shiftSize));
-            }
-
-            newItems.CopyTo(m_items.asSpan(index, nNewItems));
         }
 
         #endregion
@@ -1288,7 +1265,9 @@ namespace Mariana.AVM2.Core {
 
             for (int i = 0, n = m_items.length; i < n; i++)
                 m_items[i].internalFetchNodesByGenName(genName, ref attrList);
-            return new ASXMLList(attrList.getUnderlyingArray(), attrList.length, true, this, genName);
+
+            return new ASXMLList(
+                attrList.getUnderlyingArray(), attrList.length, noCopy: true, targetObject: this, targetName: genName);
         }
 
         /// <summary>
@@ -1307,9 +1286,12 @@ namespace Mariana.AVM2.Core {
         public ASXMLList attributes() {
             DynamicArray<ASXML> list = new DynamicArray<ASXML>();
             XMLGenName genName = XMLGenName.anyAttribute();
+
             for (int i = 0, n = m_items.length; i < n; i++)
                 m_items[i].internalFetchNodesByGenName(genName, ref list);
-            return new ASXMLList(list.getUnderlyingArray(), list.length, true, this, true);
+
+            return new ASXMLList(
+                list.getUnderlyingArray(), list.length, noCopy: true, targetObject: this, targetNameIsAttr: true);
         }
 
         /// <summary>
@@ -1357,7 +1339,8 @@ namespace Mariana.AVM2.Core {
                     m_items[i].internalFetchNodesByGenName(genName, ref list);
             }
 
-            return new ASXMLList(list.getUnderlyingArray(), list.length, true, this, genName);
+            return new ASXMLList(
+                list.getUnderlyingArray(), list.length, noCopy: true, targetObject: this, targetName: genName);
         }
 
         /// <summary>
@@ -1376,9 +1359,11 @@ namespace Mariana.AVM2.Core {
         public ASXMLList children() {
             DynamicArray<ASXML> list = new DynamicArray<ASXML>();
             XMLGenName genName = XMLGenName.anyChild();
+
             for (int i = 0, n = m_items.length; i < n; i++)
                 m_items[i].internalFetchNodesByGenName(genName, ref list);
-            return new ASXMLList(list.getUnderlyingArray(), list.length, true, this);
+
+            return new ASXMLList(list.getUnderlyingArray(), list.length, noCopy: true, targetObject: this);
         }
 
         /// <summary>
@@ -1397,9 +1382,12 @@ namespace Mariana.AVM2.Core {
         [AVM2ExportPrototypeMethod]
         public ASXMLList comments() {
             DynamicArray<ASXML> commentsList = new DynamicArray<ASXML>();
+
             for (int i = 0, n = m_items.length; i < n; i++)
                 m_items[i].internalFetchNodesByType(XMLNodeType.COMMENT, ref commentsList);
-            return new ASXMLList(commentsList.getUnderlyingArray(), commentsList.length, true, this);
+
+            return new ASXMLList(
+                commentsList.getUnderlyingArray(), commentsList.length, noCopy: true, targetObject: this);
         }
 
         /// <summary>
@@ -1456,8 +1444,10 @@ namespace Mariana.AVM2.Core {
         public ASXMLList copy() {
             ASXMLList newList = new ASXMLList();
             newList.m_items.setCapacity(m_items.length);
+
             for (int i = 0, n = m_items.length; i < n; i++)
                 newList.m_items.add(m_items[i].copy());
+
             return newList;
         }
 
@@ -1497,7 +1487,8 @@ namespace Mariana.AVM2.Core {
             DynamicArray<ASXML> list = new DynamicArray<ASXML>();
             for (int i = 0, n = m_items.length; i < n; i++)
                 m_items[i].internalFetchDescByGenName(genName, ref list);
-            return new ASXMLList(list.getUnderlyingArray(), list.length, true);
+
+            return new ASXMLList(list.getUnderlyingArray(), list.length, noCopy: true);
         }
 
         /// <summary>
@@ -1531,7 +1522,7 @@ namespace Mariana.AVM2.Core {
             var genName = XMLGenName.fromObject(name, 0);
 
             if (genName.index != -1 || genName.isAttr)
-                return new ASXMLList(Array.Empty<ASXML>(), 0, true, this);
+                return new ASXMLList(Array.Empty<ASXML>(), 0, noCopy: true, targetObject: this);
 
             DynamicArray<ASXML> list = new DynamicArray<ASXML>();
 
@@ -1544,7 +1535,8 @@ namespace Mariana.AVM2.Core {
                     m_items[i].internalFetchNodesByGenName(genName, ref list);
             }
 
-            return new ASXMLList(list.getUnderlyingArray(), list.length, true, this, genName);
+            return new ASXMLList(
+                list.getUnderlyingArray(), list.length, noCopy: true, targetObject: this, targetName: genName);
         }
 
         /// <summary>
@@ -1560,11 +1552,12 @@ namespace Mariana.AVM2.Core {
         public bool hasComplexContent() {
             if (m_items.length == 0)
                 return false;
+
             if (m_items.length == 1)
                 return m_items[0].hasComplexContent();
 
             for (int i = 0, n = m_items.length; i < n; i++) {
-                if (m_items[i].nodeType == XMLNodeType.ELEMENT)
+                if (m_items[i].isElement)
                     return true;
             }
             return false;
@@ -1583,11 +1576,12 @@ namespace Mariana.AVM2.Core {
         public bool hasSimpleContent() {
             if (m_items.length == 0)
                 return false;
+
             if (m_items.length == 1)
                 return m_items[0].hasSimpleContent();
 
             for (int i = 0, n = m_items.length; i < n; i++) {
-                if (m_items[i].nodeType == XMLNodeType.ELEMENT)
+                if (m_items[i].isElement)
                     return false;
             }
             return true;
@@ -1599,9 +1593,7 @@ namespace Mariana.AVM2.Core {
         /// <returns>The number of items in the XMLList.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
-        public int length() {
-            return m_items.length;
-        }
+        public int length() => m_items.length;
 
         /// <summary>
         /// Returns an Array containing all the namespace declarations available to the current node.
@@ -1991,13 +1983,13 @@ namespace Mariana.AVM2.Core {
             if (genName.uri != null && genName.uri.Length != 0)
                 // Since processing instructions can only be in the public namespace, fail early
                 // if a QName is provided that has any other namespace.
-                return new ASXMLList(Array.Empty<ASXML>(), 0, true, this);
+                return new ASXMLList(Array.Empty<ASXML>(), 0, noCopy: true, targetObject: this);
 
             DynamicArray<ASXML> piList = new DynamicArray<ASXML>();
             for (int i = 0, n = m_items.length; i < n; i++)
                 m_items[i].internalFetchNodesByGenName(genName, ref piList);
 
-            return new ASXMLList(piList.getUnderlyingArray(), piList.length, true, this);
+            return new ASXMLList(piList.getUnderlyingArray(), piList.length, noCopy: true, targetObject: this);
         }
 
         /// <summary>
@@ -2162,9 +2154,11 @@ namespace Mariana.AVM2.Core {
         [AVM2ExportPrototypeMethod]
         public ASXMLList text() {
             DynamicArray<ASXML> list = new DynamicArray<ASXML>();
+
             for (int i = 0, n = m_items.length; i < n; i++)
                 m_items[i].internalFetchNodesByType(XMLNodeType.TEXT, ref list);
-            return new ASXMLList(list.getUnderlyingArray(), list.length, true, this);
+
+            return new ASXMLList(list.getUnderlyingArray(), list.length, noCopy: true, targetObject: this);
         }
 
         /// <summary>
@@ -2177,9 +2171,7 @@ namespace Mariana.AVM2.Core {
         /// object, the default method returns the string "XMLList".</returns>
         //[AVM2ExportTrait(nsName = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
-        public ASAny toJSON(ASAny key) {
-            return "XMLList";
-        }
+        public ASAny toJSON(ASAny key) => "XMLList";
 
         /// <summary>
         /// Returns a string representation of the XMLList object.
@@ -2196,28 +2188,19 @@ namespace Mariana.AVM2.Core {
         public new string AS_toString() {
             if (m_items.length == 0)
                 return "";
-            if (m_items.length == 1)
-                return (string)m_items[0];
 
-            int count = 0;
+            if (!hasSimpleContent())
+                return toXMLString();
 
-            for (int i = 0, n = m_items.length; i < n; i++) {
-                XMLNodeType nodeType = m_items[i].nodeType;
-                if (nodeType == XMLNodeType.ELEMENT)
-                    return toXMLString();
-                if (nodeType == XMLNodeType.ATTRIBUTE || nodeType == XMLNodeType.TEXT)
-                    count++;
-            }
-
-            string[] strArr = new string[count];
-            count = 0;
+            DynamicArray<string> text = default;
 
             for (int i = 0, n = m_items.length; i < n; i++) {
-                XMLNodeType nodeType = m_items[i].nodeType;
-                if (nodeType == XMLNodeType.ATTRIBUTE || nodeType == XMLNodeType.TEXT)
-                    strArr[count++] = m_items[i].nodeText;
+                ASXML node = m_items[i];
+                if (node.isAttribute || node.isTextOrCDATA)
+                    text.add(node.nodeText);
             }
-            return String.Concat(strArr);
+
+            return String.Join("", text.getUnderlyingArray(), 0, text.length);
         }
 
         /// <summary>
@@ -2233,6 +2216,13 @@ namespace Mariana.AVM2.Core {
 
             XMLWriter writer = new XMLWriter();
             return writer.makeString(this);
+        }
+
+        /// <inheritdoc/>
+        [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
+        public override bool propertyIsEnumerable(ASAny name = default(ASAny)) {
+            var genName = XMLGenName.fromObject(name, 0);
+            return genName.isIndex && genName.index < m_items.length;
         }
 
     }

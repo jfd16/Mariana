@@ -85,6 +85,7 @@
 1113	VerifyError			OP_newactivation used in method without NEED_ACTIVATION flag. (method: $1; offset: $2)
 1115    TypeError           Class is not a constructor.
 1117	TypeError			Invalid XML name: $1
+1118    TypeError           Illegal cyclical loop between nodes.
 1123	TypeError			Filter operation not supported on type $1.
 1125	RangeError			The index $1 is out of range $2.
 1126	RangeError			Cannot change the length of a fixed Vector.

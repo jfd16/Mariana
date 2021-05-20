@@ -1321,7 +1321,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && name.ns.isPublic
-                && NumberFormatHelper.parseArrayIndex(name.localName, false, out uint index)
+                && NumberFormatHelper.parseArrayIndex(name.localName, allowLeadingZeroes: false, out uint index)
                 && !_getValueAt(index).isEmpty)
             {
                 return true;
@@ -1337,7 +1337,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic
-                && NumberFormatHelper.parseArrayIndex(name, false, out uint index)
+                && NumberFormatHelper.parseArrayIndex(name, allowLeadingZeroes: false, out uint index)
                 && !_getValueAt(index).isEmpty)
             {
                 return true;
@@ -1386,7 +1386,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && name.ns.isPublic
-                && NumberFormatHelper.parseArrayIndex(name.localName, false, out uint index))
+                && NumberFormatHelper.parseArrayIndex(name.localName, allowLeadingZeroes: false, out uint index))
             {
                 Value v = _getValueAt(index);
                 if (!v.isEmpty) {
@@ -1404,7 +1404,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic
-                && NumberFormatHelper.parseArrayIndex(name, false, out uint index))
+                && NumberFormatHelper.parseArrayIndex(name, allowLeadingZeroes: false, out uint index))
             {
                 Value v = _getValueAt(index);
                 if (!v.isEmpty) {
@@ -1463,7 +1463,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && name.ns.isPublic
-                && NumberFormatHelper.parseArrayIndex(name.localName, false, out uint index)
+                && NumberFormatHelper.parseArrayIndex(name.localName, allowLeadingZeroes: false, out uint index)
                 && index != UInt32.MaxValue)
             {
                 AS_setElement(index, value);
@@ -1479,7 +1479,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic
-                && NumberFormatHelper.parseArrayIndex(name, false, out uint index)
+                && NumberFormatHelper.parseArrayIndex(name, allowLeadingZeroes: false, out uint index)
                 && index != UInt32.MaxValue)
             {
                 AS_setElement(index, value);
@@ -1535,7 +1535,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && name.ns.isPublic
-                && NumberFormatHelper.parseArrayIndex(name.localName, false, out uint index)
+                && NumberFormatHelper.parseArrayIndex(name.localName, allowLeadingZeroes: false, out uint index)
                 && index != UInt32.MaxValue)
             {
                 return AS_deleteElement(index);
@@ -1550,7 +1550,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic
-                && NumberFormatHelper.parseArrayIndex(name, false, out uint index)
+                && NumberFormatHelper.parseArrayIndex(name, allowLeadingZeroes: false, out uint index)
                 && index != UInt32.MaxValue)
             {
                 return AS_deleteElement(index);
@@ -1601,7 +1601,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && name.ns.isPublic
-                && NumberFormatHelper.parseArrayIndex(name.localName, false, out uint index))
+                && NumberFormatHelper.parseArrayIndex(name.localName, allowLeadingZeroes: false, out uint index))
             {
                 Value v = _getValueAt(index);
                 if (!v.isEmpty) {
@@ -1620,7 +1620,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic
-                && NumberFormatHelper.parseArrayIndex(name, false, out uint index))
+                && NumberFormatHelper.parseArrayIndex(name, allowLeadingZeroes: false, out uint index))
             {
                 Value v = _getValueAt(index);
                 if (!v.isEmpty) {
@@ -1682,7 +1682,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && name.ns.isPublic
-                && NumberFormatHelper.parseArrayIndex(name.localName, false, out uint index))
+                && NumberFormatHelper.parseArrayIndex(name.localName, allowLeadingZeroes: false, out uint index))
             {
                 Value v = _getValueAt(index);
                 if (!v.isEmpty) {
@@ -1701,7 +1701,7 @@ namespace Mariana.AVM2.Core {
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic
-                && NumberFormatHelper.parseArrayIndex(name, false, out uint index))
+                && NumberFormatHelper.parseArrayIndex(name, allowLeadingZeroes: false, out uint index))
             {
                 Value v = _getValueAt(index);
                 if (!v.isEmpty) {
@@ -3898,7 +3898,7 @@ namespace Mariana.AVM2.Core {
 
             if (ASObject.AS_isUint(name.value))
                 index = (uint)name.value;
-            else if (NumberFormatHelper.parseArrayIndex((string)name, false, out uint parsedIndex))
+            else if (NumberFormatHelper.parseArrayIndex((string)name, allowLeadingZeroes: false, out uint parsedIndex))
                 index = parsedIndex;
 
             if (index != UInt32.MaxValue)
@@ -3914,7 +3914,7 @@ namespace Mariana.AVM2.Core {
 
             if (ASObject.AS_isUint(name.value))
                 index = (uint)name.value;
-            else if (NumberFormatHelper.parseArrayIndex((string)name, false, out uint parsedIndex))
+            else if (NumberFormatHelper.parseArrayIndex((string)name, allowLeadingZeroes: false, out uint parsedIndex))
                 index = parsedIndex;
 
             if (index != UInt32.MaxValue)

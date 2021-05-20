@@ -274,7 +274,7 @@ namespace Mariana.AVM2.Tests {
                     if (args.Length >= 1)
                         AssertHelper.identical(arrayElements[i], args[0]);
                     if (args.Length >= 2)
-                        AssertHelper.strictEqual(i, args[1]);
+                        AssertHelper.valueIdentical(i, args[1]);
                     if (args.Length >= 3)
                         AssertHelper.identical(array.instance, args[2]);
 
@@ -335,7 +335,7 @@ namespace Mariana.AVM2.Tests {
                     if (args.Length >= 1)
                         AssertHelper.identical(arrayElements[i], args[0]);
                     if (args.Length >= 2)
-                        AssertHelper.strictEqual(i, args[1]);
+                        AssertHelper.valueIdentical(i, args[1]);
                     if (args.Length >= 3)
                         AssertHelper.identical(array.instance, args[2]);
 
@@ -509,7 +509,7 @@ namespace Mariana.AVM2.Tests {
                     if (args.Length >= 1)
                         AssertHelper.identical(arrayElements[i], args[0]);
                     if (args.Length >= 2)
-                        AssertHelper.strictEqual(i, args[1]);
+                        AssertHelper.valueIdentical(i, args[1]);
                     if (args.Length >= 3)
                         AssertHelper.identical(array.instance, args[2]);
                 }
@@ -799,7 +799,7 @@ namespace Mariana.AVM2.Tests {
                     if (args.Length >= 1)
                         AssertHelper.identical(arrayElements[i], args[0]);
                     if (args.Length >= 2)
-                        AssertHelper.strictEqual(i, args[1]);
+                        AssertHelper.valueIdentical(i, args[1]);
                     if (args.Length >= 3)
                         AssertHelper.identical(array.instance, args[2]);
 
@@ -1052,7 +1052,7 @@ namespace Mariana.AVM2.Tests {
                     if (args.Length >= 1)
                         AssertHelper.identical(arrayElements[i], args[0]);
                     if (args.Length >= 2)
-                        AssertHelper.strictEqual(i, args[1]);
+                        AssertHelper.valueIdentical(i, args[1]);
                     if (args.Length >= 3)
                         AssertHelper.identical(array.instance, args[2]);
 

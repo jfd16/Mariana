@@ -429,23 +429,6 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Converts an ActionScript object to an XML node for use by E4X functions.
-        /// </summary>
-        /// <returns>The XML object.</returns>
-        /// <param name="obj">The <see cref="ASAny"/> instance to convert to an XML node.</param>
-        /// <param name="isExisting">If this method creates a new XML instance (when <paramref name="obj"/>
-        /// is not an XML object), this argument is set to false. If <paramref name="obj"/> is an XML
-        /// object, this method returns the object itself, and this argument is set to true.</param>
-        public static ASXML objectToNode(ASAny obj, out bool isExisting) {
-            if (obj.value is ASXML xml) {
-                isExisting = true;
-                return xml;
-            }
-            isExisting = false;
-            return ASXML.createNode(XMLNodeType.TEXT, null, ASAny.AS_convertString(obj));
-        }
-
-        /// <summary>
         /// Converts an object to a string that must be set as the value of an attribute when
         /// the object is assigned to it.
         /// </summary>
@@ -465,15 +448,41 @@ namespace Mariana.AVM2.Core {
                 case 1:
                     return (string)xmlList[0];
                 case 2:
-                    return (string)xmlList[0] + (string)xmlList[1];
+                    return (string)xmlList[0] + " " + (string)xmlList[1];
                 default: {
                     var strs = new string[nListItems];
                     for (int i = 0; i < strs.Length; i++)
                         strs[i] = (string)xmlList[i];
 
-                    return String.Concat(strs);
+                    return String.Join(" ", strs);
                 }
             }
+        }
+
+        /// <summary>
+        /// Returns the string value of an XML text node or a non-XML object.
+        /// </summary>
+        /// <param name="value">An </param>
+        ///
+        /// <returns>If <paramref name="value"/> is an XML text or attribute node or an XMLList containing
+        /// one such node, returns the node's value. If <paramref name="value"/> is not an XML or XMLList,
+        /// returns <paramref name="value"/> converted to a string. Otherwise, returns null.</returns>
+        ///
+        /// <remarks>This method does not consider CDATA nodes to be text nodes.</remarks>
+        public static string tryGetStringFromObjectOrNode(ASAny value) {
+            ASXML valueXml = value.value as ASXML;
+            ASXMLList valueXmlList = value.value as ASXMLList;
+
+            if (valueXmlList != null && valueXmlList.length() == 1)
+                valueXml = valueXmlList[0];
+
+            if (valueXml != null && (valueXml.isText || valueXml.isAttribute))
+                return valueXml.nodeText;
+
+            if (valueXml == null && valueXmlList == null)
+                return ASAny.AS_convertString(value);
+
+            return null;
         }
 
         /// <summary>
@@ -512,7 +521,7 @@ namespace Mariana.AVM2.Core {
                     newListItems.add(xmlList2[i]);
             }
 
-            return new ASXMLList(newListItems.getUnderlyingArray(), newListItems.length, true);
+            return new ASXMLList(newListItems.getUnderlyingArray(), newListItems.length, noCopy: true);
         }
 
         /// <summary>
