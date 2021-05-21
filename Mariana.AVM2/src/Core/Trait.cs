@@ -155,14 +155,8 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>Error #10045</term>
-        /// <description>This method is called on an instance trait.</description>
-        /// </item>
-        /// <item>
-        /// <term>Any error</term>
-        /// <description>An error occurs during the operation.</description>
-        /// </item>
+        /// <item><description>Error #10045: This method is called on an instance trait.</description></item>
+        /// <item><description>Any error: An error occurs during the operation.</description></item>
         /// </list>
         /// </exception>
         public ASAny getValue() {
@@ -193,14 +187,8 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>Error #10045</term>
-        /// <description>This method is called on an instance trait.</description>
-        /// </item>
-        /// <item>
-        /// <term>Any error</term>
-        /// <description>An error occurs during the operation.</description>
-        /// </item>
+        /// <item><description>Error #10045: This method is called on an instance trait.</description></item>
+        /// <item><description>Any error: An error occurs during the operation.</description></item>
         /// </list>
         /// </exception>
         public void setValue(ASAny value) {
@@ -244,14 +232,8 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>Error #10045</term>
-        /// <description>This method is called on an instance trait.</description>
-        /// </item>
-        /// <item>
-        /// <term>Any error</term>
-        /// <description>An error occurs during the operation.</description>
-        /// </item>
+        /// <item><description>Error #10045: This method is called on an instance trait.</description></item>
+        /// <item><description>Any error: An error occurs during the operation.</description></item>
         /// </list>
         /// </exception>
         public ASAny invoke(ReadOnlySpan<ASAny> args) {
@@ -285,14 +267,8 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>Error #10045</term>
-        /// <description>This method is called on an instance trait.</description>
-        /// </item>
-        /// <item>
-        /// <term>Any error</term>
-        /// <description>An error occurs during the operation.</description>
-        /// </item>
+        /// <item><description>Error #10045: This method is called on an instance trait.</description></item>
+        /// <item><description>Any error: An error occurs during the operation.</description></item>
         /// </list>
         /// </exception>
         public ASAny construct(ReadOnlySpan<ASAny> args) {

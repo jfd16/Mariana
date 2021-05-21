@@ -196,13 +196,9 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
+        /// <item><description>Any error: An exception is thrown by the invoked method.</description></item>
         /// <item>
-        /// <term>Any error</term>
-        /// <description>An exception is thrown by the invoked method.</description>
-        /// </item>
-        /// <item>
-        /// <term>ArgumentError #1063</term>
-        /// <description>The length of <paramref name="args"/> is less than the number of required parameters
+        /// <description>ArgumentError #1063: The length of <paramref name="args"/> is less than the number of required parameters
         /// declared by this method, or is greater than the number of parameters and the method does
         /// not have a "rest" parameter.</description>
         /// </item>
@@ -257,13 +253,11 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>Error #10039</term>
-        /// <description>The method takes a scope argument and <paramref name="scope"/>
+        /// <description>Error #10039: The method takes a scope argument and <paramref name="scope"/>
         /// is null.</description>
         /// </item>
         /// <item>
-        /// <term>Error #10040</term>
-        /// <description>The value of <paramref name="receiver"/> is null and the method is an
+        /// <description>Error #10040: The value of <paramref name="receiver"/> is null and the method is an
         /// instance method.</description>
         /// </item>
         /// </list>
@@ -294,13 +288,9 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
+        /// <item><description>Error #10041: This method takes a scope argument.</description></item>
         /// <item>
-        /// <term>Error #10041</term>
-        /// <description>This method takes a scope argument.</description>
-        /// </item>
-        /// <item>
-        /// <term>Error #10040</term>
-        /// <description>The value of <paramref name="receiver"/> is null and the method is an
+        /// <description>Error #10040: The value of <paramref name="receiver"/> is null and the method is an
         /// instance method.</description>
         /// </item>
         /// </list>
@@ -324,8 +314,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>Error #10039</term>
-        /// <description>The method contains a scope argument, and <paramref name="scope"/>
+        /// <description>Error #10039: The method contains a scope argument, and <paramref name="scope"/>
         /// is null.</description>
         /// </item>
         /// </list>
@@ -390,13 +379,9 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
+        /// <item><description>ArgumentError #10060: <paramref name="methodInfo"/> is null.</description></item>
         /// <item>
-        /// <term>ArgumentError #10060</term>
-        /// <description><paramref name="methodInfo"/> is null.</description>
-        /// </item>
-        /// <item>
-        /// <term>NativeClassLoadError #10140</term>
-        /// <description><paramref name="methodInfo"/> represents a non-public method, a public method declared
+        /// <description>NativeClassLoadError #10140: <paramref name="methodInfo"/> represents a non-public method, a public method declared
         /// on a non-public type, an instance method, or a method that contains open generic parameters.</description>
         /// </item>
         /// </list>

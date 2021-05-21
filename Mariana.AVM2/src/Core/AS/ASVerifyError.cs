@@ -10,16 +10,16 @@ namespace Mariana.AVM2.Core {
     /// <remarks>
     /// <para>Some (but not all) reasons for a VerifyError being thrown are:</para>
     /// <list type="bullet">
-    /// <item>A class inherits an interface or implements a class as an interface, or an
-    /// interface inherits a class.</item>
-    /// <item>A class inherits a final class, overrides a final method or does not implement
-    /// an interface method.</item>
-    /// <item>The target of a branch instruction in a method body is out of bounds or not at the
-    /// first byte of a multibyte instruction.</item>
-    /// <item>The code of a method contains the dxns, dxnslate or newactivation opcodes without
-    /// the associated flags set in the method's signature.</item>
-    /// <item>The code of a method refers to a parameter, local variable or scope stack position
-    /// that is out of bounds.</item>
+    /// <item><description>A class inherits an interface or implements a class as an interface, or an
+    /// interface inherits a class.</description></item>
+    /// <item><description>A class inherits a final class, overrides a final method or does not implement
+    /// an interface method.</description></item>
+    /// <item><description>The target of a branch instruction in a method body is out of bounds or not at the
+    /// first byte of a multibyte instruction.</description></item>
+    /// <item><description>The code of a method contains the dxns, dxnslate or newactivation opcodes without
+    /// the associated flags set in the method's signature.</description></item>
+    /// <item><description>The code of a method refers to a parameter, local variable or scope stack position
+    /// that is out of bounds.</description></item>
     /// </list>
     /// <para>A VerifyError is usually an indication of a bug in the compiler or other tool used
     /// to generate the ActionScript bytecode.</para>

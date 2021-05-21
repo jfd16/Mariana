@@ -145,7 +145,7 @@ each instruction, local variable states and other information). This only works 
 (with the `DEBUG` conditional compilation symbol set) and is ignored in release builds.
 * `emitAssemblySavePath`: Saves the generated IL code as a .dll file if a file path is specified.
 The assembly can be inspected using the [ILVerify](https://www.nuget.org/packages/dotnet-ilverify/)
-tool to check for any code generation problems.
+tool and/or a decompiler to check for any code generation problems.
 
 ## Authoring classes for the AVM2
 
@@ -211,9 +211,9 @@ public class MyClass : ASObject {
     [AVM2ExportTrait]
     public int methodWithOptional3(int x, OptionalParam<int> y) => 1;
 
-    // Classes can have unexported methods. These are available to .NET code but not to AS3.
+    // Classes can have unexported methods and other members. These are available to .NET code but not to AS3.
     public int nonExportedMethod() => 1000;
-    // Unexported methods have no restrictions on visibility or signature.
+    // Unexported members have no restrictions on visibility or signature.
     private string _privateMethod(DateTime dt) => dt.ToString();
 }
 ```

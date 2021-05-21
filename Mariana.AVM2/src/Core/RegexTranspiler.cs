@@ -11,16 +11,16 @@ namespace Mariana.AVM2.Core {
     /// <remarks>
     /// <para>The regex parser and transpiler performs the following tasks:</para>
     /// <list type="bullet">
-    /// <item>Detects syntax errors and throws the appropriate exception.</item>
-    /// <item>Converts octal escape sequences to hexadecimal escape sequences to avoid
-    /// octal-backreference ambiguity.</item>
-    /// <item>Resolves octal vs. backreference ambiguities in the original regex, and converts
-    /// backreferences to the <c>\k&lt;N&gt;</c> syntax of .NET regex.</item>
-    /// <item>Escapes certain characters which are not escaped in the original regex, but are
-    /// literal in their context. (e.g. <c>[[]</c> to <c>[\[]</c>)</item>
-    /// <item>Strips nonsignificant whitespace, if extended mode is enabled.</item>
-    /// <item>Replaces dots with equivalent expressions, if dotall mode is enabled.</item>
-    /// <item>Creates a group number to name map, if named groups are present.</item>
+    /// <item><description>Detects syntax errors and throws the appropriate exception.</description></item>
+    /// <item><description>Converts octal escape sequences to hexadecimal escape sequences to avoid
+    /// octal-backreference ambiguity.</description></item>
+    /// <item><description>Resolves octal vs. backreference ambiguities in the original regex, and converts
+    /// backreferences to the <c>\k&lt;N&gt;</c> syntax of .NET regex.</description></item>
+    /// <item><description>Escapes certain characters which are not escaped in the original regex, but are
+    /// literal in their context. (e.g. <c>[[]</c> to <c>[\[]</c>)</description></item>
+    /// <item><description>Strips nonsignificant whitespace, if extended mode is enabled.</description></item>
+    /// <item><description>Replaces dots with equivalent expressions, if dotall mode is enabled.</description></item>
+    /// <item><description>Creates a group number to name map, if named groups are present.</description></item>
     /// </list>
     /// </remarks>
     internal struct RegexTranspiler {

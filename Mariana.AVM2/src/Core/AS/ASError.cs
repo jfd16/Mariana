@@ -93,7 +93,7 @@ namespace Mariana.AVM2.Core {
         public virtual string getStackTrace() => m_lazyStackTraceString.value;
 
         /// <summary>
-        /// Function for lazy initialisation of the stacktrace.
+        /// Function for lazy initialization of the stacktrace.
         /// </summary>
         private string _initStackTrace() {
             StackFrame[] frames = m_stackTrace.GetFrames();

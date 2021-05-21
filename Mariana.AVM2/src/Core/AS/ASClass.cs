@@ -87,7 +87,7 @@ namespace Mariana.AVM2.Core {
         /// <exclude/>
         /// <summary>
         /// This is a special method that is called from the AVM2 runtime and by code compiled by the
-        /// ABCIL compiler. It must not be called from outside code.
+        /// ABC to IL compiler. It must not be called from outside code.
         /// </summary>
         internal static new ASAny __AS_CONSTRUCT(ReadOnlySpan<ASAny> args) =>
             throw ErrorHelper.createError(ErrorCode.CLASS_NOT_CONSTRUCTOR);

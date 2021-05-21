@@ -43,14 +43,8 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>RangeError #1005</term>
-        /// <description>This property is set to a negative value.</description>
-        /// </item>
-        /// <item>
-        /// <term>RangeError #1126</term>
-        /// <description>This property is changed on a fixed-length vector.</description>
-        /// </item>
+        /// <item><description>RangeError #1005: This property is set to a negative value.</description></item>
+        /// <item><description>RangeError #1126: This property is changed on a fixed-length vector.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -107,8 +101,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>RangeError #1125</term>
-        /// <description><paramref name="index"/> is negative or greater than the length of the
+        /// <description>RangeError #1125: <paramref name="index"/> is negative or greater than the length of the
         /// Vector.</description>
         /// </item>
         /// </list>
@@ -124,13 +117,11 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>RangeError #1125</term>
-        /// <description><paramref name="index"/> is negative or greater than the length of the
+        /// <description>RangeError #1125: <paramref name="index"/> is negative or greater than the length of the
         /// Vector.</description>
         /// </item>
         /// <item>
-        /// <term>RangeError #1126</term>
-        /// <description><paramref name="index"/> is equal to the length of the vector, and
+        /// <description>RangeError #1126: <paramref name="index"/> is equal to the length of the vector, and
         /// this is a fixed-length vector.</description>
         /// </item>
         /// </list>
@@ -167,8 +158,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>RangeError #1125</term>
-        /// <description><paramref name="index"/> is negative or greater than the length of the
+        /// <description>RangeError #1125: <paramref name="index"/> is negative or greater than the length of the
         /// Vector.</description>
         /// </item>
         /// </list>
@@ -184,13 +174,11 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>RangeError #1125</term>
-        /// <description><paramref name="index"/> is negative or greater than the length of the
+        /// <description>RangeError #1125: <paramref name="index"/> is negative or greater than the length of the
         /// Vector.</description>
         /// </item>
         /// <item>
-        /// <term>RangeError #1126</term>
-        /// <description><paramref name="index"/> is equal to the length of the vector, and this
+        /// <description>RangeError #1126: <paramref name="index"/> is equal to the length of the vector, and this
         /// is a fixed-length vector.</description>
         /// </item>
         /// </list>
@@ -227,8 +215,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>RangeError #1125</term>
-        /// <description><paramref name="index"/> is negative or greater than the length of the
+        /// <description>RangeError #1125: <paramref name="index"/> is negative or greater than the length of the
         /// Vector.</description>
         /// </item>
         /// </list>
@@ -244,13 +231,11 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>RangeError #1125</term>
-        /// <description><paramref name="index"/> is negative or greater than the length of the
+        /// <description>RangeError #1125: <paramref name="index"/> is negative or greater than the length of the
         /// Vector.</description>
         /// </item>
         /// <item>
-        /// <term>RangeError #1126</term>
-        /// <description><paramref name="index"/> is equal to the length of the vector, and
+        /// <description>RangeError #1126: <paramref name="index"/> is equal to the length of the vector, and
         /// this is a fixed-length vector.</description>
         /// </item>
         /// </list>
@@ -559,13 +544,9 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
+        /// <item><description>TypeError #1009: One of the arguments is null.</description></item>
         /// <item>
-        /// <term>TypeError #1009</term>
-        /// <description>One of the arguments is null.</description>
-        /// </item>
-        /// <item>
-        /// <term>TypeError #1034</term>
-        /// <description>One of the arguments is not an Array or Vector, or an element of one of the
+        /// <description>TypeError #1034: One of the arguments is not an Array or Vector, or an element of one of the
         /// Arrays or Vectors given as arguments cannot be converted to the element type of the
         /// calling Vector.</description>
         /// </item>
@@ -600,11 +581,10 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1510</term>
-        /// <description><paramref name="callback"/> is a method closure, and
+        /// <description>TypeError #1510: <paramref name="callback"/> is a method closure, and
         /// <paramref name="thisObject"/> is not null.</description>
         /// </item>
-        /// <item>The callback function throws an exception.</item>
+        /// <item><description>The callback function throws an exception.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -639,11 +619,10 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1510</term>
-        /// <description><paramref name="callback"/> is a method closure, and
+        /// <description>TypeError #1510: <paramref name="callback"/> is a method closure, and
         /// <paramref name="thisObject"/> is not null.</description>
         /// </item>
-        /// <item>The callback function throws an exception.</item>
+        /// <item><description>The callback function throws an exception.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -675,11 +654,10 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1510</term>
-        /// <description><paramref name="callback"/> is a method closure, and
+        /// <description>TypeError #1510: <paramref name="callback"/> is a method closure, and
         /// <paramref name="thisObject"/> is not null.</description>
         /// </item>
-        /// <item>The callback function throws an exception.</item>
+        /// <item><description>The callback function throws an exception.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -779,11 +757,10 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1510</term>
-        /// <description><paramref name="callback"/> is a method closure, and
+        /// <description>TypeError #1510: <paramref name="callback"/> is a method closure, and
         /// <paramref name="thisObject"/> is not null.</description>
         /// </item>
-        /// <item>The callback function throws an exception.</item>
+        /// <item><description>The callback function throws an exception.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -805,10 +782,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>RangeError #1126</term>
-        /// <description>This method is called on a fixed-length vector.</description>
-        /// </item>
+        /// <item><description>RangeError #1126: This method is called on a fixed-length vector.</description></item>
         /// </list>
         /// </exception>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
@@ -826,10 +800,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>RangeError #1126</term>
-        /// <description>This method is called on a fixed-length vector.</description>
-        /// </item>
+        /// <item><description>RangeError #1126: This method is called on a fixed-length vector.</description></item>
         /// </list>
         /// </exception>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
@@ -860,10 +831,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>RangeError #1126</term>
-        /// <description>This method is called on a fixed-length vector.</description>
-        /// </item>
+        /// <item><description>RangeError #1126: This method is called on a fixed-length vector.</description></item>
         /// </list>
         /// </exception>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
@@ -924,11 +892,10 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1510</term>
-        /// <description><paramref name="callback"/> is a method closure, and
+        /// <description>TypeError #1510: <paramref name="callback"/> is a method closure, and
         /// <paramref name="thisObject"/> is not null.</description>
         /// </item>
-        /// <item>The callback function throws an exception.</item>
+        /// <item><description>The callback function throws an exception.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -1004,8 +971,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>RangeError #1126</term>
-        /// <description>The Vector is a fixed-length Vector, and <paramref name="deleteCount"/> is
+        /// <description>RangeError #1126: The Vector is a fixed-length Vector, and <paramref name="deleteCount"/> is
         /// not equal to the number of arguments in <paramref name="newValues"/>.</description>
         /// </item>
         /// </list>
@@ -1050,10 +1016,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>RangeError #1126</term>
-        /// <description>This method is called on a fixed-length vector</description>
-        /// </item>
+        /// <item><description>RangeError #1126: This method is called on a fixed-length vector</description></item>
         /// </list>
         /// </exception>
         ///

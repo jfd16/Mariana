@@ -119,10 +119,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>RangeError #1002</term>
-        /// <description>If the precision is less than 1 or greater than 21.</description>
-        /// </item>
+        /// <item><description>RangeError #1002: If the precision is less than 1 or greater than 21.</description></item>
         /// </list>
         /// </exception>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
@@ -136,10 +133,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>RangeError #1002</term>
-        /// <description>If the precision is less than 0 or greater than 20.</description>
-        /// </item>
+        /// <item><description>RangeError #1002: If the precision is less than 0 or greater than 20.</description></item>
         /// </list>
         /// </exception>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
@@ -154,10 +148,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>RangeError #1002</term>
-        /// <description>If the precision is less than 0 or greater than 20.</description>
-        /// </item>
+        /// <item><description>RangeError #1002: If the precision is less than 0 or greater than 20.</description></item>
         /// </list>
         /// </exception>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
@@ -174,19 +165,14 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>RangeError #1003</term>
-        /// <description>If the radix is less than 2 or greater than 36.</description>
-        /// </item>
+        /// <item><description>RangeError #1003: If the radix is less than 2 or greater than 36.</description></item>
         /// </list>
         /// </exception>
         ///
         /// <remarks>
-        /// <para>Numbers with very large magnitude currently cannot be converted to bases other than
-        /// 10 (the limit depends on the base being used). Null is returned in such cases.</para>
-        /// <para>This method is exported to the AVM2 with the name <c>toString</c>, but must be
+        /// This method is exported to the AVM2 with the name <c>toString</c>, but must be
         /// called from .NET code with the name <c>AS_toString</c> to avoid confusion with the
-        /// <see cref="Object.ToString" qualifyHint="true"/> method.</para>
+        /// <see cref="Object.ToString" qualifyHint="true"/> method.
         /// </remarks>
         [AVM2ExportTrait(name = "toString", nsUri = "http://adobe.com/AS3/2006/builtin")]
         public string AS_toString(int radix = 10) => toString(m_value, radix);
@@ -263,10 +249,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>RangeError #1002</term>
-        /// <description>If the precision is less than 0 or greater than 20.</description>
-        /// </item>
+        /// <item><description>RangeError #1002: If the precision is less than 0 or greater than 20.</description></item>
         /// </list>
         /// </exception>
         [AVM2ExportPrototypeMethod]
@@ -286,10 +269,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>RangeError #1002</term>
-        /// <description>If the precision is less than 0 or greater than 20.</description>
-        /// </item>
+        /// <item><description>RangeError #1002: If the precision is less than 0 or greater than 20.</description></item>
         /// </list>
         /// </exception>
         [AVM2ExportPrototypeMethod]
@@ -313,10 +293,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>RangeError #1002</term>
-        /// <description>If the precision is less than 1 or greater than 21.</description>
-        /// </item>
+        /// <item><description>RangeError #1002: If the precision is less than 1 or greater than 21.</description></item>
         /// </list>
         /// </exception>
         [AVM2ExportPrototypeMethod]
@@ -335,10 +312,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>RangeError #1003</term>
-        /// <description>If the radix is less than 2 or greater than 36.</description>
-        /// </item>
+        /// <item><description>RangeError #1003: If the radix is less than 2 or greater than 36.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -393,7 +367,7 @@ namespace Mariana.AVM2.Core {
         /// <exclude/>
         /// <summary>
         /// This is a special method that is called from the AVM2 runtime and by code compiled by the
-        /// ABCIL compiler. It must not be called from outside code.
+        /// ABC to IL compiler. It must not be called from outside code.
         /// </summary>
         internal static new ASAny __AS_INVOKE(ReadOnlySpan<ASAny> args) =>
             ASAny.AS_fromNumber((args.Length == 0) ? 0.0 : ASAny.AS_toNumber(args[0]));
@@ -401,7 +375,7 @@ namespace Mariana.AVM2.Core {
         /// <exclude/>
         /// <summary>
         /// This is a special method that is called from the AVM2 runtime and by code compiled by the
-        /// ABCIL compiler. It must not be called from outside code.
+        /// ABC to IL compiler. It must not be called from outside code.
         /// </summary>
         internal static new ASAny __AS_CONSTRUCT(ReadOnlySpan<ASAny> args) => __AS_INVOKE(args);
 

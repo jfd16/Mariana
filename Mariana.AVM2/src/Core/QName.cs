@@ -72,7 +72,7 @@ namespace Mariana.AVM2.Core {
         /// <returns>A string representation of the current <see cref="QName"/>.</returns>
         ///
         /// <remarks>
-        /// String returned by this method are intended to be human-readable. They should not be used
+        /// Strings returned by this method are intended to be human-readable. They should not be used
         /// as dictionary keys, as it is not guaranteed that this method will never output the same
         /// string representation for two different QNames.
         /// </remarks>
@@ -172,22 +172,22 @@ namespace Mariana.AVM2.Core {
         /// <remarks>
         /// <para>The syntax of the name parameter is as follows:</para>
         /// <list type="bullet">
-        /// <item>
+        /// <item><description>
         /// If the string has one or more double colons ("::"), then the part before the last double
         /// colon is treated as the namespace (with the kind
         /// <see cref="NamespaceKind.NAMESPACE" qualifyHint="true"/>) and the part after the double
         /// colon is the local name. If the namespace is the string "*", it is taken to be the "any"
         /// namespace.
-        /// </item>
-        /// <item>
+        /// </description></item>
+        /// <item><description>
         /// Otherwise, if the string has one or more periods ('.') then the part before the last
         /// period (which is not the last character of the name and is not followed by '&lt;') is the
         /// package name (the namespace kind will be
         /// <see cref="NamespaceKind.NAMESPACE" qualifyHint="true"/>) and the part after it is the local
         /// name.
-        /// </item>
-        /// <item>If the string has no double colon or period, the entire string is treated as the
-        /// local name, with the namespace being the public namespace.</item>
+        /// </description></item>
+        /// <item><description>If the string has no double colon or period, the entire string is treated as the
+        /// local name, with the namespace being the public namespace.</description></item>
         /// </list>
         /// </remarks>
         public static QName parse(string name) {

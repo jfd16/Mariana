@@ -116,7 +116,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <summary>
         /// This method is called internally from the AVM2 and from code compiled with the
-        /// ABCIL compiler to invoke the ActionScript XML constructor. This method must not
+        /// ABC to IL compiler to invoke the ActionScript XML constructor. This method must not
         /// be used by .NET code.
         /// </summary>
         internal static new ASAny __AS_INVOKE(ReadOnlySpan<ASAny> args) {
@@ -138,7 +138,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <summary>
         /// This method is called internally from the AVM2 and from code compiled with the
-        /// ABCIL compiler to invoke the ActionScript XML constructor. This method must not
+        /// ABC to IL compiler to invoke the ActionScript XML constructor. This method must not
         /// be used by .NET code.
         /// </summary>
         internal static new ASAny __AS_CONSTRUCT(ReadOnlySpan<ASAny> args) {
@@ -183,10 +183,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1086</term>
-        /// <description><paramref name="xmlList"/> does not have exactly one element.</description>
-        /// </item>
+        /// <item><description>TypeError #1086: <paramref name="xmlList"/> does not have exactly one element.</description></item>
         /// </list>
         /// </exception>
         public static ASXML fromXMLList(ASXMLList xmlList, bool copy = false) {
@@ -309,8 +306,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>ArgumentError #10061</term>
-        /// <description><paramref name="nodeType"/> is not a valid value for this method (this
+        /// <description>ArgumentError #10061: <paramref name="nodeType"/> is not a valid value for this method (this
         /// includes <see cref="XMLNodeType.ATTRIBUTE" qualifyHint="true"/>)</description>
         /// </item>
         /// </list>
@@ -1431,10 +1427,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #10201</term>
-        /// <description>This method is called on a non-element node.</description>
-        /// </item>
+        /// <item><description>TypeError #10201: This method is called on a non-element node.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -1622,10 +1615,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1010</term>
-        /// <description><paramref name="name"/> is null or undefined.</description>
-        /// </item>
+        /// <item><description>TypeError #1010: <paramref name="name"/> is null or undefined.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -1675,10 +1665,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1010</term>
-        /// <description><paramref name="name"/> is null or undefined.</description>
-        /// </item>
+        /// <item><description>TypeError #1010: <paramref name="name"/> is null or undefined.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -1793,10 +1780,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1010</term>
-        /// <description><paramref name="name"/> is null or undefined.</description>
-        /// </item>
+        /// <item><description>TypeError #1010: <paramref name="name"/> is null or undefined.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -1839,10 +1823,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1010</term>
-        /// <description><paramref name="name"/> is null or undefined.</description>
-        /// </item>
+        /// <item><description>TypeError #1010: <paramref name="name"/> is null or undefined.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -2244,10 +2225,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1010</term>
-        /// <description><paramref name="name"/> is null or undefined.</description>
-        /// </item>
+        /// <item><description>TypeError #1010: <paramref name="name"/> is null or undefined.</description></item>
         /// </list>
         /// </exception>
         ///

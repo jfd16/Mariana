@@ -51,14 +51,8 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1131</term>
-        /// <description><paramref name="replacer"/> is not an Array or Function.</description>
-        /// </item>
-        /// <item>
-        /// <term>TypeError #1129</term>
-        /// <description><paramref name="obj"/> contains a circular reference.</description>
-        /// </item>
+        /// <item><description>TypeError #1131: <paramref name="replacer"/> is not an Array or Function.</description></item>
+        /// <item><description>TypeError #1129: <paramref name="obj"/> contains a circular reference.</description></item>
         /// </list>
         /// </exception>
         ///

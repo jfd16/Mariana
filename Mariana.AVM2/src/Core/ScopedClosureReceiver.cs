@@ -18,12 +18,12 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// The receiver argument passed to the method.
         /// </summary>
-        public ASObject receiver;
+        public readonly ASObject receiver;
 
         /// <summary>
         /// The scope argument passed to the method.
         /// </summary>
-        public object scope;
+        public readonly object scope;
 
         /// <summary>
         /// Creates a new instance of <see cref="ScopedClosureReceiver"/>.

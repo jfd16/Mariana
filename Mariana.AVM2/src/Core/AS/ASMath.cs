@@ -138,10 +138,10 @@ namespace Mariana.AVM2.Core {
         public static double cos(double x) => Math.Cos(x);
 
         /// <summary>
-        /// Returns the value of e raized to the power <paramref name="x"/>.
+        /// Returns the value of e raised to the power <paramref name="x"/>.
         /// </summary>
         /// <param name="x">The power.</param>
-        /// <returns>The value of e raized to the power <paramref name="x"/>.</returns>
+        /// <returns>The value of e raised to the power <paramref name="x"/>.</returns>
         [AVM2ExportTrait]
         public static double exp(double x) => Math.Exp(x);
 
@@ -217,11 +217,11 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Returns the value of <paramref name="x"/> raized to the power <paramref name="y"/>.
+        /// Returns the value of <paramref name="x"/> raised to the power <paramref name="y"/>.
         /// </summary>
         /// <param name="x">The value to raise to the power <paramref name="y"/>.</param>
         /// <param name="y">The power.</param>
-        /// <returns>The specified value raized to the specified power.</returns>
+        /// <returns>The specified value raised to the specified power.</returns>
         [AVM2ExportTrait]
         public static double pow(double x, double y) =>
             (Math.Abs(x) == 1.0 && !Double.IsFinite(y)) ? Double.NaN : Math.Pow(x, y);
@@ -236,7 +236,7 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Rounds <paramref name="val"/> to the nearest integer. A number exactly halfway between
         /// two successive integers (i.e. having fractional part as 0.5) will be rounded towards
-        /// positive infinity, i.e. to the integer which is greater than the given number.
+        /// positive infinity, i.e. to the integer that is greater than the given number.
         /// </summary>
         ///
         /// <param name="val">The value to round.</param>
@@ -327,14 +327,14 @@ namespace Mariana.AVM2.Core {
         /// <exclude/>
         /// <summary>
         /// This is a special method that is called from the AVM2 runtime and by code compiled by the
-        /// ABCIL compiler. It must not be called from outside code.
+        /// ABC to IL compiler. It must not be called from outside code.
         /// </summary>
         internal static new ASAny __AS_INVOKE(ReadOnlySpan<ASAny> args) => throw ErrorHelper.createError(ErrorCode.MATH_NOT_FUNCTION);
 
         /// <exclude/>
         /// <summary>
         /// This is a special method that is called from the AVM2 runtime and by code compiled by the
-        /// ABCIL compiler. It must not be called from outside code.
+        /// ABC to IL compiler. It must not be called from outside code.
         /// </summary>
         internal static new ASAny __AS_CONSTRUCT(ReadOnlySpan<ASAny> args) => throw ErrorHelper.createError(ErrorCode.MATH_NOT_CONSTRUCTOR);
 

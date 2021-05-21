@@ -3,8 +3,8 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
-using Mariana.Common;
 using Mariana.CodeGen.IL;
+using Mariana.Common;
 
 namespace Mariana.CodeGen {
 
@@ -128,11 +128,17 @@ namespace Mariana.CodeGen {
         /// parameter at <paramref name="position"/>, as a span of handles to the constraint
         /// types. If there should not be any constraints on the type parameter, pass an empty
         /// span.</param>
+        ///
+        /// <exception cref="ArgumentException"><paramref name="name"/> is null or the empty string.</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="position"/> is negative, or
+        /// greater than or equal to the number of generic parameters declared for this method
+        /// (the type parameter count provided to <see cref="TypeBuilder.defineMethod"/>).</exception>
         public void defineGenericParameter(
-            int position, string name,
+            int position,
+            string name,
             GenericParameterAttributes attributes = GenericParameterAttributes.None,
-            ReadOnlySpan<EntityHandle> constraints = default)
-        {
+            ReadOnlySpan<EntityHandle> constraints = default
+        ) {
             if ((uint)position >= (uint)m_genParams.Length)
                 throw new ArgumentOutOfRangeException(nameof(position));
 
@@ -149,17 +155,25 @@ namespace Mariana.CodeGen {
         /// Sets the name, attributes and/or the default value of a parameter of the method
         /// represented by this <see cref="MethodBuilder"/>.
         /// </summary>
+        ///
         /// <param name="position">The zero-based index of the parameter, or -1 for
         /// the return parameter.</param>
-        /// <param name="name">The name to set for the parameter at <paramref name="position"/>.</param>
+        /// <param name="name">The name to set for the parameter at <paramref name="position"/>,
+        /// or null if the parameter should not have a name.</param>
         /// <param name="attributes">The attributes to set for the parameter at <paramref name="position"/>.</param>
         /// <param name="defaultValue">The default value to set for the parameter at
         /// <paramref name="position"/>. Only applicable if <paramref name="attributes"/> has the
         /// <see cref="ParameterAttributes.HasDefault"/> flag set.</param>
+        ///
+        /// <exception cref="ArgumentException"><paramref name="name"/> is the empty string.</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="position"/> is negative, or
+        /// greater than or equal to the parameter count in the method's signature.</exception>
         public void defineParameter(
-            int position, string name = null, ParameterAttributes attributes = ParameterAttributes.None,
-            object defaultValue = null)
-        {
+            int position,
+            string name = null,
+            ParameterAttributes attributes = ParameterAttributes.None,
+            object defaultValue = null
+        ) {
             if ((uint)(position + 1) > (uint)m_paramCount)
                 throw new ArgumentOutOfRangeException(nameof(position));
 
@@ -181,13 +195,18 @@ namespace Mariana.CodeGen {
         /// <summary>
         /// Sets the body of the method.
         /// </summary>
+        ///
         /// <param name="body">The body of the method, in the format specified in the ECMA-335
         /// specification, II.25.4 (Common Intermediate Language physical layout).</param>
         /// <param name="virtualTokenLocations">A span containing the byte offsets in
         /// <paramref name="body"/> of virtual metadata tokens (such as those obtained
-        /// from <see cref="FieldBuilder.handle"/> or <see cref="MethodBuilder.handle"/>)
+        /// from <see cref="FieldBuilder.handle" qualifyHint="true"/> or
+        /// <see cref="MethodBuilder.handle" qualifyHint="true"/>)
         /// that need to be replaced with their corresponding real tokens during assembly
         /// serialization.</param>
+        ///
+        /// <exception cref="InvalidOperationException">This <see cref="MethodBuilder"/> represents
+        /// an abstract method.</exception>
         public void setMethodBody(ReadOnlySpan<byte> body, ReadOnlySpan<int> virtualTokenLocations = default) {
             if ((attributes & (MethodAttributes.Abstract | MethodAttributes.PinvokeImpl)) != 0)
                 throw new InvalidOperationException("Methods with the Abstract or PInvokeImpl flag cannt have bodies.");
@@ -200,7 +219,14 @@ namespace Mariana.CodeGen {
         /// Sets the body of the method.
         /// </summary>
         /// <param name="body">An <see cref="ILMethodBody"/> instance representing the method body.</param>
+        ///
+        /// <exception cref="ArgumentNullException"><paramref name="body"/> is null.</exception>
+        /// <exception cref="InvalidOperationException">This <see cref="MethodBuilder"/> represents
+        /// an abstract method.</exception>
         public void setMethodBody(ILMethodBody body) {
+            if (body == null)
+                throw new ArgumentNullException(nameof(body));
+
             if ((attributes & (MethodAttributes.Abstract | MethodAttributes.PinvokeImpl)) != 0)
                 throw new InvalidOperationException("Methods with the Abstract or PInvokeImpl flag cannt have bodies.");
 

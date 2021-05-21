@@ -95,24 +95,24 @@ namespace Mariana.Common {
         ///
         /// <remarks>
         /// <list type="bullet">
-        /// <item>
+        /// <item><description>
         /// If <paramref name="newLength"/> is less than <paramref name="length"/>, all elements
         /// in the range [<paramref name="newLength"/>, <paramref name="length"/> - 1] are set to the
         /// default value of <typeparamref name="T"/>.
         /// Note that this is different from the <see cref="Array.Resize" qualifyHint="true"/>
         /// method, which creates a new array of a smaller size.
-        /// </item>
-        /// <item>If <paramref name="newLength"/> is less than or equal to the length of <paramref name="arr"/>
+        /// </description></item>
+        /// <item><description>If <paramref name="newLength"/> is less than or equal to the length of <paramref name="arr"/>
         /// but not less than <paramref name="length"/>, all elements in the range
         /// [<paramref name="length"/>, <paramref name="newLength"/> - 1] are set to the
-        /// default value of <typeparamref name="T"/>.</item>
-        /// <item>
+        /// default value of <typeparamref name="T"/>.</description></item>
+        /// <item><description>
         /// Otherwise, a new array is created. If <paramref name="exact"/> is true, the length of
         /// the new array is equal to <paramref name="newLength"/>. If <paramref name="exact"/> is
         /// false, the length of the new array is calculated using the <see cref="getNextArraySize"/> method.
         /// The elements of <paramref name="arr"/> from index 0 to <paramref name="length"/> - 1 will be
         /// copied to the new array. The new array will be assigned to the <paramref name="arr"/> argument.
-        /// </item>
+        /// </description></item>
         /// </list>
         /// </remarks>
         public static void resizeArray<T>(ref T[] arr, int length, int newLength, bool exact) {

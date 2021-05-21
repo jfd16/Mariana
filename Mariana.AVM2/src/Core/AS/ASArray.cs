@@ -251,8 +251,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <term>RangeError #1005</term>
-        /// <description><paramref name="length"/> is not a positive integer.</description>
+        /// <item><description>RangeError #1005: <paramref name="length"/> is not a positive integer.</description></item>
         /// </list>
         /// </exception>
         public ASArray(int length) {
@@ -293,9 +292,8 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <term>RangeError #1005</term>
-        /// <description>There is only one argument which is of a numeric type but not a positive
-        /// integer.</description>
+        /// <item><description>RangeError #1005: There is only one argument which is of a numeric
+        /// type but not a positive integer.</description></item>
         /// </list>
         /// </exception>
         [AVM2ExportTrait]
@@ -2031,14 +2029,10 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1510</term>
-        /// <description><paramref name="callback"/> is a method closure, and
+        /// <description>TypeError #1510: <paramref name="callback"/> is a method closure, and
         /// <paramref name="thisObject"/> is not null or undefined.</description>
         /// </item>
-        /// <item>
-        /// <term>Any error</term>
-        /// <description>The callback function throws an exception.</description>
-        /// </item>
+        /// <item><description>Any error: The callback function throws an exception.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -2106,14 +2100,10 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1510</term>
-        /// <description><paramref name="callback"/> is a method closure, and
+        /// <description>TypeError #1510: <paramref name="callback"/> is a method closure, and
         /// <paramref name="thisObject"/> is not null or undefined.</description>
         /// </item>
-        /// <item>
-        /// <term>Any error</term>
-        /// <description>The callback function throws an exception.</description>
-        /// </item>
+        /// <item><description>Any error: The callback function throws an exception.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -2179,14 +2169,10 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1510</term>
-        /// <description><paramref name="callback"/> is a method closure, and
+        /// <description>TypeError #1510: <paramref name="callback"/> is a method closure, and
         /// <paramref name="thisObject"/> is not null or undefined.</description>
         /// </item>
-        /// <item>
-        /// <term>Any error</term>
-        /// <description>The callback function throws an exception.</description>
-        /// </item>
+        /// <item><description>Any error: The callback function throws an exception.</description></item>
         /// </list>
         /// </exception>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
@@ -2420,14 +2406,10 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1510</term>
-        /// <description><paramref name="callback"/> is a method closure, and
+        /// <description>TypeError #1510: <paramref name="callback"/> is a method closure, and
         /// <paramref name="thisObject"/> is not null or undefined.</description>
         /// </item>
-        /// <item>
-        /// <term>Any error</term>
-        /// <description>The callback function throws an exception.</description>
-        /// </item>
+        /// <item><description>Any error: The callback function throws an exception.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -2772,14 +2754,10 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1510</term>
-        /// <description><paramref name="callback"/> is a method closure, and
+        /// <description>TypeError #1510: <paramref name="callback"/> is a method closure, and
         /// <paramref name="thisObject"/> is not null or undefined.</description>
         /// </item>
-        /// <item>
-        /// <term>Any error</term>
-        /// <description>The callback function throws an exception.</description>
-        /// </item>
+        /// <item><description>Any error: The callback function throws an exception.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -3550,21 +3528,21 @@ namespace Mariana.AVM2.Core {
         /// <para>The arguments in the <paramref name="args"/> list are interpreted as
         /// follows:</para>
         /// <list type="bullet">
-        /// <item>If no arguments are passed, the array is not modified and an empty array is
-        /// returned.</item>
-        /// <item>
+        /// <item><description>If no arguments are passed, the array is not modified and an empty array is
+        /// returned.</description></item>
+        /// <item><description>
         /// The first argument, <c>startIndex</c>, is the index from which elements should be
         /// removed and included in the returned array. If this is negative, the length of the Array
         /// is added to it; if it is still negative after adding the length, it is set to zero. If
         /// this is greater than the length of the array, it is set to the length of the array.
-        /// </item>
-        /// <item>The second argument, <c>deleteCount</c>, is the number of elements that must be
+        /// </description></item>
+        /// <item><description>The second argument, <c>deleteCount</c>, is the number of elements that must be
         /// removed. If this is negative, it is set to zero; if <c>startIndex + deleteCount</c> is
         /// greater than the array's length, or only one argument is passed, this is set to
-        /// <c>length - startIndex</c>.</item>
-        /// <item>If there are any passed arguments following the second, they will be considered as a
+        /// <c>length - startIndex</c>.</description></item>
+        /// <item><description>If there are any passed arguments following the second, they will be considered as a
         /// list of values to be inserted into the array at <c>startIndex</c> after removing
-        /// <c>deleteCount</c> elements.</item>
+        /// <c>deleteCount</c> elements.</description></item>
         /// </list>
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
@@ -3927,7 +3905,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <summary>
         /// This is a special method that is called from the AVM2 runtime and by code compiled by the
-        /// ABCIL compiler to invoke the ActionScript Array class constructor. This must not be called
+        /// ABC to IL compiler to invoke the ActionScript Array class constructor. This must not be called
         /// by outside .NET code. Array objects constructed from .NET code must use the constructor
         /// defined on the <see cref="ASArray"/> type.
         /// </summary>

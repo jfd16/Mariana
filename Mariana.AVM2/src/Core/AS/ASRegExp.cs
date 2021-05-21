@@ -78,12 +78,12 @@ namespace Mariana.AVM2.Core {
         /// <para>The characters in the <paramref name="flags"/> string are interpreted as
         /// follows:</para>
         /// <list type="bullet">
-        /// <item>m (multiline): If this is set, the '^' and '$' characters in the pattern matches the
+        /// <item><description>m (multiline): If this is set, the '^' and '$' characters in the pattern matches the
         /// beginning and end of lines in the target string respectively, instead of the beginning and
-        /// end of the entire string.</item>
-        /// <item>i (ignoreCase): If this is set, any alphabetic character in the pattern string
-        /// matches both its uppercase and lowercase forms in the target string.</item>
-        /// <item>
+        /// end of the entire string.</description></item>
+        /// <item><description>i (ignoreCase): If this is set, any alphabetic character in the pattern string
+        /// matches both its uppercase and lowercase forms in the target string.</description></item>
+        /// <item><description>
         /// g (global): If this is set, the
         /// <see cref="ASString.match(String, ASAny)" qualifyHint="true"/> method of the String
         /// class returns an array of all matches of the regular expression in the target string
@@ -94,16 +94,16 @@ namespace Mariana.AVM2.Core {
         /// will set the <see cref="lastIndex"/> property to the index of the character immediately
         /// after the matched substring. All other native methods that accept RegExp arguments do not
         /// use this flag.
-        /// </item>
-        /// <item>s (dotall): If this is set, the '.' character in the pattern string matches any
+        /// </description></item>
+        /// <item><description>s (dotall): If this is set, the '.' character in the pattern string matches any
         /// character in the target string, including newlines. If this is not set, the dot character
-        /// does not match newlines.</item>
-        /// <item>
+        /// does not match newlines.</description></item>
+        /// <item><description>
         /// x (extended): If this is set, any white space and/or new lines in the pattern string are
         /// ignored; except in character classes, when escaped with a backslash, inside the curly
         /// braces of numeric quantifiers and before, in between or after the special character(s)
         /// that occur after the '(' in a special group construct (such as <c>'(?=...)'</c>).
-        /// </item>
+        /// </description></item>
         /// </list>
         /// </remarks>
         public ASRegExp(string pattern, string flags = "") => _init(pattern, flags);
@@ -241,22 +241,22 @@ namespace Mariana.AVM2.Core {
         /// <remarks>
         /// <para>If this flag is set:</para>
         /// <list type="bullet">
-        /// <item>
+        /// <item><description>
         /// The <see cref="ASString.match(String, ASAny)" qualifyHint="true"/>
         /// method of the String class returns an array of all matches of the regular expression in
         /// the target string instead of only the first match, and sets the <see cref="lastIndex"/>
         /// property to 0.
-        /// </item>
-        /// <item>
+        /// </description></item>
+        /// <item><description>
         /// The <see cref="ASString.replace(String, ASAny, ASAny)" qualifyHint="true"/> method of the
         /// String class replaces all matches of the regular expression in the target string instead
         /// of replacing only the first match, and sets the <see cref="lastIndex"/> property to 0.
-        /// </item>
-        /// <item>
+        /// </description></item>
+        /// <item><description>
         /// The <see cref="exec"/> method will set the <see cref="lastIndex"/> property to the index
         /// of the character immediately after the matched substring.
-        /// </item>
-        /// <item>All other methods taking RegExp arguments are not affected.</item>
+        /// </description></item>
+        /// <item><description>All other methods taking RegExp arguments are not affected.</description></item>
         /// </list>
         /// </remarks>
         [AVM2ExportTrait]
@@ -361,18 +361,18 @@ namespace Mariana.AVM2.Core {
         /// <remarks>
         /// <para>The returned array has the following:</para>
         /// <list type="bullet">
-        /// <item>The substring of the target string matched by the entire regular expression pattern
-        /// is stored at index 0 in the array.</item>
-        /// <item>
+        /// <item><description>The substring of the target string matched by the entire regular expression pattern
+        /// is stored at index 0 in the array.</description></item>
+        /// <item><description>
         /// A substring matched by a capturing group in the regular expression pattern is stored at
         /// the one-based numeric index of that group in the array. The index of a group is determined
         /// by the position of its opening parenthesis in the pattern string.
-        /// </item>
-        /// <item>If a capturing group has a name, the substring matched by it is stored as a dynamic
-        /// property in the returned array with that name.</item>
-        /// <item>Two dynamic properties named <c>input</c> and <c>index</c> have the value of
+        /// </description></item>
+        /// <item><description>If a capturing group has a name, the substring matched by it is stored as a dynamic
+        /// property in the returned array with that name.</description></item>
+        /// <item><description>Two dynamic properties named <c>input</c> and <c>index</c> have the value of
         /// the target string (i.e., the <paramref name="str"/> argument) and the zero-based index
-        /// of the substring matched by the whole pattern in the target string, respectively.</item>
+        /// of the substring matched by the whole pattern in the target string, respectively.</description></item>
         /// </list>
         /// <para>
         /// If the regular expression has the global flag set, the match starts at the index in the
@@ -439,7 +439,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <summary>
         /// This is a special method that is called from the AVM2 runtime and by code compiled by the
-        /// ABCIL compiler to invoke the ActionScript RegExp class constructor. This must not be
+        /// ABC to IL compiler to invoke the ActionScript RegExp class constructor. This must not be
         /// called by outside .NET code. RegExp objects constructed from .NET code must use the
         /// constructor defined on the <see cref="ASRegExp"/> type.
         /// </summary>

@@ -11,7 +11,7 @@ namespace Mariana.AVM2.Core {
     public class ASObject : IEquatable<ASObject> {
 
         /// <summary>
-        /// These objects are used to synchronize lazy initialisation of the <see cref="m_class"/>,
+        /// These objects are used to synchronize lazy initialization of the <see cref="m_class"/>,
         /// <see cref="m_proto"/> and <see cref="m_dynProps"/> fields of objects. An object will
         /// take one of these locks for initializing these fields based on its reference hash code.
         /// </summary>
@@ -124,7 +124,7 @@ namespace Mariana.AVM2.Core {
             // of ALL AS3 objects), lock on "this" itself (which could result in inadvertent
             // deadlocks if outside code uses the objects as locks), or use a single global
             // lock (which would lead to threads waiting for what is not really a
-            // shared resource). This hashcode based approach allows thread-safe initialisation
+            // shared resource). This hashcode based approach allows thread-safe initialization
             // without an added object memory footprint while allowing a reasonable amount of
             // concurrency (which depends on the number of locks used).
 
@@ -1017,10 +1017,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1006</term>
-        /// <description>The object is not callable.</description>
-        /// </item>
+        /// <item><description>TypeError #1006: The object is not callable.</description></item>
         /// </list>
         /// </exception>
         public ASAny AS_invoke(ASAny receiver, ReadOnlySpan<ASAny> args) {
@@ -1037,10 +1034,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1006</term>
-        /// <description>The object is not constructible.</description>
-        /// </item>
+        /// <item><description>TypeError #1006: The object is not constructible.</description></item>
         /// </list>
         /// </exception>
         public ASAny AS_construct(ReadOnlySpan<ASAny> args) {
@@ -1059,10 +1053,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1016</term>
-        /// <description>The descendants operator is not supported on the object.</description>
-        /// </item>
+        /// <item><description>TypeError #1016: The descendants operator is not supported on the object.</description></item>
         /// </list>
         /// </exception>
         public ASAny AS_getDescendants(in QName name, BindOptions options = BindOptions.SEARCH_DYNAMIC) {
@@ -1084,10 +1075,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1016</term>
-        /// <description>The descendants operator is not supported on the object.</description>
-        /// </item>
+        /// <item><description>TypeError #1016: The descendants operator is not supported on the object.</description></item>
         /// </list>
         /// </exception>
         public ASAny AS_getDescendants(
@@ -1536,7 +1524,7 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Gets the value of the property with the given object key.
+        /// Gets the value of the property with the given object key in one of the namespaces of the given set.
         /// </summary>
         /// <param name="key">The object key of the property.</param>
         /// <param name="options">The binding options for the search, indicating which properties are
@@ -1599,7 +1587,7 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Sets the value of the property with the given object key.
+        /// Sets the value of the property with the given object key in one of the namespaces in the given set.
         /// </summary>
         ///
         /// <param name="key">The object key of the property.</param>
@@ -1725,10 +1713,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1016</term>
-        /// <description>The descendants operator is not supported on the object.</description>
-        /// </item>
+        /// <item><description>TypeError #1016: The descendants operator is not supported on the object.</description></item>
         /// </list>
         /// </exception>
         public ASAny AS_getDescendantsObj(ASAny key, BindOptions options = BindOptions.SEARCH_DYNAMIC) {
@@ -1750,10 +1735,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1016</term>
-        /// <description>The descendants operator is not supported on the object.</description>
-        /// </item>
+        /// <item><description>TypeError #1016: The descendants operator is not supported on the object.</description></item>
         /// </list>
         /// </exception>
         public ASAny AS_getDescendantsObj(
@@ -1842,7 +1824,7 @@ namespace Mariana.AVM2.Core {
         /// </para>
         /// <para>This method is used to implement the <c>hasnext2</c> opcode in the AVM2, which
         /// is used for for-in loops in AS3. Calls to this method are injected into code generated by
-        /// the ABCIL compiler. There are very few (if any) uses of it in .NET code.</para>
+        /// the ABC to IL compiler. There are very few (if any) uses of it in .NET code.</para>
         /// </remarks>
         public static bool AS_hasnext2(ref ASObject obj, ref int index) {
             if (obj == null)
@@ -2070,8 +2052,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #10058</term>
-        /// <description><paramref name="obj"/> is not an object of type <see cref="ASObject"/> or a
+        /// <description>TypeError #10058: <paramref name="obj"/> is not an object of type <see cref="ASObject"/> or a
         /// type deriving from it, a boxed instance of <see cref="ASAny"/>, or a boxed instance of a
         /// valid primitive type.</description>
         /// </item>
@@ -2123,8 +2104,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1034</term>
-        /// <description>If the object is not of the type given as the type argument, a class derived
+        /// <description>TypeError #1034: If the object is not of the type given as the type argument, a class derived
         /// from it, or an implementation (if the type argument is an interface).</description>
         /// </item>
         /// </list>
@@ -2147,10 +2127,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1034</term>
-        /// <description>The type conversion is unsuccessful.</description>
-        /// </item>
+        /// <item><description>TypeError #1034: The type conversion is unsuccessful.</description></item>
         /// </list>
         /// </exception>
         public static ASObject AS_coerceType(ASObject obj, Class toClass) {
@@ -2184,8 +2161,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1050</term>
-        /// <description>Neither the toString nor the valueOf method of the object returns a primitive
+        /// <description>TypeError #1050: Neither the toString nor the valueOf method of the object returns a primitive
         /// object (an object of the int, uint, Boolean, Number or String type).</description>
         /// </item>
         /// </list>
@@ -2208,8 +2184,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1050</term>
-        /// <description>Neither the toString nor the valueOf method of the object returns a primitive
+        /// <description>TypeError #1050: Neither the toString nor the valueOf method of the object returns a primitive
         /// object (an object of the int, uint, Boolean, Number or String type).</description>
         /// </item>
         /// </list>
@@ -2248,8 +2223,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1050</term>
-        /// <description>Neither the toString nor the valueOf method of the object returns a primitive
+        /// <description>TypeError #1050: Neither the toString nor the valueOf method of the object returns a primitive
         /// object (an object of the int, uint, Boolean, Number or String type).</description>
         /// </item>
         /// </list>
@@ -2294,37 +2268,37 @@ namespace Mariana.AVM2.Core {
         /// <remarks>
         /// <para>The comparison is done as follows (in order):</para>
         /// <list type="bullet">
-        /// <item>If one of the objects is null, both objects are equal if and only if the other
-        /// object is null.</item>
-        /// <item>If both objects are equal by reference (but are not the boxed representation of NaN),
-        /// they are considered equal.</item>
-        /// <item>If one of the objects is of a numeric type (int, uint, Number) or Boolean and
+        /// <item><description>If one of the objects is null, both objects are equal if and only if the other
+        /// object is null.</description></item>
+        /// <item><description>If both objects are equal by reference (but are not the boxed representation of NaN),
+        /// they are considered equal.</description></item>
+        /// <item><description>If one of the objects is of a numeric type (int, uint, Number) or Boolean and
         /// the other is of a primitive type, then both objects are converted to the Number type and
-        /// the floating-point number values are compared.</item>
-        /// <item>If both the objects are strings, the string values are compared. The comparison is
-        /// based on character code points and is locale-independent.</item>
-        /// <item>Two Namespace objects are equal if they have the same URI.</item>
-        /// <item>Two QName objects are equal if they have the same URI and local name.</item>
-        /// <item>If both the operands are of the XML or XMLList type, and both have simple content,
-        /// they are converted to strings and the string values are compared.</item>
-        /// <item>
+        /// the floating-point number values are compared.</description></item>
+        /// <item><description>If both the objects are strings, the string values are compared. The comparison is
+        /// based on character code points and is locale-independent.</description></item>
+        /// <item><description>Two Namespace objects are equal if they have the same URI.</description></item>
+        /// <item><description>Two QName objects are equal if they have the same URI and local name.</description></item>
+        /// <item><description>If both the operands are of the XML or XMLList type, and both have simple content,
+        /// they are converted to strings and the string values are compared.</description></item>
+        /// <item><description>
         /// If both operands are of the XML type, they are equal if and only if they (i) have the same
         /// node type, (ii) have the same name, if they are elements or attributes, (iii) have the
         /// same text, if they are text nodes or attributes and (iv) have the same set of attributes
         /// and the same child nodes, if they are elements. (The comparison of child nodes is done
         /// recursively.)
-        /// </item>
-        /// <item>If both operands are of the XMLList type, they are equal if and only if they have
+        /// </description></item>
+        /// <item><description>If both operands are of the XMLList type, they are equal if and only if they have
         /// the same number of items and the items at corresponding indices of both lists are
-        /// equal.</item>
-        /// <item>If one operand is XML and the other is XMLList, they are equal if and only if (i)
+        /// equal.</description></item>
+        /// <item><description>If one operand is XML and the other is XMLList, they are equal if and only if (i)
         /// the XMLList has only one item, and (ii) that item is equal to the other (XML)
-        /// operand.</item>
-        /// <item>If one of the objects is an XML object having simple content, both objects are
-        /// converted to strings and a string comparison is done.</item>
-        /// <item>If one of the objects is of a primitive type, the other object is converted to
-        /// a primitive and compared to the primitive value.</item>
-        /// <item>Otherwise, the two objects are not equal.</item>
+        /// operand.</description></item>
+        /// <item><description>If one of the objects is an XML object having simple content, both objects are
+        /// converted to strings and a string comparison is done.</description></item>
+        /// <item><description>If one of the objects is of a primitive type, the other object is converted to
+        /// a primitive and compared to the primitive value.</description></item>
+        /// <item><description>Otherwise, the two objects are not equal.</description></item>
         /// </list>
         /// </remarks>
         public static bool AS_weakEq(ASObject x, ASObject y) {
@@ -2391,18 +2365,18 @@ namespace Mariana.AVM2.Core {
         /// <remarks>
         /// <para>The comparison is done as follows (in order):</para>
         /// <list type="bullet">
-        /// <item>null compares equal only to null.</item>
-        /// <item>If both objects are identical (by reference), but are not the boxed representation
-        /// of NaN, they are considered equal.</item>
-        /// <item>If both the objects are of numeric types (int, uint or Number), then both objects
+        /// <item><description>null compares equal only to null.</description></item>
+        /// <item><description>If both objects are identical (by reference), but are not the boxed representation
+        /// of NaN, they are considered equal.</description></item>
+        /// <item><description>If both the objects are of numeric types (int, uint or Number), then both objects
         /// are converted to the Number type and the floating-point number values are
-        /// compared.</item>
-        /// <item>If both the objects are of the Boolean type, the Boolean values are compared.</item>
-        /// <item>If both the objects are Strings, the string values are compared. The comparison is
-        /// based on character code points and is locale-independent.</item>
-        /// <item>Otherwise, the two objects are not equal. Unlike weak equality, strict equality
+        /// compared.</description></item>
+        /// <item><description>If both the objects are of the Boolean type, the Boolean values are compared.</description></item>
+        /// <item><description>If both the objects are Strings, the string values are compared. The comparison is
+        /// based on character code points and is locale-independent.</description></item>
+        /// <item><description>Otherwise, the two objects are not equal. Unlike weak equality, strict equality
         /// considers XML and XMLList objects as ordinary objects and they are compared by reference
-        /// only.</item>
+        /// only.</description></item>
         /// </list>
         /// </remarks>
         public static bool AS_strictEq(ASObject x, ASObject y) {
@@ -2492,7 +2466,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <param name="x">The first object.</param>
         /// <param name="y">The second object.</param>
-        /// <returns>True, if <paramref name="x"/> is greater than <paramref name="y"/>, false
+        /// <returns>True, if <paramref name="x"/> is greater than or equal to <paramref name="y"/>, false
         /// otherwise.</returns>
         ///
         /// <remarks>
@@ -2530,17 +2504,16 @@ namespace Mariana.AVM2.Core {
         /// <remarks>
         /// <para>The definition of the addition operator is as follows:</para>
         /// <list type="bullet">
-        /// <item>If both the objects are null, both are of numeric types (int, uint, Number) or
+        /// <item><description>If both the objects are null, both are of numeric types (int, uint, Number) or
         /// Boolean, or one of the objects is null and the other is of a numeric type or Boolean, the
         /// objects are converted to the Number type and the floating-point number values are
-        /// added.</item>
-        /// <item>If one of the objects is a string or Date, both objects are converted to Strings and
-        /// the string values are concatenated.</item>
-        /// <item>If both objects are of the XML or XMLList types, the two objects are concatenated
-        /// into an XMLList.</item>
-        /// <item>Otherwise, the two objects are converted to primitive objects by calling their
-        /// <c>valueOf</c> or <c>toString</c> methods (with no hint) and the primitive objects
-        /// are added.</item>
+        /// added.</description></item>
+        /// <item><description>If one of the objects is a string or Date, both objects are converted to Strings and
+        /// the string values are concatenated.</description></item>
+        /// <item><description>If both objects are of the XML or XMLList types, the two objects are concatenated
+        /// into an XMLList.</description></item>
+        /// <item><description>Otherwise, the two objects are converted to primitive objects by calling their
+        /// <c>valueOf</c> or <c>toString</c> methods and the primitive objects are added.</description></item>
         /// </list>
         /// </remarks>
         public static ASObject AS_add(ASObject x, ASObject y) {
@@ -2620,8 +2593,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1040</term>
-        /// <description>The <paramref name="classOrFunction"/> argument is not a class or
+        /// <description>TypeError #1040: The <paramref name="classOrFunction"/> argument is not a class or
         /// function.</description>
         /// </item>
         /// </list>
@@ -2668,10 +2640,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1040</term>
-        /// <description>The <paramref name="typeObj"/> argument is not a class.</description>
-        /// </item>
+        /// <item><description>TypeError #1040: The <paramref name="typeObj"/> argument is not a class.</description></item>
         /// </list>
         /// </exception>
         public static bool AS_isType(ASObject obj, ASObject typeObj) {
@@ -2706,10 +2675,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1040</term>
-        /// <description>The <paramref name="typeObj"/> argument is not a class.</description>
-        /// </item>
+        /// <item><description>TypeError #1040: The <paramref name="typeObj"/> argument is not a class.</description></item>
         /// </list>
         /// </exception>
         public static ASObject AS_asType(ASObject obj, ASObject typeObj) => AS_isType(obj, typeObj) ? obj : null;
@@ -2726,13 +2692,11 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1127</term>
-        /// <description>The class <paramref name="def"/> is not an uninstantiated generic class
+        /// <description>TypeError #1127: The class <paramref name="def"/> is not an uninstantiated generic class
         /// definition.</description>
         /// </item>
         /// <item>
-        /// <term>TypeError #1128</term>
-        /// <description>The length of the <paramref name="typeParams"/> array does not match the
+        /// <description>TypeError #1128: The length of the <paramref name="typeParams"/> array does not match the
         /// number of type parameters accepted by the class definition.</description>
         /// </item>
         /// </list>
@@ -2775,10 +2739,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1123</term>
-        /// <description>The filter operator cannot be invoked on the given object.</description>
-        /// </item>
+        /// <item><description>TypeError #1123: The filter operator cannot be invoked on the given object.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -3076,7 +3037,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <summary>
         /// This is a special method that is called from the AVM2 runtime and by code compiled by the
-        /// ABCIL compiler to invoke the ActionScript Object class constructor. This must not be
+        /// ABC to IL compiler to invoke the ActionScript Object class constructor. This must not be
         /// called by outside .NET code. Object objects constructed from .NET code must use the
         /// constructor defined on the <see cref="ASObject"/> type.
         /// </summary>

@@ -183,7 +183,7 @@ namespace Mariana.CodeGen {
         /// by this signature.
         /// </summary>
         ///
-        /// <param name="rank">The number of array dimensions/</param>
+        /// <param name="rank">The number of array dimensions.</param>
         /// <param name="lengths">A span containing the lengths for each dimension. The length of
         /// this argument must not be greater than <paramref name="rank"/>.</param>
         /// <param name="lowerBounds">A span containing the lower bounds for each dimension. The length of
@@ -199,7 +199,7 @@ namespace Mariana.CodeGen {
         /// <remarks>
         /// This method creates a signature for a general array. To create a signature for a single-dimensional
         /// zero-based array, use <see cref="makeSZArray"/>. In particular, setting <paramref name="rank"/>
-        /// to 1 and <paramref name="lengths"/> and <paramref name="lowerBounds"/> to empty spans do not
+        /// to 1 and <paramref name="lengths"/> and <paramref name="lowerBounds"/> to empty spans does not
         /// create the same signature as <see cref="makeSZArray"/>.
         /// </remarks>
         public TypeSignature makeArray(

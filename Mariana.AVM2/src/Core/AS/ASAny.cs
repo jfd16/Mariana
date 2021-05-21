@@ -563,10 +563,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1016</term>
-        /// <description>The descendants operator is not supported on the object.</description>
-        /// </item>
+        /// <item><description>TypeError #1016: The descendants operator is not supported on the object.</description></item>
         /// </list>
         /// </exception>
         public ASAny AS_getDescendants(in QName name, BindOptions options = 0) {
@@ -587,10 +584,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1016</term>
-        /// <description>The descendants operator is not supported on the object.</description>
-        /// </item>
+        /// <item><description>TypeError #1016: The descendants operator is not supported on the object.</description></item>
         /// </list>
         /// </exception>
         public ASAny AS_getDescendants(string name, in NamespaceSet nsSet, BindOptions options = 0) {
@@ -1057,10 +1051,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1016</term>
-        /// <description>The descendants operator is not supported on the object.</description>
-        /// </item>
+        /// <item><description>TypeError #1016: The descendants operator is not supported on the object.</description></item>
         /// </list>
         /// </exception>
         public ASAny AS_getDescendantsObj(ASAny key, BindOptions options = 0) {
@@ -1081,10 +1072,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1016</term>
-        /// <description>The descendants operator is not supported on the object.</description>
-        /// </item>
+        /// <item><description>TypeError #1016: The descendants operator is not supported on the object.</description></item>
         /// </list>
         /// </exception>
         public ASAny AS_getDescendantsObj(ASAny key, in NamespaceSet nsSet, BindOptions options = 0) {
@@ -1183,8 +1171,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1006</term>
-        /// <description>The value of this <see cref="ASAny"/> instance is undefined, or not a
+        /// <description>TypeError #1006: The value of this <see cref="ASAny"/> instance is undefined, or not a
         /// callable object.</description>
         /// </item>
         /// </list>
@@ -1204,8 +1191,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1007</term>
-        /// <description>The value of this <see cref="ASAny"/> instance is undefined, or not a
+        /// <description>TypeError #1007: The value of this <see cref="ASAny"/> instance is undefined, or not a
         /// constructible object.</description>
         /// </item>
         /// </list>
@@ -1429,8 +1415,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #10058</term>
-        /// <description><paramref name="obj"/> is not an object of type <see cref="ASObject"/> or a
+        /// <description>TypeError #10058: <paramref name="obj"/> is not an object of type <see cref="ASObject"/> or a
         /// type deriving from it, a boxed instance of <see cref="ASAny"/>, or a boxed instance of a
         /// valid primitive type.</description>
         /// </item>
@@ -1498,10 +1483,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1034</term>
-        /// <description>The type conversion is unsuccessful.</description>
-        /// </item>
+        /// <item><description>TypeError #1034: The type conversion is unsuccessful.</description></item>
         /// </list>
         /// </exception>
         public static ASAny AS_coerceType(ASAny obj, Class toClass) {
@@ -1575,38 +1557,38 @@ namespace Mariana.AVM2.Core {
         /// <remarks>
         /// <para>The comparison is done as follows (in order):</para>
         /// <list type="bullet">
-        /// <item>If one of the objects is null or undefined, both objects are equal if and only if
-        /// the other object is either null or undefined.</item>
-        /// <item>If both objects are equal by reference (but are not the boxed representation of NaN),
-        /// they are considered equal.</item>
-        /// <item>If one of the objects is of a numeric type (int, uint, Number) or Boolean and
+        /// <item><description>If one of the objects is null or undefined, both objects are equal if and only if
+        /// the other object is either null or undefined.</description></item>
+        /// <item><description>If both objects are equal by reference (but are not the boxed representation of NaN),
+        /// they are considered equal.</description></item>
+        /// <item><description>If one of the objects is of a numeric type (int, uint, Number) or Boolean and
         /// the other is of a primitive type, then both objects are converted to the Number type and
-        /// the floating-point number values are compared.</item>
-        /// <item>If both the objects are strings, the string values are compared. The comparison is
-        /// based on character code points and is locale-independent.</item>
-        /// <item>Two Namespace objects are equal if they have the same URI.</item>
-        /// <item>Two QName objects are equal if they have the same URI and local name.</item>
-        /// <item>If both the operands are of the XML or XMLList type, and both have simple content,
-        /// they are converted to strings and the string values are compared.</item>
-        /// <item>
+        /// the floating-point number values are compared.</description></item>
+        /// <item><description>If both the objects are strings, the string values are compared. The comparison is
+        /// based on character code points and is locale-independent.</description></item>
+        /// <item><description>Two Namespace objects are equal if they have the same URI.</description></item>
+        /// <item><description>Two QName objects are equal if they have the same URI and local name.</description></item>
+        /// <item><description>If both the operands are of the XML or XMLList type, and both have simple content,
+        /// they are converted to strings and the string values are compared.</description></item>
+        /// <item><description>
         /// If both operands are of the XML type, they are equal if and only if they (i) have the same
         /// node type, (ii) have the same name, if they are elements or attributes, (iii) have the
         /// same text, if they are text nodes or attributes and (iv) have the same set of attributes
         /// and the same child nodes, if they are elements. (The comparison of child nodes is done
         /// recursively.)
-        /// </item>
-        /// <item>If both operands are of the XMLList type, they are equal if and only if they have
+        /// </description></item>
+        /// <item><description>If both operands are of the XMLList type, they are equal if and only if they have
         /// the same number of items and the items at corresponding indices of both lists are
-        /// equal.</item>
-        /// <item>If one operand is XML and the other is XMLList, they are equal if and only if (i)
+        /// equal.</description></item>
+        /// <item><description>If one operand is XML and the other is XMLList, they are equal if and only if (i)
         /// the XMLList has only one item, and (ii) that item is equal to the other (XML)
-        /// operand.</item>
-        /// <item>If one of the objects is an XML object having simple content, both objects are
-        /// converted to strings and a string comparison is done.</item>
-        /// <item>An empty XMLList compares equal to undefined.</item>
-        /// <item>If one of the objects is of a primitive type, the other object is converted to
-        /// a primitive and compared to the primitive value.</item>
-        /// <item>Otherwise, the two objects are not equal.</item>
+        /// operand.</description></item>
+        /// <item><description>If one of the objects is an XML object having simple content, both objects are
+        /// converted to strings and a string comparison is done.</description></item>
+        /// <item><description>An empty XMLList compares equal to undefined.</description></item>
+        /// <item><description>If one of the objects is of a primitive type, the other object is converted to
+        /// a primitive and compared to the primitive value.</description></item>
+        /// <item><description>Otherwise, the two objects are not equal.</description></item>
         /// </list>
         /// </remarks>
         public static bool AS_weakEq(ASAny x, ASAny y) {
@@ -1644,19 +1626,19 @@ namespace Mariana.AVM2.Core {
         /// <remarks>
         /// <para>The comparison is done as follows (in order):</para>
         /// <list type="bullet">
-        /// <item>null compares equal only to null, and undefined compares equal only to undefined.
-        /// Unlike weak equality, null and undefined are not equal.</item>
-        /// <item>If both objects are identical (by reference), but are not the boxed representation
-        /// of NaN, they are considered equal.</item>
-        /// <item>If both the objects are of numeric types (int, uint or Number), then both objects
+        /// <item><description>null compares equal only to null, and undefined compares equal only to undefined.
+        /// Unlike weak equality, null and undefined are not equal.</description></item>
+        /// <item><description>If both objects are identical (by reference), but are not the boxed representation
+        /// of NaN, they are considered equal.</description></item>
+        /// <item><description>If both the objects are of numeric types (int, uint or Number), then both objects
         /// are converted to the Number type and the floating-point number values are
-        /// compared.</item>
-        /// <item>If both the objects are of the Boolean type, the Boolean values are compared.</item>
-        /// <item>If both the objects are Strings, the string values are compared. The comparison is
-        /// based on character code points and is locale-independent.</item>
-        /// <item>Otherwise, the two objects are not equal. Unlike weak equality, strict equality
+        /// compared.</description></item>
+        /// <item><description>If both the objects are of the Boolean type, the Boolean values are compared.</description></item>
+        /// <item><description>If both the objects are Strings, the string values are compared. The comparison is
+        /// based on character code points and is locale-independent.</description></item>
+        /// <item><description>Otherwise, the two objects are not equal. Unlike weak equality, strict equality
         /// considers XML and XMLList objects as ordinary objects and they are compared by reference
-        /// only.</item>
+        /// only.</description></item>
         /// </list>
         /// </remarks>
         public static bool AS_strictEq(ASAny x, ASAny y) =>
@@ -1765,16 +1747,16 @@ namespace Mariana.AVM2.Core {
         /// <remarks>
         /// <para>The definition of the addition operator is as follows:</para>
         /// <list type="bullet">
-        /// <item>If none of the objects is of a type other than null, undefined, int, uint, Number or
+        /// <item><description>If none of the objects is of a type other than null, undefined, int, uint, Number or
         /// Boolean, the objects are converted to Numbers and their floating-point values are
-        /// added.</item>
-        /// <item>If one of the objects is a string or Date, both objects are converted to Strings and
-        /// the string values are concatenated.</item>
-        /// <item>If both objects are of the XML or XMLList types, the two objects are concatenated
-        /// into a new XMLList.</item>
-        /// <item>Otherwise, the two objects are converted to primitive objects by calling their
+        /// added.</description></item>
+        /// <item><description>If one of the objects is a string or Date, both objects are converted to Strings and
+        /// the string values are concatenated.</description></item>
+        /// <item><description>If both objects are of the XML or XMLList types, the two objects are concatenated
+        /// into a new XMLList.</description></item>
+        /// <item><description>Otherwise, the two objects are converted to primitive objects by calling their
         /// <c>valueOf</c> or <c>toString</c> methods (with no hint) and the primitive objects
-        /// are added.</item>
+        /// are added.</description></item>
         /// </list>
         /// </remarks>
         public static ASObject AS_add(ASAny x, ASAny y) {

@@ -192,10 +192,7 @@ namespace Mariana.AVM2.Core {
         /// in the collection, the first one is returned.</returns>
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>ArgumentError #10060</term>
-        /// <description><paramref name="name"/> is null.</description>
-        /// </item>
+        /// <item><description>ArgumentError #10060: <paramref name="name"/> is null.</description></item>
         /// </list>
         /// </exception>
         public MetadataTag getTag(string name) {

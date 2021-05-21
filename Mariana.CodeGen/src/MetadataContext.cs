@@ -275,10 +275,10 @@ namespace Mariana.CodeGen {
         ///
         /// <exception cref="ArgumentException">
         /// <list type="bullet">
-        /// <item><paramref name="instantiatedType"/> is not the null
-        /// handle, and <paramref name="memberInfo"/> is not a member of a generic type definition.</item>
-        /// <item><paramref name="memberInfo"/> is not a <see cref="FieldInfo"/>, <see cref="MethodInfo"/> or
-        /// <see cref="ConstructorInfo"/>.</item>
+        /// <item><description><paramref name="instantiatedType"/> is not the null
+        /// handle, and <paramref name="memberInfo"/> is not a member of a generic type definition.</description></item>
+        /// <item><description><paramref name="memberInfo"/> is not a <see cref="FieldInfo"/>, <see cref="MethodInfo"/> or
+        /// <see cref="ConstructorInfo"/>.</description></item>
         /// </list>
         /// </exception>
         public EntityHandle getMemberHandle(MemberInfo memberInfo, EntityHandle instantiatedType = default) {
@@ -406,10 +406,10 @@ namespace Mariana.CodeGen {
         ///
         /// <exception cref="ArgumentException">
         /// <list type="bullet">
-        /// <item><paramref name="instantiatedType"/> is not the null handle,
-        /// and <paramref name="fieldBuilder"/> is not a member of a generic type definition.</item>
-        /// <item><paramref name="fieldBuilder"/> is not from the same assembly as this
-        /// <see cref="MetadataContext"/>.</item>
+        /// <item><description><paramref name="instantiatedType"/> is not the null handle,
+        /// and <paramref name="fieldBuilder"/> is not a member of a generic type definition.</description></item>
+        /// <item><description><paramref name="fieldBuilder"/> is not from the same assembly as this
+        /// <see cref="MetadataContext"/>.</description></item>
         /// </list>
         /// </exception>
         public EntityHandle getMemberHandle(FieldBuilder fieldBuilder, EntityHandle instantiatedType = default) {
@@ -448,10 +448,10 @@ namespace Mariana.CodeGen {
         ///
         /// <exception cref="ArgumentException">
         /// <list type="bullet">
-        /// <item><paramref name="instantiatedType"/> is not the null handle,
-        /// and <paramref name="methodBuilder"/> is not a member of a generic type definition.</item>
-        /// <item><paramref name="methodBuilder"/> is not from the same assembly as this
-        /// <see cref="MetadataContext"/>.</item>
+        /// <item><description><paramref name="instantiatedType"/> is not the null handle,
+        /// and <paramref name="methodBuilder"/> is not a member of a generic type definition.</description></item>
+        /// <item><description><paramref name="methodBuilder"/> is not from the same assembly as this
+        /// <see cref="MetadataContext"/>.</description></item>
         /// </list>
         /// </exception>
         public EntityHandle getMemberHandle(MethodBuilder methodBuilder, EntityHandle instantiatedType = default) {

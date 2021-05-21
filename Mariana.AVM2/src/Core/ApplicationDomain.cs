@@ -273,8 +273,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1008</term>
-        /// <description>If the namespace of <paramref name="name"/> is the any namespace, and more
+        /// <description>TypeError #1008: If the namespace of <paramref name="name"/> is the any namespace, and more
         /// than one trait with the local name of <paramref name="name"/> is found. (Ambiguous
         /// match)</description>
         /// </item>
@@ -311,8 +310,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1008</term>
-        /// <description>Two or more traits are found with the name <paramref name="name"/> in
+        /// <description>TypeError #1008: Two or more traits are found with the name <paramref name="name"/> in
         /// different namespaces of <paramref name="nsSet"/> (Ambiguous match).</description>
         /// </item>
         /// </list>
@@ -346,8 +344,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1008</term>
-        /// <description>If the namespace of <paramref name="name"/> is the any namespace, and more
+        /// <description>TypeError #1008: If the namespace of <paramref name="name"/> is the any namespace, and more
         /// than one trait with the local name of <paramref name="name"/> is found. (Ambiguous
         /// match)</description>
         /// </item>
@@ -376,8 +373,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1008</term>
-        /// <description>If the namespace of <paramref name="name"/> is the any namespace, and more
+        /// <description>TypeError #1008: If the namespace of <paramref name="name"/> is the any namespace, and more
         /// than one trait with the local name of <paramref name="name"/> is found. (Ambiguous
         /// match)</description>
         /// </item>
@@ -406,8 +402,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1008</term>
-        /// <description>If the namespace of <paramref name="name"/> is the any namespace, and more
+        /// <description>TypeError #1008: If the namespace of <paramref name="name"/> is the any namespace, and more
         /// than one trait with the local name of <paramref name="name"/> is found. (Ambiguous
         /// match)</description>
         /// </item>
@@ -436,8 +431,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1008</term>
-        /// <description>If the namespace of <paramref name="name"/> is the any namespace, and more
+        /// <description>TypeError #1008: If the namespace of <paramref name="name"/> is the any namespace, and more
         /// than one trait with the local name of <paramref name="name"/> is found. (Ambiguous
         /// match)</description>
         /// </item>
@@ -466,8 +460,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1008</term>
-        /// <description>If the namespace of <paramref name="name"/> is the any namespace, and more
+        /// <description>TypeError #1008: If the namespace of <paramref name="name"/> is the any namespace, and more
         /// than one trait with the local name of <paramref name="name"/> is found. (Ambiguous
         /// match)</description>
         /// </item>
@@ -498,10 +491,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>ArgumentError #10061</term>
-        /// <description><paramref name="types"/> has an invalid flag set.</description>
-        /// </item>
+        /// <item><description>ArgumentError #10061: <paramref name="types"/> has an invalid flag set.</description></item>
         /// </list>
         /// </exception>
         public ReadOnlyArrayView<Trait> getGlobalTraits(
@@ -622,10 +612,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>ArgumentError #10060</term>
-        /// <description><paramref name="filter"/> is null.</description>
-        /// </item>
+        /// <item><description>ArgumentError #10060: <paramref name="filter"/> is null.</description></item>
         /// </list>
         /// </exception>
         public Trait getGlobalTraitByFilter(Predicate<Trait> filter, bool noInherited = false) {
@@ -663,10 +650,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>ArgumentError #10060</term>
-        /// <description><paramref name="filter"/> is null.</description>
-        /// </item>
+        /// <item><description>ArgumentError #10060: <paramref name="filter"/> is null.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -711,43 +695,27 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
+        /// <item><description>ArgumentError #10060: <paramref name="type"/> is null.</description></item>
         /// <item>
-        /// <term>ArgumentError #10060</term>
-        /// <description><paramref name="type"/> is null.</description>
-        /// </item>
-        /// <item>
-        /// <term>NativeClassLoadError #10101</term>
-        /// <description>A class with the underlying type <paramref name="type"/> already
+        /// <description>NativeClassLoadError #10101: A class with the underlying type <paramref name="type"/> already
         /// exists.</description>
         /// </item>
         /// <item>
-        /// <term>NativeClassLoadError #10102</term>
-        /// <description><paramref name="type"/> is not an interface type or a class type deriving
+        /// <description>NativeClassLoadError #10102: <paramref name="type"/> is not an interface type or a class type deriving
         /// from <see cref="ASObject"/>.</description>
         /// </item>
+        /// <item><description>NativeClassLoadError #10103: <paramref name="type"/> is a generic type.</description></item>
         /// <item>
-        /// <term>NativeClassLoadError #10103</term>
-        /// <description><paramref name="type"/> is a generic type.</description>
-        /// </item>
-        /// <item>
-        /// <term>NativeClassLoadError #10104</term>
-        /// <description><paramref name="type"/> is a type with non-public
+        /// <description>NativeClassLoadError #10104: <paramref name="type"/> is a type with non-public
         /// visibility.</description>
         /// </item>
         /// <item>
-        /// <term>NativeClassLoadError #10105</term>
-        /// <description><paramref name="type"/> declares <see cref="AVM2ExportClassAttribute"/>
+        /// <description>NativeClassLoadError #10105: <paramref name="type"/> declares <see cref="AVM2ExportClassAttribute"/>
         /// with the <see cref="AVM2ExportClassAttribute.nsKind" qualifyHint="true"/> property
         /// set to <see cref="NamespaceKind.PRIVATE" qualifyHint="true"/>.</description>
         /// </item>
-        /// <item>
-        /// <term>NativeClassLoadError #10106</term>
-        /// <description><paramref name="type"/> does not declare <see cref="AVM2ExportClassAttribute"/>.</description>
-        /// </item>
-        /// <item>
-        /// <term>NativeClassLoadError #10117</term>
-        /// <description><paramref name="type"/> is an instantiation of <see cref="ASVector{T}"/>.</description>
-        /// </item>
+        /// <item><description>NativeClassLoadError #10106: <paramref name="type"/> does not declare <see cref="AVM2ExportClassAttribute"/>.</description></item>
+        /// <item><description>NativeClassLoadError #10117: <paramref name="type"/> is an instantiation of <see cref="ASVector{T}"/>.</description></item>
         /// </list>
         /// </exception>
         public Class loadNativeClass(Type type) {
@@ -773,22 +741,14 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
+        /// <item><description>ArgumentError #10060: <paramref name="moduleType"/> is null.</description></item>
+        /// <item><description>NativeClassLoadError #10103: <paramref name="moduleType"/> is a generic type.</description></item>
         /// <item>
-        /// <term>ArgumentError #10060</term>
-        /// <description><paramref name="moduleType"/> is null.</description>
-        /// </item>
-        /// <item>
-        /// <term>NativeClassLoadError #10103</term>
-        /// <description><paramref name="moduleType"/> is a generic type.</description>
-        /// </item>
-        /// <item>
-        /// <term>NativeClassLoadError #10104</term>
-        /// <description><paramref name="moduleType"/> is a type with non-public
+        /// <description>NativeClassLoadError #10104: <paramref name="moduleType"/> is a type with non-public
         /// visibility.</description>
         /// </item>
         /// <item>
-        /// <term>NativeClassLoadError #10108</term>
-        /// <description><paramref name="moduleType"/> does not declare
+        /// <description>NativeClassLoadError #10108: <paramref name="moduleType"/> does not declare
         /// <see cref="AVM2ExportModuleAttribute"/>.</description>
         /// </item>
         /// </list>
@@ -812,10 +772,10 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>ArgumentError #10060: One of the types in <paramref name="types"/> is null.</item>
-        /// <item>NativeClassLoadError: One of the types in <paramref name="types"/> is public and contains the
+        /// <item><description>ArgumentError #10060: One of the types in <paramref name="types"/> is null.</description></item>
+        /// <item><description>NativeClassLoadError: One of the types in <paramref name="types"/> is public and contains the
         /// <see cref="AVM2ExportClassAttribute"/> or <see cref="AVM2ExportModuleAttribute"/> attribute
-        /// but cannot be loaded as a native class or module.</item>
+        /// but cannot be loaded as a native class or module.</description></item>
         /// </list>
         /// </exception>
         public void loadNativeClasses(ReadOnlySpan<Type> types) {
@@ -840,10 +800,10 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>ArgumentError #10060: <paramref name="assembly"/> is null.</item>
-        /// <item>NativeClassLoadError: One of the types declared in <paramref name="assembly"/> is public and
+        /// <item><description>ArgumentError #10060: <paramref name="assembly"/> is null.</description></item>
+        /// <item><description>NativeClassLoadError: One of the types declared in <paramref name="assembly"/> is public and
         /// contains the <see cref="AVM2ExportClassAttribute"/> or <see cref="AVM2ExportModuleAttribute"/>
-        /// attribute but cannot be loaded as a native class or module.</item>
+        /// attribute but cannot be loaded as a native class or module.</description></item>
         /// </list>
         /// </exception>
         public void loadNativeClassesFromAssembly(Assembly assembly) {
@@ -866,10 +826,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>Error #10070</term>
-        /// <description>This method is called on the system domain.</description>
-        /// </item>
+        /// <item><description>Error #10070: This method is called on the system domain.</description></item>
         /// </list>
         /// </exception>
         public ScriptLoader createScriptLoader(ScriptCompileOptions compileOptions = null) {

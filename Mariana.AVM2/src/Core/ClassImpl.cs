@@ -223,13 +223,13 @@ namespace Mariana.AVM2.Core {
 
         /// <summary>
         /// A method that must be implemented by derived classes. This can be used for lazy
-        /// initialisation (e.g. of class traits).
+        /// initialization (e.g. of class traits).
         /// </summary>
         ///
         /// <remarks>
-        /// Overriders of this method should not be concerned about synchronisation or thread safety,
-        /// or the initialisation of the class's parent or interfaces. All of this is handled by the
-        /// initialisation code that calls this method.
+        /// Overriders of this method should not be concerned about synchronization or thread safety,
+        /// or the initialization of the class's parent or interfaces. All of this is handled by the
+        /// initialization code that calls this method.
         /// </remarks>
         protected private abstract void initClass();
 

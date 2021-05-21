@@ -116,7 +116,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <summary>
         /// This method is called internally from the AVM2 and from code compiled with the
-        /// ABCIL compiler to invoke the ActionScript XMLList constructor. This method must not
+        /// ABC to IL compiler to invoke the ActionScript XMLList constructor. This method must not
         /// be used by .NET code.
         /// </summary>
         internal static new ASAny __AS_INVOKE(ReadOnlySpan<ASAny> args) {
@@ -138,7 +138,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <summary>
         /// This method is called internally from the AVM2 and from code compiled with the
-        /// ABCIL compiler to invoke the ActionScript XMLList constructor. This method must not
+        /// ABC to IL compiler to invoke the ActionScript XMLList constructor. This method must not
         /// be used by .NET code.
         /// </summary>
         internal static new ASAny __AS_CONSTRUCT(ReadOnlySpan<ASAny> args) {
@@ -192,8 +192,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>ArgumentError #10061</term>
-        /// <description><paramref name="index"/> is negative or greater than or equal to the number
+        /// <description>ArgumentError #10061: <paramref name="index"/> is negative or greater than or equal to the number
         /// of items in this XMLList.</description>
         /// </item>
         /// </list>
@@ -1190,10 +1189,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1086</term>
-        /// <description>This XMLList does not contain exactly one item.</description>
-        /// </item>
+        /// <item><description>TypeError #1086: This XMLList does not contain exactly one item.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -1215,10 +1211,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1086</term>
-        /// <description>This XMLList does not contain exactly one item.</description>
-        /// </item>
+        /// <item><description>TypeError #1086: This XMLList does not contain exactly one item.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -1241,10 +1234,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1010</term>
-        /// <description><paramref name="name"/> is null or undefined.</description>
-        /// </item>
+        /// <item><description>TypeError #1010: <paramref name="name"/> is null or undefined.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -1304,10 +1294,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1010</term>
-        /// <description><paramref name="name"/> is null or undefined.</description>
-        /// </item>
+        /// <item><description>TypeError #1010: <paramref name="name"/> is null or undefined.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -1399,10 +1386,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1086</term>
-        /// <description>This XMLList does not contain exactly one item.</description>
-        /// </item>
+        /// <item><description>TypeError #1086: This XMLList does not contain exactly one item.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -1461,10 +1445,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1010</term>
-        /// <description><paramref name="name"/> is null or undefined.</description>
-        /// </item>
+        /// <item><description>TypeError #1010: <paramref name="name"/> is null or undefined.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -1501,10 +1482,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1010</term>
-        /// <description><paramref name="name"/> is null or undefined.</description>
-        /// </item>
+        /// <item><description>TypeError #1010: <paramref name="name"/> is null or undefined.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -1604,10 +1582,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1086</term>
-        /// <description>This XMLList does not contain exactly one item.</description>
-        /// </item>
+        /// <item><description>TypeError #1086: This XMLList does not contain exactly one item.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -1640,10 +1615,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1086</term>
-        /// <description>This XMLList does not contain exactly one item.</description>
-        /// </item>
+        /// <item><description>TypeError #1086: This XMLList does not contain exactly one item.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -1676,10 +1648,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1086</term>
-        /// <description>This XMLList does not contain exactly one item.</description>
-        /// </item>
+        /// <item><description>TypeError #1086: This XMLList does not contain exactly one item.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -1700,10 +1669,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1086</term>
-        /// <description>This XMLList does not contain exactly one item.</description>
-        /// </item>
+        /// <item><description>TypeError #1086: This XMLList does not contain exactly one item.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -1724,10 +1690,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1086</term>
-        /// <description>This XMLList does not contain exactly one item.</description>
-        /// </item>
+        /// <item><description>TypeError #1086: This XMLList does not contain exactly one item.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -1757,10 +1720,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1086</term>
-        /// <description>This XMLList does not contain exactly one item.</description>
-        /// </item>
+        /// <item><description>TypeError #1086: This XMLList does not contain exactly one item.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -1781,10 +1741,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1086</term>
-        /// <description>This XMLList does not contain exactly one item.</description>
-        /// </item>
+        /// <item><description>TypeError #1086: This XMLList does not contain exactly one item.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -1807,10 +1764,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1086</term>
-        /// <description>This XMLList does not contain exactly one item.</description>
-        /// </item>
+        /// <item><description>TypeError #1086: This XMLList does not contain exactly one item.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -1934,10 +1888,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1086</term>
-        /// <description>This XMLList does not contain exactly one item.</description>
-        /// </item>
+        /// <item><description>TypeError #1086: This XMLList does not contain exactly one item.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -1960,10 +1911,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1010</term>
-        /// <description><paramref name="name"/> is null or undefined.</description>
-        /// </item>
+        /// <item><description>TypeError #1010: <paramref name="name"/> is null or undefined.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -2005,10 +1953,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1086</term>
-        /// <description>This XMLList does not contain exactly one item.</description>
-        /// </item>
+        /// <item><description>TypeError #1086: This XMLList does not contain exactly one item.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -2031,10 +1976,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1086</term>
-        /// <description>This XMLList does not contain exactly one item.</description>
-        /// </item>
+        /// <item><description>TypeError #1086: This XMLList does not contain exactly one item.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -2056,10 +1998,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1086</term>
-        /// <description>This XMLList does not contain exactly one item.</description>
-        /// </item>
+        /// <item><description>TypeError #1086: This XMLList does not contain exactly one item.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -2080,10 +2019,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1086</term>
-        /// <description>This XMLList does not contain exactly one item.</description>
-        /// </item>
+        /// <item><description>TypeError #1086: This XMLList does not contain exactly one item.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -2104,10 +2040,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1086</term>
-        /// <description>This XMLList does not contain exactly one item.</description>
-        /// </item>
+        /// <item><description>TypeError #1086: This XMLList does not contain exactly one item.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -2130,10 +2063,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>TypeError #1086</term>
-        /// <description>This XMLList does not contain exactly one item.</description>
-        /// </item>
+        /// <item><description>TypeError #1086: This XMLList does not contain exactly one item.</description></item>
         /// </list>
         /// </exception>
         ///

@@ -1,7 +1,7 @@
 ﻿namespace Mariana.AVM2.Core {
 
     /// <summary>
-    /// The error codes for the errors thrown by the AVM2 runtime and the ABCIL compiler.
+    /// The error codes for the errors thrown by the AVM2 runtime and the ABC to IL compiler.
     /// </summary>
     internal enum ErrorCode {
 

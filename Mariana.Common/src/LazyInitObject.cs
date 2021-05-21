@@ -125,13 +125,13 @@ namespace Mariana.Common {
         ///
         /// <exception cref="InvalidOperationException">
         /// <list type="bullet">
-        /// <item>This property is accessed on a default-initialized instance of type
-        /// <see cref="LazyInitObject{T}"/></item>
-        /// <item>This property is accessed within the initialization function of the object and
+        /// <item><description>This property is accessed on a default-initialized instance of type
+        /// <see cref="LazyInitObject{T}"/></description></item>
+        /// <item><description>This property is accessed within the initialization function of the object and
         /// recursion handling is set to
-        /// <see cref="LazyInitRecursionHandling.THROW" qualifyHint="true"/></item>
-        /// <item>This property is accessed after an exception was thrown by the initialization
-        /// function.</item>
+        /// <see cref="LazyInitRecursionHandling.THROW" qualifyHint="true"/></description></item>
+        /// <item><description>This property is accessed after an exception was thrown by the initialization
+        /// function.</description></item>
         /// </list>
         /// </exception>
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]

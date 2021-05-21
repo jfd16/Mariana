@@ -13,11 +13,11 @@ namespace Mariana.AVM2.Core {
     /// <remarks>
     /// <para>Function objects can be obtained in the following ways:</para>
     /// <list type="bullet">
-    /// <item>By creating a method closure using the
+    /// <item><description>By creating a method closure using the
     /// <see cref="MethodTrait.createMethodClosure" qualifyHint="true"/> method. Method closures
     /// have a stored receiver associated with them and ignore any receiver passed at invocation
-    /// time. They cannot be used as constructors for prototype inheritance.</item>
-    /// <item>
+    /// time. They cannot be used as constructors for prototype inheritance.</description></item>
+    /// <item><description>
     /// By creating a function closure using the
     /// <see cref="MethodTrait.createFunctionClosure" qualifyHint="true"/> method. A function
     /// closure does not have a stored receiver like a method closure and must take a receiver at
@@ -25,7 +25,7 @@ namespace Mariana.AVM2.Core {
     /// passed on as the receiver to the instance method; if created from a static method, the
     /// receiver is passed as the first argument. Function closures can have prototypes and can be
     /// used as constructors for prototyped objects.
-    /// </item>
+    /// </description></item>
     /// </list>
     /// </remarks>
     [AVM2ExportClass(name = "Function", isDynamic = true, hasPrototypeMethods = true)]
@@ -223,7 +223,7 @@ namespace Mariana.AVM2.Core {
         /// <exclude/>
         /// <summary>
         /// This is a special method that is called from the AVM2 runtime and by code compiled by the
-        /// ABCIL compiler. It must not be called from outside code.
+        /// ABC to IL compiler. It must not be called from outside code.
         /// </summary>
         internal static new ASAny __AS_INVOKE(ReadOnlySpan<ASAny> args) {
             if (args.Length == 0)
@@ -234,7 +234,7 @@ namespace Mariana.AVM2.Core {
         /// <exclude/>
         /// <summary>
         /// This is a special method that is called from the AVM2 runtime and by code compiled by the
-        /// ABCIL compiler. It must not be called from outside code.
+        /// ABC to IL compiler. It must not be called from outside code.
         /// </summary>
         internal static new ASAny __AS_CONSTRUCT(ReadOnlySpan<ASAny> args) => __AS_INVOKE(args);
 

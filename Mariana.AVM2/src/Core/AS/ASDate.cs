@@ -1808,7 +1808,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <summary>
         /// This is a special method that is called from the AVM2 runtime and by code compiled by the
-        /// ABCIL compiler to invoke the ActionScript Date class constructor. This must not be called
+        /// ABC to IL compiler to invoke the ActionScript Date class constructor. This must not be called
         /// by outside .NET code. Date objects constructed from .NET code must use the constructor
         /// defined on the <see cref="ASDate"/> type.
         /// </summary>

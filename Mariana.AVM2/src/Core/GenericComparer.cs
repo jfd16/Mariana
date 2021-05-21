@@ -63,10 +63,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>Error #10049</term>
-        /// <description><typeparamref name="T"/> is not a supported type.</description>
-        /// </item>
+        /// <item><description>Error #10049: <typeparamref name="T"/> is not a supported type.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -95,15 +92,11 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #10049</term>
-        /// <description><paramref name="type"/> is
+        /// <description>TypeError #10049: <paramref name="type"/> is
         /// <see cref="GenericComparerType.DEFAULT" qualifyHint="true"/> and
         /// <typeparamref name="T"/> is not a supported type.</description>
         /// </item>
-        /// <item>
-        /// <term>TypeError #10061</term>
-        /// <description><paramref name="type"/> is not a valid value.</description>
-        /// </item>
+        /// <item><description>TypeError #10061: <paramref name="type"/> is not a valid value.</description></item>
         /// </list>
         /// </exception>
         ///

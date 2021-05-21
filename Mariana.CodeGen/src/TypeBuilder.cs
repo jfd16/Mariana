@@ -151,9 +151,9 @@ namespace Mariana.CodeGen {
         ///
         /// <exception cref="ArgumentException">
         /// <list type="bullet">
-        /// <item><paramref name="name"/> is null or the empty string.</item>
-        /// <item><paramref name="attrs"/> has the <see cref="FieldAttributes.Literal"/> flag set
-        /// but not <see cref="FieldAttributes.Static"/>.</item>
+        /// <item><description><paramref name="name"/> is null or the empty string.</description></item>
+        /// <item><description><paramref name="attrs"/> has the <see cref="FieldAttributes.Literal"/> flag set
+        /// but not <see cref="FieldAttributes.Static"/>.</description></item>
         /// </list>
         /// </exception>
         /// <exception cref="NotSupportedException"><paramref name="attrs"/> has the
@@ -197,12 +197,12 @@ namespace Mariana.CodeGen {
         ///
         /// <exception cref="ArgumentException">
         /// <list type="bullet">
-        /// <item><paramref name="name"/> is null or the empty string.</item>
-        /// <item><paramref name="attributes"/> contains invalid attribute combinations (such as
+        /// <item><description><paramref name="name"/> is null or the empty string.</description></item>
+        /// <item><description><paramref name="attributes"/> contains invalid attribute combinations (such as
         /// <see cref="MethodAttributes.Virtual"/> and <see cref="MethodAttributes.Static"/>
         /// set together), or this <see cref="TypeBuilder"/> represents an interface and
         /// <paramref name="attributes"/> does not have either the <see cref="MethodAttributes.Static"/>
-        /// or <see cref="MethodAttributes.Abstract"/> flag set.</item>
+        /// or <see cref="MethodAttributes.Abstract"/> flag set.</description></item>
         /// </list>
         /// </exception>
         /// <exception cref="ArgumentOutOfRangeException">The length of <paramref name="paramTypes"/> is greater
@@ -345,8 +345,8 @@ namespace Mariana.CodeGen {
         ///
         /// <exception cref="ArgumentException">
         /// <list type="bullet">
-        /// <item><paramref name="name"/> is null or the empty string.</item>
-        /// <item><paramref name="eventType"/> is the null handle, or is not a TypeDef, TypeRef or TypeSpec.</item>
+        /// <item><description><paramref name="name"/> is null or the empty string.</description></item>
+        /// <item><description><paramref name="eventType"/> is the null handle, or is not a TypeDef, TypeRef or TypeSpec.</description></item>
         /// </list>
         /// </exception>
         public EventBuilder defineEvent(string name, EventAttributes attributes, EntityHandle eventType) {
@@ -387,12 +387,12 @@ namespace Mariana.CodeGen {
         ///
         /// <exception cref="ArgumentException">
         /// <list type="bullet">
-        /// <item><paramref name="attributes"/> has the <see cref="MethodAttributes.Static"/>
-        /// flag set, and <paramref name="paramTypes"/> is not empty.</item>
-        /// <item><paramref name="attributes"/> does not have the <see cref="MethodAttributes.Static"/>
-        /// flag set, and this <see cref="TypeBuilder"/> represents an interface type.</item>
-        /// <item><paramref name="attributes"/> has the <see cref="MethodAttributes.Virtual"/>
-        /// flag set.</item>
+        /// <item><description><paramref name="attributes"/> has the <see cref="MethodAttributes.Static"/>
+        /// flag set, and <paramref name="paramTypes"/> is not empty.</description></item>
+        /// <item><description><paramref name="attributes"/> does not have the <see cref="MethodAttributes.Static"/>
+        /// flag set, and this <see cref="TypeBuilder"/> represents an interface type.</description></item>
+        /// <item><description><paramref name="attributes"/> has the <see cref="MethodAttributes.Virtual"/>
+        /// flag set.</description></item>
         /// </list>
         /// </exception>
         ///

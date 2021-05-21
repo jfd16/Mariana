@@ -72,8 +72,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>Error #10008</term>
-        /// <description>No class with the given underlying type exists, and
+        /// <description>Error #10008: No class with the given underlying type exists, and
         /// <paramref name="throwIfNotExists"/> is true.</description>
         /// </item>
         /// </list>
@@ -118,8 +117,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>Error #10008</term>
-        /// <description>No class with the given underlying type exists, and
+        /// <description>Error #10008: No class with the given underlying type exists, and
         /// <paramref name="throwIfNotExists"/> is true.</description>
         /// </item>
         /// </list>
@@ -152,8 +150,13 @@ namespace Mariana.AVM2.Core {
         public virtual bool isFinal => underlyingType.IsSealed;
 
         /// <summary>
-        /// Gets a Boolean value indicating whether the class is dynamic.
+        /// Gets a Boolean value indicating whether the class is dynamic (that is, whether instances
+        /// can have dynamic properties).
         /// </summary>
+        /// <remarks>
+        /// The dynamic-ness of a class is not inherited. It is possible for a non-dynamic class to derive
+        /// from a dynamic base class, and vice versa.
+        /// </remarks>
         public virtual bool isDynamic => getClassImpl().isDynamic;
 
         /// <summary>
@@ -259,8 +262,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1008</term>
-        /// <description>If the namespace of <paramref name="name"/> is the any namespace, and more
+        /// <description>TypeError #1008: If the namespace of <paramref name="name"/> is the any namespace, and more
         /// than one trait with the local name of <paramref name="name"/> is found. (Ambiguous
         /// match)</description>
         /// </item>
@@ -291,8 +293,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1008</term>
-        /// <description>If the namespace of <paramref name="name"/> is the any namespace, and more
+        /// <description>TypeError #1008: If the namespace of <paramref name="name"/> is the any namespace, and more
         /// than one trait with a matching name is found. (Ambiguous match)</description>
         /// </item>
         /// </list>
@@ -317,8 +318,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1008</term>
-        /// <description>If the namespace of <paramref name="name"/> is the any namespace, and more
+        /// <description>TypeError #1008: If the namespace of <paramref name="name"/> is the any namespace, and more
         /// than one trait with the local name of <paramref name="name"/> is found. (Ambiguous
         /// match)</description>
         /// </item>
@@ -345,8 +345,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1008</term>
-        /// <description>If the namespace of <paramref name="name"/> is the any namespace, and more
+        /// <description>TypeError #1008: If the namespace of <paramref name="name"/> is the any namespace, and more
         /// than one trait with the local name of <paramref name="name"/> is found. (Ambiguous
         /// match)</description>
         /// </item>
@@ -372,8 +371,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1008</term>
-        /// <description>If the namespace of <paramref name="name"/> is the any namespace, and more
+        /// <description>TypeError #1008: If the namespace of <paramref name="name"/> is the any namespace, and more
         /// than one trait with the local name of <paramref name="name"/> is found. (Ambiguous
         /// match)</description>
         /// </item>
@@ -400,8 +398,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1008</term>
-        /// <description>If the namespace of <paramref name="name"/> is the any namespace, and more
+        /// <description>TypeError #1008: If the namespace of <paramref name="name"/> is the any namespace, and more
         /// than one trait with the local name of <paramref name="name"/> is found. (Ambiguous
         /// match)</description>
         /// </item>
@@ -427,8 +424,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1008</term>
-        /// <description>If the namespace of <paramref name="name"/> is the any namespace, and more
+        /// <description>TypeError #1008: If the namespace of <paramref name="name"/> is the any namespace, and more
         /// than one trait with the local name of <paramref name="name"/> is found. (Ambiguous
         /// match)</description>
         /// </item>
@@ -455,8 +451,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1008</term>
-        /// <description>If the namespace of <paramref name="name"/> is the any namespace, and more
+        /// <description>TypeError #1008: If the namespace of <paramref name="name"/> is the any namespace, and more
         /// than one trait with the local name of <paramref name="name"/> is found. (Ambiguous
         /// match)</description>
         /// </item>
@@ -482,8 +477,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>TypeError #1008</term>
-        /// <description>If the namespace of <paramref name="name"/> is the any namespace, and more
+        /// <description>TypeError #1008: If the namespace of <paramref name="name"/> is the any namespace, and more
         /// than one trait with the local name of <paramref name="name"/> is found. (Ambiguous
         /// match)</description>
         /// </item>
@@ -513,10 +507,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>ArgumentError #10060</term>
-        /// <description><paramref name="filter"/> is null.</description>
-        /// </item>
+        /// <item><description>ArgumentError #10060: <paramref name="filter"/> is null.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -625,10 +616,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>ArgumentError #10060</term>
-        /// <description><paramref name="filter"/> is null.</description>
-        /// </item>
+        /// <item><description>ArgumentError #10060: <paramref name="filter"/> is null.</description></item>
         /// </list>
         /// </exception>
         ///

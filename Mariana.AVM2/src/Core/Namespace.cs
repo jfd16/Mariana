@@ -67,24 +67,18 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>ArgumentError #10013</term>
-        /// <description>The <paramref name="kind"/> argument is
+        /// <description>ArgumentError #10013: The <paramref name="kind"/> argument is
         /// <see cref="NamespaceKind.PRIVATE" qualifyHint="true"/>.</description>
         /// </item>
         /// <item>
-        /// <term>ArgumentError #10014</term>
-        /// <description>The <paramref name="kind"/> argument is
+        /// <description>ArgumentError #10014: The <paramref name="kind"/> argument is
         /// <see cref="NamespaceKind.ANY" qualifyHint="true"/>.</description>
         /// </item>
         /// <item>
-        /// <term>ArgumentError #10016</term>
-        /// <description>The <paramref name="kind"/> argument is not a valid value of the
+        /// <description>ArgumentError #10016: The <paramref name="kind"/> argument is not a valid value of the
         /// <see cref="NamespaceKind"/> enumeration.</description>
         /// </item>
-        /// <item>
-        /// <term>ArgumentError #10017</term>
-        /// <description>The <paramref name="uri"/> argument is null.</description>
-        /// </item>
+        /// <item><description>ArgumentError #10017: The <paramref name="uri"/> argument is null.</description></item>
         /// </list>
         /// </exception>
         public Namespace(NamespaceKind kind, string uri) {
@@ -196,10 +190,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>Error #10015</term>
-        /// <description>The maximum private namespace limit of 2^28 is exceeded.</description>
-        /// </item>
+        /// <item><description>Error #10015: The maximum private namespace limit of 2^28 is exceeded.</description></item>
         /// </list>
         /// </exception>
         public static Namespace createPrivate() => createPrivate(s_privateIdGenerator.atomicNext());
@@ -213,10 +204,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>Error #10015</term>
-        /// <description>id is negative or greater than 2^28-1.</description>
-        /// </item>
+        /// <item><description>Error #10015: id is negative or greater than 2^28-1.</description></item>
         /// </list>
         /// </exception>
         public static Namespace createPrivate(int id) {

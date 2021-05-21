@@ -113,8 +113,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list>
         /// <item>
-        /// <term>ArgumentError #1063</term>
-        /// <description>The length of <paramref name="args"/>is less than the number of required parameters
+        /// <description>ArgumentError #1063: The length of <paramref name="args"/>is less than the number of required parameters
         /// declared by this constructor, or is greater than the number of parameters and the constructor
         /// does not have a "rest" parameter.</description>
         /// </item>

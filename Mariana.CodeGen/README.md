@@ -126,6 +126,7 @@ The following features are not supported by the CodeGen library:
 * Custom attributes
 * Defining nested types (referencing external nested types is supported)
 * Fields with RVAs (static data)
+* Explicit struct layout
 * Function pointer types
 * The `calli` IL instruction
 * Defining P/Invoke methods

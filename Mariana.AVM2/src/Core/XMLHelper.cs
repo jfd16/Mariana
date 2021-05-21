@@ -141,11 +141,11 @@ namespace Mariana.AVM2.Core {
         /// <remarks>
         /// <para>The following characters are escaped:</para>
         /// <list type="bullet">
-        /// <item><c>&lt;</c> and <c>&amp;</c>, irrespective of the value of
-        /// <paramref name="isAttr"/>.</item>
-        /// <item><c>&gt;</c>, if <paramref name="isAttr"/> is false.</item>
-        /// <item><c>&quot;</c>, 0x09 (tab), 0x0A (newline) and 0x0D (carriage return), if
-        /// <paramref name="isAttr"/> is true.</item>
+        /// <item><description><c>&lt;</c> and <c>&amp;</c>, irrespective of the value of
+        /// <paramref name="isAttr"/>.</description></item>
+        /// <item><description><c>&gt;</c>, if <paramref name="isAttr"/> is false.</description></item>
+        /// <item><description><c>&quot;</c>, 0x09 (tab), 0x0A (newline) and 0x0D (carriage return), if
+        /// <paramref name="isAttr"/> is true.</description></item>
         /// </list>
         /// <para>If <paramref name="isAttr"/> is true, this function escapes strings for
         /// double-quoted attributes. (The <c>&apos;</c> character is not escaped)</para>
@@ -174,11 +174,11 @@ namespace Mariana.AVM2.Core {
         /// <remarks>
         /// <para>The following characters are escaped:</para>
         /// <list type="bullet">
-        /// <item><c>&lt;</c> and <c>&amp;</c>, irrespective of the value of
-        /// <paramref name="isAttr"/>.</item>
-        /// <item><c>&gt;</c>, if <paramref name="isAttr"/> is false.</item>
-        /// <item><c>&quot;</c>, 0x09 (tab), 0x0A (newline) and 0x0D (carriage return), if
-        /// <paramref name="isAttr"/> is true.</item>
+        /// <item><description><c>&lt;</c> and <c>&amp;</c>, irrespective of the value of
+        /// <paramref name="isAttr"/>.</description></item>
+        /// <item><description><c>&gt;</c>, if <paramref name="isAttr"/> is false.</description></item>
+        /// <item><description><c>&quot;</c>, 0x09 (tab), 0x0A (newline) and 0x0D (carriage return), if
+        /// <paramref name="isAttr"/> is true.</description></item>
         /// </list>
         /// <para>If <paramref name="isAttr"/> is true, this function escapes strings for
         /// double-quoted attributes. (The <c>&apos;</c> character is not escaped)</para>

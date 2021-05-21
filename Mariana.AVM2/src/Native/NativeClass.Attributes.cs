@@ -151,16 +151,16 @@ namespace Mariana.AVM2.Native {
     /// <para>This attribute can be used to define optional parameters in the following
     /// situations.</para>
     /// <list type="bullet">
-    /// <item>When writing AVM2 exported methods in a language that does not support optional
+    /// <item><description>When writing AVM2 exported methods in a language that does not support optional
     /// parameters. (If using a language that does support optional parameters, the default
     /// values in most cases can be specified directly and will be detected when the AVM2 loads
-    /// the exported method.)</item>
-    /// <item>When defining a parameter of type <see cref="ASNamespace"/> as optional, as there
+    /// the exported method.)</description></item>
+    /// <item><description>When defining a parameter of type <see cref="ASNamespace"/> as optional, as there
     /// is no way to represent a compile-time constant of that type. In this case, the URI of
-    /// the namespace to be used as the default value must be provided as a string.</item>
-    /// <item>When the default value requires a boxing conversion to the parameter type. An
+    /// the namespace to be used as the default value must be provided as a string.</description></item>
+    /// <item><description>When the default value requires a boxing conversion to the parameter type. An
     /// example is a parameter of type <see cref="ASAny"/> having an integer default
-    /// value.</item>
+    /// value.</description></item>
     /// </list>
     /// </remarks>
     [AttributeUsage(AttributeTargets.Parameter, AllowMultiple = false, Inherited = false)]
@@ -251,23 +251,23 @@ namespace Mariana.AVM2.Native {
         /// <code language="none">[<i>tagName</i>(<i>p(0)</i>, <i>p(1)</i>, <i>p(2)</i>, ..., <i>k(1)</i> = <i>v(1)</i>, <i>k(2)</i> = <i>v(2)</i>, ...)]</code>
         /// <para>Or (for a tag with only a name): <c>[<i>tagName</i>]</c>.</para>
         /// <list type="bullet">
-        /// <item><i>tagName</i> is the title of the metadata tag.</item>
-        /// <item><i>p(n)</i> represents an indexed value with index n.</item>
-        /// <item><i>k(n)</i> = <i>v(n)</i> represents a key-value pair, with <i>k(n)</i>
-        /// being the key and <i>v(n)</i> being the value.</item>
-        /// <item>Either a comma or semicolon can be used as a separator between values.</item>
-        /// <item><i>tagName</i>, <i>p(n)</i>, <i>k(n)</i> and <i>v(n)</i> must be
+        /// <item><description><i>tagName</i> is the title of the metadata tag.</description></item>
+        /// <item><description><i>p(n)</i> represents an indexed value with index n.</description></item>
+        /// <item><description><i>k(n)</i> = <i>v(n)</i> represents a key-value pair, with <i>k(n)</i>
+        /// being the key and <i>v(n)</i> being the value.</description></item>
+        /// <item><description>Either a comma or semicolon can be used as a separator between values.</description></item>
+        /// <item><description><i>tagName</i>, <i>p(n)</i>, <i>k(n)</i> and <i>v(n)</i> must be
         /// surrounded by single or double quotes if they contain spaces or any of the following
-        /// characters: <c>( ) [ ] , ; ' : = \</c></item>
-        /// <item>
+        /// characters: <c>( ) [ ] , ; ' : = \</c></description></item>
+        /// <item><description>
         /// In single or double-quoted strings, backslashes are used as escape characters if followed
         /// by a backslash or a single or double quote, and are literal if followed by any other
         /// character. Note that some languages (such as C#) use backslashes as escape characters in
         /// string literals, and in such languages backslashes must be doubled. For example, the
         /// strings <c>abc\d</c> and <c>abc'd</c> must be written as "abc\\\\d" and "abc\\'d"
         /// as string literals in these languages.
-        /// </item>
-        /// <item>Any space character, tab or new line that is not inside quotes is ignored.</item>
+        /// </description></item>
+        /// <item><description>Any space character, tab or new line that is not inside quotes is ignored.</description></item>
         /// </list>
         /// </remarks>
         public TraitMetadataAttribute(string dataString) {

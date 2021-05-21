@@ -72,8 +72,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>URIError #1052</term>
-        /// <description>The URI cannot be decoded; for example, because it contains a percent sign
+        /// <description>URIError #1052: The URI cannot be decoded; for example, because it contains a percent sign
         /// that is not followed by hexadecimal digits.</description>
         /// </item>
         /// </list>
@@ -105,8 +104,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <term>URIError #1052</term>
-        /// <description>The URI cannot be decoded; for example, because it contains a percent sign
+        /// <description>URIError #1052: The URI cannot be decoded; for example, because it contains a percent sign
         /// that is not followed by hexadecimal digits.</description>
         /// </item>
         /// </list>
@@ -136,10 +134,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>URIError #1052</term>
-        /// <description>The string cannot be encoded as a URI.</description>
-        /// </item>
+        /// <item><description>URIError #1052: The string cannot be encoded as a URI.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -170,10 +165,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
-        /// <item>
-        /// <term>URIError #1052</term>
-        /// <description>The string cannot be encoded as a URI.</description>
-        /// </item>
+        /// <item><description>URIError #1052: The string cannot be encoded as a URI.</description></item>
         /// </list>
         /// </exception>
         ///

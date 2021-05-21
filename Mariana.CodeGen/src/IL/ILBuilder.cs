@@ -714,9 +714,13 @@ namespace Mariana.CodeGen.IL {
         /// tokens for referring to types, members and strings in code emitted by this
         /// <see cref="ILBuilder"/>. If this is null, the overloads of the emit method
         /// that take a type, member or string operand cannot be used.</param>
+        ///
+        /// <exception cref="InvalidOperationException">This method is called when the <see cref="ILBuilder"/>
+        /// instance contains emitted code.</exception>
         public void setTokenProvider(ILTokenProvider tokenProvider) {
             if (m_position > 0 || m_localInfo.length > 0 || m_excHandlers.length > 0)
                 throw new InvalidOperationException("The token provider cannot be changed when code has already been emitted.");
+
             m_tokenProvider = tokenProvider;
         }
 
@@ -2239,10 +2243,10 @@ namespace Mariana.CodeGen.IL {
         /// <returns>An instance of <see cref="ILMethodBody"/> containing the emitted code.</returns>
         /// <exception cref="NotSupportedException">
         /// <list type="bullet">
-        /// <item>The size of the evaluation stack exceeds 65535 at any point in the execution of the method body.</item>
-        /// <item>A local variable was created using the <see cref="declareLocal(in TypeSignature, Boolean)"/>
+        /// <item><description>The size of the evaluation stack exceeds 65535 at any point in the execution of the method body.</description></item>
+        /// <item><description>A local variable was created using the <see cref="declareLocal(in TypeSignature, Boolean)"/>
         /// or <see cref="acquireTempLocal(in TypeSignature)"/> overloads, and the current token
-        /// provider has <see cref="ILTokenProvider.useLocalSigHelper"/> as true.</item>
+        /// provider has <see cref="ILTokenProvider.useLocalSigHelper"/> as true.</description></item>
         /// </list>
         /// </exception>
         /// <exception cref="InvalidOperationException">There are open exception handlers, or labels that are used
