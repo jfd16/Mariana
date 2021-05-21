@@ -28,7 +28,7 @@ namespace Mariana.AVM2.Compiler {
 
         private int m_regexpCount = 0;
 
-        private ASObject m_globalObject;
+        private ApplicationDomain m_domain;
 
         private TypeBuilder m_containerType;
         private FieldBuilder m_classesArrayField;
@@ -40,12 +40,14 @@ namespace Mariana.AVM2.Compiler {
         private FieldBuilder m_nssetArrayField;
         private FieldBuilder m_regexpArrayField;
         private FieldBuilder m_globalObjField;
+        private FieldBuilder m_appDomainField;
 
         /// <summary>
         /// Creates a new instance of <see cref="EmitConstantData"/>.
         /// </summary>
+        /// <param name="domain">The application domain of the script being compiled.</param>
         /// <param name="assembly">The <see cref="AssemblyBuilder"/></param>
-        public EmitConstantData(AssemblyBuilder assembly) {
+        public EmitConstantData(ApplicationDomain domain, AssemblyBuilder assembly) {
             m_containerType = assembly.defineType(
                 "{ConstData}",
                 TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.Abstract | TypeAttributes.BeforeFieldInit
@@ -68,6 +70,9 @@ namespace Mariana.AVM2.Compiler {
             m_nssetArrayField = defineField("nssets", typeof(NamespaceSet[]));
             m_regexpArrayField = defineField("regexps", typeof(ASRegExp[]));
             m_globalObjField = defineField("global", typeof(ASObject), initOnly: false);
+            m_appDomainField = defineField("domain", typeof(ApplicationDomain), initOnly: false);
+
+            m_domain = domain;
         }
 
         /// <summary>
@@ -117,6 +122,11 @@ namespace Mariana.AVM2.Compiler {
         /// for regular expression constants.
         /// </summary>
         public EntityHandle regexpArrayFieldHandle => m_regexpArrayField.handle;
+
+        /// <summary>
+        /// Returns the handle to the static field containing the script's application domain.
+        /// </summary>
+        public EntityHandle appDomainFieldHandle => m_appDomainField.handle;
 
         /// <summary>
         /// Returns the handle to the static field containing the global object.
@@ -170,12 +180,6 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="qname">The QName for which to find or add an entry in the XML QName constant array.</param>
         /// <returns>The index of <paramref name="qname"/> in the XML QName constant array.</returns>
         public int getXMLQNameIndex(QName qname) => m_xqnames.findOrAdd(qname);
-
-        /// <summary>
-        /// Sets the object that will be used as the global object.
-        /// </summary>
-        /// <param name="globalObject">The global object.</param>
-        public void setGlobalObject(ASObject globalObject) => m_globalObject = globalObject;
 
         /// <summary>
         /// Adds a namespace set to the namespace set constant array.
@@ -521,7 +525,8 @@ namespace Mariana.AVM2.Compiler {
             for (int i = 0; i < m_traits.count; i++)
                 traits[i] = m_traits[i].value;
 
-            module.ResolveField(tokenMapping.getMappedToken(m_globalObjField.handle)).SetValue(null, m_globalObject);
+            module.ResolveField(tokenMapping.getMappedToken(m_appDomainField.handle)).SetValue(null, m_domain);
+            module.ResolveField(tokenMapping.getMappedToken(m_globalObjField.handle)).SetValue(null, m_domain.globalObject);
         }
 
     }

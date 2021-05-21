@@ -775,6 +775,51 @@ namespace Mariana.AVM2.ABC {
             info[(int)ABCOp.urshift] =
                 new ABCOpInfo(stackPopCount: 2, stackPushCount: 1);
 
+            info[(int)ABCOp.li8] =
+                new ABCOpInfo(stackPopCount: 1, stackPushCount: 1);
+
+            info[(int)ABCOp.lix8] =
+                new ABCOpInfo(stackPopCount: 1, stackPushCount: 1);
+
+            info[(int)ABCOp.li16] =
+                new ABCOpInfo(stackPopCount: 1, stackPushCount: 1);
+
+            info[(int)ABCOp.lix16] =
+                new ABCOpInfo(stackPopCount: 1, stackPushCount: 1);
+
+            info[(int)ABCOp.li32] =
+                new ABCOpInfo(stackPopCount: 1, stackPushCount: 1);
+
+            info[(int)ABCOp.lf32] =
+                new ABCOpInfo(stackPopCount: 1, stackPushCount: 1);
+
+            info[(int)ABCOp.lf64] =
+                new ABCOpInfo(stackPopCount: 1, stackPushCount: 1);
+
+            info[(int)ABCOp.si8] =
+                new ABCOpInfo(stackPopCount: 2, stackPushCount: 0);
+
+            info[(int)ABCOp.si16] =
+                new ABCOpInfo(stackPopCount: 2, stackPushCount: 0);
+
+            info[(int)ABCOp.si32] =
+                new ABCOpInfo(stackPopCount: 2, stackPushCount: 0);
+
+            info[(int)ABCOp.sf32] =
+                new ABCOpInfo(stackPopCount: 2, stackPushCount: 0);
+
+            info[(int)ABCOp.sf64] =
+                new ABCOpInfo(stackPopCount: 2, stackPushCount: 0);
+
+            info[(int)ABCOp.sxi1] =
+                new ABCOpInfo(stackPopCount: 1, stackPushCount: 1);
+
+            info[(int)ABCOp.sxi8] =
+                new ABCOpInfo(stackPopCount: 1, stackPushCount: 1);
+
+            info[(int)ABCOp.sxi16] =
+                new ABCOpInfo(stackPopCount: 1, stackPushCount: 1);
+
             return info;
 
         }

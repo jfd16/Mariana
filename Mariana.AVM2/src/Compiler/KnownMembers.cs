@@ -1,14 +1,18 @@
 using System;
+using System.Buffers.Binary;
+using System.Linq;
 using Mariana.AVM2.Core;
 
+using static System.Buffers.Binary.BinaryPrimitives;
 using static Mariana.Common.ReflectUtil;
 
+using ArgsSpan = System.ReadOnlySpan<Mariana.AVM2.Core.ASAny>;
+
+using CI = System.Reflection.ConstructorInfo;
 using FI = System.Reflection.FieldInfo;
 using MI = System.Reflection.MethodInfo;
 using PI = System.Reflection.PropertyInfo;
-using CI = System.Reflection.ConstructorInfo;
 
-using ArgsSpan = System.ReadOnlySpan<Mariana.AVM2.Core.ASAny>;
 
 namespace Mariana.AVM2.Compiler {
 
@@ -834,6 +838,70 @@ namespace Mariana.AVM2.Compiler {
 
         public static readonly CI systemObjectCtor =
             getMemberFromExpr<Func<object>, CI>(() => new object());
+
+        #region GlobalMemory
+
+        public static readonly MI appDomainGetGlobalMem =
+            typeof(ApplicationDomain).GetMethod(nameof(ApplicationDomain.getGlobalMemorySpan));
+
+        public static readonly MI roSpanOfByteFromSpan =
+            (MI)typeof(Span<byte>).GetMember("op_Implicit").Where(x => x is MI m && m.ReturnType == typeof(ReadOnlySpan<byte>)).First();
+
+        public static readonly MI spanOfByteLength =
+            typeof(Span<byte>).GetProperty(nameof(Span<byte>.Length)).GetMethod;
+
+        public static readonly MI roSpanOfByteLength =
+            typeof(ReadOnlySpan<byte>).GetProperty(nameof(Span<byte>.Length)).GetMethod;
+
+        public static readonly MI spanOfByteSliceIndex =
+            typeof(Span<byte>).GetMethod(nameof(Span<byte>.Slice), new[] {typeof(int)});
+
+        public static readonly MI roSpanOfByteSliceIndex =
+            typeof(ReadOnlySpan<byte>).GetMethod(nameof(ReadOnlySpan<byte>.Slice), new[] {typeof(int)});
+
+        public static readonly MI spanOfByteGet =
+            typeof(Span<byte>).GetProperty("Item").GetMethod;
+
+        public static readonly MI roSpanOfByteGet =
+            typeof(ReadOnlySpan<byte>).GetProperty("Item").GetMethod;
+
+        public static readonly MI tryReadInt16LittleEndian =
+            typeof(BinaryPrimitives).GetMethod(nameof(TryReadInt16LittleEndian));
+
+        public static readonly MI tryReadUint16LittleEndian =
+            typeof(BinaryPrimitives).GetMethod(nameof(TryReadUInt16LittleEndian));
+
+        public static readonly MI tryReadInt32LittleEndian =
+            typeof(BinaryPrimitives).GetMethod(nameof(TryReadInt32LittleEndian));
+
+        public static readonly MI tryReadInt64LittleEndian =
+            typeof(BinaryPrimitives).GetMethod(nameof(TryReadInt64LittleEndian));
+
+        public static readonly MI int32BitsToFloat =
+            getMemberFromExpr<Func<int, float>, MI>(x => BitConverter.Int32BitsToSingle(x));
+
+        public static readonly MI int64BitsToDouble =
+            getMemberFromExpr<Func<long, double>, MI>(x => BitConverter.Int64BitsToDouble(x));
+
+        public static readonly MI tryWriteInt16LittleEndian =
+            typeof(BinaryPrimitives).GetMethod(nameof(TryWriteInt16LittleEndian));
+
+        public static readonly MI tryWriteInt32LittleEndian =
+            typeof(BinaryPrimitives).GetMethod(nameof(TryWriteInt32LittleEndian));
+
+        public static readonly MI tryWriteInt64LittleEndian =
+            typeof(BinaryPrimitives).GetMethod(nameof(TryWriteInt64LittleEndian));
+
+        public static readonly MI floatToInt32Bits =
+            getMemberFromExpr<Func<float, int>, MI>(x => BitConverter.SingleToInt32Bits(x));
+
+        public static readonly MI doubleToInt64Bits =
+            getMemberFromExpr<Func<double, long>, MI>(x => BitConverter.DoubleToInt64Bits(x));
+
+        public static readonly MI createGlobalMemRangeCheckError =
+            getMemberFromExpr<Func<AVM2Exception>, MI>(() => AVM2Exception.createGlobalMemoryRangeCheckError());
+
+        #endregion
 
     }
 

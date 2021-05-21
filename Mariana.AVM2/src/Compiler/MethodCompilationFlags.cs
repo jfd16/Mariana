@@ -57,6 +57,16 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         MAY_USE_DXNS = 1024,
 
+        /// <summary>
+        /// The method uses global memory load instructions.
+        /// </summary>
+        READ_GLOBAL_MEMORY = 2048,
+
+        /// <summary>
+        /// The method uses global memory load instructions.
+        /// </summary>
+        WRITE_GLOBAL_MEMORY = 4096,
+
     }
 
 }

@@ -1775,14 +1775,6 @@ namespace Mariana.CodeGen.IL {
         /// to double.
         /// </remarks>
         public void emit(ILOp opcode, double arg) {
-
-            if (opcode == ILOp.ldc_r8 && !Double.IsNaN(arg) && (Double.IsInfinity(arg) || (double)(float)arg == arg)) {
-                // Since float and double constants are indistinguishable in IL,
-                // we can optimize code size here. (Not sure if this affects JIT output)
-                // But don't do this to NaNs so that their binary representation is preserved.
-                opcode = ILOp.ldc_r4;
-            }
-
             if (opcode == ILOp.ldc_r8) {
                 // Double
                 _ensureCodeBufferSpace(9);

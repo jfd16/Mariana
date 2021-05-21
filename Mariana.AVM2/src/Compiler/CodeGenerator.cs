@@ -96,6 +96,10 @@ namespace Mariana.AVM2.Compiler {
 
         private ILBuilder.Label m_excReturnLabel;
 
+        private ILBuilder.Local m_globalMemReadSpanLocal;
+        private ILBuilder.Local m_globalMemWriteSpanLocal;
+        private ILBuilder.Label m_globalMemOutOfBoundsErrLabel;
+
         private DynamicArray<int> m_tempIntArray;
         private DynamicArray<ILBuilder.Label> m_tempLabelArray;
         private DynamicArray<ILBuilder.Local> m_tempLocalArray;
@@ -423,6 +427,9 @@ namespace Mariana.AVM2.Compiler {
                     _emitInitArgumentsArray();
                 }
             }
+
+            if (m_compilation.isAnyFlagSet(MethodCompilationFlags.READ_GLOBAL_MEMORY | MethodCompilationFlags.WRITE_GLOBAL_MEMORY))
+                _emitSetupGlobalMemory();
 
             _emitInitFieldsToDefaultValues();
 
@@ -756,33 +763,73 @@ namespace Mariana.AVM2.Compiler {
             }
         }
 
+        private void _emitSetupGlobalMemory() {
+            bool hasLoadInstr = m_compilation.isAnyFlagSet(MethodCompilationFlags.READ_GLOBAL_MEMORY);
+            bool hasStoreInstr = m_compilation.isAnyFlagSet(MethodCompilationFlags.WRITE_GLOBAL_MEMORY);
+
+            // This should only be called when any of the two flags is set.
+            Debug.Assert(hasLoadInstr || hasStoreInstr);
+
+            if (hasLoadInstr)
+                m_globalMemReadSpanLocal = m_ilBuilder.declareLocal(typeof(ReadOnlySpan<byte>));
+
+            if (hasStoreInstr)
+                m_globalMemWriteSpanLocal = m_ilBuilder.declareLocal(typeof(Span<byte>));
+
+            using (var context = m_compilation.getContext())
+                m_ilBuilder.emit(ILOp.ldsfld, context.value.emitConstData.appDomainFieldHandle);
+
+            m_ilBuilder.emit(ILOp.callvirt, KnownMembers.appDomainGetGlobalMem, 1);
+
+            if (hasStoreInstr) {
+                m_ilBuilder.emit(ILOp.stloc, m_globalMemWriteSpanLocal);
+                if (hasLoadInstr) {
+                    m_ilBuilder.emit(ILOp.ldloc, m_globalMemWriteSpanLocal);
+                    m_ilBuilder.emit(ILOp.call, KnownMembers.roSpanOfByteFromSpan, 0);
+                    m_ilBuilder.emit(ILOp.stloc, m_globalMemReadSpanLocal);
+                }
+            }
+            else {
+                m_ilBuilder.emit(ILOp.call, KnownMembers.roSpanOfByteFromSpan, 0);
+                m_ilBuilder.emit(ILOp.stloc, m_globalMemReadSpanLocal);
+            }
+
+            m_globalMemOutOfBoundsErrLabel = m_ilBuilder.createLabel();
+        }
+
         private void _emitTrailer() {
-            if (!m_hasExceptionHandling)
-                return;
-
-            if (m_compilation.getExceptionHandlers().Length > 0) {
-                m_ilBuilder.beginFilterClause();
-                _emitExceptionFilterBlock();
-                m_ilBuilder.beginCatchClause();
-                _emitExceptionCatchBlock();
+            if (m_compilation.isAnyFlagSet(MethodCompilationFlags.READ_GLOBAL_MEMORY | MethodCompilationFlags.WRITE_GLOBAL_MEMORY)) {
+                // If there are global memory instructions, emit the rage check failure code at the end.
+                m_ilBuilder.markLabel(m_globalMemOutOfBoundsErrLabel);
+                m_ilBuilder.emit(ILOp.call, KnownMembers.createGlobalMemRangeCheckError);
+                m_ilBuilder.emit(ILOp.@throw);
             }
 
-            if (m_needsFinallyBlock)
-                m_ilBuilder.beginFinallyClause();
+            if (m_hasExceptionHandling) {
+                if (m_compilation.getExceptionHandlers().Length > 0) {
+                    m_ilBuilder.beginFilterClause();
+                    _emitExceptionFilterBlock();
+                    m_ilBuilder.beginCatchClause();
+                    _emitExceptionCatchBlock();
+                }
 
-            if (!m_oldDxnsLocal.isDefault) {
-                // Restore the original DXNS
-                m_ilBuilder.emit(ILOp.ldloc, m_oldDxnsLocal);
-                m_ilBuilder.emit(ILOp.call, KnownMembers.setDxns, -1);
+                if (m_needsFinallyBlock)
+                    m_ilBuilder.beginFinallyClause();
+
+                if (!m_oldDxnsLocal.isDefault) {
+                    // Restore the original DXNS
+                    m_ilBuilder.emit(ILOp.ldloc, m_oldDxnsLocal);
+                    m_ilBuilder.emit(ILOp.call, KnownMembers.setDxns, -1);
+                }
+
+                m_ilBuilder.endExceptionHandler();
+                m_ilBuilder.markLabel(m_excReturnLabel);
+
+                if (m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_RETURN_VALUE))
+                    m_ilBuilder.emit(ILOp.ldloc, m_excReturnValueLocal);
+
+                m_ilBuilder.emit(ILOp.ret);
             }
-
-            m_ilBuilder.endExceptionHandler();
-            m_ilBuilder.markLabel(m_excReturnLabel);
-
-            if (m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_RETURN_VALUE))
-                m_ilBuilder.emit(ILOp.ldloc, m_excReturnValueLocal);
-
-            m_ilBuilder.emit(ILOp.ret);
         }
 
         private void _visitBasicBlock(ref BasicBlock block) {
@@ -907,6 +954,9 @@ namespace Mariana.AVM2.Compiler {
                 case ABCOp.increment_i:
                 case ABCOp.decrement:
                 case ABCOp.decrement_i:
+                case ABCOp.sxi1:
+                case ABCOp.sxi8:
+                case ABCOp.sxi16:
                     _visitUnaryOp(ref instr);
                     break;
 
@@ -1138,6 +1188,24 @@ namespace Mariana.AVM2.Compiler {
 
                 case ABCOp.lookupswitch:
                     _visitLookupSwitch(ref instr);
+                    break;
+
+                case ABCOp.li8:
+                case ABCOp.lix8:
+                case ABCOp.li16:
+                case ABCOp.lix16:
+                case ABCOp.li32:
+                case ABCOp.lf32:
+                case ABCOp.lf64:
+                    _visitGlobalMemoryLoad(ref instr);
+                    break;
+
+                case ABCOp.si8:
+                case ABCOp.si16:
+                case ABCOp.si32:
+                case ABCOp.sf32:
+                case ABCOp.sf64:
+                    _visitGlobalMemoryStore(ref instr);
                     break;
             }
 
@@ -1481,6 +1549,19 @@ namespace Mariana.AVM2.Compiler {
 
                     break;
                 }
+
+                case ABCOp.sxi1:
+                    _emitTypeCoerceForTopOfStack(ref input, DataNodeType.INT);
+                    m_ilBuilder.emit(ILOp.ldc_i4_1);
+                    m_ilBuilder.emit(ILOp.and);
+                    m_ilBuilder.emit(ILOp.neg);
+                    break;
+
+                case ABCOp.sxi8:
+                case ABCOp.sxi16:
+                    _emitTypeCoerceForTopOfStack(ref input, DataNodeType.INT);
+                    m_ilBuilder.emit((instr.opcode == ABCOp.sxi8) ? ILOp.conv_i1 : ILOp.conv_i2);
+                    break;
             }
         }
 
@@ -3415,6 +3496,153 @@ namespace Mariana.AVM2.Compiler {
             }
         }
 
+        private void _visitGlobalMemoryLoad(ref Instruction instr) {
+            ref DataNode address = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+
+            _emitTypeCoerceForTopOfStack(ref address, DataNodeType.INT);
+
+            var addrTemp = m_ilBuilder.acquireTempLocal(typeof(int));
+            m_ilBuilder.emit(ILOp.stloc, addrTemp);
+
+            // Emit length check
+            m_ilBuilder.emit(ILOp.ldloc, addrTemp);
+            m_ilBuilder.emit(ILOp.ldloca, m_globalMemReadSpanLocal);
+            m_ilBuilder.emit(ILOp.call, KnownMembers.roSpanOfByteLength, 0);
+            m_ilBuilder.emit(ILOp.bge_un, m_globalMemOutOfBoundsErrLabel);
+
+            if (instr.opcode == ABCOp.li8 || instr.opcode == ABCOp.lix8) {
+                // For li8 and lix8 we can use the ReadOnlySpan indexer.
+                m_ilBuilder.emit(ILOp.ldloca, m_globalMemReadSpanLocal);
+                m_ilBuilder.emit(ILOp.ldloc, addrTemp);
+                m_ilBuilder.emit(ILOp.call, KnownMembers.roSpanOfByteGet, -1);
+                m_ilBuilder.emit((instr.opcode == ABCOp.lix8) ? ILOp.ldind_i1 : ILOp.ldind_u1);
+
+                m_ilBuilder.releaseTempLocal(addrTemp);
+                return;
+            }
+
+            m_ilBuilder.emit(ILOp.ldloca, m_globalMemReadSpanLocal);
+            m_ilBuilder.emit(ILOp.ldloc, addrTemp);
+            m_ilBuilder.emit(ILOp.call, KnownMembers.roSpanOfByteSliceIndex, -1);
+
+            ILBuilder.Local valueTemp = default;
+            MethodInfo readMethod = null;
+
+            switch (instr.opcode) {
+                case ABCOp.li16:
+                    valueTemp = m_ilBuilder.acquireTempLocal(typeof(ushort));
+                    readMethod = KnownMembers.tryReadUint16LittleEndian;
+                    break;
+                case ABCOp.lix16:
+                    valueTemp = m_ilBuilder.acquireTempLocal(typeof(short));
+                    readMethod = KnownMembers.tryReadInt16LittleEndian;
+                    break;
+                case ABCOp.li32:
+                case ABCOp.lf32:
+                    valueTemp = m_ilBuilder.acquireTempLocal(typeof(int));
+                    readMethod = KnownMembers.tryReadInt32LittleEndian;
+                    break;
+                case ABCOp.lf64:
+                    valueTemp = m_ilBuilder.acquireTempLocal(typeof(long));
+                    readMethod = KnownMembers.tryReadInt64LittleEndian;
+                    break;
+            }
+
+            m_ilBuilder.emit(ILOp.ldloca, valueTemp);
+            m_ilBuilder.emit(ILOp.call, readMethod, -1);
+            m_ilBuilder.emit(ILOp.brfalse, m_globalMemOutOfBoundsErrLabel);
+
+            m_ilBuilder.emit(ILOp.ldloc, valueTemp);
+
+            // For lf32/lf64 we need to bit-cast the read integer value to a float/double.
+            if (instr.opcode == ABCOp.lf32) {
+                m_ilBuilder.emit(ILOp.call, KnownMembers.int32BitsToFloat, 0);
+                m_ilBuilder.emit(ILOp.conv_r8);
+            }
+            else if (instr.opcode == ABCOp.lf64) {
+                m_ilBuilder.emit(ILOp.call, KnownMembers.int64BitsToDouble, 0);
+            }
+
+            m_ilBuilder.releaseTempLocal(valueTemp);
+            m_ilBuilder.releaseTempLocal(addrTemp);
+        }
+
+        private void _visitGlobalMemoryStore(ref Instruction instr) {
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            ref DataNode value = ref m_compilation.getDataNode(stackPopIds[0]);
+            ref DataNode address = ref m_compilation.getDataNode(stackPopIds[1]);
+
+            DataNodeType valueType;
+            Type valueTempType;
+
+            if (instr.opcode == ABCOp.sf32)
+                (valueType, valueTempType) = (DataNodeType.NUMBER, typeof(float));
+            else if (instr.opcode == ABCOp.sf64)
+                (valueType, valueTempType) = (DataNodeType.NUMBER, typeof(double));
+            else
+                (valueType, valueTempType) = (DataNodeType.INT, typeof(int));
+
+            var addrTemp = m_ilBuilder.acquireTempLocal(typeof(int));
+            var valueTemp = m_ilBuilder.acquireTempLocal(valueTempType);
+
+            _emitTypeCoerceForTopOfStack(ref address, DataNodeType.INT);
+            m_ilBuilder.emit(ILOp.stloc, addrTemp);
+            _emitTypeCoerceForTopOfStack(ref value, valueType);
+            m_ilBuilder.emit(ILOp.stloc, valueTemp);
+
+            // Emit length check
+            m_ilBuilder.emit(ILOp.ldloc, addrTemp);
+            m_ilBuilder.emit(ILOp.ldloca, m_globalMemWriteSpanLocal);
+            m_ilBuilder.emit(ILOp.call, KnownMembers.spanOfByteLength, 0);
+            m_ilBuilder.emit(ILOp.bge_un, m_globalMemOutOfBoundsErrLabel);
+
+            if (instr.opcode == ABCOp.si8) {
+                // For si8 we can use the Span indexer.
+                m_ilBuilder.emit(ILOp.ldloca, m_globalMemWriteSpanLocal);
+                m_ilBuilder.emit(ILOp.ldloc, addrTemp);
+                m_ilBuilder.emit(ILOp.call, KnownMembers.spanOfByteGet, -1);
+                m_ilBuilder.emit(ILOp.ldloc, valueTemp);
+                m_ilBuilder.emit(ILOp.stind_i1);
+
+                m_ilBuilder.releaseTempLocal(addrTemp);
+                m_ilBuilder.releaseTempLocal(valueTemp);
+                return;
+            }
+
+            m_ilBuilder.emit(ILOp.ldloca, m_globalMemWriteSpanLocal);
+            m_ilBuilder.emit(ILOp.ldloc, addrTemp);
+            m_ilBuilder.emit(ILOp.call, KnownMembers.spanOfByteSliceIndex, -1);
+
+            m_ilBuilder.emit(ILOp.ldloc, valueTemp);
+
+            // For lf32/lf64 we need to bit-cast the float or double to the same sized integer.
+            if (instr.opcode == ABCOp.sf32)
+                m_ilBuilder.emit(ILOp.call, KnownMembers.floatToInt32Bits, 0);
+            else if (instr.opcode == ABCOp.sf64)
+                m_ilBuilder.emit(ILOp.call, KnownMembers.doubleToInt64Bits, 0);
+
+            MethodInfo writeMethod = null;
+
+            switch (instr.opcode) {
+                case ABCOp.si16:
+                    writeMethod = KnownMembers.tryWriteInt16LittleEndian;
+                    break;
+                case ABCOp.si32:
+                case ABCOp.sf32:
+                    writeMethod = KnownMembers.tryWriteInt32LittleEndian;
+                    break;
+                case ABCOp.sf64:
+                    writeMethod = KnownMembers.tryWriteInt64LittleEndian;
+                    break;
+            }
+
+            m_ilBuilder.emit(ILOp.call, writeMethod, -1);
+            m_ilBuilder.emit(ILOp.brfalse, m_globalMemOutOfBoundsErrLabel);
+
+            m_ilBuilder.releaseTempLocal(valueTemp);
+            m_ilBuilder.releaseTempLocal(addrTemp);
+        }
+
         /// <summary>
         /// Returns the type of a node after it has been pushed. This takes into account
         /// any type conversion that may be applied immediately after pushing it onto the stack.
@@ -3891,6 +4119,7 @@ namespace Mariana.AVM2.Compiler {
         private void _emitPushDoubleConstant(double value) {
             if (value == 0.0) {
                 if (Double.IsNegative(value)) {
+                    // Ensure that sign of zero is preserved.
                     m_ilBuilder.emit(ILOp.ldc_r8, value);
                 }
                 else {
@@ -3906,6 +4135,7 @@ namespace Mariana.AVM2.Compiler {
                 m_ilBuilder.emit(ILOp.conv_r8);
                 return;
             }
+
             uint uval = (uint)value;
             if (uval == value) {
                 m_ilBuilder.emit(ILOp.ldc_i4, uval);
@@ -3913,7 +4143,13 @@ namespace Mariana.AVM2.Compiler {
                 return;
             }
 
-            m_ilBuilder.emit(ILOp.ldc_r8, value);
+            if (Double.IsNaN(value) || Double.IsInfinity(value) || value == (double)(float)value) {
+                m_ilBuilder.emit(ILOp.ldc_r4, value);
+                m_ilBuilder.emit(ILOp.conv_r8);
+            }
+            else {
+                m_ilBuilder.emit(ILOp.ldc_r8, value);
+            }
         }
 
         private void _emitPushXmlNamespaceConstant(Namespace value) {

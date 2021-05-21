@@ -37,7 +37,6 @@ namespace Mariana.AVM2.Compiler {
 
         private Class m_elementType;
 
-
         private Dictionary<int, Trait> m_incompleteTraitsByToken;
 
         private int m_constructorToken;

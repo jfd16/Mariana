@@ -425,6 +425,24 @@ namespace Mariana.AVM2.Compiler {
                     break;
                 }
 
+                case ABCOp.sxi1: {
+                    if (tryGetConstant(ref input, out int value))
+                        setToConstant(ref output, -(value & 1));
+                    break;
+                }
+
+                case ABCOp.sxi8: {
+                    if (tryGetConstant(ref input, out int value))
+                        setToConstant(ref output, (int)(sbyte)value);
+                    break;
+                }
+
+                case ABCOp.sxi16: {
+                    if (tryGetConstant(ref input, out int value))
+                        setToConstant(ref output, (int)(short)value);
+                    break;
+                }
+
                 default:
                     return false;
             }

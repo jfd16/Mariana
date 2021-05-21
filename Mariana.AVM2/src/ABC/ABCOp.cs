@@ -166,6 +166,23 @@ namespace Mariana.AVM2.ABC {
         @typeof = 0x95,
         urshift = 0xA7,
 
+        // Global memory opcodes
+        lix8 = 0x33,
+        lix16 = 0x34,
+        li8 = 0x35,
+        li16 = 0x36,
+        li32 = 0x37,
+        lf32 = 0x38,
+        lf64 = 0x39,
+        si8 = 0x3A,
+        si16 = 0x3B,
+        si32 = 0x3C,
+        sf32 = 0x3D,
+        sf64 = 0x3E,
+        sxi1 = 0x50,
+        sxi8 = 0x51,
+        sxi16 = 0x52,
+
         #pragma warning restore 1591
     }
 

@@ -540,6 +540,9 @@ namespace Mariana.AVM2.Compiler {
                 case ABCOp.increment_i:
                 case ABCOp.decrement_i:
                 case ABCOp.not:
+                case ABCOp.sxi1:
+                case ABCOp.sxi8:
+                case ABCOp.sxi16:
                     _visitUnaryArithmeticOp(ref instr);
                     break;
 
@@ -725,6 +728,24 @@ namespace Mariana.AVM2.Compiler {
 
                 case ABCOp.newfunction:
                     _visitNewFunction(ref instr);
+                    break;
+
+                case ABCOp.li8:
+                case ABCOp.lix8:
+                case ABCOp.li16:
+                case ABCOp.lix16:
+                case ABCOp.li32:
+                case ABCOp.lf32:
+                case ABCOp.lf64:
+                    _visitGlobalMemoryLoad(ref instr);
+                    break;
+
+                case ABCOp.si8:
+                case ABCOp.si16:
+                case ABCOp.si32:
+                case ABCOp.sf32:
+                case ABCOp.sf64:
+                    _visitGlobalMemoryStore(ref instr);
                     break;
             }
         }
@@ -1018,6 +1039,9 @@ namespace Mariana.AVM2.Compiler {
                 case ABCOp.negate_i:
                 case ABCOp.increment_i:
                 case ABCOp.decrement_i:
+                case ABCOp.sxi1:
+                case ABCOp.sxi8:
+                case ABCOp.sxi16:
                     output.dataType = DataNodeType.INT;
                     break;
                 case ABCOp.not:
@@ -1744,6 +1768,21 @@ namespace Mariana.AVM2.Compiler {
             pushed.dataType = DataNodeType.OBJECT;
             pushed.constant = new DataNodeConstant(functionClass);
             pushed.isNotNull = true;
+        }
+
+        private void _visitGlobalMemoryLoad(ref Instruction instr) {
+            ref DataNode pushed = ref m_compilation.getDataNode(instr.stackPushedNodeId);
+
+            if (instr.opcode == ABCOp.lf32 || instr.opcode == ABCOp.lf64)
+                pushed.dataType = DataNodeType.NUMBER;
+            else
+                pushed.dataType = DataNodeType.INT;
+
+            pushed.isNotNull = true;
+        }
+
+        private void _visitGlobalMemoryStore(ref Instruction instr) {
+            // Nothing needs to be done here.
         }
 
         /// <summary>
@@ -3268,6 +3307,10 @@ namespace Mariana.AVM2.Compiler {
                 case ABCOp.increment_i:
                 case ABCOp.decrement_i:
                 case ABCOp.negate_i:
+                case ABCOp.bitnot:
+                case ABCOp.sxi1:
+                case ABCOp.sxi8:
+                case ABCOp.sxi16:
                     _visitUnaryIntegerOp(ref instr);
                     break;
 
@@ -3447,6 +3490,24 @@ namespace Mariana.AVM2.Compiler {
 
                 case ABCOp.newfunction:
                     _visitNewFunction(ref instr);
+                    break;
+
+                case ABCOp.li8:
+                case ABCOp.lix8:
+                case ABCOp.li16:
+                case ABCOp.lix16:
+                case ABCOp.li32:
+                case ABCOp.lf32:
+                case ABCOp.lf64:
+                    _visitGlobalMemoryLoad(ref instr);
+                    break;
+
+                case ABCOp.si8:
+                case ABCOp.si16:
+                case ABCOp.si32:
+                case ABCOp.sf32:
+                case ABCOp.sf64:
+                    _visitGlobalMemoryStore(ref instr);
                     break;
             }
         }
@@ -4166,6 +4227,27 @@ namespace Mariana.AVM2.Compiler {
                     captureDxns
                 );
             }
+        }
+
+        private void _visitGlobalMemoryLoad(ref Instruction instr) {
+            ref DataNode address = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            _requireStackNodeAsType(ref address, DataNodeType.INT, instr.id);
+            m_compilation.setFlag(MethodCompilationFlags.READ_GLOBAL_MEMORY);
+        }
+
+        private void _visitGlobalMemoryStore(ref Instruction instr) {
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            ref DataNode value = ref m_compilation.getDataNode(stackPopIds[0]);
+            ref DataNode address = ref m_compilation.getDataNode(stackPopIds[1]);
+
+            m_compilation.setFlag(MethodCompilationFlags.WRITE_GLOBAL_MEMORY);
+
+            _requireStackNodeAsType(ref address, DataNodeType.INT, instr.id);
+
+            if (instr.opcode == ABCOp.sf32 || instr.opcode == ABCOp.sf64)
+                _requireStackNodeAsType(ref value, DataNodeType.NUMBER, instr.id);
+            else
+                _requireStackNodeAsType(ref value, DataNodeType.INT, instr.id);
         }
 
         private CapturedScopeItem[] _createCapturedScope(ReadOnlySpan<int> innerCaptureIds) {

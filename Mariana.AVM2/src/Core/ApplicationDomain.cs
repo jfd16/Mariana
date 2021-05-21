@@ -51,6 +51,10 @@ namespace Mariana.AVM2.Core {
 
         private ASObject m_globalObject;
 
+        private byte[] m_globalMemory = Array.Empty<byte>();
+
+        private int m_globalMemorySize;
+
         /// <summary>
         /// Creates a new AVM2 application domain.
         /// </summary>
@@ -834,6 +838,51 @@ namespace Mariana.AVM2.Core {
                 throw ErrorHelper.createError(ErrorCode.MARIANA__LOAD_ABC_SYSTEM_DOMAIN);
             return new ScriptLoader(this, compileOptions ?? new ScriptCompileOptions());
         }
+
+        /// <summary>
+        /// Sets the global memory buffer that will be accessed by scripts loaded into this domain
+        /// that use global memory manipulation (Alchemy) instructions.
+        /// </summary>
+        ///
+        /// <param name="buffer">A byte array to be used as the global memory buffer for this domain.</param>
+        ///
+        /// <exception cref="AVM2Exception">ArgumentError #10060: <paramref name="buffer"/> is null.</exception>
+        public void setGlobalMemory(byte[] buffer) => setGlobalMemory(buffer, buffer.Length);
+
+        /// <summary>
+        /// Sets the global memory buffer that will be accessed by scripts loaded into this domain
+        /// that use global memory manipulation (Alchemy) instructions.
+        /// </summary>
+        ///
+        /// <param name="buffer">A byte array to be used as the global memory buffer for this domain.</param>
+        /// <param name="size">The size of the buffer that will be accessible to scripts. This must not
+        /// be greater than the length of <paramref name="buffer"/>.</param>
+        ///
+        /// <exception cref="AVM2Exception">
+        /// <list type="bullet">
+        /// <item><description>ArgumentError #10060: <paramref name="buffer"/> is null.</description></item>
+        /// <item><description>ArgumentError #10061: <paramref name="size"/> is negative or greater than the
+        /// length of <paramref name="buffer"/>.</description></item>
+        /// </list>
+        /// </exception>
+        public void setGlobalMemory(byte[] buffer, int size) {
+            if (buffer == null)
+                throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(buffer));
+
+            if ((uint)size > (uint)buffer.Length)
+                throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_OUT_OF_RANGE, nameof(size));
+
+            m_globalMemory = buffer;
+            m_globalMemorySize = size;
+        }
+
+        /// <summary>
+        /// Returns a <see cref="Span{Byte}"/> that can be used to access this application
+        /// domain's global memory.
+        /// </summary>
+        /// <returns>A <see cref="Span{Byte}"/> that can be used to access the global memory of
+        /// this domain. If no global memory buffer has been provided, an empty span is returned.</returns>
+        public Span<byte> getGlobalMemorySpan() => m_globalMemory.AsSpan(0, m_globalMemorySize);
 
     }
 

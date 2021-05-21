@@ -95,6 +95,7 @@
 1131	TypeError			Replacer argument to JSON.stringify must be an array or a two parameter function.
 1132	SyntaxError			Invalid JSON parse input: $1 (line $2)
 
+1506    RangeError          The specified range is invalid.
 1510	TypeError			When the callback argument is a method of a class, the optional this argument must be null.
 
 2006	ArgumentError		The supplied index is out of bounds.

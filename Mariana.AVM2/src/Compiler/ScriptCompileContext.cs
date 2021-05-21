@@ -247,7 +247,6 @@ namespace Mariana.AVM2.Compiler {
         /// Finishes the current compilation and loads the emitted assembly.
         /// </summary>
         public void finishCompilationAndLoad() {
-            m_emitConstantData.setGlobalObject(m_domain.globalObject);
             m_emitConstantData.emitConstDataInitializer(m_contextILBuilder);
 
             m_emitResult = m_assemblyBuilder.emit();
@@ -520,7 +519,7 @@ namespace Mariana.AVM2.Compiler {
             m_assemblyBuilder = new AssemblyBuilder(assemblyName);
             m_globalTraitsContainer = m_assemblyBuilder.defineType(
                 "{Global}", TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.Abstract);
-            m_emitConstantData = new EmitConstantData(m_assemblyBuilder);
+            m_emitConstantData = new EmitConstantData(m_domain, m_assemblyBuilder);
             m_contextILBuilder = new ILBuilder(m_assemblyBuilder.metadataContext.ilTokenProvider);
 
             m_capturedScopeFactory = new CapturedScopeFactory(this);
