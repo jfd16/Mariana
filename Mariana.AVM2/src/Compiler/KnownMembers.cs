@@ -763,6 +763,9 @@ namespace Mariana.AVM2.Compiler {
         public static readonly FI scopedClosureReceiverScope =
             getMemberFromExpr<Func<ScopedClosureReceiver, object>, FI>(x => x.scope);
 
+        public static readonly FI scopedClosureReceiverCallee =
+            getMemberFromExpr<Func<ScopedClosureReceiver, ASFunction>, FI>(x => x.callee);
+
         public static readonly CI newException =
             getMemberFromExpr<Func<ASAny, AVM2Exception>, CI>(x => new AVM2Exception(x));
 

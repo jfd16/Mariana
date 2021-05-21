@@ -565,18 +565,17 @@ namespace Mariana.AVM2.Compiler {
                 m_ilBuilder.emit(ILOp.call, KnownMembers.getObjectDynamicPropCollection, 0);
                 m_ilBuilder.emit(ILOp.ldstr, "callee");
 
-                _emitPushTraitConstant(currentMethod);
-                m_ilBuilder.emit(ILOp.castclass, typeof(MethodTrait));
-
                 if (m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCOPED_FUNCTION)) {
-                    // For a scoped function, arguments.callee is a function closure
-                    // sharing the same scope.
-                    m_ilBuilder.emit(ILOp.ldloc, m_scopedFuncScopeLocal);
-                    m_ilBuilder.emit(ILOp.call, KnownMembers.methodTraitCreateFunctionClosure, -1);
+                    // For a scoped function, arguments.callee can be obtained from the ScopedClosureReceiver.
+                    m_ilBuilder.emit(ILOp.ldarg_0);
+                    m_ilBuilder.emit(ILOp.ldfld, KnownMembers.scopedClosureReceiverCallee);
                 }
                 else {
                     // For an instance or static method, arguments.callee is a method closure with
                     // the current receiver (null for static methods).
+                    _emitPushTraitConstant(currentMethod);
+                    m_ilBuilder.emit(ILOp.castclass, typeof(MethodTrait));
+
                     if (m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_INSTANCE_METHOD))
                         m_ilBuilder.emit(ILOp.ldarg_0);
                     else

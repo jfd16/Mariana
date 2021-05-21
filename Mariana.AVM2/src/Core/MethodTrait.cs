@@ -266,7 +266,8 @@ namespace Mariana.AVM2.Core {
             if (m_hasScope) {
                 if (scope == null)
                     throw ErrorHelper.createError(ErrorCode.MARIANA__METHOD_SCOPE_ARG_REQUIRED, name.ToString());
-                receiver = new ScopedClosureReceiver(receiver, scope);
+
+                receiver = new ScopedClosureReceiver(receiver, scope, null);
             }
 
             if (!isStatic && receiver == null)

@@ -332,7 +332,7 @@ namespace Mariana.AVM2.Core {
 
             if (m_method.isStatic) {
                 if (m_scope != null)
-                    receiver = new ScopedClosureReceiver(receiver.value, m_scope);
+                    receiver = new ScopedClosureReceiver(receiver.value, m_scope, this);
 
                 newArgsSpan[0] = receiver;
                 newArgsSpan = newArgsSpan.Slice(1);
@@ -383,7 +383,7 @@ namespace Mariana.AVM2.Core {
         public override T createDelegate<T>(ASObject receiver = null) {
             receiver = receiver ?? m_method.applicationDomain.globalObject;
             if (m_scope != null)
-                receiver = new ScopedClosureReceiver(receiver, m_scope);
+                receiver = new ScopedClosureReceiver(receiver, m_scope, this);
 
             return ReflectUtil.makeDelegate<T>(m_method.underlyingMethodInfo, receiver);
         }
