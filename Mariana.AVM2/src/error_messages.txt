@@ -43,6 +43,7 @@
 1053	VerifyError			Illegal override of '$1' in '$2'.
 1054	VerifyError			Illegal range or target offsets in exception handler. (method: $1)
 1056	ReferenceError		Cannot create property $1 on $2.
+1057    VerifyError         Interface '$1' may only contain methods.
 1058    VerifyError         Illegal operand type: $1 must be Namespace.
 1060	VerifyError			ClassInfo $1 exceeds class_count=$2.
 1063	ArgumentError		Argument count mismatch on $1: expected $2, got $3.

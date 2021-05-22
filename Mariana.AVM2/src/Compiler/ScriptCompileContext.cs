@@ -831,6 +831,9 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="declClass">The class declaring the field, or null for a global field.</param>
         /// <param name="isStatic">True for a static or global field, false for instance fields.</param>
         private ScriptField _createFieldTrait(ABCTraitInfo traitInfo, Class declClass, bool isStatic) {
+            if (!isStatic && declClass.isInterface)
+                throw ErrorHelper.createError(ErrorCode.INTERFACE_MAY_ONLY_CONTAIN_METHODS, declClass.name);
+
             Class fieldType = getClassByMultiname(traitInfo.fieldTypeName, allowAny: true);
             var field = new ScriptField(traitInfo, declClass, m_domain, isStatic, fieldType);
 
@@ -898,8 +901,8 @@ namespace Mariana.AVM2.Compiler {
             bool isStatic,
             in QName methodName,
             bool isOverride,
-            bool hasScopedReceiver)
-        {
+            bool hasScopedReceiver
+        ) {
             bool mustHaveBody = isStatic || !declClass.isInterface;
             ABCMethodBodyInfo methodBody = getMethodBodyInfo(methodInfo);
 
@@ -984,7 +987,7 @@ namespace Mariana.AVM2.Compiler {
             // numeric types, and conversion to the Object or "any" type. All other
             // conversions are not valid.
 
-            if (val.value == null) {
+            if (val.isUndefinedOrNull) {
                 if (type == null)
                     return val;
                 if (type.tag == ClassTag.INT)
@@ -992,25 +995,30 @@ namespace Mariana.AVM2.Compiler {
                 if (type.tag == ClassTag.UINT)
                     return 0u;
                 if (type.tag == ClassTag.NUMBER)
-                    return val.isDefined ? 0.0 : Double.NaN;
+                    return val.isNull ? 0.0 : Double.NaN;
                 return ASAny.@null;
             }
             else if (ASObject.AS_isNumeric(val.value)) {
-                if (type == null)
-                    return val.value;
-                if (type.tag == ClassTag.INT)
-                    return (val.value is ASint) ? val : (ASAny)(int)val;
-                if (type.tag == ClassTag.UINT)
-                    return (val.value is ASuint) ? val : (ASAny)(uint)val;
-                if (type.tag == ClassTag.NUMBER)
-                    return (val.value is ASNumber) ? val : (ASAny)(double)val;
-                throw ErrorHelper.createError(ErrorCode.ILLEGAL_DEFAULT_VALUE, type.name);
+                if (type == null || type.underlyingType == typeof(ASObject))
+                    return val;
+
+                switch (type.tag) {
+                    case ClassTag.INT:
+                        return (val.value is ASint) ? val : (ASAny)(int)val;
+                    case ClassTag.UINT:
+                        return (val.value is ASuint) ? val : (ASAny)(uint)val;
+                    case ClassTag.NUMBER:
+                        return (val.value is ASNumber) ? val : (ASAny)(double)val;
+                    default:
+                        throw ErrorHelper.createError(ErrorCode.ILLEGAL_DEFAULT_VALUE, type.name);
+                }
             }
             else {
                 // In all other cases, the types must have an exact match, or the field
                 // type must be the "any" or Object type.
                 if (type != null && type.underlyingType != typeof(ASObject) && val.AS_class != type)
                     throw ErrorHelper.createError(ErrorCode.ILLEGAL_DEFAULT_VALUE, type.name);
+
                 return val;
             }
         }

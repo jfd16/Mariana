@@ -124,7 +124,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="span">The span from which to read.</param>
         /// <param name="index">The index of the first byte of the integer in the span.</param>
         /// <param name="validate">Set to throw an error if the value of the integer does not
-        /// exceed 30 bits.</param>
+        /// fit in 30 bits.</param>
         /// <param name="value">An output parameter to which the value of the integer will
         /// be written.</param>
         /// <returns>The number of bytes consumed.</returns>
