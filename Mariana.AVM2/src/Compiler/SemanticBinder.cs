@@ -402,14 +402,10 @@ namespace Mariana.AVM2.Compiler {
             else {
                 Class commonClass;
 
-                if (nodeType == DataNodeType.ANY || nodeType == DataNodeType.UNDEFINED
-                    || sourceType == DataNodeType.ANY || sourceType == DataNodeType.UNDEFINED)
-                {
+                if (isAnyOrUndefined(nodeType) || isAnyOrUndefined(sourceType)) {
                     commonClass = null;
                 }
-                else if (isPrimitive(nodeType)
-                    || isPrimitive(sourceType))
-                {
+                else if (isPrimitive(nodeType) || isPrimitive(sourceType)) {
                     commonClass = objectClass;
                 }
                 else if (nodeType == DataNodeType.NULL) {
@@ -984,7 +980,7 @@ namespace Mariana.AVM2.Compiler {
             output.isNotNull = false;
             output.constant = default;
 
-            if (tryEvalUnaryOp(ref input, ref output, instr.opcode))
+            if (tryEvalConstUnaryOp(ref input, ref output, instr.opcode))
                 return;
 
             switch (instr.opcode) {
@@ -1031,7 +1027,7 @@ namespace Mariana.AVM2.Compiler {
             output.isNotNull = false;
             output.constant = default;
 
-            if (tryEvalUnaryOp(ref input, ref output, instr.opcode))
+            if (tryEvalConstUnaryOp(ref input, ref output, instr.opcode))
                 return;
 
             switch (instr.opcode) {
@@ -1065,7 +1061,7 @@ namespace Mariana.AVM2.Compiler {
 
             m_localStateChangedFromLastVisit = true;
 
-            if (tryEvalUnaryOp(ref input, ref output, instr.opcode))
+            if (tryEvalConstUnaryOp(ref input, ref output, instr.opcode))
                 return;
 
             output.dataType = (instr.opcode == ABCOp.inclocal_i || instr.opcode == ABCOp.declocal_i)
@@ -1130,7 +1126,7 @@ namespace Mariana.AVM2.Compiler {
             output.isConstant = false;
             output.isNotNull = false;
 
-            if (tryEvalBinaryOp(ref input1, ref input2, ref output, instr.opcode))
+            if (tryEvalConstBinaryOp(ref input1, ref input2, ref output, instr.opcode))
                 return;
 
             const int numberAddDataTypeMask =
@@ -1180,7 +1176,7 @@ namespace Mariana.AVM2.Compiler {
             output.isConstant = false;
             output.isNotNull = false;
 
-            if (tryEvalBinaryOp(ref input1, ref input2, ref output, instr.opcode))
+            if (tryEvalConstBinaryOp(ref input1, ref input2, ref output, instr.opcode))
                 return;
 
             ABCOp opcode = instr.opcode;
@@ -1201,7 +1197,7 @@ namespace Mariana.AVM2.Compiler {
 
                 // If both are operands are of the same type then we can only use integer arithmetic
                 // if aggressive integer arithmetic is enabled or the operation is part of an
-                // expression that is coerced to an integer type (which is checked in the sweep step)
+                // expression that is coerced to an integer type (which is checked in the next pass)
                 // The modulo operation is an exception, as the result of that operation is always
                 // representable as an integer whenever both inputs are integers of the same signedness.
 
@@ -1230,7 +1226,7 @@ namespace Mariana.AVM2.Compiler {
             output.isConstant = false;
             output.isNotNull = false;
 
-            if (tryEvalCompareOp(ref input1, ref input2, ref output, instr.opcode))
+            if (tryEvalConstCompareOp(ref input1, ref input2, ref output, instr.opcode))
                 return;
 
             output.dataType = DataNodeType.BOOL;
@@ -1272,9 +1268,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitBinaryCompareBranch(ref Instruction instr) {
-            var inputIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode input1 = ref m_compilation.getDataNode(inputIds[0]);
-            ref DataNode input2 = ref m_compilation.getDataNode(inputIds[1]);
+            // Nothing to be done here.
         }
 
         private void _visitApplyType(ref Instruction instr) {
@@ -2113,10 +2107,10 @@ namespace Mariana.AVM2.Compiler {
                 }
             }
 
-            if (resolvedProp.propKind == ResolvedPropertyKind.UNKNOWN)
+            if (resolvedProp.propKind == ResolvedPropertyKind.UNKNOWN) {
                 // If nothing could be resolved then defer to runtime.
                 resolvedProp.propKind = ResolvedPropertyKind.RUNTIME;
-
+            }
         }
 
         /// <summary>
@@ -2365,7 +2359,6 @@ namespace Mariana.AVM2.Compiler {
                 setResolvedAtRuntime(ref resolvedProp);
                 return;
             }
-            // end search()
 
             var dataNodes = m_compilation.getDataNodes();
             var curScopeStack = m_curScopeStackNodeIds.asSpan();
@@ -2811,7 +2804,7 @@ namespace Mariana.AVM2.Compiler {
             int argCount = argsOnStackIds.Length;
 
             void convertType(ref DataNode input, ref DataNode output, DataNodeType toType, ABCOp convertOpcode) {
-                bool isConst = tryEvalUnaryOp(ref input, ref output, convertOpcode);
+                bool isConst = tryEvalConstUnaryOp(ref input, ref output, convertOpcode);
                 if (!isConst) {
                     output.dataType = toType;
                     output.isConstant = false;
@@ -3231,22 +3224,22 @@ namespace Mariana.AVM2.Compiler {
 
                 switch (node.onPushCoerceType) {
                     case DataNodeType.INT:
-                        isConstConverted = tryEvalUnaryOp(ref node, ref dummyOutput, ABCOp.convert_i);
+                        isConstConverted = tryEvalConstUnaryOp(ref node, ref dummyOutput, ABCOp.convert_i);
                         break;
                     case DataNodeType.UINT:
-                        isConstConverted = tryEvalUnaryOp(ref node, ref dummyOutput, ABCOp.convert_u);
+                        isConstConverted = tryEvalConstUnaryOp(ref node, ref dummyOutput, ABCOp.convert_u);
                         break;
                     case DataNodeType.NUMBER:
-                        isConstConverted = tryEvalUnaryOp(ref node, ref dummyOutput, ABCOp.convert_d);
+                        isConstConverted = tryEvalConstUnaryOp(ref node, ref dummyOutput, ABCOp.convert_d);
                         break;
                     case DataNodeType.STRING:
-                        isConstConverted = tryEvalUnaryOp(ref node, ref dummyOutput, ABCOp.coerce_s);
+                        isConstConverted = tryEvalConstUnaryOp(ref node, ref dummyOutput, ABCOp.coerce_s);
                         break;
                     case DataNodeType.BOOL:
-                        isConstConverted = tryEvalUnaryOp(ref node, ref dummyOutput, ABCOp.convert_b);
+                        isConstConverted = tryEvalConstUnaryOp(ref node, ref dummyOutput, ABCOp.convert_b);
                         break;
                     case DataNodeType.OBJECT:
-                        isConstConverted = tryEvalUnaryOp(ref node, ref dummyOutput, ABCOp.convert_o);
+                        isConstConverted = tryEvalConstUnaryOp(ref node, ref dummyOutput, ABCOp.convert_o);
                         break;
                 }
 

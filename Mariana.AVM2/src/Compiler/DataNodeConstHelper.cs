@@ -229,7 +229,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="output">A reference to a <see cref="DataNode"/> representing the output node.</param>
         /// <param name="opcode">The opcode for the unary operation.</param>
         /// <returns>True if the operation could be evaluated at compile time, otherwise false.</returns>
-        public static bool tryEvalUnaryOp(ref DataNode input, ref DataNode output, ABCOp opcode) {
+        public static bool tryEvalConstUnaryOp(ref DataNode input, ref DataNode output, ABCOp opcode) {
             if (!input.isConstant)
                 return false;
 
@@ -463,7 +463,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="output">A reference to a <see cref="DataNode"/> representing the output node.</param>
         /// <param name="opcode">The opcode for the binary operation.</param>
         /// <returns>True if the operation could be evaluated at compile time, otherwise false.</returns>
-        public static bool tryEvalBinaryOp(ref DataNode input1, ref DataNode input2, ref DataNode output, ABCOp opcode) {
+        public static bool tryEvalConstBinaryOp(ref DataNode input1, ref DataNode input2, ref DataNode output, ABCOp opcode) {
             if (!input1.isConstant || !input2.isConstant)
                 return false;
 
@@ -579,7 +579,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="output">A reference to a <see cref="DataNode"/> representing the output node.</param>
         /// <param name="opcode">The opcode for the binary operation.</param>
         /// <returns>True if the operation could be evaluated at compile time, otherwise false.</returns>
-        public static bool tryEvalCompareOp(ref DataNode input1, ref DataNode input2, ref DataNode output, ABCOp opcode) {
+        public static bool tryEvalConstCompareOp(ref DataNode input1, ref DataNode input2, ref DataNode output, ABCOp opcode) {
             if (!input1.isConstant || !input2.isConstant)
                 return false;
 

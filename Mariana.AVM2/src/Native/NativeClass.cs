@@ -103,10 +103,11 @@ namespace Mariana.AVM2.Native {
             ClassTag tag = (classInternalAttr != null) ? classInternalAttr.tag : ClassTag.OBJECT;
             bool canHideInheritedTraits = classInternalAttr != null && classInternalAttr.hidesInheritedTraits;
 
-            if (vecElementType != null)
+            if (vecElementType != null) {
                 // Instantiations of Vector<T> should use the VECTOR tag, but Vector itself should
                 // not, so this must be special-cased here.
                 tag = ClassTag.VECTOR;
+            }
 
             var createdClass = new NativeClass(
                 name, domain, tag, underlyingType, classAttr, vecElementType, canHideInheritedTraits, dontLoadParentAndInterfaces);
@@ -127,6 +128,7 @@ namespace Mariana.AVM2.Native {
                 if (classInternalAttr.usePrototypeOf != null && classInternalAttr.usePrototypeOf != underlyingType)
                     createdClass.m_classForProto = (NativeClass)_getDependentClass(classInternalAttr.usePrototypeOf, domain);
             }
+
             return createdClass;
         }
 
@@ -200,6 +202,7 @@ namespace Mariana.AVM2.Native {
 
             for (int i = 0; i < interfaceTypes.Length; i++) {
                 Type interfaceType = interfaceTypes[i];
+
                 if (!interfaceType.IsDefined(typeof(AVM2ExportClassAttribute))) {
                     if (underlyingType.IsInterface) {
                         throw ErrorHelper.createError(
@@ -229,6 +232,29 @@ namespace Mariana.AVM2.Native {
                 || type == (object)typeof(ASBoolean)
                 || type == (object)typeof(ASString);
         }
+
+        /// <summary>
+        /// Throws an error if a type in a field, property or method signature is a boxed primitive type.
+        /// </summary>
+        /// <param name="type">The type to check.</param>
+        /// <param name="traitName">The name of the trait to include in the error message.</param>
+        /// <param name="traitDeclClass">The class declaring the trait, to include in the error message.
+        /// Null if the trait is global.</param>
+        private static void _throwIfBoxedPrimitive(Type type, in QName traitName, Class traitDeclClass) {
+            if (!_isBoxedType(type))
+                return;
+
+            throw ErrorHelper.createError(
+                ErrorCode.MARIANA__NATIVE_CLASS_BOXED_PRIMITIVE, traitName, _getClassNameForErrorMsg(traitDeclClass));
+        }
+
+        /// <summary>
+        /// Returns the name of a class to display in an error message.
+        /// </summary>
+        /// <param name="klass">The class.</param>
+        /// <returns>A name for <paramref name="klass"/> that can be displayed in an error message.</returns>
+        private static string _getClassNameForErrorMsg(Class klass) =>
+            (klass == null) ? "<global>" : klass.name.ToString();
 
         private static Class _getVectorElementClass(Type underlyingType, ApplicationDomain domain) {
             if (!underlyingType.IsConstructedGenericType)
@@ -305,6 +331,7 @@ namespace Mariana.AVM2.Native {
 
             for (int i = 0; i < members.Length; i++) {
                 object[] memberAttrs = members[i].GetCustomAttributes(false);
+
                 var traitAttr = memberAttrs.OfType<AVM2ExportTraitAttribute>().FirstOrDefault();
                 var metadataAttrs = memberAttrs.OfType<TraitMetadataAttribute>();
 
@@ -348,7 +375,11 @@ namespace Mariana.AVM2.Native {
                             protoMethodName = protoMethodAttr.name ?? String.Intern(methodInfo.Name);
                     }
 
-                    MethodTrait methodTrait;
+                    if (traitAttr == null && protoMethodAttr == null)
+                        continue;
+
+                    MethodTrait methodTrait = null;
+
                     if (traitAttr != null) {
                         methodTrait = _makeMethodTrait(methodInfo, traitAttr, this, applicationDomain, metadataAttrs);
                         exportedMethodSet.add(methodInfo);
@@ -356,9 +387,6 @@ namespace Mariana.AVM2.Native {
                     }
                     else if (protoMethodAttr != null) {
                         methodTrait = _makeMethodTrait(methodInfo, QName.publicName(protoMethodName), this, applicationDomain, null);
-                    }
-                    else {
-                        continue;
                     }
 
                     if (protoMethodAttr != null) {
@@ -370,6 +398,7 @@ namespace Mariana.AVM2.Native {
                     ConstructorInfo ctorInfo = (ConstructorInfo)members[i];
                     if (traitAttr == null || ctorInfo.IsStatic)
                         continue;
+
                     if (classCtor != null)
                         throw ErrorHelper.createError(ErrorCode.MARIANA__NATIVE_CLASS_MULTIPLE_CTORS, name);
 
@@ -429,10 +458,12 @@ namespace Mariana.AVM2.Native {
             string localName, NamespaceKind nsKind, string nsName, Class declClass)
         {
             Namespace ns;
+
             if (nsKind == NamespaceKind.PRIVATE) {
                 throw ErrorHelper.createError(
                     ErrorCode.MARIANA__NATIVE_CLASS_TRAIT_INVALID_NS_KIND,
-                    (declClass != null) ? declClass.name.ToString() : "<global>");
+                    _getClassNameForErrorMsg(declClass)
+                );
             }
 
             if (nsName == null)
@@ -474,18 +505,16 @@ namespace Mariana.AVM2.Native {
         }
 
         private static FieldTrait _makeFieldTrait(
-            FieldInfo fldInfo, AVM2ExportTraitAttribute attr, NativeClass declClass, ApplicationDomain domain,
-            IEnumerable<TraitMetadataAttribute> metadataAttrs)
-        {
+            FieldInfo fldInfo,
+            AVM2ExportTraitAttribute attr,
+            NativeClass declClass,
+            ApplicationDomain domain,
+            IEnumerable<TraitMetadataAttribute> metadataAttrs
+        ) {
             string localName = attr.name ?? String.Intern(fldInfo.Name);
-
             QName traitName = _makeTraitName(localName, attr.nsKind, attr.nsUri, declClass);
 
-            if (_isBoxedType(fldInfo.FieldType)) {
-                throw ErrorHelper.createError(
-                    ErrorCode.MARIANA__NATIVE_CLASS_BOXED_PRIMITIVE,
-                    traitName, (declClass == null) ? "<global>" : declClass.name.ToString());
-            }
+            _throwIfBoxedPrimitive(fldInfo.FieldType, traitName, declClass);
 
             Class fieldType = _getDependentClass(fldInfo.FieldType, domain);
             MetadataTagCollection metadata = _extractMetadata(metadataAttrs);
@@ -494,9 +523,12 @@ namespace Mariana.AVM2.Native {
         }
 
         private static MethodTrait _makeMethodTrait(
-            MethodInfo methodInfo, AVM2ExportTraitAttribute attr, NativeClass declClass, ApplicationDomain domain,
-            IEnumerable<TraitMetadataAttribute> metadataAttrs)
-        {
+            MethodInfo methodInfo,
+            AVM2ExportTraitAttribute attr,
+            NativeClass declClass,
+            ApplicationDomain domain,
+            IEnumerable<TraitMetadataAttribute> metadataAttrs
+        ) {
             string localName = attr.name ?? String.Intern(methodInfo.Name);
 
             QName traitName = _makeTraitName(localName, attr.nsKind, attr.nsUri, declClass);
@@ -504,19 +536,21 @@ namespace Mariana.AVM2.Native {
         }
 
         private static MethodTrait _makeMethodTrait(
-            MethodInfo methodInfo, QName traitName, NativeClass declClass, ApplicationDomain domain,
-            IEnumerable<TraitMetadataAttribute> metadataAttrs)
-        {
-            if (methodInfo.IsGenericMethod) {
+            MethodInfo methodInfo,
+            QName traitName,
+            NativeClass declClass,
+            ApplicationDomain domain,
+            IEnumerable<TraitMetadataAttribute> metadataAttrs,
+            bool isStandalone = false
+         ) {
+            if (methodInfo.ContainsGenericParameters || (!isStandalone && methodInfo.IsGenericMethod)) {
                 throw ErrorHelper.createError(
-                    ErrorCode.MARIANA__NATIVE_CLASS_GENERIC_METHOD,
-                    traitName, (declClass == null) ? "<global>" : declClass.name.ToString());
+                    ErrorCode.MARIANA__NATIVE_CLASS_GENERIC_METHOD, traitName, _getClassNameForErrorMsg(declClass));
             }
 
             if (declClass != null && declClass.isInterface && !traitName.ns.isPublic) {
                 throw ErrorHelper.createError(
-                    ErrorCode.MARIANA__NATIVE_CLASS_INTERFACE_TRAIT_NONPUBLIC,
-                    traitName, (declClass == null) ? "<global>" : declClass.name.ToString());
+                    ErrorCode.MARIANA__NATIVE_CLASS_INTERFACE_TRAIT_NONPUBLIC, traitName, _getClassNameForErrorMsg(declClass));
             }
 
             bool isOverride =
@@ -532,12 +566,7 @@ namespace Mariana.AVM2.Native {
             }
             else {
                 hasReturn = true;
-
-                if (_isBoxedType(methodInfo.ReturnType)) {
-                    throw ErrorHelper.createError(
-                        ErrorCode.MARIANA__NATIVE_CLASS_BOXED_PRIMITIVE,
-                        traitName, (declClass == null) ? "<global>" : declClass.name.ToString());
-                }
+                _throwIfBoxedPrimitive(methodInfo.ReturnType, traitName, declClass);
                 returnType = _getDependentClass(methodInfo.ReturnType, domain);
             }
 
@@ -556,16 +585,18 @@ namespace Mariana.AVM2.Native {
         }
 
         private static PropertyTrait _makePropertyTrait(
-            PropertyInfo propInfo, AVM2ExportTraitAttribute attr, NativeClass declClass, ApplicationDomain domain,
-            IEnumerable<TraitMetadataAttribute> metadataAttrs)
-        {
+            PropertyInfo propInfo,
+            AVM2ExportTraitAttribute attr,
+            NativeClass declClass,
+            ApplicationDomain domain,
+            IEnumerable<TraitMetadataAttribute> metadataAttrs
+        ) {
             string localName = attr.name ?? String.Intern(propInfo.Name);
             QName traitName = _makeTraitName(localName, attr.nsKind, attr.nsUri, declClass);
 
             if (declClass != null && declClass.isInterface && !traitName.ns.isPublic) {
                 throw ErrorHelper.createError(
-                    ErrorCode.MARIANA__NATIVE_CLASS_INTERFACE_TRAIT_NONPUBLIC,
-                    traitName, (declClass == null) ? "<global>" : declClass.name.ToString());
+                    ErrorCode.MARIANA__NATIVE_CLASS_INTERFACE_TRAIT_NONPUBLIC, traitName, _getClassNameForErrorMsg(declClass));
             }
 
             MethodTrait getter = null, setter = null;
@@ -585,8 +616,7 @@ namespace Mariana.AVM2.Native {
 
                 if (getter.paramCount != 0 || getter.hasRest || !getter.hasReturn) {
                     throw ErrorHelper.createError(
-                        ErrorCode.MARIANA__NATIVE_CLASS_PROP_METHOD_SIG,
-                        traitName, (declClass == null) ? "<global>" : declClass.name.ToString());
+                        ErrorCode.MARIANA__NATIVE_CLASS_PROP_METHOD_SIG, traitName, _getClassNameForErrorMsg(declClass));
                 }
             }
 
@@ -603,8 +633,7 @@ namespace Mariana.AVM2.Native {
                     || (getter != null && getter.returnType != setter.getParameters()[0].type))
                 {
                     throw ErrorHelper.createError(
-                        ErrorCode.MARIANA__NATIVE_CLASS_PROP_METHOD_SIG,
-                        traitName, (declClass == null) ? "<global>" : declClass.name.ToString());
+                        ErrorCode.MARIANA__NATIVE_CLASS_PROP_METHOD_SIG, traitName, _getClassNameForErrorMsg(declClass));
                 }
             }
 
@@ -654,16 +683,11 @@ namespace Mariana.AVM2.Native {
                     paramInfoType = paramInfoType.GetGenericArguments()[0];
                 }
 
-                if (_isBoxedType(paramInfoType)) {
-                    throw ErrorHelper.createError(
-                        ErrorCode.MARIANA__NATIVE_CLASS_BOXED_PRIMITIVE,
-                        traitName, (declClass == null) ? "<global>" : declClass.name.ToString());
-                }
+                _throwIfBoxedPrimitive(paramInfoType, traitName, declClass);
 
                 if (paramInfoType == typeof(RestParam)) {
                     throw ErrorHelper.createError(
-                        ErrorCode.MARIANA__NATIVE_CLASS_METHOD_REST_PARAM,
-                        traitName, (declClass == null) ? "<global>" : declClass.name.ToString());
+                        ErrorCode.MARIANA__NATIVE_CLASS_METHOD_REST_PARAM, traitName, _getClassNameForErrorMsg(declClass));
                 }
 
                 Class paramType = _getDependentClass(paramInfoType, domain);
@@ -680,9 +704,7 @@ namespace Mariana.AVM2.Native {
                 }
                 else if (firstOptionalParamIndex != -1 && !isOptional) {
                     throw ErrorHelper.createError(
-                        ErrorCode.MARIANA__NATIVE_CLASS_METHOD_OPTIONAL_PARAMS,
-                        traitName, (declClass == null) ? "<global>" : declClass.name.ToString()
-                    );
+                        ErrorCode.MARIANA__NATIVE_CLASS_METHOD_OPTIONAL_PARAMS, traitName, _getClassNameForErrorMsg(declClass));
                 }
 
                 // Parameter names do not need interning, as parameters are almost never looked up by name.
@@ -707,11 +729,13 @@ namespace Mariana.AVM2.Native {
                     defaultVal = ASAny.AS_fromBoxed(optionalAttr.m_value);
             }
             else if (paramInfo.IsOptional) {
-                if (paramType == null)
+                if (paramType == null) {
                     // Special case needed here because paramInfo.DefaultValue will throw.
                     defaultVal = default(ASAny);
-                else
+                }
+                else {
                     defaultVal = ASAny.AS_fromBoxed(paramInfo.DefaultValue);
+                }
             }
             else {
                 defaultVal = default(ASAny);
@@ -747,8 +771,7 @@ namespace Mariana.AVM2.Native {
                         }
                         else if (!defaultVal.isNull && paramType.underlyingType != typeof(ASObject)) {
                             throw ErrorHelper.createError(
-                                ErrorCode.MARIANA__NATIVE_CLASS_METHOD_INVALID_DEFAULT,
-                                traitName, (declClass == null) ? "<global>" : declClass.name.ToString());
+                                ErrorCode.MARIANA__NATIVE_CLASS_METHOD_INVALID_DEFAULT, traitName, _getClassNameForErrorMsg(declClass));
                         }
                         break;
                 }
@@ -895,14 +918,17 @@ namespace Mariana.AVM2.Native {
         /// standalone method.</param>
         /// <returns>The created <see cref="MethodTrait"/> for the standalone method.</returns>
         internal static MethodTrait internalCreateStandAloneMethod(MethodInfo methodInfo) {
-            if (!methodInfo.IsStatic
-                || !methodInfo.IsPublic
-                || methodInfo.ContainsGenericParameters
-                || (methodInfo.DeclaringType != null && !methodInfo.DeclaringType.IsVisible))
-            {
+            if (!methodInfo.IsStatic || methodInfo.ContainsGenericParameters)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__NATIVE_CLASS_STANDALONE_METHOD_INVALID);
-            }
-            return _makeMethodTrait(methodInfo, QName.publicName(methodInfo.Name), null, null, null);
+
+            return _makeMethodTrait(
+                methodInfo,
+                QName.publicName(methodInfo.Name),
+                declClass: null,
+                domain: null,
+                metadataAttrs: null,
+                isStandalone: true
+            );
         }
 
         /// <summary>

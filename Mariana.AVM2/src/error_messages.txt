@@ -171,7 +171,7 @@
 10131   NativeClassLoadError    Vector instantiation contains a trait with an invalid dependent type in the signature.
 10132   NativeClassLoadError    Interface '$1' extends unexported interface '$2'.
 10133   NativeClassLoadError    Class '$1' implements method '$2' of interface '$3' with unexported method.
-10140   NativeClassLoadError    Standalone method must be public, static and not contain generic parameters.
+10140   NativeClassLoadError    Standalone method must be static and not contain generic parameters.
 
 10201   TypeError               createChildNode() can only be used on element nodes.
 10202   TypeError               Assigning to the nodeText property is not supported on element nodes.

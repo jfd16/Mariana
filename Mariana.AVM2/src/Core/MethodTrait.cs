@@ -382,8 +382,8 @@ namespace Mariana.AVM2.Core {
         /// <list type="bullet">
         /// <item><description>ArgumentError #10060: <paramref name="methodInfo"/> is null.</description></item>
         /// <item>
-        /// <description>NativeClassLoadError #10140: <paramref name="methodInfo"/> represents a non-public method, a public method declared
-        /// on a non-public type, an instance method, or a method that contains open generic parameters.</description>
+        /// <description>NativeClassLoadError #10140: <paramref name="methodInfo"/> represents an instance method
+        /// or a method that contains open generic parameters.</description>
         /// </item>
         /// </list>
         /// </exception>
@@ -391,7 +391,9 @@ namespace Mariana.AVM2.Core {
         /// <remarks>
         /// The signature of the method represented by <paramref name="methodInfo"/> must satisfy
         /// the same requirements as those for methods of native classes exported to the AVM2. See
-        /// notes on <see cref="AVM2ExportTraitAttribute"/> for further details.
+        /// notes on <see cref="AVM2ExportTraitAttribute"/> for further details. However, unlike
+        /// exported methods on classes, methods used to create standalone <see cref="MethodTrait"/>
+        /// instances can be non-public and can be (completely constructed) generic methods.
         /// </remarks>
         public static MethodTrait createNativeMethod(MethodInfo methodInfo) {
             if (methodInfo == null)
