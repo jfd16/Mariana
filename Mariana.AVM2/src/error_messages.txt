@@ -204,6 +204,7 @@
 10321   VerifyError             method_body_info $1 has initscopedepth > maxscopedepth.
 
 10330   Error                   Cannot compile any more scripts in a ScriptLoader after compiled scripts have been run.
+10331   Error                   Cannot accept assembly from custom loader: Assembly name, version or MVID does not match.
 
 10351   VerifyError             Exception handler variable name is not valid.
 10354   VerifyError             Invalid trait kind '$1' in activation object of method '$2': Only Slot and Const traits are allowed.

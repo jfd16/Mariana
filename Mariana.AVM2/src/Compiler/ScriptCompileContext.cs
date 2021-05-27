@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Reflection;
 using System.Reflection.Metadata;
+using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -78,6 +78,7 @@ namespace Mariana.AVM2.Compiler {
             public ScriptMethod initMethod;
             public DynamicArray<Trait> traits;
             public SlotMap slotMap;
+            public TypeBuilder containerTypeBuilder;
         }
 
         private struct MethodCompilationParams {
@@ -147,19 +148,25 @@ namespace Mariana.AVM2.Compiler {
 
         private Queue<ScriptMethod> m_functionCompileQueue = new Queue<ScriptMethod>();
 
+        private string m_assemblyBuilderName;
+
+        private Version m_assemblyBuilderVersion;
+
+        private Guid m_assemblyBuilderMvid;
+
         private AssemblyBuilder m_assemblyBuilder;
 
-        private TypeBuilder m_globalTraitsContainer;
+        private TypeBuilder m_anonFuncContainer;
 
         private ILBuilder m_contextILBuilder;
 
         private EmitConstantData m_emitConstantData;
 
+        private HelperEmitter m_helperEmitter;
+
         private CapturedScopeFactory m_capturedScopeFactory;
 
         private readonly NameMangler m_nameMangler = new NameMangler();
-
-        private readonly IncrementCounter m_scriptInitCounter = new IncrementCounter();
 
         private readonly IncrementCounter m_catchScopeCounter = new IncrementCounter();
 
@@ -171,7 +178,7 @@ namespace Mariana.AVM2.Compiler {
 
         private Assembly m_loadedAssembly;
 
-        private DynamicArray<MethodTrait> m_scriptInitializers;
+        private DynamicArray<EntityHandle> m_entryPointScriptHandles;
 
         internal ScriptCompileContext(ApplicationDomain domain, ScriptCompileOptions options) {
             m_options = options;
@@ -197,6 +204,12 @@ namespace Mariana.AVM2.Compiler {
         /// constant pool for this compilation.
         /// </summary>
         public EmitConstantData emitConstData => m_emitConstantData;
+
+        /// <summary>
+        /// Returns the <see cref="HelperEmitter"/> that can be used to obtain helper methods
+        /// for certain operations such as object and array creation.
+        /// </summary>
+        public HelperEmitter helperEmitter => m_helperEmitter;
 
         /// <summary>
         /// Returns a <see cref="LockedObject{ScriptCompileContext}"/> instance that provides thread-safe
@@ -239,8 +252,16 @@ namespace Mariana.AVM2.Compiler {
 
             _createScriptAndClassTraits();
             _emitScriptAndClassMembers();
+
             _emitMethodOverrides();
             _compileMethodBodies();
+
+            // The entry point of the script is the last entry in script_info according to AVM2 overview.
+            // We save the handle of its container type so that its class constructor (which calls the script
+            // init method) can be called once the compiled assembly is loaded.
+
+            var entryPointScriptData = m_abcScriptDataByIndex[m_abcFile.getScriptInfo().length - 1];
+            m_entryPointScriptHandles.add(entryPointScriptData.containerTypeBuilder.handle);
         }
 
         /// <summary>
@@ -251,10 +272,33 @@ namespace Mariana.AVM2.Compiler {
 
             m_emitResult = m_assemblyBuilder.emit();
 
-            if (m_options.emitAssemblySavePath != null)
-                File.WriteAllBytes(m_options.emitAssemblySavePath, m_emitResult.peImageBytes);
+            bool isCustomLoaded = false;
 
-            m_loadedAssembly = Assembly.Load(m_emitResult.peImageBytes);
+            if (m_options.assemblyLoader != null) {
+                m_loadedAssembly = m_options.assemblyLoader(m_emitResult.peImageBytes);
+                isCustomLoaded = m_loadedAssembly != null;
+            }
+
+            if (m_loadedAssembly == null) {
+                // No custom assembly loader specified, or the custom assembly loader returned null.
+                // So load using the default loader.
+                m_loadedAssembly = Assembly.Load(m_emitResult.peImageBytes);
+            }
+
+            if (isCustomLoaded) {
+                // If the assembly was loaded with a custom loader, do a simple validation of
+                // the assembly name, version and MVID. This will catch most loaders with
+                // obviously incorrect behvaiour, such as those that provide an already loaded
+                // assembly.
+
+                AssemblyName loadedAssemblyName = m_loadedAssembly.GetName();
+                if (loadedAssemblyName.Name != m_assemblyBuilderName
+                    || loadedAssemblyName.Version != m_assemblyBuilderVersion
+                    || m_loadedAssembly.ManifestModule.ModuleVersionId != m_assemblyBuilderMvid)
+                {
+                    throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_CUSTOM_LOADER_REJECTED);
+                }
+            }
 
             _setUnderlyingDefinitionsForTraits();
             VectorInstFromScriptClass.completeInstances();
@@ -263,13 +307,29 @@ namespace Mariana.AVM2.Compiler {
         }
 
         /// <summary>
-        /// Returns the script initializer methods defined by the ABC file(s) that have been
-        /// compiled in this context.
+        /// Runs the entry points of the compiled scripts. This should be called only when the
+        /// script has been compiled and the compiled assembly loaded.
         /// </summary>
-        /// <returns>A read-only array view containing <see cref="MethodTrait"/> instances representing
-        /// the script initializer methods defined by the ABC file(s) that have been
-        /// compiled in this context.</returns>
-        public ReadOnlyArrayView<MethodTrait> getAllScriptInitMethods() => m_scriptInitializers.asReadOnlyArrayView();
+        public void runScriptEntryPoints() {
+            Debug.Assert(m_loadedAssembly != null);
+
+            for (int i = 0; i < m_entryPointScriptHandles.length; i++) {
+                Type resolvedScriptContainer = m_loadedAssembly.ManifestModule.ResolveType(
+                    m_emitResult.tokenMapping.getMappedToken(m_entryPointScriptHandles[i])
+                );
+
+                try {
+                    RuntimeHelpers.RunClassConstructor(resolvedScriptContainer.TypeHandle);
+                }
+                catch (Exception e) {
+                    // Unwrap TypeInitializationExceptions and rethrow the innermost exception.
+                    while (e is TypeInitializationException)
+                        e = e.InnerException;
+
+                    ExceptionDispatchInfo.Throw(e);
+                }
+            }
+        }
 
         private void _loadABCData() {
             var methodBodyInfo = m_abcFile.getMethodBodyInfo();
@@ -510,16 +570,20 @@ namespace Mariana.AVM2.Compiler {
         /// Initialises the dynamic assembly into which the compiled code will be emitted.
         /// </summary>
         private void _initAssembly() {
-            string assemblyName = m_options.emitAssemblyName;
-            if (assemblyName == null) {
+            m_assemblyBuilderName = m_options.emitAssemblyName;
+            if (m_assemblyBuilderName == null) {
                 string countStr = ASuint.AS_convertString((uint)s_dynamicAssemblyCounter.atomicNext());
-                assemblyName = "AVM2DynamicAssembly_" + countStr;
+                m_assemblyBuilderName = "AVM2DynamicAssembly_" + countStr;
             }
 
-            m_assemblyBuilder = new AssemblyBuilder(assemblyName);
-            m_globalTraitsContainer = m_assemblyBuilder.defineType(
-                "{Global}", TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.Abstract);
+            m_assemblyBuilderVersion = new Version(1, 0, 0, 0);
+            m_assemblyBuilderMvid = Guid.NewGuid();
+
+            m_assemblyBuilder = new AssemblyBuilder(
+                m_assemblyBuilderName, m_assemblyBuilderVersion, moduleVersionId: m_assemblyBuilderMvid);
+
             m_emitConstantData = new EmitConstantData(m_domain, m_assemblyBuilder);
+            m_helperEmitter = new HelperEmitter(m_assemblyBuilder);
             m_contextILBuilder = new ILBuilder(m_assemblyBuilder.metadataContext.ilTokenProvider);
 
             m_capturedScopeFactory = new CapturedScopeFactory(this);
@@ -538,7 +602,8 @@ namespace Mariana.AVM2.Compiler {
             if (classData.typeBuilder != null)
                 return;
 
-            TypeAttributes typeAttrs = TypeAttributes.Public | TypeAttributes.Class;
+            TypeAttributes typeAttrs = TypeAttributes.Public | TypeAttributes.Class | TypeAttributes.BeforeFieldInit;
+
             if (scriptClass.isInterface)
                 typeAttrs |= TypeAttributes.Interface | TypeAttributes.Abstract;
             else if (scriptClass.isFinal)
@@ -570,13 +635,18 @@ namespace Mariana.AVM2.Compiler {
                 ABCScriptInfo si = scriptInfo[i];
                 ScriptData scriptData = m_abcScriptDataByIndex[i];
 
-                string initName = m_nameMangler.createScriptInitName(m_scriptInitCounter.next());
-
                 var initMethod = new ScriptMethod(
-                    si.initMethod, QName.publicName(initName), null, m_domain, true, true, false, null);
+                    si.initMethod,
+                    QName.publicName("scriptinit"),
+                    declClass: null,
+                    m_domain,
+                    isStatic: true,
+                    isFinal: true,
+                    isOverride: false,
+                    metadata: null
+                );
 
                 scriptData.initMethod = initMethod;
-                m_scriptInitializers.add(initMethod);
                 m_methodTraitData[initMethod] = new MethodTraitData();
 
                 m_traitExportScripts[initMethod] = si;
@@ -589,9 +659,10 @@ namespace Mariana.AVM2.Compiler {
 
                 var traitInfo = si.getTraits();
                 for (int j = 0; j < traitInfo.length; j++) {
-                    if (traitInfo[j].kind == ABCTraitFlags.Class)
+                    if (traitInfo[j].kind == ABCTraitFlags.Class) {
                         // Class traits have already been loaded at this point.
                         continue;
+                    }
 
                     Trait trait = _createScriptTraitFromTraitInfo(traitInfo[j], scriptData);
                     m_traitExportScripts[trait] = si;
@@ -1207,16 +1278,32 @@ namespace Mariana.AVM2.Compiler {
         private void _emitScriptAndClassMembers() {
             var scriptInfo = m_abcFile.getScriptInfo();
 
-            for (int i = 0; i < scriptInfo.length; i++) {
-                ScriptData scriptData = m_abcScriptDataByIndex[i];
-                _emitMethodBuilder(scriptData.initMethod, m_globalTraitsContainer, scriptData.initMethod.name, MethodNameMangleMode.NONE);
-
-                for (int j = 0, n = scriptData.traits.length; j < n; j++)
-                    _emitTraitIntoTypeBuilder(scriptData.traits[j], null, m_globalTraitsContainer);
-            }
+            for (int i = 0; i < scriptInfo.length; i++)
+                _emitScriptContainerAndTraits(i);
 
             foreach (var p in m_classData)
                 _emitClassMembersIfInContext(p.Key);
+        }
+
+        private void _emitScriptContainerAndTraits(int index) {
+            ScriptData scriptData = m_abcScriptDataByIndex[index];
+
+            TypeBuilder containerTb = m_assemblyBuilder.defineType(
+                new TypeName(NameMangler.INTERNAL_NAMESPACE, m_nameMangler.createScriptContainerName(index)),
+                TypeAttributes.Abstract | TypeAttributes.Sealed | TypeAttributes.Public | TypeAttributes.BeforeFieldInit
+            );
+
+            scriptData.containerTypeBuilder = containerTb;
+            _emitMethodBuilder(scriptData.initMethod, containerTb, scriptData.initMethod.name);
+
+            var traits = scriptData.traits.asSpan();
+
+            for (int i = 0; i < traits.Length; i++)
+                _emitTraitIntoTypeBuilder(traits[i], declClass: null, containerTb);
+
+            // The .cctor for the script container class will call the init method.
+            MethodBuilder cctorBuilder = containerTb.defineConstructor(MethodAttributes.Private | MethodAttributes.Static);
+            _emitCallToMethodWithNoArgs(cctorBuilder, scriptData.initMethod);
         }
 
         /// <summary>
@@ -1250,6 +1337,26 @@ namespace Mariana.AVM2.Compiler {
             var traits = scriptClass.getTraits(TraitType.ALL, TraitScope.DECLARED);
             for (int i = 0; i < traits.length; i++)
                 _emitTraitIntoTypeBuilder(traits[i], scriptClass, typeBuilder);
+
+            MethodBuilder cctorBuilder = typeBuilder.defineConstructor(MethodAttributes.Private | MethodAttributes.Static);
+
+            ABCScriptInfo exportingScript = getExportingScript(klass);
+            if (exportingScript != null) {
+                // If this class is exported by a script, call the script's cctor from the class
+                // cctor. The script cctor will call the script init method, which is expected
+                // to call the class init method after setting its captured scope.
+                ScriptData scriptData = m_abcScriptDataByIndex[exportingScript.abcIndex];
+
+                m_contextILBuilder.emit(ILOp.ldtoken, scriptData.containerTypeBuilder.handle);
+                m_contextILBuilder.emit(ILOp.call, KnownMembers.runtimeHelpersRunClassCtor, -1);
+                m_contextILBuilder.emit(ILOp.ret);
+
+                cctorBuilder.setMethodBody(m_contextILBuilder.createMethodBody());
+            }
+            else {
+                // If there is no script that exports this class, call the class static init method directly.
+                _emitCallToMethodWithNoArgs(cctorBuilder, classData.staticInit);
+            }
 
             classData.compileState = ClassCompileState.TRAITS_EMITTED;
         }
@@ -1566,6 +1673,52 @@ namespace Mariana.AVM2.Compiler {
             ilBuilder.emit(ILOp.ret);
 
             stubMethodBldr.setMethodBody(m_contextILBuilder.createMethodBody());
+        }
+
+        /// <summary>
+        /// Emits a method body for a given method that makes a call to another method with no arguments.
+        /// This is used to emit calls to script and class initializer methods.
+        /// </summary>
+        /// <param name="methodBuilder">The <see cref="MethodBuilder"/> for which to emit the method IL.</param>
+        /// <param name="methodToCall">A <see cref="MethodTrait"/> representing the method to be called.
+        /// This must not declare any non-optional parameters.</param>
+        private void _emitCallToMethodWithNoArgs(MethodBuilder methodBuilder, MethodTrait methodToCall) {
+            var ilBuilder = m_contextILBuilder;
+
+            if (methodToCall.paramCount > 0) {
+                // Class and script init methods cannot have required parameters, but may have optional parameters.
+                ReadOnlySpan<MethodTraitParameter> parameters = methodToCall.getParameters().asSpan();
+
+                for (int i = 0; i < parameters.Length; i++) {
+                    MethodTraitParameter param = parameters[i];
+                    Debug.Assert(param.isOptional && param.hasDefault);
+
+                    if (param.type == null)
+                        ILEmitHelper.emitPushConstantAsAny(ilBuilder, param.defaultValue);
+                    else if (param.type == s_objectClass)
+                        ILEmitHelper.emitPushConstantAsObject(ilBuilder, param.defaultValue);
+                    else
+                        ILEmitHelper.emitPushConstant(ilBuilder, param.defaultValue);
+                }
+            }
+
+            if (methodToCall.hasRest) {
+                // Emit an empty RestParam
+                var restLoc = ilBuilder.acquireTempLocal(typeof(RestParam));
+                ilBuilder.emit(ILOp.ldloca, restLoc);
+                ilBuilder.emit(ILOp.initobj, typeof(RestParam));
+                ilBuilder.emit(ILOp.ldloc, restLoc);
+                ilBuilder.releaseTempLocal(restLoc);
+            }
+
+            ilBuilder.emit(ILOp.call, getEntityHandle(methodToCall));
+
+            if (methodToCall.hasReturn)
+                ilBuilder.emit(ILOp.pop);
+
+            ilBuilder.emit(ILOp.ret);
+
+            methodBuilder.setMethodBody(ilBuilder.createMethodBody());
         }
 
         /// <summary>
@@ -2236,7 +2389,9 @@ namespace Mariana.AVM2.Compiler {
 
             // Define type builder
             var typeBuilder = m_assemblyBuilder.defineType(
-                classMangledName, TypeAttributes.Class | TypeAttributes.Sealed | TypeAttributes.Public);
+                new TypeName(NameMangler.INTERNAL_NAMESPACE, classMangledName),
+                TypeAttributes.Class | TypeAttributes.Sealed | TypeAttributes.Public
+            );
 
             classData.typeBuilder = typeBuilder;
             m_traitEntityHandles[klass] = typeBuilder.handle;
@@ -2291,7 +2446,9 @@ namespace Mariana.AVM2.Compiler {
 
             // Create TypeBuilder
             var typeBuilder = m_assemblyBuilder.defineType(
-                classMangledName, TypeAttributes.Class | TypeAttributes.Sealed | TypeAttributes.Public);
+                new TypeName(NameMangler.INTERNAL_NAMESPACE, classMangledName),
+                TypeAttributes.Class | TypeAttributes.Sealed | TypeAttributes.Public
+            );
 
             classData.typeBuilder = typeBuilder;
             m_traitEntityHandles[klass] = typeBuilder.handle;
@@ -2467,7 +2624,15 @@ namespace Mariana.AVM2.Compiler {
             methodTraitData.isFunction = true;
 
             _createMethodTraitSig(funcMethod, true);
-            _emitMethodBuilder(funcMethod, m_globalTraitsContainer, funcMethod.name, MethodNameMangleMode.NONE);
+
+            if (m_anonFuncContainer == null) {
+                m_anonFuncContainer = m_assemblyBuilder.defineType(
+                    new TypeName(NameMangler.INTERNAL_NAMESPACE, "Anonymous"),
+                    TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.Abstract
+                );
+            }
+
+            _emitMethodBuilder(funcMethod, m_anonFuncContainer, funcMethod.name, MethodNameMangleMode.NONE);
 
             methodTraitData.funcCapturedScope = m_capturedScopeFactory.getCapturedScopeForFunction(capturedScopeItems, captureDxns);
 

@@ -15,8 +15,8 @@ namespace Mariana.AVM2.ABC {
         /// </summary>
         private const int STRING_INTERN_MAX_LEN = 30;
 
-        private static readonly UTF8Encoding s_utf8EncodingNoFail = new UTF8Encoding(false, false);
-        private static readonly UTF8Encoding s_utf8EncodingFail = new UTF8Encoding(false, true);
+        private static readonly UTF8Encoding s_utf8EncodingWithReplaceFallback = new UTF8Encoding(false, false);
+        private static readonly UTF8Encoding s_utf8EncodingWithThrowFallback = new UTF8Encoding(false, true);
 
         private Stream m_stream;
 
@@ -31,6 +31,7 @@ namespace Mariana.AVM2.ABC {
 
             ushort majorVersion = _readU16();
             ushort minorVersion = _readU16();
+
             m_abcFile.setVersion(majorVersion, minorVersion);
 
             _readConstantPools();
@@ -46,8 +47,11 @@ namespace Mariana.AVM2.ABC {
         private void _init(Stream stream, ABCParseOptions options) {
             m_stream = stream;
             m_abcFile = new ABCFile();
-            m_utf8Encoding = ((options & ABCParseOptions.NO_FAIL_INVALID_UTF8) != 0) ? s_utf8EncodingNoFail : s_utf8EncodingFail;
             m_genArgLists.clear();
+
+            m_utf8Encoding = ((options & ABCParseOptions.NO_FAIL_INVALID_UTF8) != 0)
+                ? s_utf8EncodingWithReplaceFallback
+                : s_utf8EncodingWithThrowFallback;
         }
 
         private byte _readU8() {
@@ -67,15 +71,19 @@ namespace Mariana.AVM2.ABC {
         private uint _readU32() {
             uint v = 0;
             int shift = 0;
+
             for (int i = 0; i < 5; i++) {
                 int b = m_stream.ReadByte();
                 if (b == -1)
                     throw ErrorHelper.createError(ErrorCode.ABC_DATA_CORRUPT);
+
                 v |= (uint)((b & 127) << shift);
                 if ((b & 128) == 0)
                     break;
+
                 shift += 7;
             }
+
             return v;
         }
 
@@ -212,67 +220,68 @@ namespace Mariana.AVM2.ABC {
         }
 
         private void _readConstantPools() {
+            int intPoolSize = _readU30();
+            if (intPoolSize != 0)
+                intPoolSize--;
 
-            int count, i;
-
-            int[] intPool;
-            uint[] uintPool;
-            double[] doublePool;
-            string[] stringPool;
-            Namespace[] nsPool;
-            NamespaceSet[] nsSetPool;
-            ABCMultiname[] multinamePool;
-            ABCMultiname[][] genArgListPool;
-
-            count = _readU30();
-            if (count != 0)
-                count--;
-            intPool = new int[count + 1];
-            for (i = 1; i <= count; i++)
+            int[] intPool = new int[intPoolSize + 1];
+            for (int i = 1; i < intPool.Length; i++)
                 intPool[i] = (int)_readU32();
+
             m_abcFile.setIntPool(intPool);
 
-            count = _readU30();
-            if (count != 0)
-                count--;
-            uintPool = new uint[count + 1];
-            for (i = 1; i <= count; i++)
+            int uintPoolSize = _readU30();
+            if (uintPoolSize != 0)
+                uintPoolSize--;
+
+            uint[] uintPool = new uint[uintPoolSize + 1];
+            for (int i = 1; i < uintPool.Length; i++)
                 uintPool[i] = _readU32();
+
             m_abcFile.setUintPool(uintPool);
 
-            count = _readU30();
-            if (count != 0)
-                count--;
-            doublePool = new double[count + 1];
+            int doublePoolSize = _readU30();
+            if (doublePoolSize != 0)
+                doublePoolSize--;
+
+            double[] doublePool = new double[doublePoolSize + 1];
+
             doublePool[0] = Double.NaN;
-            for (i = 1; i <= count; i++)
+            for (int i = 1; i < doublePool.Length; i++)
                 doublePool[i] = _readD64();
+
             m_abcFile.setDoublePool(doublePool);
 
-            count = _readU30();
-            if (count != 0)
-                count--;
-            stringPool = new string[count + 1];
-            for (i = 1; i <= count; i++)
+            int stringPoolSize = _readU30();
+            if (stringPoolSize != 0)
+                stringPoolSize--;
+
+            string[] stringPool = new string[stringPoolSize + 1];
+            for (int i = 1; i < stringPool.Length; i++)
                 stringPool[i] = _readString();
+
             m_abcFile.setStringPool(stringPool);
 
-            count = _readU30();
-            if (count != 0)
-                count--;
-            nsPool = new Namespace[count + 1];
-            for (i = 1; i <= count; i++)
+            int nsPoolSize = _readU30();
+            if (nsPoolSize != 0)
+                nsPoolSize--;
+
+            Namespace[] nsPool = new Namespace[nsPoolSize + 1];
+            for (int i = 1; i < nsPool.Length; i++)
                 nsPool[i] = _readNamespace();
+
             m_abcFile.setNamespacePool(nsPool);
 
-            count = _readU30();
-            if (count != 0)
-                count--;
-            nsSetPool = new NamespaceSet[count + 1];
-            for (i = 1; i <= count; i++) {
+            int nsSetPoolSize = _readU30();
+            if (nsSetPoolSize != 0)
+                nsSetPoolSize--;
+
+            NamespaceSet[] nsSetPool = new NamespaceSet[nsSetPoolSize + 1];
+
+            for (int i = 1; i < nsSetPool.Length; i++) {
                 int setCount = _readU30();
                 Namespace[] nsInSet = new Namespace[setCount];
-                for (int j = 0; j < setCount; j++) {
+                for (int j = 0; j < nsInSet.Length; j++) {
                     Namespace ns = m_abcFile.resolveNamespace(_readU30());
                     if (ns.isPublic) {
                         // Set the public namespace to be first in a set to improve runtime lookup performance
@@ -285,32 +294,38 @@ namespace Mariana.AVM2.ABC {
                 }
                 nsSetPool[i] = new NamespaceSet(nsInSet);
             }
+
             m_abcFile.setNamespaceSetPool(nsSetPool);
 
-            count = _readU30();
-            if (count != 0)
-                count--;
-            multinamePool = new ABCMultiname[count + 1];
+            int multinamePoolSize = _readU30();
+            if (multinamePoolSize != 0)
+                multinamePoolSize--;
+
+            ABCMultiname[] multinamePool = new ABCMultiname[multinamePoolSize + 1];
+
             multinamePool[0] = new ABCMultiname(ABCConstKind.QName, 0, 0);
-            for (i = 1; i <= count; i++)
+            for (int i = 1; i < multinamePool.Length; i++)
                 multinamePool[i] = _readMultiname();
+
             m_abcFile.setMultinamePool(multinamePool);
 
-            count = m_genArgLists.length;
-            genArgListPool = new ABCMultiname[count][];
-            for (i = 0; i < count; i++) {
+            int genArgListPoolSize = m_genArgLists.length;
+            ABCMultiname[][] genArgListPool = new ABCMultiname[genArgListPoolSize][];
+
+            for (int i = 0; i < genArgListPool.Length; i++) {
                 int[] argIndices = m_genArgLists[i];
                 var arglist = new ABCMultiname[argIndices.Length];
+
                 for (int j = 0; j < argIndices.Length; j++)
                     arglist[j] = m_abcFile.resolveMultiname(argIndices[j]);
+
                 genArgListPool[i] = arglist;
             }
-            m_abcFile.setGenericArgListPool(genArgListPool);
 
+            m_abcFile.setGenericArgListPool(genArgListPool);
         }
 
         private void _readMethodInfo() {
-
             const ABCMethodFlags validMethodFlags =
                 ABCMethodFlags.NEED_REST
               | ABCMethodFlags.HAS_OPTIONAL
@@ -323,7 +338,6 @@ namespace Mariana.AVM2.ABC {
             var methodInfoArr = new ABCMethodInfo[methodCount];
 
             for (int i = 0; i < methodCount; i++) {
-
                 int paramCount = _readU30();
                 ABCMultiname retTypeName = m_abcFile.resolveMultiname(_readU30());
 
@@ -344,11 +358,9 @@ namespace Mariana.AVM2.ABC {
                     throw ErrorHelper.createError(ErrorCode.METHOD_INFO_INVALID_FLAGS, i, (int)mthdFlags);
 
                 // NEED_ARGUMENTS and NEED_REST cannot be set together.
-                if ((mthdFlags & (ABCMethodFlags.NEED_ARGUMENTS | ABCMethodFlags.NEED_REST))
-                    == (ABCMethodFlags.NEED_ARGUMENTS | ABCMethodFlags.NEED_REST))
-                {
+                const ABCMethodFlags needArgumentsOrRest = ABCMethodFlags.NEED_ARGUMENTS | ABCMethodFlags.NEED_REST;
+                if ((mthdFlags & needArgumentsOrRest) == needArgumentsOrRest)
                     throw ErrorHelper.createError(ErrorCode.METHOD_INFO_INVALID_FLAGS, i, (int)mthdFlags);
-                }
 
                 if ((mthdFlags & ABCMethodFlags.HAS_OPTIONAL) != 0) {
                     int optionCount = _readU30();
@@ -366,17 +378,15 @@ namespace Mariana.AVM2.ABC {
 
                 if ((mthdFlags & ABCMethodFlags.HAS_PARAM_NAMES) != 0) {
                     paramNames = new string[paramCount];
-                    for (int j = 0; j < paramCount; j++)
+                    for (int j = 0; j < paramNames.Length; j++)
                         paramNames[j] = m_abcFile.resolveString(_readU30());
                 }
 
                 methodInfoArr[i] = new ABCMethodInfo(
                     i, retTypeName, mthdName, mthdFlags, paramTypeNames, paramNames, defaultValues);
-
             }
 
             m_abcFile.setMethodInfo(methodInfoArr);
-
         }
 
         private void _readMetadata() {
@@ -387,7 +397,7 @@ namespace Mariana.AVM2.ABC {
             var keys = new DynamicArray<string>();
             var values = new DynamicArray<string>();
 
-            for (int i = 0; i < tagCount; i++) {
+            for (int i = 0; i < metadata.Length; i++) {
                 string tagName = m_abcFile.resolveString(_readU30());
                 int valueCount = _readU30();
 
@@ -408,27 +418,26 @@ namespace Mariana.AVM2.ABC {
         }
 
         private void _readClassInfo() {
-
             const ABCClassFlags validClassFlags =
-                   ABCClassFlags.ClassFinal
-                 | ABCClassFlags.ClassSealed
-                 | ABCClassFlags.ClassInterface
-                 | ABCClassFlags.ClassProtectedNs;
+                  ABCClassFlags.ClassFinal
+                | ABCClassFlags.ClassSealed
+                | ABCClassFlags.ClassInterface
+                | ABCClassFlags.ClassProtectedNs;
 
             int classCount = _readU30();
-
             var classInfoArr = new ABCClassInfo[classCount];
 
             // Read instance_info
 
-            for (int i = 0; i < classCount; i++) {
+            for (int i = 0; i < classInfoArr.Length; i++) {
                 ABCMultiname className = m_abcFile.resolveMultiname(_readU30());
                 if (className.kind != ABCConstKind.QName)
                     throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_CLASS_TRAIT_NAME_NOT_QNAME);
 
                 QName classQualifiedName = new QName(
                     m_abcFile.resolveNamespace(className.namespaceIndex),
-                    m_abcFile.resolveString(className.localNameIndex));
+                    m_abcFile.resolveString(className.localNameIndex)
+                );
 
                 if (classQualifiedName.ns.kind == NamespaceKind.ANY || classQualifiedName.localName == null)
                     throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_CLASS_TRAIT_NAME_NULL);
@@ -440,8 +449,8 @@ namespace Mariana.AVM2.ABC {
                 if ((flags & ~validClassFlags) != 0)
                     throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_INVALID_INSTANCE_INFO_FLAGS);
 
-                const ABCClassFlags finalAndInterface = ABCClassFlags.ClassFinal | ABCClassFlags.ClassInterface;
-                if ((flags & finalAndInterface) == finalAndInterface) {
+                const ABCClassFlags finalOrInterface = ABCClassFlags.ClassFinal | ABCClassFlags.ClassInterface;
+                if ((flags & finalOrInterface) == finalOrInterface) {
                     // ClassFinal and ClassInterface cannot be used together
                     throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_INVALID_INSTANCE_INFO_FLAGS);
                 }
@@ -455,7 +464,7 @@ namespace Mariana.AVM2.ABC {
 
                 if (interfaceCount != 0) {
                     interfaceNames = new ABCMultiname[interfaceCount];
-                    for (int j = 0; j < interfaceCount; j++)
+                    for (int j = 0; j < interfaceNames.Length; j++)
                         interfaceNames[j] = m_abcFile.resolveMultiname(_readU30());
                 }
 
@@ -476,7 +485,6 @@ namespace Mariana.AVM2.ABC {
             }
 
             m_abcFile.setClassInfo(classInfoArr);
-
         }
 
         private ABCTraitInfo[] _readTraitInfo(int count) {
@@ -488,14 +496,15 @@ namespace Mariana.AVM2.ABC {
 
             var traits = new ABCTraitInfo[count];
 
-            for (int i = 0; i < count; i++) {
+            for (int i = 0; i < traits.Length; i++) {
                 ABCMultiname traitName = m_abcFile.resolveMultiname(_readU30());
                 if (traitName.kind != ABCConstKind.QName)
                     throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_CLASS_TRAIT_NAME_NOT_QNAME);
 
                 QName traitQualifiedName = new QName(
                     m_abcFile.resolveNamespace(traitName.namespaceIndex),
-                    m_abcFile.resolveString(traitName.localNameIndex));
+                    m_abcFile.resolveString(traitName.localNameIndex)
+                );
 
                 if (traitQualifiedName.ns.kind == NamespaceKind.ANY || traitQualifiedName.localName == null)
                     throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_CLASS_TRAIT_NAME_NULL);
@@ -513,11 +522,11 @@ namespace Mariana.AVM2.ABC {
 
                     ABCMultiname typeName = m_abcFile.resolveMultiname(_readU30());
                     ASAny defaultVal = ASAny.undefined;
-                    int vindex = _readU30();
-                    if (vindex != 0)
-                        defaultVal = m_abcFile.resolveConstant((ABCConstKind)_readU8(), vindex);
+                    int defaultValIndex = _readU30();
+                    if (defaultValIndex != 0)
+                        defaultVal = m_abcFile.resolveConstant((ABCConstKind)_readU8(), defaultValIndex);
 
-                    traitInfo = new ABCTraitInfo(traitQualifiedName, flags, slotId, typeName, vindex != 0, defaultVal);
+                    traitInfo = new ABCTraitInfo(traitQualifiedName, flags, slotId, typeName, defaultValIndex != 0, defaultVal);
                 }
                 else if (kind == ABCTraitFlags.Class) {
                     int slotId = _readU30();
@@ -537,8 +546,11 @@ namespace Mariana.AVM2.ABC {
                     int metadataCount = _readU30();
                     if (metadataCount != 0) {
                         MetadataTag[] metadata = new MetadataTag[metadataCount];
-                        for (int j = 0; j < metadataCount; j++)
+
+                        for (int j = 0; j < metadata.Length; j++)
                             metadata[j] = m_abcFile.resolveMetadata(_readU30());
+
+                        traitInfo.setMetadata(new MetadataTagCollection(metadata));
                     }
                 }
 
@@ -562,13 +574,12 @@ namespace Mariana.AVM2.ABC {
         }
 
         internal void _readMethodBodies() {
-
             int methodBodyCount = _readU30();
-            ABCMethodBodyInfo[] methodBodies = new ABCMethodBodyInfo[methodBodyCount];
+            var methodBodies = new ABCMethodBodyInfo[methodBodyCount];
 
-            for (int i = 0; i < methodBodyCount; i++) {
-
+            for (int i = 0; i < methodBodies.Length; i++) {
                 ABCMethodInfo methodInfo = m_abcFile.resolveMethodInfo(_readU30());
+
                 int maxStack = _readU30();
                 int localCount = _readU30();
                 int initScopeDepth = _readU30();
@@ -579,16 +590,17 @@ namespace Mariana.AVM2.ABC {
 
                 int codeSize = _readU30();
                 byte[] code = new byte[codeSize];
+
                 if (m_stream.Read(code, 0, codeSize) != codeSize)
                     throw ErrorHelper.createError(ErrorCode.ABC_DATA_CORRUPT);
 
                 int excBlockCount = _readU30();
-                ABCExceptionInfo[] excBlocks = Array.Empty<ABCExceptionInfo>();
+                var excBlocks = Array.Empty<ABCExceptionInfo>();
 
                 if (excBlockCount != 0) {
                     excBlocks = new ABCExceptionInfo[excBlockCount];
 
-                    for (int j = 0; j < excBlockCount; j++) {
+                    for (int j = 0; j < excBlocks.Length; j++) {
                         int start = _readU30();
                         int end = _readU30();
                         int catchTarget = _readU30();
@@ -608,7 +620,6 @@ namespace Mariana.AVM2.ABC {
             }
 
             m_abcFile.setMethodBodyInfo(methodBodies);
-
         }
 
     }

@@ -49,7 +49,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="assembly">The <see cref="AssemblyBuilder"/></param>
         public EmitConstantData(ApplicationDomain domain, AssemblyBuilder assembly) {
             m_containerType = assembly.defineType(
-                "{ConstData}",
+                new TypeName(NameMangler.INTERNAL_NAMESPACE, "ConstData"),
                 TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.Abstract | TypeAttributes.BeforeFieldInit
             );
 

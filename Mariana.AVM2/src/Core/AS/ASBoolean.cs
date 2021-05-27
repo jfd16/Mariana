@@ -84,7 +84,7 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         [AVM2ExportTrait(name = "toString", nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod(name = "toString")]
-        public new string AS_toString() => m_value ? TRUE_STRING : FALSE_STRING;
+        public new string AS_toString() => AS_convertString(m_value);
 
         /// <summary>
         /// Returns the primitive type representation of the object.

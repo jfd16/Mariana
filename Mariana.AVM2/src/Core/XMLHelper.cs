@@ -533,6 +533,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="o2">The second operand.</param>
         public static bool weakEquals(ASAny o1, ASAny o2) {
             ASXML xml1 = o1.value as ASXML, xml2 = o2.value as ASXML;
+
             if (xml1 != null && xml2 != null)
                 return ASXML.AS_weakEq(xml1, xml2);
 

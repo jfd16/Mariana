@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Mariana.AVM2.Native;
 using Mariana.Common;
 
@@ -110,6 +111,29 @@ namespace Mariana.AVM2.Core {
                     throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, $"{nameof(items)}[{i}]");
                 m_items[i] = items[i];
             }
+        }
+
+        /// <summary>
+        /// Creates a new XMLList from XML nodes provided by an <see cref="IEnumerable{ASXML}"/> instance.
+        /// </summary>
+        /// <param name="items">An <see cref="IEnumerable{ASXML}"/> implementation that provides the XML nodes
+        /// to be added to the created list.</param>
+        public static ASXMLList fromEnumerable(IEnumerable<ASXML> items) {
+            if (items == null)
+                throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(items));
+
+            var list = new ASXMLList();
+
+            int i = 0;
+            foreach (ASXML node in items) {
+                if (node == null)
+                    throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, $"{nameof(items)}[{i}]");
+
+                list.m_items.add(node);
+                i++;
+            }
+
+            return list;
         }
 
         /// <exclude/>
@@ -273,7 +297,13 @@ namespace Mariana.AVM2.Core {
             if (list1 == list2)
                 return true;
 
-            if (list1 == null || list2 == null || list1.m_items.length != list2.m_items.length)
+            if (list1 == null)
+                return list2.length() == 1 && ASXML.AS_weakEq(null, list2[0]);
+
+            if (list2 == null)
+                return list1.length() == 1 && ASXML.AS_weakEq(null, list1[0]);
+
+            if (list1.length() != list2.length())
                 return false;
 
             ReadOnlySpan<ASXML> span1 = list1.m_items.asSpan();
@@ -2118,6 +2148,9 @@ namespace Mariana.AVM2.Core {
         public new string AS_toString() {
             if (m_items.length == 0)
                 return "";
+
+            if (m_items.length == 1)
+                return m_items[0].AS_toString();
 
             if (!hasSimpleContent())
                 return toXMLString();

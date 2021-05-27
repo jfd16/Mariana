@@ -139,12 +139,16 @@ namespace Mariana.AVM2.Core {
         public static bool tryUnwrapCaughtException(Exception exception, out ASAny thrownValue) {
             thrownValue = default;
 
-            if (exception is AVM2Exception avm2ex) {
-                thrownValue = avm2ex.thrownValue;
+            // Unwrap inner exceptions from TypeInitializationException and TargetInvocationException.
+            while (exception is TypeInitializationException || exception is TargetInvocationException)
+                exception = exception.InnerException;
+
+            if (exception is AVM2Exception avm2Exception) {
+                thrownValue = avm2Exception.thrownValue;
                 return true;
             }
 
-            if (exception is NullReferenceException nullRefEx) {
+            if (exception is NullReferenceException) {
                 thrownValue = ErrorHelper.createErrorObject(ErrorCode.NULL_REFERENCE_ERROR);
                 return true;
             }

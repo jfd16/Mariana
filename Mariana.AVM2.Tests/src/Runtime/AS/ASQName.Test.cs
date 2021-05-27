@@ -435,7 +435,7 @@ namespace Mariana.AVM2.Tests {
         public static IEnumerable<object[]> runtimeConstructorTest_data = TupleHelper.toArrays(
             (Array.Empty<ASAny>(), new ASQName("", "")),
 
-            (new ASAny[] {ASAny.undefined}, new ASQName("", "default", "undefined")),
+            (new ASAny[] {ASAny.undefined}, new ASQName("", "default", "")),
             (new ASAny[] {ASAny.@null}, new ASQName("", "default", "null")),
             (new ASAny[] {"a"}, new ASQName("", "default", "a")),
             (new ASAny[] {"abc"}, new ASQName("", "default", "abc")),

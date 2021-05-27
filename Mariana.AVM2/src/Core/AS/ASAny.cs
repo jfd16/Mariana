@@ -1422,37 +1422,12 @@ namespace Mariana.AVM2.Core {
         /// </list>
         /// </exception>
         public static ASAny AS_fromBoxed(object obj) {
-            if (obj == null)
-                return @null;
-            if (obj is ASAny asAny)
-                return asAny;
-            if (obj is ASObject asObj)
-                return new ASAny(asObj);
+            ASObject convertedObject = ASObject.AS_fromBoxed(obj);
 
-            switch (Type.GetTypeCode(obj.GetType())) {
-                case TypeCode.Byte:
-                    return AS_fromInt((byte)obj);
-                case TypeCode.SByte:
-                    return AS_fromInt((sbyte)obj);
-                case TypeCode.Int16:
-                    return AS_fromInt((short)obj);
-                case TypeCode.UInt16:
-                    return AS_fromInt((ushort)obj);
-                case TypeCode.Int32:
-                    return AS_fromInt((int)obj);
-                case TypeCode.UInt32:
-                    return AS_fromUint((uint)obj);
-                case TypeCode.Single:
-                    return AS_fromNumber((float)obj);
-                case TypeCode.Double:
-                    return AS_fromNumber((double)obj);
-                case TypeCode.String:
-                    return AS_fromString((string)obj);
-                case TypeCode.Boolean:
-                    return AS_fromBoolean((bool)obj);
-            }
+            if (convertedObject == null && obj is ASAny objAsAny && objAsAny.isUndefined)
+                return undefined;
 
-            throw ErrorHelper.createError(ErrorCode.MARIANA__OBJECT_FROMPRIMITIVE_INVALID);
+            return convertedObject;
         }
 
         /// <summary>
@@ -1505,10 +1480,17 @@ namespace Mariana.AVM2.Core {
                     return (bool)obj;
                 case ClassTag.STRING:
                     return (string)obj;
-                default:
-                    if (v == null || v == s_internalNull || v.AS_class.canAssignTo(toClass))
+
+                default: {
+                    if (v == null) {
+                        // Undefined should convert to null.
+                        return @null;
+                    }
+                    if (v == s_internalNull || v.AS_class.canAssignTo(toClass)) {
                         return obj;
+                    }
                     throw ErrorHelper.createCastError(obj, toClass);
+                }
             }
         }
 
@@ -1659,17 +1641,8 @@ namespace Mariana.AVM2.Core {
         /// to the Number type and their floating-point values are compared.
         /// </remarks>
         public static bool AS_lessThan(ASAny x, ASAny y) {
-            ASObject vx = x.value, vy = y.value;
-
-            if (vx == vy || x.isUndefined || y.isUndefined) {
-                // Equal by reference, or one of the values is undefined. NaN will correctly return false here.
-                return false;
-            }
-
-            if (vx is ASString && vy is ASString)
-                return String.CompareOrdinal(ASObject.AS_coerceString(vx), ASObject.AS_coerceString(vy)) < 0;
-
-            return (double)x < (double)y;
+            // Undefined converts to NaN, so the result is always false if an operand is undefined.
+            return !x.isUndefined && !y.isUndefined && ASObject.AS_lessThan(x.value, y.value);
         }
 
         /// <summary>
@@ -1688,18 +1661,8 @@ namespace Mariana.AVM2.Core {
         /// objects are converted to the Number type and their floating-point values are compared.
         /// </remarks>
         public static bool AS_lessEq(ASAny x, ASAny y) {
-            ASObject vx = x.value, vy = y.value;
-
-            if (vx == vy) {
-                // Objects are equal by reference.
-                // The result in this case is true except for null-undefined and NaN.
-                return x.isDefined ? y.isDefined && !(vx is ASNumber && Double.IsNaN((double)vx)) : !y.isDefined;
-            }
-
-            if (vx is ASString && vy is ASString)
-                return String.CompareOrdinal(ASObject.AS_coerceString(vx), ASObject.AS_coerceString(vy)) <= 0;
-
-            return (double)x <= (double)y;
+            // Undefined converts to NaN, so the result is always false if an operand is undefined.
+            return !x.isUndefined && !y.isUndefined && ASObject.AS_lessEq(x.value, y.value);
         }
 
         /// <summary>
@@ -1761,33 +1724,35 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         public static ASObject AS_add(ASAny x, ASAny y) {
             ClassTagSet tagSet = default;
-            if (x.value != null)
+
+            if (!x.isUndefinedOrNull)
                 tagSet = tagSet.add(x.AS_class.tag);
-            if (y.value != null)
+            if (!y.isUndefinedOrNull)
                 tagSet = tagSet.add(y.AS_class.tag);
 
             if (ClassTagSet.numericOrBool.containsAll(tagSet))
                 return (double)x + (double)y;
 
             if (ClassTagSet.stringOrDate.containsAny(tagSet))
-                return ASAny.AS_convertString(x) + ASAny.AS_convertString(y);
+                return AS_convertString(x) + AS_convertString(y);
 
-            if (ClassTagSet.xmlOrXmlList.containsAll(tagSet) && x.value != null && y.value != null)
+            if (ClassTagSet.xmlOrXmlList.containsAll(tagSet) && !x.isUndefinedOrNull && !y.isUndefinedOrNull)
                 return XMLHelper.concatenateXMLObjects(x.value, y.value);
 
-            ASAny p1 = ASObject.AS_toPrimitive(x.value);
-            ASAny p2 = ASObject.AS_toPrimitive(y.value);
+            ASAny prim1 = x.isUndefined ? default : ASObject.AS_toPrimitive(x.value);
+            ASAny prim2 = y.isUndefined ? default : ASObject.AS_toPrimitive(y.value);
 
             tagSet = default;
-            if (x.value != null)
-                tagSet = tagSet.add(p1.AS_class.tag);
-            if (y.value != null)
-                tagSet = tagSet.add(p2.AS_class.tag);
+
+            if (!prim1.isUndefinedOrNull)
+                tagSet = tagSet.add(prim1.AS_class.tag);
+            if (!prim2.isUndefinedOrNull)
+                tagSet = tagSet.add(prim2.AS_class.tag);
 
             if (ClassTagSet.numericOrBool.containsAll(tagSet))
-                return (double)p1 + (double)p2;
+                return (double)prim1 + (double)prim2;
 
-            return ASAny.AS_convertString(p1) + ASAny.AS_convertString(p2);
+            return AS_convertString(prim1) + AS_convertString(prim2);
         }
 
         /// <summary>

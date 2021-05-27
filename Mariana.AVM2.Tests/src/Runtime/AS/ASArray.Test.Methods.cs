@@ -1976,16 +1976,22 @@ namespace Mariana.AVM2.Tests {
             var array = new ASArray();
             var prototype = new IndexDict();
 
+            ASObject createObject(string returnStr) {
+                var obj = new ASObject();
+                obj.AS_setProperty("toLocaleString", SpyFunctionObject.withReturn(returnStr));
+                return obj;
+            }
+
             for (int i = 0; i < elementStrings.Length; i++) {
                 if (elementStrings[i] != null)
-                    array.AS_setElement(i, DynamicMethodMocker.createObjectWithOwnMethod("toLocaleString", elementStrings[i]));
+                    array.AS_setElement(i, createObject(elementStrings[i]));
             }
 
             array.length = (uint)elementStrings.Length;
 
             for (int i = 0; i < prototypeStrings.Length; i++) {
                 if (prototypeStrings[i] != null)
-                    prototype[(uint)i] = DynamicMethodMocker.createObjectWithOwnMethod("toLocaleString", prototypeStrings[i]);
+                    prototype[(uint)i] = createObject(prototypeStrings[i]);
             }
 
             string separator = "...";

@@ -47,38 +47,13 @@ namespace Mariana.AVM2.Tests.Helpers {
         }
     }
 
-    public static class DynamicMethodMocker {
-        static DynamicMethodMocker() => TestAppDomain.ensureClassesLoaded(typeof(DynamicMethodMocker));
-
-        private static readonly MethodTrait s_invokeMethodTrait = MethodTrait.createNativeMethod(
-            typeof(DynamicMethodMocker).GetMethod(nameof(__invoke))
-        );
-
-        public static ASObject createObjectWithOwnMethod(string methodName, ASAny returnValue) {
-            var obj = new ASObject();
-            obj.AS_dynamicProps["__returnval"] = returnValue;
-            obj.AS_dynamicProps.setValue(methodName, s_invokeMethodTrait.createFunctionClosure(), false);
-            return obj;
-        }
-
-        public static ASObject createObjectWithProtoMethod(string methodName, ASAny returnValue) {
-            var proto = new ASObject();
-            proto.AS_dynamicProps.setValue(methodName, s_invokeMethodTrait.createFunctionClosure(), false);
-
-            var obj = ASObject.AS_createWithPrototype(proto);
-            obj.AS_dynamicProps["__returnval"] = returnValue;
-
-            return obj;
-        }
-
-        public static ASAny __invoke(ASObject obj) => obj.AS_dynamicProps["__returnval"];
-    }
-
     /// <summary>
     /// A function object that tracks invocations.
     /// </summary>
     [AVM2ExportClass]
     public sealed class SpyFunctionObject : ASFunction {
+
+        static SpyFunctionObject() => TestAppDomain.ensureClassesLoaded(typeof(SpyFunctionObject));
 
         /// <summary>
         /// Represents a tracked invocation of a <see cref="SpyFunctionObject"/>.
@@ -171,6 +146,13 @@ namespace Mariana.AVM2.Tests.Helpers {
             m_storedReceiver = storedReceiver;
             m_length = argCount;
         }
+
+        /// <summary>
+        /// Creates a new <see cref="SpyFunctionObject"/> that returns the given value when called.
+        /// </summary>
+        /// <param name="returnVal">The value that the function must return.</param>
+        /// <returns>The creates <see cref="SpyFunctionObject"/>.</returns>
+        public static SpyFunctionObject withReturn(ASAny returnVal) => new SpyFunctionObject((r, args) => returnVal);
 
         /// <summary>
         /// Creates a clone of this <see cref="SpyFunctionObject"/> instance with an empty call record list.

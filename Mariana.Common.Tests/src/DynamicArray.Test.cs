@@ -270,6 +270,7 @@ namespace Mariana.Common.Tests {
         [Fact]
         public void getUnderlyingArrayTest() {
             DynamicArray<int> arr = default;
+            Assert.Empty(arr.getUnderlyingArray());
 
             arr.add(1);
             arr.add(2);

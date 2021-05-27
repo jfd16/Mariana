@@ -16,6 +16,12 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(UInt32.MaxValue, ASuint.MAX_VALUE);
         }
 
+        [Fact]
+        public void instancesShouldUseNumberPrototype() {
+            var instance = ASObject.AS_fromUint(UInt32.MaxValue);
+            Assert.Same(Class.fromType(typeof(double)).prototypeObject, instance.AS_proto);
+        }
+
         [Theory]
         [InlineData(0)]
         [InlineData(1)]

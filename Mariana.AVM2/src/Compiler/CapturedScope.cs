@@ -258,7 +258,7 @@ namespace Mariana.AVM2.Compiler {
             CapturedScopeContainerType container;
 
             if (!m_cachedContainers.TryGetValue(key, out container)) {
-                string containerName = "__Scope{" + m_counter.next().ToString(CultureInfo.InvariantCulture) + "}";
+                string containerName = "Scope" + m_counter.next().ToString(CultureInfo.InvariantCulture);
 
                 container = new CapturedScopeContainerType(key.items, containerName, key.hasDxns, m_context, m_ilBuilder);
                 m_cachedContainers.Add(key, container);
@@ -287,14 +287,21 @@ namespace Mariana.AVM2.Compiler {
         ) {
             var metadataContext = context.assemblyBuilder.metadataContext;
 
-            TypeBuilder type = context.assemblyBuilder.defineType(containerName, TypeAttributes.Public | TypeAttributes.Sealed);
+            TypeBuilder type = context.assemblyBuilder.defineType(
+                new TypeName(NameMangler.INTERNAL_NAMESPACE, containerName),
+                TypeAttributes.Class | TypeAttributes.Public | TypeAttributes.Sealed
+            );
+
             m_typeHandle = type.handle;
 
             MethodBuilder ctor = type.defineConstructor(MethodAttributes.Public);
             m_ctorHandle = ctor.handle;
 
             FieldBuilder rtStackField = type.defineField(
-                "rtstack", metadataContext.getTypeSignature(typeof(RuntimeScopeStack)), FieldAttributes.Public);
+                "rtstack",
+                metadataContext.getTypeSignature(typeof(RuntimeScopeStack)), FieldAttributes.Public
+            );
+
             m_rtStackFieldHandle = rtStackField.handle;
 
             MethodBuilder rtStackGetMethod = type.defineMethod(
@@ -302,13 +309,17 @@ namespace Mariana.AVM2.Compiler {
                 MethodAttributes.Public,
                 metadataContext.getTypeSignature(typeof(RuntimeScopeStack))
             );
+
             m_rtStackGetMethodHandle = rtStackGetMethod.handle;
 
             m_fieldHandles = new EntityHandle[items.length];
 
             if (capturesDxns) {
                 FieldBuilder dxnsField = type.defineField(
-                    "dxns", metadataContext.getTypeSignature(typeof(ASNamespace)), FieldAttributes.Public);
+                    "dxns",
+                    metadataContext.getTypeSignature(typeof(ASNamespace)),
+                    FieldAttributes.Public
+                );
                 m_dxnsFieldHandle = dxnsField.handle;
             }
 

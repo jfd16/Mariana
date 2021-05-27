@@ -685,7 +685,7 @@ namespace Mariana.AVM2.Compiler {
             stack.add(m_compilation.getInstruction(0).blockId);
 
             void pushChildren(ref DynamicArray<int> _stack, Span<BasicBlock> _blocks, ReadOnlySpan<int> childIds) {
-                for (int i = childIds.Length - 1; i >= 0; i--) {
+                for (int i = 0; i < childIds.Length; i++) {
                     ref BasicBlock nextBlock = ref _blocks[childIds[i]];
                     if (nextBlock.postorderIndex == NOT_VISITED)
                         _stack.add(nextBlock.id);

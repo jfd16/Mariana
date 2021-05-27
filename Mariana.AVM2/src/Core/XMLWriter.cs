@@ -95,7 +95,7 @@ namespace Mariana.AVM2.Core {
                     _exitCurrentElement();
 
                 ASXML cur = m_iterator.Current;
-                if (cur.nodeType == XMLNodeType.ELEMENT) {
+                if (cur.isElement) {
                     _enterElement(cur);
                     continue;
                 }
@@ -253,7 +253,7 @@ namespace Mariana.AVM2.Core {
                 return;
             }
 
-            if (firstChild.nodeType == XMLNodeType.TEXT && elem.getChildAtIndex(1) == null) {
+            if (firstChild.isTextOrCDATA && elem.getChildAtIndex(1) == null) {
                 m_parts.add(">");
                 _writeText(firstChild.nodeText);
                 m_parts.add("</");

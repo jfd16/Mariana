@@ -1,6 +1,7 @@
 using System;
 using System.Buffers.Binary;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using Mariana.AVM2.Core;
 
 using static System.Buffers.Binary.BinaryPrimitives;
@@ -838,6 +839,9 @@ namespace Mariana.AVM2.Compiler {
 
         public static readonly CI systemObjectCtor =
             getMemberFromExpr<Func<object>, CI>(() => new object());
+
+        public static readonly MI runtimeHelpersRunClassCtor =
+            getMemberFromExpr<Action<RuntimeTypeHandle>, MI>(x => RuntimeHelpers.RunClassConstructor(x));
 
         #region GlobalMemory
 

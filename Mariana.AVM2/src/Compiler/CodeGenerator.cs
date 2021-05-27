@@ -1658,13 +1658,22 @@ namespace Mariana.AVM2.Compiler {
 
         private void _visitNewArray(ref Instruction instr) {
             var poppedNodeIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-
             int elementCount = instr.data.newArrOrObj.elementCount;
+
+            if (elementCount == 0) {
+                m_ilBuilder.emit(ILOp.newobj, KnownMembers.arrayCtorWithNoArgs, 1);
+                return;
+            }
+
+            if (tryGetHelper(poppedNodeIds, out EntityHandle helperHandle)) {
+                m_ilBuilder.emit(ILOp.call, helperHandle, -poppedNodeIds.Length + 1);
+                return;
+            }
+
+            // The number of elements is non-zero and we cannot use a helper, so emit inline code.
+
             m_ilBuilder.emit(ILOp.ldc_i4, elementCount);
             m_ilBuilder.emit(ILOp.newobj, KnownMembers.arrayCtorWithLength, 0);
-
-            if (elementCount == 0)
-                return;
 
             var arrLocal = m_ilBuilder.acquireTempLocal(typeof(ASArray));
             var elemLocal = m_ilBuilder.acquireTempLocal(typeof(ASAny));
@@ -1686,16 +1695,51 @@ namespace Mariana.AVM2.Compiler {
 
             m_ilBuilder.releaseTempLocal(elemLocal);
             m_ilBuilder.releaseTempLocal(arrLocal);
+
+            bool tryGetHelper(ReadOnlySpan<int> _argsOnStack, out EntityHandle _helperHandle) {
+                _helperHandle = default;
+
+                using (var lockedContext = m_compilation.getContext()) {
+                    HelperEmitter helperEmitter = lockedContext.value.helperEmitter;
+
+                    if (_argsOnStack.Length > helperEmitter.newArrayHelperMaxSize)
+                        return false;
+
+                    // Use a helper only if no type conversions are needed.
+                    // This is not a significant limitation in practice because type conversions to "any" are
+                    // considered as non-side-effecting, and so would be hoisted except in some complex data flow
+                    // graphs.
+
+                    for (int i = 0; i < _argsOnStack.Length; i++) {
+                        DataNodeType pushedType = _getPushedTypeOfNode(m_compilation.getDataNode(_argsOnStack[i]));
+                        if (!isAnyOrUndefined(pushedType))
+                            return false;
+                    }
+
+                    return helperEmitter.tryGetNewArrayHelper(_argsOnStack.Length, out _helperHandle);
+                }
+            }
         }
 
         private void _visitNewObject(ref Instruction instr) {
             var poppedNodeIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            int elementCount = instr.data.newArrOrObj.elementCount;
+            int propertyCount = instr.data.newArrOrObj.elementCount;
+
+            Debug.Assert(poppedNodeIds.Length == propertyCount * 2);
+
+            if (propertyCount == 0) {
+                m_ilBuilder.emit(ILOp.newobj, KnownMembers.objectCtor, 1);
+                return;
+            }
+
+            if (tryGetHelper(poppedNodeIds, out EntityHandle helperHandle)) {
+                m_ilBuilder.emit(ILOp.call, helperHandle, -poppedNodeIds.Length + 1);
+                return;
+            }
+
+            // The number of properties is non-zero and we cannot use a helper, so emit inline code.
 
             m_ilBuilder.emit(ILOp.newobj, KnownMembers.objectCtor, 1);
-
-            if (elementCount == 0)
-                return;
 
             var objLocal = m_ilBuilder.acquireTempLocal(typeof(ASObject));
             var dynPropLocal = m_ilBuilder.acquireTempLocal(typeof(DynamicPropertyCollection));
@@ -1707,7 +1751,11 @@ namespace Mariana.AVM2.Compiler {
             m_ilBuilder.emit(ILOp.call, KnownMembers.getObjectDynamicPropCollection, 0);
             m_ilBuilder.emit(ILOp.stloc, dynPropLocal);
 
-            for (int i = elementCount - 1; i >= 0; i--) {
+            // Object properties are set in top-to-bottom stack order.
+            // So for example if the arguments are "a", 1, "b", 2, "a", 3 then the value of the property
+            // "a" in the created object is 1, not 3.
+
+            for (int i = propertyCount - 1; i >= 0; i--) {
                 int keyStackPos = i * 2;
                 ref DataNode keyNode = ref m_compilation.getDataNode(poppedNodeIds[keyStackPos]);
                 ref DataNode valNode = ref m_compilation.getDataNode(poppedNodeIds[keyStackPos + 1]);
@@ -1730,6 +1778,32 @@ namespace Mariana.AVM2.Compiler {
             m_ilBuilder.releaseTempLocal(keyLocal);
             m_ilBuilder.releaseTempLocal(valLocal);
             m_ilBuilder.releaseTempLocal(dynPropLocal);
+
+            bool tryGetHelper(ReadOnlySpan<int> _argsOnStack, out EntityHandle _helperHandle) {
+                _helperHandle = default;
+
+                using (var lockedContext = m_compilation.getContext()) {
+                    HelperEmitter helperEmitter = lockedContext.value.helperEmitter;
+
+                    if (_argsOnStack.Length > helperEmitter.newObjectHelperMaxSize * 2)
+                        return false;
+
+                    // Use a helper only if no type conversions are needed.
+                    // This is not a significant limitation in practice because: (i) the keys are usually literal strings
+                    // and (ii) type conversions of the values to "any" are considered as non-side-effecting, and so would
+                    // be hoisted except in some complex data flow graphs.
+
+                    for (int i = 0; i < _argsOnStack.Length; i++) {
+                        DataNodeType pushedType = _getPushedTypeOfNode(m_compilation.getDataNode(_argsOnStack[i]));
+                        bool argIsKey = (i & 1) == 0;
+
+                        if ((argIsKey && pushedType != DataNodeType.STRING) || (!argIsKey && !isAnyOrUndefined(pushedType)))
+                            return false;
+                    }
+
+                    return helperEmitter.tryGetNewObjectHelper(_argsOnStack.Length >> 1, out _helperHandle);
+                }
+            }
         }
 
         private void _visitAdd(ref Instruction instr) {
@@ -3822,10 +3896,10 @@ namespace Mariana.AVM2.Compiler {
 
             switch (toType) {
                 case DataNodeType.INT:
-                    ILEmitHelper.emitTypeCoerceToInt(m_ilBuilder, currentClass);
+                    ILEmitHelper.emitTypeCoerceToInt(m_ilBuilder, currentClass, m_compilation.compileOptions.useNativeDoubleToIntegerConversions);
                     break;
                 case DataNodeType.UINT:
-                    ILEmitHelper.emitTypeCoerceToUint(m_ilBuilder, currentClass);
+                    ILEmitHelper.emitTypeCoerceToUint(m_ilBuilder, currentClass, m_compilation.compileOptions.useNativeDoubleToIntegerConversions);
                     break;
                 case DataNodeType.NUMBER:
                     ILEmitHelper.emitTypeCoerceToNumber(m_ilBuilder, currentClass);
@@ -3925,7 +3999,7 @@ namespace Mariana.AVM2.Compiler {
                 return;
 
             if (toClass == null || ClassTagSet.primitive.contains(toClass.tag)) {
-                ILEmitHelper.emitTypeCoerce(m_ilBuilder, fromClass, toClass);
+                ILEmitHelper.emitTypeCoerce(m_ilBuilder, fromClass, toClass, m_compilation.compileOptions.useNativeDoubleToIntegerConversions);
                 return;
             }
             if (toClass == s_objectClass) {
@@ -5496,6 +5570,15 @@ namespace Mariana.AVM2.Compiler {
             Debug.Assert(argsOnStack.Length > 0);
 
             var arrLocal = m_ilBuilder.acquireTempLocal(typeof(ASAny[]));
+
+            if (tryGetHelper(argsOnStack, out EntityHandle helperHandle)) {
+                m_ilBuilder.emit(ILOp.call, helperHandle, -argsOnStack.Length + 1);
+                m_ilBuilder.emit(ILOp.stloc, arrLocal);
+                return arrLocal;
+            }
+
+            // We can't use a helper, so emit the array creation code inline.
+
             var elemLocal = m_ilBuilder.acquireTempLocal(typeof(ASAny));
 
             m_ilBuilder.emit(ILOp.ldc_i4, argsOnStack.Length);
@@ -5514,6 +5597,30 @@ namespace Mariana.AVM2.Compiler {
 
             m_ilBuilder.releaseTempLocal(elemLocal);
             return arrLocal;
+
+            bool tryGetHelper(ReadOnlySpan<int> _argsOnStack, out EntityHandle _helperHandle) {
+                _helperHandle = default;
+
+                using (var lockedContext = m_compilation.getContext()) {
+                    HelperEmitter helperEmitter = lockedContext.value.helperEmitter;
+
+                    if (_argsOnStack.Length > helperEmitter.argArrayHelperMaxSize)
+                        return false;
+
+                    // Use a helper only if no type conversions are needed.
+                    // This is not a significant limitation in practice because type conversions to "any" are
+                    // considered as non-side-effecting, and so would be hoisted except in some complex data flow
+                    // graphs.
+
+                    for (int i = 0; i < _argsOnStack.Length; i++) {
+                        DataNodeType pushedType = _getPushedTypeOfNode(m_compilation.getDataNode(_argsOnStack[i]));
+                        if (!isAnyOrUndefined(pushedType))
+                            return false;
+                    }
+
+                    return helperEmitter.tryGetArgArrayHelper(_argsOnStack.Length, out _helperHandle);
+                }
+            }
         }
 
         /// <summary>

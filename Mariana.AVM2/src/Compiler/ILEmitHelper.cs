@@ -1,8 +1,8 @@
 using System;
 using System.Reflection;
-using Mariana.CodeGen.IL;
-using Mariana.AVM2.Core;
 using System.Runtime.CompilerServices;
+using Mariana.AVM2.Core;
+using Mariana.CodeGen.IL;
 
 namespace Mariana.AVM2.Compiler {
 
@@ -29,7 +29,9 @@ namespace Mariana.AVM2.Compiler {
         /// code.</param>
         /// <param name="fromType">The type of the value on top of the stack.</param>
         /// <param name="toType">The type to convert the value to.</param>
-        public static void emitTypeCoerce(ILBuilder builder, Class fromType, Class toType) {
+        /// <param name="useNativeDoubleToIntConv">Set to true to use native conversions when converting from
+        /// Number to int/uint.</param>
+        public static void emitTypeCoerce(ILBuilder builder, Class fromType, Class toType, bool useNativeDoubleToIntConv = false) {
             if (fromType == toType)
                 return;
 
@@ -40,10 +42,10 @@ namespace Mariana.AVM2.Compiler {
 
             switch (toType.tag) {
                 case ClassTag.INT:
-                    emitTypeCoerceToInt(builder, fromType);
+                    emitTypeCoerceToInt(builder, fromType, useNativeDoubleToIntConv);
                     return;
                 case ClassTag.UINT:
-                    emitTypeCoerceToUint(builder, fromType);
+                    emitTypeCoerceToUint(builder, fromType, useNativeDoubleToIntConv);
                     return;
                 case ClassTag.NUMBER:
                     emitTypeCoerceToNumber(builder, fromType);
@@ -117,7 +119,9 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="builder">The <see cref="ILBuilder"/> instance in which to emit the
         /// code.</param>
         /// <param name="fromType">The type of the value on top of the stack.</param>
-        public static void emitTypeCoerceToInt(ILBuilder builder, Class fromType) {
+        /// <param name="useNativeDoubleToIntConv">Set to true to use native conversions when converting from
+        /// Number to int/uint.</param>
+        public static void emitTypeCoerceToInt(ILBuilder builder, Class fromType, bool useNativeDoubleToIntConv = false) {
             if (fromType == null) {
                 builder.emit(ILOp.call, KnownMembers.anyToInt, 0);
                 return;
@@ -132,12 +136,18 @@ namespace Mariana.AVM2.Compiler {
                     builder.emit(ILOp.ldc_i4_0);
                     builder.emit(ILOp.cgt_un);
                     break;
+
                 case ClassTag.NUMBER:
-                    builder.emit(ILOp.call, KnownMembers.numberToInt, 0);
+                    if (useNativeDoubleToIntConv)
+                        builder.emit(ILOp.conv_i4);
+                    else
+                        builder.emit(ILOp.call, KnownMembers.numberToInt, 0);
                     break;
+
                 case ClassTag.STRING:
                     builder.emit(ILOp.call, KnownMembers.stringToInt, 0);
                     break;
+
                 default:
                     // Object type.
                     if (fromType.isInterface)
@@ -153,7 +163,9 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="builder">The <see cref="ILBuilder"/> instance in which to emit the
         /// code.</param>
         /// <param name="fromType">The type of the value on top of the stack.</param>
-        public static void emitTypeCoerceToUint(ILBuilder builder, Class fromType) {
+        /// <param name="useNativeDoubleToIntConv">Set to true to use native conversions when converting from
+        /// Number to int/uint.</param>
+        public static void emitTypeCoerceToUint(ILBuilder builder, Class fromType, bool useNativeDoubleToIntConv = false) {
             if (fromType == null) {
                 builder.emit(ILOp.call, KnownMembers.anyToUint, 0);
                 return;
@@ -168,12 +180,18 @@ namespace Mariana.AVM2.Compiler {
                     builder.emit(ILOp.ldc_i4_0);
                     builder.emit(ILOp.cgt_un);
                     break;
+
                 case ClassTag.NUMBER:
-                    builder.emit(ILOp.call, KnownMembers.numberToUint, 0);
+                    if (useNativeDoubleToIntConv)
+                        builder.emit(ILOp.conv_u4);
+                    else
+                        builder.emit(ILOp.call, KnownMembers.numberToUint, 0);
                     break;
+
                 case ClassTag.STRING:
                     builder.emit(ILOp.call, KnownMembers.stringToUint, 0);
                     break;
+
                 default:
                     // Object type.
                     if (fromType.isInterface)

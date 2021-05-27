@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using Mariana.AVM2.Core;
 using Xunit;
 
@@ -26,8 +27,12 @@ namespace Mariana.AVM2.Tests.Helpers {
         /// <param name="code">The error code.</param>
         /// <param name="testFunc">The function to test.</param>
         public static void throwsErrorWithCode(ErrorCode code, Func<object> testFunc) {
-            var ex = Assert.Throws<AVM2Exception>(testFunc);
-            Assert.Equal(code, (ErrorCode)((ASError)ex.thrownValue).errorID);
+            Exception exception = Assert.ThrowsAny<Exception>(testFunc);
+            if (exception is TargetInvocationException)
+                exception = exception.InnerException;
+
+            var avm2Exception = Assert.IsType<AVM2Exception>(exception);
+            Assert.Equal(code, (ErrorCode)((ASError)avm2Exception.thrownValue).errorID);
         }
 
         /// <summary>
@@ -40,7 +45,7 @@ namespace Mariana.AVM2.Tests.Helpers {
             if (expected.isUndefined)
                 Assert.True(actual.isUndefined, $"Expected {actual} to be undefined.");
             else if (expected.isNull)
-                Assert.Null(actual.value);
+                Assert.True(actual.isNull, $"Expected {actual} to be null.");
             else
                 Assert.Same(expected.value, actual.value);
         }
@@ -86,8 +91,10 @@ namespace Mariana.AVM2.Tests.Helpers {
         public static void valueIdentical(ASAny expected, ASAny actual) {
             if (ASObject.AS_isNumeric(expected.value) && ASObject.AS_isNumeric(actual.value))
                 floatIdentical((double)expected, (double)actual);
-            else if (ASObject.AS_isPrimitive(expected.value) && ASObject.AS_isPrimitive(actual.value))
-                strictEqual(expected, actual);
+            else if (expected.value is ASString && actual.value is ASString)
+                Assert.Equal((string)expected, (string)actual);
+            else if (expected.value is ASBoolean && actual.value is ASBoolean)
+                Assert.Equal((bool)expected, (bool)actual);
             else
                 identical(expected, actual);
         }

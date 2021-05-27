@@ -192,7 +192,7 @@ namespace Mariana.AVM2.Core {
             if (s1 != null && s2 != null)
                 return String.Compare(s1, s2, StringComparison.Ordinal) <= 0;
 
-            return ASObject.AS_lessThan(s1, s2);
+            return ASObject.AS_lessEq(s1, s2);
         }
 
         /// <summary>

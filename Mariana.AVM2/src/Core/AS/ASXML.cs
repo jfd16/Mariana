@@ -403,8 +403,11 @@ namespace Mariana.AVM2.Core {
             if (node1 == node2)
                 return true;
 
-            if (node1 == null || node2 == null)
-                return false;
+            if (node1 == null)
+                return node2.hasSimpleContent() && node2.internalSimpleToString() == "null";
+
+            if (node2 == null)
+                return node1.hasSimpleContent() && node1.internalSimpleToString() == "null";
 
             if (node1.hasSimpleContent() && (node2.isTextOrCDATA || node2.isAttribute))
                 return node1.internalSimpleToString() == node2.nodeText;
@@ -442,11 +445,15 @@ namespace Mariana.AVM2.Core {
             }
 
             bool shallowEquals(ASXML x, ASXML y) {
-                if (x.m_nodeType != y.m_nodeType || !ASQName.AS_equals(x.m_name, y.m_name))
+                if (x.m_nodeType != y.m_nodeType)
                     return false;
-                if (x.m_nodeType != XMLNodeType.ELEMENT)
-                    return x.nodeText == y.nodeText;
-                return compareAttributes(x, y);
+
+                // The name field is always null for nodes without names (such as text nodes)
+                // so the name check will always pass for those nodes.
+                if (!ASQName.AS_equals(x.m_name, y.m_name))
+                    return false;
+
+                return x.isElement ? compareAttributes(x, y) : x.nodeText == y.nodeText;
             }
 
             bool compareAttributes(ASXML x, ASXML y) {

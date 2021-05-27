@@ -2421,15 +2421,13 @@ namespace Mariana.AVM2.Core {
         /// to the Number type and their floating-point values are compared.
         /// </remarks>
         public static bool AS_lessThan(ASObject x, ASObject y) {
-            if (x == y) {
-                // Equal by reference. NaN will correctly return false here.
-                return false;
-            }
+            ASAny prim1 = AS_toPrimitiveNumHint(x);
+            ASAny prim2 = AS_toPrimitiveNumHint(y);
 
-            if (x is ASString && y is ASString)
-                return String.CompareOrdinal(AS_coerceString(x), AS_coerceString(y)) < 0;
+            if (prim1.value is ASString && prim2.value is ASString)
+                return String.CompareOrdinal(ASAny.AS_coerceString(prim1), ASAny.AS_coerceString(prim2)) < 0;
 
-            return (double)x < (double)y;
+            return (double)prim1 < (double)prim2;
         }
 
         /// <summary>
@@ -2448,15 +2446,13 @@ namespace Mariana.AVM2.Core {
         /// objects are converted to the Number type and their floating-point values are compared.
         /// </remarks>
         public static bool AS_lessEq(ASObject x, ASObject y) {
-            if (x == y) {
-                // Equal by reference, or both null. NaN is an exception!
-                return !(x is ASNumber && Double.IsNaN((double)x));
-            }
+            ASAny prim1 = AS_toPrimitiveNumHint(x);
+            ASAny prim2 = AS_toPrimitiveNumHint(y);
 
-            if (x is ASString && y is ASString)
-                return String.CompareOrdinal(AS_coerceString(x), AS_coerceString(y)) <= 0;
+            if (prim1.value is ASString && prim2.value is ASString)
+                return String.CompareOrdinal(ASAny.AS_coerceString(prim1), ASAny.AS_coerceString(prim2)) <= 0;
 
-            return (double)x <= (double)y;
+            return (double)prim1 <= (double)prim2;
         }
 
         /// <summary>
@@ -2518,6 +2514,7 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         public static ASObject AS_add(ASObject x, ASObject y) {
             ClassTagSet tagSet = default;
+
             if (x != null)
                 tagSet = tagSet.add(x.AS_class.tag);
             if (y != null)
@@ -2544,7 +2541,7 @@ namespace Mariana.AVM2.Core {
             if (ClassTagSet.numericOrBool.containsAll(tagSet))
                 return (double)prim1 + (double)prim2;
 
-            return ASAny.AS_convertString(prim1) + ASAny.AS_convertString(prim1);
+            return ASAny.AS_convertString(prim1) + ASAny.AS_convertString(prim2);
         }
 
         /// <summary>
@@ -2606,9 +2603,6 @@ namespace Mariana.AVM2.Core {
         /// <para>For class-based type checking, use <see cref="AS_isType"/>.</para>
         /// </remarks>
         public static bool AS_instanceof(ASObject obj, ASObject classOrFunction) {
-            if (obj == null)
-                return false;
-
             ASObject protoObject;
 
             if (classOrFunction is ASClass classObj)
@@ -2617,6 +2611,9 @@ namespace Mariana.AVM2.Core {
                 protoObject = func.prototype;
             else
                 throw ErrorHelper.createError(ErrorCode.INSTANCEOF_NOT_CLASS_OR_FUNCTION);
+
+            if (obj == null)
+                return false;
 
             obj = obj.AS_proto;
             while (obj != null) {
@@ -2716,19 +2713,23 @@ namespace Mariana.AVM2.Core {
                 throw ErrorHelper.createError(
                     ErrorCode.NONGENERIC_TYPE_APPLICATION, defClass.internalClass.name.ToString());
             }
+
             if (typeParams.Length != 1) {
                 throw ErrorHelper.createError(
                     ErrorCode.TYPE_ARGUMENT_COUNT_INCORRECT,
-                    defClass.internalClass.name.ToString(), 1, typeParams.Length);
+                    defClass.internalClass.name.ToString(),
+                    1,
+                    typeParams.Length
+                );
             }
 
             if (typeParams[0] == ASAny.@null)
-                return Class.fromType<ASVectorAny>().classObject;
+                return Class.fromType(typeof(ASVectorAny)).classObject;
 
-            if (!(typeParams[0].value is ASClass paramClass))
-                throw ErrorHelper.createError(ErrorCode.MARIANA__APPLYTYPE_NON_CLASS);
+            if (typeParams[0].value is ASClass paramClass)
+                return paramClass.internalClass.getVectorClass().classObject;
 
-            return paramClass.internalClass.getVectorClass().classObject;
+            throw ErrorHelper.createError(ErrorCode.MARIANA__APPLYTYPE_NON_CLASS);
         }
 
         /// <summary>

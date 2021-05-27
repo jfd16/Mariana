@@ -335,12 +335,11 @@ namespace Mariana.Common {
         /// <see cref="setCapacity"/> are called. Any assignment made to an element of this
         /// array (or any field of it, if <typeparamref name="T"/> is a value type) after that will
         /// not be visible in this <see cref="DynamicArray{T}"/>.</para>
-        /// <para>If the array is empty, the value of this property may be null.</para>
         /// <para>The length of this array (if not null) is equal to the capacity of the dynamic
         /// array, which may be greater than its current size. However, any elements beyond the
         /// current dynamic array size must not be modified.</para>
         /// </remarks>
-        public T[] getUnderlyingArray() => m_array;
+        public T[] getUnderlyingArray() => m_array ?? Array.Empty<T>();
 
         /// <summary>
         /// Gets a <see cref="ReadOnlyArrayView{T}"/> instance providing read-only access to

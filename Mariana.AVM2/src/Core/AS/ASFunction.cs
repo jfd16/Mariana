@@ -40,7 +40,7 @@ namespace Mariana.AVM2.Core {
 
         private ASObject m_prototype;
 
-        internal ASFunction() { }
+        protected private ASFunction() { }
 
         /// <summary>
         /// Gets the number of parameters accepted by the underlying method of the Function object.
@@ -186,7 +186,14 @@ namespace Mariana.AVM2.Core {
         /// An empty function has no underlying method, and calling it will not do anything. However,
         /// it can have a prototype and be used to construct objects with prototype inheritance.
         /// </remarks>
-        public static ASFunction createEmpty() => new ASFunction();
+        public static ASFunction createEmpty() {
+            var func = new ASFunction();
+
+            func.m_prototype = new ASObject();
+            func.m_prototype.AS_dynamicProps.setValue("constructor", func, isEnum: false);
+
+            return func;
+        }
 
         /// <summary>
         /// Checks if two <see cref="ASFunction"/> instances are equal. Two instances are equal if they are
@@ -307,6 +314,11 @@ namespace Mariana.AVM2.Core {
         internal ASFunctionClosure(MethodTrait method, object scope) {
             m_method = method;
             m_scope = scope;
+
+            var protoObject = new ASObject();
+            protoObject.AS_dynamicProps.setValue("constructor", this, isEnum: false);
+
+            this.prototype = protoObject;
         }
 
         /// <summary>
