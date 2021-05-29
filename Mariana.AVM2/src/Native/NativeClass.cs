@@ -282,7 +282,7 @@ namespace Mariana.AVM2.Native {
 
         protected private override void initClass() {
             if (underlyingType == typeof(ASVector<>)) {
-                // We don't want any traits on the unsintantiated Vector class
+                // We don't want any traits on the uninstantiated Vector class
                 // (It is a class that's only meant to be instantiated, nothing else)
                 return;
             }

@@ -10,7 +10,7 @@ namespace Mariana.AVM2.Compiler {
     internal struct ExceptionHandler {
 
         /// <summary>
-        /// The index of the exception handler. An exception handler can be retreived from its
+        /// The index of the exception handler. An exception handler can be retrieved from its
         /// index using <see cref="MethodCompilation.getExceptionHandler"/>.
         /// </summary>
         public int id;

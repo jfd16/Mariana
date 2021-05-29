@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Runtime.CompilerServices;
@@ -38,7 +39,7 @@ namespace Mariana.AVM2.Compiler {
             public Class[] declaredInterfaces;
             public ScriptMethod staticInit;
 
-            public bool isExported;
+            public bool isExportedWithSameName;
             public bool isActivation;
 
             public ClassCompileState compileState;
@@ -100,6 +101,8 @@ namespace Mariana.AVM2.Compiler {
 
         private ABCFile m_abcFile;
 
+        private ClassTraitTable m_stagedGlobalTraits = new ClassTraitTable(null, staticOnly: true);
+
         private ClassTraitTable m_unexportedClassTraits;
 
         private DynamicArray<ScriptData> m_abcScriptDataByIndex;
@@ -120,7 +123,8 @@ namespace Mariana.AVM2.Compiler {
         private ReferenceDictionary<Trait, ABCScriptInfo> m_traitExportScripts =
             new ReferenceDictionary<Trait, ABCScriptInfo>();
 
-        private Dictionary<ABCMultiname, Trait> m_globalTraitsByMultiname = new Dictionary<ABCMultiname, Trait>();
+        private Dictionary<ABCMultiname, (BindStatus, Trait)> m_globalTraitLookupCache =
+            new Dictionary<ABCMultiname, (BindStatus, Trait)>();
 
         private Dictionary<ABCMultiname, Class> m_classesByMultiname = new Dictionary<ABCMultiname, Class>();
 
@@ -184,7 +188,7 @@ namespace Mariana.AVM2.Compiler {
             m_options = options;
             m_domain = domain;
 
-            _initAssembly();
+            _initAssemblyBuilder();
         }
 
         /// <summary>
@@ -230,6 +234,7 @@ namespace Mariana.AVM2.Compiler {
             m_abcClassesByIndex.clearAndAddDefault(m_abcFile.getClassInfo().length);
             m_abcMethodInfoDataByIndex.clearAndAddDefault(m_abcFile.getMethodInfo().length);
             m_abcScriptDataByIndex.clearAndAddDefault(m_abcFile.getScriptInfo().length);
+
             m_classData.clear();
             m_methodTraitData.clear();
             m_fieldDefaultValues.clear();
@@ -238,9 +243,9 @@ namespace Mariana.AVM2.Compiler {
             m_nsSetEmitConstIdsByABCIndex.clearAndAddUninitialized(m_abcFile.getNamespaceSetPool().length);
             m_nsSetEmitConstIdsByABCIndex.asSpan().Fill(-1);
 
-            m_publicNsSetEmitConstId = -1;
+            m_unexportedClassTraits = new ClassTraitTable(null, staticOnly: true);
 
-            m_unexportedClassTraits = new ClassTraitTable(null, true);
+            m_publicNsSetEmitConstId = -1;
 
             _loadABCData();
 
@@ -256,12 +261,16 @@ namespace Mariana.AVM2.Compiler {
             _emitMethodOverrides();
             _compileMethodBodies();
 
-            // The entry point of the script is the last entry in script_info according to AVM2 overview.
-            // We save the handle of its container type so that its class constructor (which calls the script
-            // init method) can be called once the compiled assembly is loaded.
-
-            var entryPointScriptData = m_abcScriptDataByIndex[m_abcFile.getScriptInfo().length - 1];
-            m_entryPointScriptHandles.add(entryPointScriptData.containerTypeBuilder.handle);
+            if (compileOptions.scriptInitializerRunMode == ScriptInitializerRunMode.RUN_ALL) {
+                int scriptCount = m_abcFile.getScriptInfo().length;
+                for (int i = 0; i < scriptCount; i++)
+                    m_entryPointScriptHandles.add(m_abcScriptDataByIndex[i].containerTypeBuilder.handle);
+            }
+            else if (compileOptions.scriptInitializerRunMode == ScriptInitializerRunMode.RUN_ENTRY_POINTS) {
+                // The entry point of the script is the last entry in script_info according to AVM2 overview.
+                var entryPointScriptData = m_abcScriptDataByIndex[m_abcFile.getScriptInfo().length - 1];
+                m_entryPointScriptHandles.add(entryPointScriptData.containerTypeBuilder.handle);
+            }
         }
 
         /// <summary>
@@ -304,31 +313,9 @@ namespace Mariana.AVM2.Compiler {
             VectorInstFromScriptClass.completeInstances();
 
             m_emitConstantData.loadData(m_loadedAssembly, m_emitResult.tokenMapping);
-        }
 
-        /// <summary>
-        /// Runs the entry points of the compiled scripts. This should be called only when the
-        /// script has been compiled and the compiled assembly loaded.
-        /// </summary>
-        public void runScriptEntryPoints() {
-            Debug.Assert(m_loadedAssembly != null);
-
-            for (int i = 0; i < m_entryPointScriptHandles.length; i++) {
-                Type resolvedScriptContainer = m_loadedAssembly.ManifestModule.ResolveType(
-                    m_emitResult.tokenMapping.getMappedToken(m_entryPointScriptHandles[i])
-                );
-
-                try {
-                    RuntimeHelpers.RunClassConstructor(resolvedScriptContainer.TypeHandle);
-                }
-                catch (Exception e) {
-                    // Unwrap TypeInitializationExceptions and rethrow the innermost exception.
-                    while (e is TypeInitializationException)
-                        e = e.InnerException;
-
-                    ExceptionDispatchInfo.Throw(e);
-                }
-            }
+            _commitStagedGlobalTraits();
+            _runScriptEntryPoints();
         }
 
         private void _loadABCData() {
@@ -372,12 +359,60 @@ namespace Mariana.AVM2.Compiler {
             for (int i = 0; i < classInfo.length; i++) {
                 ScriptClass klass = m_abcClassesByIndex[i];
                 ClassData classData = m_classData[klass];
-                if (classData.isExported)
+                if (classData.isExportedWithSameName)
                     continue;
 
                 if (!m_unexportedClassTraits.tryAddTrait(klass))
                     throw ErrorHelper.createError(ErrorCode.ALREADY_DEFINED, klass.name);
             }
+        }
+
+        /// <summary>
+        /// Adds a global trait created by the current compilation to the staging table.
+        /// </summary>
+        ///
+        /// <param name="trait">The trait to add to the staging table.</param>
+        /// <param name="declaringScript">The <see cref="ABCScriptInfo"/> instance that represents the
+        /// script that declares the trait.</param>
+        ///
+        /// <returns>True if the trait was added to the global trait staging table, otherwise false.</returns>
+        private bool _tryStageGlobalTrait(Trait trait, ABCScriptInfo declaringScript) {
+            Debug.Assert(trait.isStatic && trait.declaringClass == null);
+
+            bool checkInheritedTraits = compileOptions.appDomainConflictResolution != AppDomainConflictResolution.USE_CHILD;
+            bool conflictingTraitExists = m_domain.getGlobalTrait(trait.name, noInherited: !checkInheritedTraits) != null;
+
+            if (conflictingTraitExists) {
+                // A conflicting trait exists in the current app domain.
+                // Throw if appDomainConflictResolution is FAIL, ignore this trait otherwise.
+
+                if (compileOptions.appDomainConflictResolution == AppDomainConflictResolution.FAIL)
+                    throw ErrorHelper.createError(ErrorCode.ALREADY_DEFINED, _createErrMsgTraitName(trait));
+                else
+                    return false;
+            }
+
+            if (!m_stagedGlobalTraits.tryAddTrait(trait)) {
+                // Name conflict in the staging table.
+                // If the conflicting trait is declared in the same script, it is always an error.
+                // Otherwise throw only if appDomainConflictResolution is set to FAIL.
+
+                bool mustThrow;
+                if (compileOptions.appDomainConflictResolution == AppDomainConflictResolution.FAIL) {
+                    mustThrow = true;
+                }
+                else {
+                    m_stagedGlobalTraits.tryGetTrait(trait.name, isStatic: true, out Trait conflictingTrait);
+                    mustThrow = m_traitExportScripts[conflictingTrait] == declaringScript;
+                }
+
+                if (mustThrow)
+                    throw ErrorHelper.createError(ErrorCode.ALREADY_DEFINED, _createErrMsgTraitName(trait));
+                else
+                    return false;
+            }
+
+            return true;
         }
 
         private void _loadScriptClasses(ABCScriptInfo scriptInfo) {
@@ -387,34 +422,41 @@ namespace Mariana.AVM2.Compiler {
             scriptData.slotMap = new SlotMap();
 
             for (int i = 0; i < traitInfo.length; i++) {
-                ABCTraitInfo ti = traitInfo[i];
-                if (ti.kind != ABCTraitFlags.Class)
+                ABCTraitInfo currentTraitInfo = traitInfo[i];
+                if (currentTraitInfo.kind != ABCTraitFlags.Class)
                     continue;
 
-                if (ti.name == QName.publicName("void"))
-                    throw ErrorHelper.createError(ErrorCode.ALREADY_DEFINED, ti.name);
-
-                ScriptClass klass = m_abcClassesByIndex[ti.classInfo.abcIndex];
+                ScriptClass klass = m_abcClassesByIndex[currentTraitInfo.classInfo.abcIndex];
                 ClassData classData = m_classData[klass];
-                Trait traitToAdd;
 
-                if (ti.name == klass.name) {
-                    classData.isExported = true;
-                    klass.setMetadata(ti.metadata);
-                    traitToAdd = klass;
-                    m_traitExportScripts[klass] = scriptInfo;
+                bool isExportedWithSameName = currentTraitInfo.name == klass.name;
+
+                Trait classTrait;
+
+                if (isExportedWithSameName) {
+                    classTrait = klass;
+                    klass.setMetadata(currentTraitInfo.metadata);
                 }
                 else {
-                    traitToAdd = new ClassAlias(ti.name, null, m_domain, klass, ti.metadata);
+                    classTrait = new ClassAlias(currentTraitInfo.name, null, m_domain, klass, currentTraitInfo.metadata);
                 }
 
-                bool classAdded = m_domain.tryDefineGlobalTrait(traitToAdd, m_options.hideParentDomainDefinitions);
-                if (!classAdded && m_options.failOnGlobalNameConflict)
-                    throw ErrorHelper.createError(ErrorCode.ALREADY_DEFINED, traitToAdd.name);
+                _tryStageGlobalTrait(klass, scriptInfo);
 
-                int slotId = ti.slotId;
+                // If a script exports a class with the same name as the declared class name, that
+                // script is the class's exporting script. Otherwise we assign the exporting script as
+                // the first one to export the class.
+
+                ref ABCScriptInfo traitExportScriptTableRef = ref m_traitExportScripts.getValueRef(klass, createIfNotExists: true);
+                if (traitExportScriptTableRef == null || isExportedWithSameName)
+                    traitExportScriptTableRef = scriptInfo;
+
+                classData.isExportedWithSameName = isExportedWithSameName;
+
+                // If a slot id is defined for this class, register it in the slot map for the script.
+                int slotId = currentTraitInfo.slotId;
                 if (slotId > 0) {
-                    if (!scriptData.slotMap.tryAddSlot(slotId, traitToAdd))
+                    if (!scriptData.slotMap.tryAddSlot(slotId, classTrait))
                         throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_SLOT_ID_ALREADY_TAKEN, slotId, "global");
                 }
             }
@@ -431,9 +473,9 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="declClass">The class on which the property is declared, or null for a global property.</param>
         /// <param name="isStatic">Set to true for a static or global property, false for an instance property.</param>
         private ScriptMethod _definePropertyAccessor(ABCTraitInfo traitInfo, ScriptClass declClass, bool isStatic) {
+            Dictionary<QName, ScriptProperty> propMap = isStatic ? m_tempPropsStatic : m_tempPropsInst;
             QName name = traitInfo.name;
 
-            Dictionary<QName, ScriptProperty> propMap = isStatic ? m_tempPropsStatic : m_tempPropsInst;
             if (!propMap.TryGetValue(name, out ScriptProperty prop)) {
                 prop = new ScriptProperty(name, declClass, m_domain, isStatic);
                 propMap[name] = prop;
@@ -442,36 +484,28 @@ namespace Mariana.AVM2.Compiler {
             bool isFinal = (traitInfo.flags & ABCTraitFlags.ATTR_Final) != 0;
             bool isOverride = (traitInfo.flags & ABCTraitFlags.ATTR_Override) != 0;
 
-            if (traitInfo.kind == ABCTraitFlags.Getter) {
-                if (prop.getter != null)
-                    throw ErrorHelper.createError(ErrorCode.ALREADY_DEFINED, traitInfo.name.ToString());
-
-                QName getterName = m_nameMangler.createGetterQualifiedName(traitInfo.name);
-                var getter = new ScriptMethod(
-                    traitInfo.methodInfo, getterName, declClass, m_domain,
-                    isStatic, isFinal, isOverride, traitInfo.metadata
-                );
-
-                _setMethodForMethodInfo(traitInfo.methodInfo, getter);
-                m_methodTraitData[getter] = new MethodTraitData();
-                prop.setAccessors(getter, prop.setter);
-                return getter;
+            if ((traitInfo.kind == ABCTraitFlags.Getter && prop.getter != null)
+                || (traitInfo.kind == ABCTraitFlags.Setter && prop.setter != null))
+            {
+                throw ErrorHelper.createError(ErrorCode.ALREADY_DEFINED, _createErrMsgTraitName(prop));
             }
-            else {
-                if (prop.setter != null)
-                    throw ErrorHelper.createError(ErrorCode.ALREADY_DEFINED, traitInfo.name.ToString());
 
-                QName setterName = m_nameMangler.createSetterQualifiedName(traitInfo.name);
-                var setter = new ScriptMethod(
-                    traitInfo.methodInfo, setterName, declClass, m_domain,
-                    isStatic, isFinal, isOverride, traitInfo.metadata
-                );
+            QName methodName = (traitInfo.kind == ABCTraitFlags.Getter)
+                ? m_nameMangler.createGetterQualifiedName(name)
+                : m_nameMangler.createSetterQualifiedName(name);
 
-                _setMethodForMethodInfo(traitInfo.methodInfo, setter);
-                m_methodTraitData[setter] = new MethodTraitData();
-                prop.setAccessors(prop.getter, setter);
-                return setter;
-            }
+            var method = new ScriptMethod(
+                traitInfo.methodInfo, methodName, declClass, m_domain, isStatic, isFinal, isOverride, traitInfo.metadata);
+
+            _setMethodForMethodInfo(traitInfo.methodInfo, method);
+            m_methodTraitData[method] = new MethodTraitData();
+
+            if (traitInfo.kind == ABCTraitFlags.Getter)
+                prop.setAccessors(method, prop.setter);
+            else
+                prop.setAccessors(prop.getter, method);
+
+            return method;
         }
 
         private void _createClassDefIfInContext(Class klass) {
@@ -483,9 +517,10 @@ namespace Mariana.AVM2.Compiler {
             if (classData == null || classData.compileState == ClassCompileState.DEF_CREATED)
                 return;
 
-            if (classData.compileState == ClassCompileState.DEF_CREATING)
-                // Circular reference detected.
+            if (classData.compileState == ClassCompileState.DEF_CREATING) {
+                // Circular reference detected. (e.g. A extends B, B extends A)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_CLASS_CIRCULAR_REFERENCE);
+            }
 
             classData.compileState = ClassCompileState.DEF_CREATING;
 
@@ -494,15 +529,15 @@ namespace Mariana.AVM2.Compiler {
 
             if (!scriptClass.isInterface) {
                 parent = getClassByMultiname(parentName);
+
+                // A class cannot extend a final class or interface.
                 if (parent.isInterface || parent.isFinal)
                     throw ErrorHelper.createError(ErrorCode.CANNOT_EXTEND_CLASS, klass.name, parent.name);
             }
             else {
                 // An interface cannot extend a class.
-                if (!m_abcFile.isAnyName(parentName)) {
-                    throw ErrorHelper.createError(
-                        ErrorCode.CANNOT_EXTEND_CLASS, klass.name, m_abcFile.multinameToString(parentName));
-                }
+                if (!m_abcFile.isAnyName(parentName))
+                    throw ErrorHelper.createError(ErrorCode.CANNOT_EXTEND_CLASS, klass.name, m_abcFile.multinameToString(parentName));
             }
 
             if (parent != null) {
@@ -510,18 +545,20 @@ namespace Mariana.AVM2.Compiler {
                 scriptClass.setParent(parent);
             }
 
-            var ifaceNames = scriptClass.abcClassInfo.getInterfaceNames();
+            var interfaceNames = scriptClass.abcClassInfo.getInterfaceNames();
             Class[] declaredInterfaces = Array.Empty<Class>();
 
-            if (ifaceNames.length != 0) {
-                declaredInterfaces = new Class[ifaceNames.length];
-                for (int i = 0; i < ifaceNames.length; i++) {
-                    Class iface = getClassByMultiname(ifaceNames[i]);
-                    if (!iface.isInterface)
-                        throw ErrorHelper.createError(ErrorCode.CANNOT_IMPLEMENT_INTERFACE, klass.name, iface.name);
+            if (interfaceNames.length != 0) {
+                declaredInterfaces = new Class[interfaceNames.length];
 
-                    _createClassDefIfInContext(iface);
-                    declaredInterfaces[i] = iface;
+                for (int i = 0; i < declaredInterfaces.Length; i++) {
+                    Class interfaceClass = getClassByMultiname(interfaceNames[i]);
+
+                    if (!interfaceClass.isInterface)
+                        throw ErrorHelper.createError(ErrorCode.CANNOT_IMPLEMENT_INTERFACE, klass.name, interfaceClass.name);
+
+                    _createClassDefIfInContext(interfaceClass);
+                    declaredInterfaces[i] = interfaceClass;
                 }
             }
 
@@ -567,9 +604,9 @@ namespace Mariana.AVM2.Compiler {
         }
 
         /// <summary>
-        /// Initialises the dynamic assembly into which the compiled code will be emitted.
+        /// Initializes the dynamic assembly into which the compiled code will be emitted.
         /// </summary>
-        private void _initAssembly() {
+        private void _initAssemblyBuilder() {
             m_assemblyBuilderName = m_options.emitAssemblyName;
             if (m_assemblyBuilderName == null) {
                 string countStr = ASuint.AS_convertString((uint)s_dynamicAssemblyCounter.atomicNext());
@@ -609,19 +646,20 @@ namespace Mariana.AVM2.Compiler {
             else if (scriptClass.isFinal)
                 typeAttrs |= TypeAttributes.Sealed;
 
-            TypeBuilder tb = m_assemblyBuilder.defineType(m_nameMangler.createTypeName(scriptClass.name), typeAttrs);
-            classData.typeBuilder = tb;
-            m_traitEntityHandles[scriptClass] = tb.handle;
+            TypeBuilder typeBuilder = m_assemblyBuilder.defineType(m_nameMangler.createTypeName(scriptClass.name), typeAttrs);
+
+            classData.typeBuilder = typeBuilder;
+            m_traitEntityHandles[scriptClass] = typeBuilder.handle;
 
             if (!scriptClass.isInterface) {
                 _createTypeBuilderIfInContext(scriptClass.parent);
-                tb.setParent(getEntityHandle(scriptClass.parent));
+                typeBuilder.setParent(getEntityHandle(scriptClass.parent));
             }
 
             Class[] declaredInterfaces = classData.declaredInterfaces;
             for (int i = 0; i < declaredInterfaces.Length; i++) {
                 _createTypeBuilderIfInContext(declaredInterfaces[i]);
-                tb.addInterface(getEntityHandle(declaredInterfaces[i]));
+                typeBuilder.addInterface(getEntityHandle(declaredInterfaces[i]));
             }
         }
 
@@ -631,61 +669,71 @@ namespace Mariana.AVM2.Compiler {
         private void _createScriptAndClassTraits() {
             var scriptInfo = m_abcFile.getScriptInfo();
 
-            for (int i = 0; i < scriptInfo.length; i++) {
-                ABCScriptInfo si = scriptInfo[i];
-                ScriptData scriptData = m_abcScriptDataByIndex[i];
-
-                var initMethod = new ScriptMethod(
-                    si.initMethod,
-                    QName.publicName("scriptinit"),
-                    declClass: null,
-                    m_domain,
-                    isStatic: true,
-                    isFinal: true,
-                    isOverride: false,
-                    metadata: null
-                );
-
-                scriptData.initMethod = initMethod;
-                m_methodTraitData[initMethod] = new MethodTraitData();
-
-                m_traitExportScripts[initMethod] = si;
-                _setMethodForMethodInfo(si.initMethod, initMethod);
-
-                _createMethodTraitSig(initMethod);
-
-                if (initMethod.requiredParamCount > 0)
-                    throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_METHOD_NO_REQUIRED_PARAMS_ALLOWED, initMethod.name);
-
-                var traitInfo = si.getTraits();
-                for (int j = 0; j < traitInfo.length; j++) {
-                    if (traitInfo[j].kind == ABCTraitFlags.Class) {
-                        // Class traits have already been loaded at this point.
-                        continue;
-                    }
-
-                    Trait trait = _createScriptTraitFromTraitInfo(traitInfo[j], scriptData);
-                    m_traitExportScripts[trait] = si;
-                }
-
-                foreach (ScriptProperty prop in m_tempPropsStatic.Values) {
-                    bool isAdded = m_domain.tryDefineGlobalTrait(prop, m_options.hideParentDomainDefinitions);
-                    if (isAdded) {
-                        if (prop.getter != null)
-                            scriptData.traits.add(prop.getter);
-                        if (prop.setter != null)
-                            scriptData.traits.add(prop.setter);
-                    }
-                    else if (m_options.failOnGlobalNameConflict) {
-                        throw ErrorHelper.createError(ErrorCode.ALREADY_DEFINED, prop.name);
-                    }
-                }
-
-                m_tempPropsStatic.Clear();
-            }
+            for (int i = 0; i < scriptInfo.length; i++)
+                _createScriptTraitsForScriptInfo(scriptInfo[i]);
 
             foreach (var p in m_classData)
                 _createClassTraitsIfInContext(p.Key);
+        }
+
+        /// <summary>
+        /// Creates the global traits (other than classes) declared by the given script.
+        /// </summary>
+        /// <param name="scriptInfo">The <see cref="ABCScriptInfo"/> representing the script for
+        /// which to create the global traits.</param>
+        private void _createScriptTraitsForScriptInfo(ABCScriptInfo scriptInfo) {
+            ScriptData scriptData = m_abcScriptDataByIndex[scriptInfo.abcIndex];
+
+            var initMethod = new ScriptMethod(
+                scriptInfo.initMethod,
+                QName.publicName("scriptinit" + scriptInfo.abcIndex.ToString(CultureInfo.InvariantCulture)),
+                declClass: null,
+                m_domain,
+                isStatic: true,
+                isFinal: true,
+                isOverride: false,
+                metadata: null
+            );
+
+            scriptData.initMethod = initMethod;
+            m_methodTraitData[initMethod] = new MethodTraitData();
+
+            m_traitExportScripts[initMethod] = scriptInfo;
+            _setMethodForMethodInfo(scriptInfo.initMethod, initMethod);
+
+            _createMethodTraitSig(initMethod);
+
+            if (initMethod.requiredParamCount > 0)
+                throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_METHOD_NO_REQUIRED_PARAMS_ALLOWED, initMethod.name);
+
+            var scriptTraitInfos = scriptInfo.getTraits();
+
+            for (int j = 0; j < scriptTraitInfos.length; j++) {
+                if (scriptTraitInfos[j].kind == ABCTraitFlags.Class) {
+                    // Class traits have already been loaded before.
+                    continue;
+                }
+
+                Trait trait = _createScriptTraitFromTraitInfo(scriptTraitInfos[j], scriptInfo);
+                m_traitExportScripts[trait] = scriptInfo;
+            }
+
+            // The property traits were stored in a temporary dictionary, stage them now.
+
+            foreach (ScriptProperty prop in m_tempPropsStatic.Values) {
+                bool traitWasStaged = _tryStageGlobalTrait(prop, scriptInfo);
+                if (!traitWasStaged)
+                    continue;
+
+                if (prop.getter != null)
+                    scriptData.traits.add(prop.getter);
+                if (prop.setter != null)
+                    scriptData.traits.add(prop.setter);
+
+                m_traitExportScripts[prop] = scriptInfo;
+            }
+
+            m_tempPropsStatic.Clear();
         }
 
         /// <summary>
@@ -694,60 +742,63 @@ namespace Mariana.AVM2.Compiler {
         /// <returns>The <see cref="Trait"/> instance representing the created trait.</returns>
         /// <param name="traitInfo">The <see cref="ABCTraitInfo"/> instance representing the
         /// global trait to create.</param>
-        /// <param name="scriptData">A <see cref="ScriptData"/> instance representing the script
+        /// <param name="scriptInfo">The <see cref="ABCScriptInfo"/> instance representing the script
         /// that defined the trait.</param>
-        private Trait _createScriptTraitFromTraitInfo(ABCTraitInfo traitInfo, ScriptData scriptData) {
-            if (traitInfo.kind == ABCTraitFlags.Function)
+        private Trait _createScriptTraitFromTraitInfo(ABCTraitInfo traitInfo, ABCScriptInfo scriptInfo) {
+            if (traitInfo.kind == ABCTraitFlags.Function) {
                 // Not sure where this is used, don't support it for now.
                 throw ErrorHelper.createError(ErrorCode.INVALID_TRAIT_KIND, "Function");
+            }
 
-            if (traitInfo.name == QName.publicName("void"))
-                throw ErrorHelper.createError(ErrorCode.ALREADY_DEFINED, traitInfo.name);
-
-            Trait trait = null;
+            Trait createdTrait = null;
             bool isProperty = false;
 
             if (traitInfo.kind == ABCTraitFlags.Slot || traitInfo.kind == ABCTraitFlags.Const) {
-                trait = _createFieldTrait(traitInfo, null, true);
+                createdTrait = _createFieldTrait(traitInfo, declClass: null, isStatic: true);
             }
             else if (traitInfo.kind == ABCTraitFlags.Method) {
-                ScriptMethod method = new ScriptMethod(traitInfo, null, m_domain, true);
+                ScriptMethod method = new ScriptMethod(traitInfo, declClass: null, m_domain, isStatic: true);
                 _setMethodForMethodInfo(traitInfo.methodInfo, method);
-                trait = method;
+
                 m_methodTraitData[method] = new MethodTraitData();
                 _createMethodTraitSig(method);
+
+                createdTrait = method;
             }
             else if (traitInfo.kind == ABCTraitFlags.Getter || traitInfo.kind == ABCTraitFlags.Setter) {
                 isProperty = true;
-                ScriptMethod method = _definePropertyAccessor(traitInfo, null, true);
-                trait = method;
+
+                ScriptMethod method = _definePropertyAccessor(traitInfo, declClass: null, isStatic: true);
                 _createMethodTraitSig(method);
+
+                createdTrait = method;
             }
 
-            bool traitAdded;
+            Debug.Assert(createdTrait != null);
 
-            if (!isProperty) {
-                // We don't do this for properties because they are held in a temporary table
-                // and added to the global trait table only after all the traits of the script
+            if (isProperty) {
+                // We don't stage properties now because getter and setter methods with the same property
+                // name need to be matched. For this reason properties are held in a temporary dictionary
+                // and added to the global trait staging table only after all the traits of the script
                 // have been created.
-
-                traitAdded = m_domain.tryDefineGlobalTrait(trait, m_options.hideParentDomainDefinitions);
-                if (traitAdded) {
-                    scriptData.traits.add(trait);
-
-                    int slotId = traitInfo.slotId;
-                    if (slotId > 0) {
-                        // Store in the slot map.
-                        if (!scriptData.slotMap.tryAddSlot(slotId, trait))
-                            throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_SLOT_ID_ALREADY_TAKEN, slotId, "global");
-                    }
-                }
-                else if (m_options.failOnGlobalNameConflict) {
-                    throw ErrorHelper.createError(ErrorCode.ALREADY_DEFINED, traitInfo.name);
-                }
+                return createdTrait;
             }
 
-            return trait;
+            ScriptData scriptData = m_abcScriptDataByIndex[scriptInfo.abcIndex];
+            int slotId = traitInfo.slotId;
+
+            bool traitWasStaged = _tryStageGlobalTrait(createdTrait, scriptInfo);
+
+            if (slotId > 0) {
+                // Store in the script slot map.
+                if (!scriptData.slotMap.tryAddSlot(slotId, createdTrait))
+                    throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_SLOT_ID_ALREADY_TAKEN, slotId, "global");
+            }
+
+            if (traitWasStaged || slotId > 0)
+                scriptData.traits.add(createdTrait);
+
+            return createdTrait;
         }
 
         /// <summary>
@@ -763,22 +814,29 @@ namespace Mariana.AVM2.Compiler {
             if (classData == null || classData.compileState == ClassCompileState.TRAITS_CREATED)
                 return;
 
+            Debug.Assert(classData.compileState != ClassCompileState.TRAITS_CREATING);
             classData.compileState = ClassCompileState.TRAITS_CREATING;
 
             if (scriptClass.parent != null)
                 _createClassTraitsIfInContext(scriptClass.parent);
 
-            var ifaces = scriptClass.getImplementedInterfaces();
-            for (int i = 0; i < ifaces.length; i++)
-                _createClassTraitsIfInContext(ifaces[i]);
+            var implementedInterfaces = scriptClass.getImplementedInterfaces();
+            for (int i = 0; i < implementedInterfaces.length; i++)
+                _createClassTraitsIfInContext(implementedInterfaces[i]);
+
+            // Create the instance constructor. Don't do this for interfaces.
 
             if (!scriptClass.isInterface) {
                 var instanceInitMethodInfo = scriptClass.abcClassInfo.instanceInitMethod;
                 var instanceCtor = new ScriptClassConstructor(instanceInitMethodInfo, scriptClass);
+
                 _setMethodForMethodInfo(instanceInitMethodInfo, instanceCtor);
                 _createConstructorSig(instanceCtor);
+
                 scriptClass.setConstructor(instanceCtor);
             }
+
+            // Create the static constructor.
 
             var staticInitMethod = new ScriptMethod(
                 methodInfo: scriptClass.abcClassInfo.staticInitMethod,
@@ -803,20 +861,22 @@ namespace Mariana.AVM2.Compiler {
             var staticTraitInfo = scriptClass.abcClassInfo.getStaticTraits();
 
             for (int i = 0; i < instTraitInfo.length; i++)
-                _createClassTraitFromTraitInfo(instTraitInfo[i], scriptClass, false);
+                _createClassTraitFromTraitInfo(instTraitInfo[i], scriptClass, isStatic: false);
 
             for (int i = 0; i < staticTraitInfo.length; i++)
-                _createClassTraitFromTraitInfo(staticTraitInfo[i], scriptClass, true);
+                _createClassTraitFromTraitInfo(staticTraitInfo[i], scriptClass, isStatic: true);
+
+            // Add properties that were held in the temporary dictionaries.
 
             foreach (ScriptProperty prop in m_tempPropsInst.Values) {
-                bool propAdded = scriptClass.tryDefineTrait(prop);
-                if (!propAdded)
+                bool traitWasAddedToClass = scriptClass.tryDefineTrait(prop);
+                if (!traitWasAddedToClass)
                     throw ErrorHelper.createError(ErrorCode.ALREADY_DEFINED, _createErrMsgTraitName(prop));
             }
 
             foreach (ScriptProperty prop in m_tempPropsStatic.Values) {
-                bool propAdded = scriptClass.tryDefineTrait(prop);
-                if (!propAdded)
+                bool traitWasAddedToClass = scriptClass.tryDefineTrait(prop);
+                if (!traitWasAddedToClass)
                     throw ErrorHelper.createError(ErrorCode.ALREADY_DEFINED, _createErrMsgTraitName(prop));
             }
 
@@ -824,13 +884,18 @@ namespace Mariana.AVM2.Compiler {
             m_tempPropsStatic.Clear();
 
             if (!scriptClass.isInterface) {
+                // If this is not an interface, check the signatures base class overrides and interface
+                // implementations.
+
                 _checkMethodOverrides(scriptClass);
 
-                for (int i = 0; i < ifaces.length; i++) {
-                    // We only need to check the implementation of interfaces that are not implemented
-                    // by the base class.
-                    if (!scriptClass.parent.canAssignTo(ifaces[i]))
-                        _checkInterfaceImplementation(scriptClass, ifaces[i]);
+                for (int i = 0; i < implementedInterfaces.length; i++) {
+                    // It is only necessary to check the signatures of interface implementations
+                    // for interfaces that are not implemented by the parent of this class (as those
+                    // would have already been checked)
+
+                    if (!scriptClass.parent.canAssignTo(implementedInterfaces[i]))
+                        _checkInterfaceImplementation(scriptClass, implementedInterfaces[i]);
                 }
             }
 
@@ -844,54 +909,62 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="traitInfo">A <see cref="ABCTraitInfo"/> instance representing the trait to define.</param>
         /// <param name="declClass">The class in which the trait is to be defined.</param>
         /// <param name="isStatic">Set this to true if the trait is a static trait, false for an instance trait.</param>
-        private Trait _createClassTraitFromTraitInfo(
-            ABCTraitInfo traitInfo, ScriptClass declClass, bool isStatic)
-        {
-            if (traitInfo.kind == ABCTraitFlags.Function)
+        private Trait _createClassTraitFromTraitInfo(ABCTraitInfo traitInfo, ScriptClass declClass, bool isStatic) {
+            if (traitInfo.kind == ABCTraitFlags.Function) {
                 // Not sure where this is used, don't support it for now.
                 throw ErrorHelper.createError(ErrorCode.INVALID_TRAIT_KIND, "Function");
+            }
 
-            Trait trait = null;
+            Trait createdTrait = null;
             bool isProperty = false;
 
             if (traitInfo.kind == ABCTraitFlags.Class) {
                 if (!isStatic)
                     throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_INSTANCE_CLASS_TRAIT, declClass.name);
+
                 ABCClassInfo classInfo = traitInfo.classInfo;
-                trait = new ClassAlias(
-                    classInfo.name, declClass, m_domain, m_abcClassesByIndex[classInfo.abcIndex], traitInfo.metadata);
+                ScriptClass klass = m_abcClassesByIndex[classInfo.abcIndex];
+
+                createdTrait = new ClassAlias(classInfo.name, declClass, m_domain, klass, traitInfo.metadata);
             }
             else if (traitInfo.kind == ABCTraitFlags.Slot || traitInfo.kind == ABCTraitFlags.Const) {
-                trait = _createFieldTrait(traitInfo, declClass, isStatic);
+                createdTrait = _createFieldTrait(traitInfo, declClass, isStatic);
             }
             else if (traitInfo.kind == ABCTraitFlags.Method) {
                 ScriptMethod method = new ScriptMethod(traitInfo, declClass, m_domain, isStatic);
-                trait = method;
+
                 m_methodTraitData[method] = new MethodTraitData();
                 _createMethodTraitSig(method);
+
+                createdTrait = method;
             }
             else if (traitInfo.kind == ABCTraitFlags.Getter || traitInfo.kind == ABCTraitFlags.Setter) {
                 isProperty = true;
+
                 ScriptMethod method = _definePropertyAccessor(traitInfo, declClass, isStatic);
-                trait = method;
                 _createMethodTraitSig(method);
+
+                createdTrait = method;
             }
 
             if (!isProperty) {
-                bool traitDefined = declClass.tryDefineTrait(trait);
-                if (!traitDefined)
-                    throw ErrorHelper.createError(ErrorCode.ALREADY_DEFINED, traitInfo.name.ToString());
+                // Don't add properties now, they are held in temporary dictionaries so that
+                // getters and setters with the same name can be matched.
+
+                bool traitWasAddedToClass = declClass.tryDefineTrait(createdTrait);
+                if (!traitWasAddedToClass)
+                    throw ErrorHelper.createError(ErrorCode.ALREADY_DEFINED, _createErrMsgTraitName(createdTrait));
             }
 
             int slotId = traitInfo.slotId;
             if (slotId > 0)
-                declClass.defineTraitSlot(trait, slotId);
+                declClass.defineTraitSlot(createdTrait, slotId);
 
             int dispId = traitInfo.methodDispId;
             if (dispId > 0)
-                declClass.defineMethodDispId((ScriptMethod)trait, dispId);
+                declClass.defineMethodDispId((ScriptMethod)createdTrait, dispId);
 
-            return trait;
+            return createdTrait;
         }
 
         /// <summary>
@@ -1022,8 +1095,10 @@ namespace Mariana.AVM2.Compiler {
             Span<MethodTraitParameter> paramsSpan = parameters;
 
             if (hasScopedReceiver) {
+                // Add the implicit ScopedClosureReceiver argument for functions created with newfunction.
                 paramsSpan[0] = new MethodTraitParameter(
                     "$recv", Class.fromType(typeof(ScopedClosureReceiver)), false, false, default);
+
                 paramsSpan = paramsSpan.Slice(1);
             }
 
@@ -1179,41 +1254,41 @@ namespace Mariana.AVM2.Compiler {
                 Trait ifaceTrait = ifaceTraits[i];
                 Trait classTrait = klass.getTrait(ifaceTrait.name);
 
-                if (classTrait == null && !ifaceTrait.name.ns.isPublic)
+                if (classTrait == null && !ifaceTrait.name.ns.isPublic) {
                     // If no implementation is found in the namespace of the interface
                     // trait's name, check in the public namespace.
                     classTrait = klass.getTrait(QName.publicName(ifaceTrait.name.localName));
+                }
 
                 if (classTrait == null || classTrait.traitType != ifaceTrait.traitType) {
                     throw ErrorHelper.createError(
                         ErrorCode.MARIANA__ABC_INTERFACE_METHOD_NOT_IMPLEMENTED,
-                        _createErrMsgTraitName(ifaceTrait), klass.name.ToString());
+                        _createErrMsgTraitName(ifaceTrait),
+                        klass.name.ToString()
+                    );
                 }
 
                 if (classTrait is MethodTrait method) {
                     MethodTrait ifaceMethod = (MethodTrait)ifaceTrait;
-                    if (!_checkOverrideSignature(method, ifaceMethod)) {
-                        throw ErrorHelper.createError(
-                            ErrorCode.ILLEGAL_OVERRIDE, method.name.ToString(), klass.name.ToString());
-                    }
+                    if (!_checkOverrideSignature(method, ifaceMethod))
+                        throw ErrorHelper.createError(ErrorCode.ILLEGAL_OVERRIDE, method.name.ToString(), klass.name.ToString());
+
                     _addInterfaceMethodImpl(method, ifaceMethod, klass);
                 }
                 else if (classTrait is PropertyTrait prop) {
                     PropertyTrait ifaceProp = (PropertyTrait)ifaceTrait;
 
                     if (ifaceProp.getter != null) {
-                        if (prop.getter == null || !_checkOverrideSignature(prop.getter, ifaceProp.getter)) {
-                            throw ErrorHelper.createError(
-                                ErrorCode.ILLEGAL_OVERRIDE, prop.name.ToString(), klass.name.ToString());
-                        }
+                        if (prop.getter == null || !_checkOverrideSignature(prop.getter, ifaceProp.getter))
+                            throw ErrorHelper.createError(ErrorCode.ILLEGAL_OVERRIDE, prop.name.ToString(), klass.name.ToString());
+
                         _addInterfaceMethodImpl(prop.getter, ifaceProp.getter, klass);
                     }
 
                     if (ifaceProp.setter != null) {
-                        if (prop.setter == null || !_checkOverrideSignature(prop.setter, ifaceProp.setter)) {
-                            throw ErrorHelper.createError(
-                                ErrorCode.ILLEGAL_OVERRIDE, prop.name.ToString(), klass.name.ToString());
-                        }
+                        if (prop.setter == null || !_checkOverrideSignature(prop.setter, ifaceProp.setter))
+                            throw ErrorHelper.createError(ErrorCode.ILLEGAL_OVERRIDE, prop.name.ToString(), klass.name.ToString());
+
                         _addInterfaceMethodImpl(prop.setter, ifaceProp.setter, klass);
                     }
                 }
@@ -1285,11 +1360,15 @@ namespace Mariana.AVM2.Compiler {
                 _emitClassMembersIfInContext(p.Key);
         }
 
-        private void _emitScriptContainerAndTraits(int index) {
-            ScriptData scriptData = m_abcScriptDataByIndex[index];
+        /// <summary>
+        /// Emits the container type for a script and its traits into the dynamic assembly
+        /// </summary>
+        /// <param name="scriptInfoIndex">The index of the script_info in the ABC file being compiled.</param>
+        private void _emitScriptContainerAndTraits(int scriptInfoIndex) {
+            ScriptData scriptData = m_abcScriptDataByIndex[scriptInfoIndex];
 
             TypeBuilder containerTb = m_assemblyBuilder.defineType(
-                new TypeName(NameMangler.INTERNAL_NAMESPACE, m_nameMangler.createScriptContainerName(index)),
+                new TypeName(NameMangler.INTERNAL_NAMESPACE, m_nameMangler.createScriptContainerName(scriptInfoIndex)),
                 TypeAttributes.Abstract | TypeAttributes.Sealed | TypeAttributes.Public | TypeAttributes.BeforeFieldInit
             );
 
@@ -1344,7 +1423,8 @@ namespace Mariana.AVM2.Compiler {
             if (exportingScript != null) {
                 // If this class is exported by a script, call the script's cctor from the class
                 // cctor. The script cctor will call the script init method, which is expected
-                // to call the class init method after setting its captured scope.
+                // to call the class init method (using the newclass instruction) after setting
+                // its captured scope.
                 ScriptData scriptData = m_abcScriptDataByIndex[exportingScript.abcIndex];
 
                 m_contextILBuilder.emit(ILOp.ldtoken, scriptData.containerTypeBuilder.handle);
@@ -1502,8 +1582,10 @@ namespace Mariana.AVM2.Compiler {
             m_traitEntityHandles[method] = methodBldr.handle;
 
             // Emit parameter names if that option is set.
+
             if (m_options.emitParamNames) {
                 var methodParams = method.getParameters();
+
                 for (int i = 0; i < methodParams.length; i++) {
                     string paramName = methodParams[i].name;
                     if (paramName == null || paramName.Length == 0)
@@ -1547,7 +1629,7 @@ namespace Mariana.AVM2.Compiler {
                         i, ctor.abcMethodInfo.getParamName(i) ?? "param" + ASint.AS_convertString(i));
                 }
                 if (ctor.hasRest)
-                    ctorBldr.defineParameter(paramCount - 1, "rest");
+                    ctorBldr.defineParameter(paramCount - 1, "$rest");
             }
         }
 
@@ -1569,15 +1651,24 @@ namespace Mariana.AVM2.Compiler {
             if ((getter == null || getter.declaringClass != prop.declaringClass)
                 && (setter == null || setter.declaringClass != prop.declaringClass))
             {
+                // Don't emit the property if both the getter and setter are declared on inherited classes.
                 return;
             }
 
-            if (getter != null && (!getter.hasReturn || getter.hasRest || getter.paramCount > 0))
+            if (getter != null && (!getter.hasReturn || getter.hasRest || getter.paramCount > 0)) {
+                // Don't emit if the getter has an unconventional signature (void return type,
+                // more than zero parameters or a rest parameter)
                 return;
-            if (setter != null && (setter.hasReturn || setter.hasRest || setter.paramCount != 1))
+            }
+            if (setter != null && (setter.hasReturn || setter.hasRest || setter.paramCount != 1)) {
+                // Don't emit if the setter has an unconventional signature (non-void return type,
+                // zero or more than one parameter or a rest parameter)
                 return;
-            if (getter != null && setter != null && getter.returnType != setter.getParameters()[0].type)
+            }
+            if (getter != null && setter != null && getter.returnType != setter.getParameters()[0].type) {
+                // Don't emit if the getter return type does not match the setter parameter type.
                 return;
+            }
 
             var propBuilder = typeBuilder.defineProperty(
                 m_nameMangler.createName(prop.name),
@@ -1588,13 +1679,14 @@ namespace Mariana.AVM2.Compiler {
 
             if (getter?.declaringClass == prop.declaringClass)
                 propBuilder.setGetMethod(m_methodTraitData[getter].methodBuilder);
+
             if (setter?.declaringClass == prop.declaringClass)
                 propBuilder.setSetMethod(m_methodTraitData[setter].methodBuilder);
         }
 
         /// <summary>
         /// Checks the MethodTraitData table for overrides and interface implementations and emits
-        /// method override directives into the dynamic assembly where neccessary.
+        /// method override directives into the dynamic assembly where necessary.
         /// </summary>
         private void _emitMethodOverrides() {
             foreach (var entry in m_methodTraitData) {
@@ -1793,7 +1885,7 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         public AssemblyBuilder assemblyBuilder => m_assemblyBuilder;
 
-         /// <summary>
+        /// <summary>
         /// Gets the <see cref="ABCFile"/> instance representing the ABC file being compiled.
         /// </summary>
         public ABCFile abcFile => m_abcFile;
@@ -1804,14 +1896,22 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         /// <returns>The global trait matching the given multiname, or null if no trait could be found.</returns>
         /// <param name="multiname">The multiname. This must not contain runtime arguments.</param>
-        public Trait getGlobalTraitByMultiname(in ABCMultiname multiname) {
-            if (!m_globalTraitsByMultiname.TryGetValue(multiname, out Trait t)) {
-                t = resolve(multiname);
-                m_globalTraitsByMultiname.Add(multiname, t);
-            }
-            return t;
+        /// <param name="throwOnAmbiguousMatch">True if an exception should be thrown for an ambiguous match,
+        /// otherwise an ambiguous match will return null.</param>
+        public Trait getGlobalTraitByMultiname(in ABCMultiname multiname, bool throwOnAmbiguousMatch = true) {
+            (BindStatus status, Trait trait) result;
 
-            Trait resolve(in ABCMultiname mn) {
+            if (!m_globalTraitLookupCache.TryGetValue(multiname, out result)) {
+                result = resolve(multiname);
+                m_globalTraitLookupCache.Add(multiname, result);
+            }
+
+            if (throwOnAmbiguousMatch && result.status == BindStatus.AMBIGUOUS)
+                throw ErrorHelper.createError(ErrorCode.AMBIGUOUS_NAME_MATCH, m_abcFile.multinameToString(multiname));
+
+            return result.trait;
+
+            (BindStatus, Trait) resolve(in ABCMultiname mn) {
                 if (mn.kind == ABCConstKind.GenericClassName) {
                     // Currently, Vector is the only generic type in the AVM2. There
                     // is no support for full generics.
@@ -1820,10 +1920,11 @@ namespace Mariana.AVM2.Compiler {
                     Trait defTrait = getGlobalTraitByMultiname(defName);
 
                     if (defTrait == null)
-                        return null;
+                        return (BindStatus.NOT_FOUND, null);
 
                     if (!(defTrait is Class defClass))
                         throw ErrorHelper.createError(ErrorCode.MARIANA__APPLYTYPE_NON_CLASS);
+
                     if (defClass.underlyingType != typeof(ASVector<>))
                         throw ErrorHelper.createError(ErrorCode.NONGENERIC_TYPE_APPLICATION, defClass.name);
 
@@ -1835,48 +1936,139 @@ namespace Mariana.AVM2.Compiler {
 
                     ref readonly ABCMultiname argName = ref typeArgNames[0];
                     if (m_abcFile.isAnyName(argName))
-                        return Class.fromType<ASVectorAny>();  // This is the Vector.<*> type.
+                        return (BindStatus.SUCCESS, Class.fromType(typeof(ASVectorAny)));  // This is the Vector.<*> type.
 
                     if (getGlobalTraitByMultiname(argName) is Class argClass)
-                        return argClass.getVectorClass();
+                        return (BindStatus.SUCCESS, argClass.getVectorClass());
 
                     throw ErrorHelper.createError(ErrorCode.MARIANA__APPLYTYPE_NON_CLASS);
                 }
 
                 if (mn.hasRuntimeLocalName || mn.hasRuntimeNamespace)
                     throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_INVALID_RUNTIME_NAME);
+
                 if (mn.isAttributeName)
-                    return null;
+                    return (BindStatus.NOT_FOUND, null);
 
                 Trait trait;
                 BindStatus status;
 
                 string localName = m_abcFile.resolveString(mn.localNameIndex);
                 if (localName == null)
-                    return null;
+                    return (BindStatus.NOT_FOUND, null);
+
+                // First lookup the staging table, then the domain.
 
                 if (mn.kind == ABCConstKind.QName) {
                     QName qname = new QName(m_abcFile.resolveNamespace(mn.namespaceIndex), localName);
+
                     if (qname.ns.kind == NamespaceKind.ANY)
-                        return null;
-                    status = m_domain.lookupGlobalTrait(qname, false, out trait);
+                        return (BindStatus.NOT_FOUND, null);
+
+                    status = m_stagedGlobalTraits.tryGetTrait(qname, isStatic: true, out trait);
+
+                    if (status == BindStatus.NOT_FOUND)
+                        status = m_domain.lookupGlobalTrait(qname, false, out trait);
                 }
                 else {
                     // The only possible name kind at this point is Multiname.
+                    // There is one special case to be handled here: if a match is found both in the staging table
+                    // and in the existing traits in the domain, with different namespaces, the result is an ambiguous match.
+
                     NamespaceSet nsSet = m_abcFile.resolveNamespaceSet(mn.namespaceIndex);
-                    if (nsSet.count == 0)
-                        return null;
-                    status = m_domain.lookupGlobalTrait(localName, nsSet, false, out trait);
+
+                    BindStatus stageLookupStatus = m_stagedGlobalTraits.tryGetTrait(localName, nsSet, isStatic: true, out Trait stagedTrait);
+                    BindStatus domainLookupStatus = m_domain.lookupGlobalTrait(localName, nsSet, noInherited: false, out Trait domainTrait);
+
+                    if (stageLookupStatus == BindStatus.SUCCESS
+                        && domainLookupStatus == BindStatus.SUCCESS
+                        && stagedTrait.name.ns != domainTrait.name.ns)
+                    {
+                        status = BindStatus.AMBIGUOUS;
+                        trait = null;
+                    }
+                    else if (stageLookupStatus == BindStatus.SUCCESS) {
+                        status = stageLookupStatus;
+                        trait = stagedTrait;
+                    }
+                    else {
+                        status = domainLookupStatus;
+                        trait = domainTrait;
+                    }
                 }
 
-                if (status == BindStatus.NOT_FOUND)
-                    return null;
+                if (status == BindStatus.NOT_FOUND || status == BindStatus.AMBIGUOUS)
+                    return (status, null);
 
-                if (status == BindStatus.AMBIGUOUS)
-                    throw ErrorHelper.createError(ErrorCode.AMBIGUOUS_NAME_MATCH, m_abcFile.multinameToString(mn));
-
-                return trait;
+                return (status, trait);
             }
+        }
+
+        /// <summary>
+        /// Returns a <see cref="Trait"/> instance representing the global trait matching the given
+        /// qualified name.
+        /// </summary>
+        /// <returns>The global trait matching <paramref name="qname"/>, or null if no trait could be found.</returns>
+        /// <param name="qname">The qualified name.</param>
+        public Trait getGlobalTraitByQName(in QName qname) {
+            Trait trait;
+            BindStatus status;
+
+            if (qname.ns.kind == NamespaceKind.ANY || qname.localName == null)
+                return null;
+
+            // First lookup the staging table, then the domain.
+            status = m_stagedGlobalTraits.tryGetTrait(qname, isStatic: true, out trait);
+
+            if (status == BindStatus.NOT_FOUND)
+                status = m_domain.lookupGlobalTrait(qname, false, out trait);
+
+            if (status == BindStatus.NOT_FOUND)
+                return null;
+
+            Debug.Assert(status == BindStatus.SUCCESS);
+            return trait;
+        }
+
+        /// <summary>
+        /// Returns a <see cref="Trait"/> instance representing the global trait matching the given
+        /// multiname, given as a local name and namespace set.
+        /// </summary>
+        /// <returns>The global trait matching the given multiname, or null if no trait could be found.</returns>
+        /// <param name="localName">The local name of the multiname.</param>
+        /// <param name="nsSet">The namespace set of the multiname.</param>
+        /// <param name="throwOnAmbiguousMatch">True if an exception should be thrown for an ambiguous match,
+        /// otherwise an ambiguous match will return null.</param>
+        public Trait getGlobalTraitByMultiname(string localName, in NamespaceSet nsSet, bool throwOnAmbiguousMatch = true) {
+            Trait trait;
+            BindStatus status;
+
+            // There is one special case to be handled here: if a match is found both in the staging table
+            // and in the existing traits in the domain, the result is an ambiguous match.
+
+            BindStatus stageLookupStatus = m_stagedGlobalTraits.tryGetTrait(localName, nsSet, isStatic: true, out Trait stagedTrait);
+            BindStatus domainLookupStatus = m_domain.lookupGlobalTrait(localName, nsSet, noInherited: false, out Trait domainTrait);
+
+            if (stageLookupStatus == BindStatus.SUCCESS
+                && domainLookupStatus == BindStatus.SUCCESS
+                && stagedTrait.name.ns != domainTrait.name.ns)
+            {
+                status = BindStatus.AMBIGUOUS;
+                trait = null;
+            }
+            else if (stageLookupStatus == BindStatus.SUCCESS) {
+                status = stageLookupStatus;
+                trait = stagedTrait;
+            }
+            else {
+                status = domainLookupStatus;
+                trait = domainTrait;
+            }
+
+            if (throwOnAmbiguousMatch && status == BindStatus.AMBIGUOUS)
+                throw ErrorHelper.createError(ErrorCode.AMBIGUOUS_NAME_MATCH, localName);
+
+            return (status == BindStatus.SUCCESS) ? trait : null;
         }
 
         /// <summary>
@@ -1919,13 +2111,12 @@ namespace Mariana.AVM2.Compiler {
                 if (mn.kind == ABCConstKind.QName) {
                     QName qname = new QName(m_abcFile.resolveNamespace(mn.namespaceIndex), localName);
                     if (qname.ns.kind == NamespaceKind.ANY)
-                        throw ErrorHelper.createError(ErrorCode.CLASS_NOT_FOUND, m_abcFile.multinameToString(mn));
-                    status = m_unexportedClassTraits.tryGetTrait(qname, true, out trait);
+                        status = BindStatus.NOT_FOUND;
+                    else
+                        status = m_unexportedClassTraits.tryGetTrait(qname, true, out trait);
                 }
                 else if (mn.kind == ABCConstKind.Multiname) {
                     NamespaceSet nsSet = m_abcFile.resolveNamespaceSet(mn.namespaceIndex);
-                    if (nsSet.count == 0)
-                        throw ErrorHelper.createError(ErrorCode.CLASS_NOT_FOUND, m_abcFile.multinameToString(mn));
                     status = m_unexportedClassTraits.tryGetTrait(localName, nsSet, true, out trait);
                 }
 
@@ -1961,7 +2152,7 @@ namespace Mariana.AVM2.Compiler {
         /// Returns the method body associated with the given method.
         /// </summary>
         /// <returns>A <see cref="ABCMethodBodyInfo"/> instance representing the method's body, or
-        /// null if the method does not have a body.!----></returns>
+        /// null if the method does not have a body.</returns>
         /// <param name="methodInfo">The <see cref="ABCMethodInfo"/> representing the method whose
         /// body is to be obtained.</param>
         public ABCMethodBodyInfo getMethodBodyInfo(ABCMethodInfo methodInfo) =>
@@ -2060,7 +2251,10 @@ namespace Mariana.AVM2.Compiler {
         /// <returns>The <see cref="ABCScriptInfo"/> instance representing the script that declared
         /// the given trait, or null if no script exported the trait.</returns>
         /// <param name="trait">The trait whose exporting script must be obtained.</param>
-        public ABCScriptInfo getExportingScript(Trait trait) => m_traitExportScripts[trait.declaringClass ?? trait];
+        public ABCScriptInfo getExportingScript(Trait trait) {
+            m_traitExportScripts.tryGetValue(trait.declaringClass ?? trait, out ABCScriptInfo scriptInfo);
+            return scriptInfo;
+        }
 
         /// <summary>
         /// Gets the default value with which the given field should be initialized.
@@ -2422,10 +2616,10 @@ namespace Mariana.AVM2.Compiler {
         /// <summary>
         /// Creates a class for the activation object of a method.
         /// </summary>
-        /// <param name="traits">A read-only array view of <see cref="ABCTraitInfo"/> instances
+        /// <param name="activationTraits">A read-only array view of <see cref="ABCTraitInfo"/> instances
         /// representing the fields of the activation object.</param>
         /// <returns>The created class.</returns>
-        public ScriptClass createActivationClass(ReadOnlyArrayView<ABCTraitInfo> traits) {
+        public ScriptClass createActivationClass(ReadOnlyArrayView<ABCTraitInfo> activationTraits) {
             string classMangledName = m_nameMangler.createActivationClassName(m_activationCounter.next());
 
             var syntheticClassInfo = new ABCClassInfo(
@@ -2463,18 +2657,18 @@ namespace Mariana.AVM2.Compiler {
             ctorIlGen.emit(ILOp.ldarg_0);
             ctorIlGen.emit(ILOp.call, KnownMembers.objectCtor);
 
-            for (int i = 0; i < traits.length; i++) {
-                var ti = traits[i];
-                Debug.Assert(ti.kind == ABCTraitFlags.Slot || ti.kind == ABCTraitFlags.Const);
+            for (int i = 0; i < activationTraits.length; i++) {
+                var traitInfo = activationTraits[i];
+                Debug.Assert(traitInfo.kind == ABCTraitFlags.Slot || traitInfo.kind == ABCTraitFlags.Const);
 
                 // Activation fields shouldn't be readonly.
-                Class fieldType = getClassByMultiname(ti.fieldTypeName, allowAny: true);
-                var field = new ScriptField(ti.name, klass, m_domain, false, fieldType, false);
+                Class fieldType = getClassByMultiname(traitInfo.fieldTypeName, allowAny: true);
+                var field = new ScriptField(traitInfo.name, klass, m_domain, false, fieldType, false);
 
                 if (!klass.tryDefineTrait(field))
-                    throw ErrorHelper.createError(ErrorCode.ALREADY_DEFINED, ti.name);
+                    throw ErrorHelper.createError(ErrorCode.ALREADY_DEFINED, _createErrMsgTraitName(field));
 
-                var slotId = ti.slotId;
+                var slotId = traitInfo.slotId;
                 if (slotId > 0)
                     klass.defineTraitSlot(field, slotId);
 
@@ -2484,8 +2678,8 @@ namespace Mariana.AVM2.Compiler {
                 m_traitEntityHandles[field] = fieldBuilder.handle;
 
                 // Emit code to initialize the field in the constructor.
-                if (ti.fieldHasDefault) {
-                    ASAny defaultVal = _coerceDefaultValue(ti.fieldDefaultValue, fieldType);
+                if (traitInfo.fieldHasDefault) {
+                    ASAny defaultVal = _coerceDefaultValue(traitInfo.fieldDefaultValue, fieldType);
                     if (!ILEmitHelper.isImplicitDefault(defaultVal, fieldType)) {
                         ctorIlGen.emit(ILOp.ldarg_0);
 
@@ -2772,7 +2966,7 @@ namespace Mariana.AVM2.Compiler {
                 }
             }
             catch (AggregateException e) {
-                // Throw the first AVM2Exception that occured.
+                // Throw the first AVM2Exception that occurred.
                 foreach (var innerEx in e.InnerExceptions) {
                     if (innerEx is AVM2Exception)
                         ExceptionDispatchInfo.Throw(innerEx);
@@ -2929,6 +3123,45 @@ namespace Mariana.AVM2.Compiler {
             else if (trait is PropertyTrait prop) {
                 _setUnderlyingDefinitionForTrait(prop.getter, loadedModule);
                 _setUnderlyingDefinitionForTrait(prop.setter, loadedModule);
+            }
+        }
+
+        private void _commitStagedGlobalTraits() {
+            var stagedTraits = m_stagedGlobalTraits.getTraits();
+
+            for (int i = 0; i < stagedTraits.length; i++) {
+                // canHideFromParent is always set to true because checking for name conflicts
+                // with inherited traits would be redundant at this point - if a trait should
+                // not be registered in the app domain according to appDomainConflictResolution,
+                // it would not have been added to the staged traits in the first place.
+
+                bool traitWasAdded = m_domain.tryDefineGlobalTrait(stagedTraits[i], canHideFromParent: true);
+                Debug.Assert(traitWasAdded);
+            }
+        }
+
+        /// <summary>
+        /// Runs the entry points of the compiled scripts. This should be called only when the
+        /// script has been compiled and the compiled assembly loaded.
+        /// </summary>
+        private void _runScriptEntryPoints() {
+            Debug.Assert(m_loadedAssembly != null);
+
+            for (int i = 0; i < m_entryPointScriptHandles.length; i++) {
+                Type resolvedScriptContainer = m_loadedAssembly.ManifestModule.ResolveType(
+                    m_emitResult.tokenMapping.getMappedToken(m_entryPointScriptHandles[i])
+                );
+
+                try {
+                    RuntimeHelpers.RunClassConstructor(resolvedScriptContainer.TypeHandle);
+                }
+                catch (Exception e) {
+                    // Unwrap TypeInitializationExceptions and rethrow the innermost exception.
+                    while (e is TypeInitializationException)
+                        e = e.InnerException;
+
+                    ExceptionDispatchInfo.Throw(e);
+                }
             }
         }
 

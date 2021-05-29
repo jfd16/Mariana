@@ -26,7 +26,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="filename">The name of the file to load.</param>
         ///
         /// <exception cref="AVM2Exception">Error #10330: This method is called after calling
-        /// <see cref="finishCompilation"/> or <see cref="runCompiledScripts"/>.</exception>
+        /// <see cref="finishCompilation"/>.</exception>
         public void compileFile(string filename) =>
             compile(ABCFile.readFromFile(filename, m_compileOptions.parserOptions));
 
@@ -36,7 +36,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="data">The byte array containing the ActionScript 3 bytecode file.</param>
         ///
         /// <exception cref="AVM2Exception">Error #10330: This method is called after calling
-        /// <see cref="finishCompilation"/> or <see cref="runCompiledScripts"/>.</exception>
+        /// <see cref="finishCompilation"/>.</exception>
         public void compile(byte[] data) =>
             compile(ABCFile.read(data, m_compileOptions.parserOptions));
 
@@ -47,7 +47,7 @@ namespace Mariana.AVM2.Compiler {
         /// <remarks>This method does not dispose <paramref name="stream"/> after the ABC file has been read.</remarks>
         ///
         /// <exception cref="AVM2Exception">Error #10330: This method is called after calling
-        /// <see cref="finishCompilation"/> or <see cref="runCompiledScripts"/>.</exception>
+        /// <see cref="finishCompilation"/>.</exception>
         public void compile(Stream stream) =>
             compile(ABCFile.read(stream, m_compileOptions.parserOptions));
 
@@ -58,7 +58,7 @@ namespace Mariana.AVM2.Compiler {
         /// to be loaded.</param>
         ///
         /// <exception cref="AVM2Exception">Error #10330: This method is called after calling
-        /// <see cref="finishCompilation"/> or <see cref="runCompiledScripts"/>.</exception>
+        /// <see cref="finishCompilation"/>.</exception>
         public void compile(ABCFile abcFile) {
             if (abcFile == null)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(abcFile));
@@ -69,32 +69,23 @@ namespace Mariana.AVM2.Compiler {
         }
 
         /// <summary>
-        /// Finishes the compilation without running the script entry points. Use this method
-        /// instead of <see cref="runCompiledScripts"/> for ABC files that are intended to be
-        /// used as class libraries.
+        /// Finishes the compilation of all code loaded by this <see cref="ScriptLoader"/>.
         /// </summary>
         ///
-        /// <exception cref="AVM2Exception">Error #10330: <see cref="finishCompilation"/> or
-        /// <see cref="runCompiledScripts"/> was called on this <see cref="ScriptLoader"/>
-        /// instance before the current call.</exception>
+        /// <remarks>Calling this method will load the assembly compiled from the ABC files passed
+        /// to <c>compile()</c> calls. If a custom assembly loader was specified in the compiler
+        /// options, it will be called. Script initializers of the compiled scripts may be run,
+        /// depending on the value of <see cref="ScriptCompileOptions.scriptInitializerRunMode"/>
+        /// that is set in the compiler options for this instance.</remarks>
+        ///
+        /// <exception cref="AVM2Exception">Error #10330: <see cref="finishCompilation"/> was called earlier
+        /// on this <see cref="ScriptLoader"/> instance.</exception>
         public void finishCompilation() {
             if (m_compilationFinished)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_SCRIPT_LOADER_FINISHED);
 
             m_compileContext.finishCompilationAndLoad();
             m_compilationFinished = true;
-        }
-
-        /// <summary>
-        /// Finishes the compilation and runs the entry points of the compiled scripts.
-        /// </summary>
-        ///
-        /// <exception cref="AVM2Exception">Error #10330: <see cref="finishCompilation"/> or
-        /// <see cref="runCompiledScripts"/> was called on this <see cref="ScriptLoader"/>
-        /// instance before the current call.</exception>
-        public void runCompiledScripts() {
-            finishCompilation();
-            m_compileContext.runScriptEntryPoints();
         }
 
     }

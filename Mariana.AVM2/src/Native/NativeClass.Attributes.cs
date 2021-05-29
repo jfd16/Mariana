@@ -66,7 +66,7 @@ namespace Mariana.AVM2.Native {
 
         /// <summary>
         /// If this is true, the class will not be added to the global traits of its application
-        /// domain. Such a class cannot be retreived for example with the
+        /// domain. Such a class cannot be retrieved for example with the
         /// <see cref="ApplicationDomain.getGlobalClass(in QName, Boolean)"/> method,
         /// and will not be available to compiled ActionScript code. The class, however,
         /// can be obtained through <see cref="Class.fromType"/>.

@@ -153,6 +153,7 @@ namespace Mariana.AVM2.Core {
                     return createError(ErrorCode.INVOKE_NON_FUNCTION, traitName);
 
                 case BindStatus.FAILED_READONLY:
+                case BindStatus.FAILED_ASSIGNCLASS:
                     return createError(ErrorCode.ILLEGAL_WRITE_READONLY, traitName, className);
 
                 case BindStatus.FAILED_WRITEONLY:

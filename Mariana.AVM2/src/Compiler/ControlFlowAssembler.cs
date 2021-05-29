@@ -727,7 +727,7 @@ namespace Mariana.AVM2.Compiler {
             // modifications to accommodate exception handlers ("catch" nodes).
 
             // We don't have to explicitly compute the IDOMs of catch nodes, because
-            // they are by definition the virtual "start" node (whch is also the IDOM
+            // they are by definition the virtual "start" node (which is also the IDOM
             // of the first basic block)
 
             var blocks = m_compilation.getBasicBlocks();
@@ -743,20 +743,20 @@ namespace Mariana.AVM2.Compiler {
                     ref BasicBlock block = ref blocks[rpo[i]];
                     ReadOnlySpan<CFGNodeRef> entryPoints = cfgNodeRefArrayPool.getSpan(block.entryPoints);
 
-                    CFGNodeRef idom = entryPoints[0];
+                    CFGNodeRef immediateDominator = entryPoints[0];
 
                     for (int j = 1; j < entryPoints.Length; j++) {
                         CFGNodeRef node = entryPoints[j];
 
                         if (node.isStart) {
-                            idom = CFGNodeRef.start;
+                            immediateDominator = CFGNodeRef.start;
                             continue;
                         }
 
                         if (node.isBlock && (blocks[node.id].flags & BasicBlockFlags.VISITED) == 0)
                             continue;
 
-                        CFGNodeRef node2 = idom;
+                        CFGNodeRef node2 = immediateDominator;
                         while (node != node2) {
                             while (_compareNodesPostOrder(node, node2) < 0)
                                 node = node.isBlock ? blocks[node.id].immediateDominator : CFGNodeRef.start;
@@ -765,12 +765,12 @@ namespace Mariana.AVM2.Compiler {
                                 node2 = node2.isBlock ? blocks[node2.id].immediateDominator : CFGNodeRef.start;
                         }
 
-                        idom = node;
+                        immediateDominator = node;
                     }
 
-                    if ((block.flags & BasicBlockFlags.VISITED) == 0 || block.immediateDominator != idom) {
+                    if ((block.flags & BasicBlockFlags.VISITED) == 0 || block.immediateDominator != immediateDominator) {
                         block.flags |= BasicBlockFlags.VISITED;
-                        block.immediateDominator = idom;
+                        block.immediateDominator = immediateDominator;
                         hasChanges = true;
                     }
                 }

@@ -109,7 +109,7 @@ namespace Mariana.AVM2.Core {
         public ASRegExp(string pattern, string flags = "") => _init(pattern, flags);
 
         /// <summary>
-        /// Initialises the RegExp object using the given pattern and flags.
+        /// Initializes the RegExp object using the given pattern and flags.
         /// </summary>
         /// <param name="pattern">The regular expression pattern string.</param>
         /// <param name="flags">The flags string of the regular expression.</param>

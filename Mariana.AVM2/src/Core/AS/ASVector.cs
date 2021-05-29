@@ -48,6 +48,7 @@ namespace Mariana.AVM2.Core {
     [AVM2ExportClassInternal(
         // ClassTag.VECTOR is added to instantiations by the class loader. We don't want it on the
         // Vector class itself!
+        // tag = ClassTag.VECTOR,
         hidesInheritedTraits = true
     )]
     public sealed class ASVector<T> : ASVectorAny {
@@ -229,7 +230,7 @@ namespace Mariana.AVM2.Core {
         /// <exception cref="AVM2Exception">
         /// <list type="bullet">
         /// <item>
-        /// <description>TypeError #1034: The source vector is null, or an error occured while converting one of the
+        /// <description>TypeError #1034: The source vector is null, or an error occurred while converting one of the
         /// source elements to the target type.</description>
         /// </item>
         /// </list>
@@ -1394,14 +1395,24 @@ namespace Mariana.AVM2.Core {
         /// an exception during the sort, the state of the Vector is undefined.
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        public new ASVector<T> sort(ASObject sortComparer = null) {
+        public new ASVector<T> sort(ASObject sortComparer) {
             if (sortComparer is ASFunction func) {
-                var functionComparer = GenericComparer<T>.getComparer(func, true);
-                Array.Sort(m_data, 0, m_length, functionComparer);
+                // The Array.Sort methods in corelib throws ArgumentException for some ill-behaved
+                // comparison functions, so use DataStructureUtil.sortSpan (which never throws)
+                // when we are given a user-provided comparator.
+
+                var compareDelegate = func.createDelegate<Comparison<T>>();
+                if (compareDelegate == null)
+                    compareDelegate = GenericComparer<T>.getComparer(func).Compare;
+
+                DataStructureUtil.sortSpan(asSpan(), compareDelegate);
                 return this;
             }
 
-            int flags = (sortComparer == null) ? 0 : (int)sortComparer;
+            if (!ASObject.AS_isNumeric(sortComparer))
+                throw ErrorHelper.createCastError(sortComparer, "Function");
+
+            int flags = (int)sortComparer;
 
             GenericComparerType comparerType;
             if ((flags & ASArray.NUMERIC) != 0)
@@ -1513,7 +1524,7 @@ namespace Mariana.AVM2.Core {
 
             if (m_data.Length - m_length < delta) {
                 // Not enough space in the array. Create a new one, and copy all existing elements
-                // upto but not including the startIndex index (elements after the new values will be copied
+                // until but not including the startIndex index (elements after the new values will be copied
                 // later)
                 newBackingArray = new T[DataStructureUtil.getNextArraySize(m_length, m_length + delta)];
                 _internalArrayCopy(m_data, 0, newBackingArray, 0, startIndex);

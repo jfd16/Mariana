@@ -12,10 +12,6 @@ namespace Mariana.AVM2.Compiler {
 
         private ABCParseOptions m_abcParseOptions;
 
-        private bool m_hideParentDomainDefinitions;
-
-        private bool m_failOnGlobalNameConflict;
-
         private bool m_emitPropertyDefs;
 
         private bool m_emitParamNames;
@@ -26,7 +22,11 @@ namespace Mariana.AVM2.Compiler {
 
         private bool m_useNativeDoubleToIntConversions;
 
-        private IntegerArithmeticMode m_integerArithmeticMode;
+        private IntegerArithmeticMode m_integerArithmeticMode = IntegerArithmeticMode.DEFAULT;
+
+        private AppDomainConflictResolution m_appDomainConflictResolution = AppDomainConflictResolution.USE_PARENT;
+
+        private ScriptInitializerRunMode m_scriptInitRunMode = ScriptInitializerRunMode.RUN_ENTRY_POINTS;
 
         private string m_emitAssemblyName;
 
@@ -67,39 +67,45 @@ namespace Mariana.AVM2.Compiler {
         }
 
         /// <summary>
-        /// If this is set to true, trait definitions from loaded ABC code are allowed to hide
-        /// definitions with the same name in an ancestor of the application domain into
-        /// which the code is loaded.
+        /// Specifies the action to be taken when an ABC file contains a global class or trait having
+        /// the same name as one that already exists in the application domain into which the script
+        /// is being loaded, or one of its ancestors.
         /// </summary>
-        /// <remarks>
-        /// <para>If hiding is disabled, and a script contains a definition whose name is the
-        /// same as one that is defined in an ancestor application domain, the definition from
-        /// the script is ignored and the one from the ancestor definition will be used, or
-        /// an exception is thrown (depending on the value of <see cref="failOnGlobalNameConflict"/>).</para>
-        /// <para>The default value is false.</para>
-        /// </remarks>
-        public bool hideParentDomainDefinitions {
-            get => m_hideParentDomainDefinitions;
-            set => m_hideParentDomainDefinitions = value;
+        ///
+        /// <remarks>The default value is <see cref="AppDomainConflictResolution.USE_PARENT"/>.</remarks>
+        ///
+        /// <exception cref="AVM2Exception">
+        /// ArgumentError #10061: The value being set to this property is not a valid value of the
+        /// <see cref="AppDomainConflictResolution"/> enumeration.
+        /// </exception>
+        public AppDomainConflictResolution appDomainConflictResolution {
+            get => m_appDomainConflictResolution;
+            set {
+                if (value > AppDomainConflictResolution.FAIL)
+                    throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_OUT_OF_RANGE, nameof(value));
+                m_appDomainConflictResolution = value;
+            }
         }
 
         /// <summary>
-        /// If this is set to true, an exception is thrown when a script attempts to define a
-        /// global trait with the same name as an existing one in the application domain in
-        /// which the script is being loaded.
+        /// Specifies whether script initializers are to be run after ABC files are compiled,
+        /// when the <see cref="ScriptLoader.finishCompilation" qualifyHint="true"/> method is
+        /// called.
         /// </summary>
-        /// <remarks>
-        /// Enabling this option will result in a script failing to compile if it defines a global
-        /// trait with the same name as one that already exists in the application domain in which
-        /// the script is being loaded, or if <see cref="hideParentDomainDefinitions"/> is false,
-        /// in any of the application domain's ancestors. This includes the case when a script defines
-        /// two or more global traits with the same name. With this option set to false, if a script
-        /// defines a global trait having the same name as an existing one, that trait will be ignored
-        /// and the trait that already exists will be used.
-        /// </remarks>
-        public bool failOnGlobalNameConflict {
-            get => m_failOnGlobalNameConflict;
-            set => m_failOnGlobalNameConflict = value;
+        ///
+        /// <remarks>The default value is <see cref="ScriptInitializerRunMode.RUN_ENTRY_POINTS"/>.</remarks>
+        ///
+        /// <exception cref="AVM2Exception">
+        /// ArgumentError #10061: The value being set to this property is not a valid value of the
+        /// <see cref="ScriptInitializerRunMode"/> enumeration.
+        /// </exception>
+        public ScriptInitializerRunMode scriptInitializerRunMode {
+            get => m_scriptInitRunMode;
+            set {
+                if (value > ScriptInitializerRunMode.RUN_ALL)
+                    throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_OUT_OF_RANGE, nameof(value));
+                m_scriptInitRunMode = value;
+            }
         }
 
         /// <summary>

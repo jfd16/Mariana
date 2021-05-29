@@ -59,7 +59,7 @@ namespace Mariana.AVM2.Compiler {
     internal enum ResolvedPropertyKind : byte {
 
         /// <summary>
-        /// Used by the compiler during resoultion to indicate that property resolution information is
+        /// Used by the compiler during resolution to indicate that property resolution information is
         /// not known yet.
         /// </summary>
         UNKNOWN,

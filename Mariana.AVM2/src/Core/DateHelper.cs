@@ -430,7 +430,7 @@ namespace Mariana.AVM2.Core {
 
                 // Check for two special cases. In one case, the starting value of the rule's accepted range
                 // is the minimum possible date, and in this case the rule should be considered for all dates
-                // beyond it as well (upto the minimum possible value supported by the AS3 Date class).
+                // beyond it as well (until the minimum possible value supported by the AS3 Date class).
                 // In the other case, the end value of the accepted range for the rule is the maximum possible,
                 // and such rules are considered for all dates beyond that date as well.
 
@@ -509,13 +509,13 @@ namespace Mariana.AVM2.Core {
 
             /// <summary>
             /// A <see cref="DSTTransition"/> that represents the when the transition from standard to daylight
-            /// time occues.
+            /// time occurs.
             /// </summary>
             public readonly DSTTransition daylightStart;
 
             /// <summary>
             /// A <see cref="DSTTransition"/> that represents the when the transition from daylight to standard
-            /// time occues.
+            /// time occurs.
             /// </summary>
             public readonly DSTTransition daylightEnd;
 
@@ -554,11 +554,11 @@ namespace Mariana.AVM2.Core {
             public static DSTTransition createAbsolute(long nonLeapYearOffset) => new DSTTransition(nonLeapYearOffset);
 
             /// <summary>
-            /// Creates a transition rule based on an occurence of a particular day of the week in a month.
+            /// Creates a transition rule based on an occurrence of a particular day of the week in a month.
             /// </summary>
             /// <param name="month">The month (zero-based).</param>
-            /// <param name="weekOfMonth">The occurence of the given day of the week in the month
-            /// (zero-based). A value of 4 indicates that the transition occurs on the last occurence
+            /// <param name="weekOfMonth">The occurrence of the given day of the week in the month
+            /// (zero-based). A value of 4 indicates that the transition occurs on the last occurrence
             /// of the week day in the month.</param>
             /// <param name="dayOfWeek">The day of the week (zero-based).</param>
             /// <param name="timeOfDay">The time of the day (in milliseconds).</param>
@@ -606,7 +606,7 @@ namespace Mariana.AVM2.Core {
                         weekDayOffset = 7 - monthStartWeekDay + dayOfWeek;
 
                     if (weekOfMonth == 4) {
-                        // A weekOfMonth of 4 is a special value, which indicates the last occurence
+                        // A weekOfMonth of 4 is a special value, which indicates the last occurrence
                         // (not necessarily the fifth) of the given day of the week in the month.
                         int nextMonthOffset = (month == 11)
                             ? (isLeap ? 366 : 365)

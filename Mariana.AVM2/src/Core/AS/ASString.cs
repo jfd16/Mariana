@@ -708,7 +708,7 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Returns the index of the first occurence of the string <paramref name="searchStr"/> in
+        /// Returns the index of the first occurrence of the string <paramref name="searchStr"/> in
         /// <paramref name="s"/> at or after <paramref name="startIndex"/>, or -1 if
         /// <paramref name="searchStr"/> is not found in <paramref name="s"/>.
         /// </summary>
@@ -741,7 +741,7 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Returns the index of the last occurence of the string <paramref name="searchStr"/> in
+        /// Returns the index of the last occurrence of the string <paramref name="searchStr"/> in
         /// <paramref name="s"/> at or before <paramref name="startIndex"/>, or -1 if
         /// <paramref name="searchStr"/> is not found in <paramref name="s"/>.
         /// </summary>

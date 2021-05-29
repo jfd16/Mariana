@@ -1,7 +1,7 @@
 namespace Mariana.AVM2.Compiler {
 
     /// <summary>
-    /// Uesd by the compiler to represent the type of a comparison operation to be
+    /// Used by the compiler to represent the type of a comparison operation to be
     /// performed with respect to the types of its operands.
     /// </summary>
     internal enum ComparisonType : byte {

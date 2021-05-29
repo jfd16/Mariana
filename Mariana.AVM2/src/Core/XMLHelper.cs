@@ -47,7 +47,7 @@ namespace Mariana.AVM2.Core {
                     }
                     else {
                         char trail = span[i + 1];
-                        // XML allows code points outside the BMP upto 0xEFFFF, which means that
+                        // XML allows code points outside the BMP up to 0xEFFFF, which means that
                         // the upper 3 bits of the code point before the 0x10000 bias is added
                         // must not be all 1s.
                         isValid = (trail & 0xFC00) == 0xDC00 && (ch & 0x380) != 0x380;

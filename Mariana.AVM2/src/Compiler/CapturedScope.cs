@@ -253,7 +253,7 @@ namespace Mariana.AVM2.Compiler {
         /// reusing an existing container if possible.
         /// </summary>
         /// <param name="key">The cache key for the container.</param>
-        /// <returns>A <see cref="CapturedScopeContainerType"/> reprsenting the container type.</returns>
+        /// <returns>A <see cref="CapturedScopeContainerType"/> representing the container type.</returns>
         private CapturedScopeContainerType _getContainer(in _Key key) {
             CapturedScopeContainerType container;
 

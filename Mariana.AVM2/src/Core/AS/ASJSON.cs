@@ -504,7 +504,7 @@ namespace Mariana.AVM2.Core {
                 // - Leading zeroes
                 // - Decimal point at the beginning (e.g. ".2")
                 // - Positive sign
-                // - Infinity/NaN (A number whose magintude is greater than the maximum of the
+                // - Infinity/NaN (A number whose magnitude is greater than the maximum of the
                 //   Number type is allowed though, and is replaced with an infinity).
                 // There is no need to check all of these conditions, as this function is called
                 // only when the character at the current position is a digit or a negative

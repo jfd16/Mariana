@@ -106,7 +106,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="receiver">The receiver of the call.</param>
         /// <param name="args">The arguments passed to the call.</param>
         /// <param name="result">The return value of the call.</param>
-        /// <returns>True, if the call was successsful, otherwise false.</returns>
+        /// <returns>True, if the call was successful, otherwise false.</returns>
         public override bool AS_tryInvoke(ASAny receiver, ReadOnlySpan<ASAny> args, out ASAny result) {
             result = default(ASAny);
             return true;
@@ -117,14 +117,14 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="args">The arguments passed to the call.</param>
         /// <param name="result">The object created by the constructor call.</param>
-        /// <returns>True, if the call was successsful, otherwise false.</returns>
+        /// <returns>True, if the call was successful, otherwise false.</returns>
         ///
         /// <remarks>
         /// <para>
         /// Invoking a Function object as a constructor will create a new object, set its prototype
         /// chain to the prototype of this Function instance, and call the function with the new
         /// object as the receiver. If the function does not return a value (or returns undefined),
-        /// the contructor invocation returns the created object.
+        /// the constructor invocation returns the created object.
         /// </para>
         /// <para>This method always returns false if called on a method closure; Method closures
         /// cannot be used as constructors.</para>
@@ -142,7 +142,7 @@ namespace Mariana.AVM2.Core {
         /// and the stored receiver is always used.</param>
         /// <param name="args">The arguments of the function call.</param>
         /// <returns>The return value of the function call.</returns>
-        [AVM2ExportTrait]
+        [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
         public ASAny call(ASAny receiver = default, RestParam args = default) =>
             AS_invoke(receiver, args.getSpan());
@@ -158,7 +158,7 @@ namespace Mariana.AVM2.Core {
         /// arguments are passed, i.e. it is equivalent to passing an empty array.</param>
         ///
         /// <returns>The return value of the function call.</returns>
-        [AVM2ExportTrait]
+        [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
         public ASAny apply(ASAny receiver, ASArray argArray) {
             ASAny[] arr = (argArray == null) ? Array.Empty<ASAny>() : argArray.toTypedArray<ASAny>();
@@ -179,7 +179,7 @@ namespace Mariana.AVM2.Core {
         public new string AS_toString() => "function Function() {}";
 
         /// <summary>
-        /// Creates an empty funtion and returns it.
+        /// Creates an empty function and returns it.
         /// </summary>
         /// <returns>An empty function.</returns>
         /// <remarks>

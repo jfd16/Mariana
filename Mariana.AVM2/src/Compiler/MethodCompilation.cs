@@ -824,7 +824,7 @@ namespace Mariana.AVM2.Compiler {
         /// Allocates a <see cref="DataNode"/> instance in this compilation.
         /// </summary>
         /// <returns>A reference to the allocated <see cref="DataNode"/>. The reference can
-        /// be retreived later by passing the node's index (available in the
+        /// be retrieved later by passing the node's index (available in the
         /// <see cref="DataNode.id"/> field) to <see cref="getDataNode"/>.</returns>
         /// <remarks>
         /// Calling this method may invalidate references to existing nodes, in which case new
@@ -842,7 +842,7 @@ namespace Mariana.AVM2.Compiler {
         /// Allocates a <see cref="ResolvedProperty"/> instance in this compilation.
         /// </summary>
         /// <returns>A reference to the allocated <see cref="ResolvedProperty"/>. The reference can
-        /// be retreived later by passing the index of the allocated instance (available in the
+        /// be retrieved later by passing the index of the allocated instance (available in the
         /// <see cref="ResolvedProperty.id"/> field) to <see cref="getResolvedProperty"/>.</returns>
         /// <remarks>
         /// Calling this method may invalidate references to existing <see cref="ResolvedProperty"/>
@@ -1013,7 +1013,7 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         /// <returns>An <see cref="AVM2Exception"/> instance that can be thrown.</returns>
         /// <param name="errCode">The error code.</param>
-        /// <param name="instrId">The index of the instruction at which the error occured. For error
+        /// <param name="instrId">The index of the instruction at which the error occurred. For error
         /// codes that do not include an instruction byte offset, set this to -1.</param>
         /// <param name="args">The arguments for a formatted error message. This must not include the
         /// method name or instruction offset, which are added by this method.</param>

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using Mariana.AVM2.Native;
+using Mariana.Common;
 
 namespace Mariana.AVM2.Core {
 
@@ -152,6 +153,30 @@ namespace Mariana.AVM2.Core {
             private readonly IComparer<ASAny> m_baseComparer;
             public ArrayValueComparer(IComparer<ASAny> baseComparer) => m_baseComparer = baseComparer;
             public int Compare(Value x, Value y) => m_baseComparer.Compare(x.toAny(), y.toAny());
+        }
+
+        /// <summary>
+        /// This is used for the Array.sort method with a user provided compare function.
+        /// </summary>
+        private class ArrayValueComparerWithUserFunc {
+            private readonly ASFunction m_func;
+            private readonly ASAny[] m_callArgs = new ASAny[2];
+            private readonly Value[] m_indexArray;
+
+            public ArrayValueComparerWithUserFunc(ASFunction compareFunc, Value[] indexArray = null) {
+                m_func = compareFunc;
+                m_indexArray = indexArray;
+            }
+
+            public int compareValues(Value x, Value y) {
+                m_callArgs[0] = x.toAny();
+                m_callArgs[1] = y.toAny();
+
+                double result = (double)m_func.AS_invoke(ASAny.@null, m_callArgs);
+                return (result > 0) ? 1 : ((result < 0) ? -1 : 0);
+            }
+
+            public int compareIndices(int x, int y) => compareValues(m_indexArray[x], m_indexArray[y]);
         }
 
         /// <summary>
@@ -933,7 +958,7 @@ namespace Mariana.AVM2.Core {
         /// <typeparam name="T">The type of the array to return.</typeparam>
         /// <returns>A typed array.</returns>
         /// <remarks>
-        /// If the length of the array is greater than 2^31-1, only elements upto that index will be
+        /// If the length of the array is greater than 2^31-1, only elements until that index will be
         /// included in the returned array.
         /// </remarks>
         public T[] toTypedArray<T>() {
@@ -2897,30 +2922,28 @@ namespace Mariana.AVM2.Core {
             int sortKeyCount = uniqueSort ? (int)m_length : sortArrayLength;
 
             if (compareFunc != null) {
-                IComparer<ASAny> comparer = GenericComparer<ASAny>.getComparer(compareFunc);
-                IComparer<Value> valueComparer = new ArrayValueComparer(comparer);
-                Value[] sortKeys = valuesForSort;
+                // The Array.Sort methods in corelib throws ArgumentException for some ill-behaved
+                // comparison functions, so use DataStructureUtil.sortSpan (which never throws)
+                // when we are given a user-provided comparator.
 
-                if (returnIndexedArray) {
-                    // We need to make a copy of the values array in two cases:
-                    // - When doing an "in-place" sort. sortKeys will be mutated, and if it refers to
-                    //   the backing storage of this instance, we don't want to mutate it.
-                    // - If the array contains undefined values or holes. In this case, doPreSortPartition
-                    //   may have rearranged the indices and we want the order in sortKeys to reflect that.
+                var comparer = new ArrayValueComparerWithUserFunc(compareFunc, valuesForSort);
 
-                    if (isSortInPlace || !_isDenseArrayWithoutEmptySlots() || sortArrayLength != sortArrAndUndefinedLength) {
-                        sortKeys = new Value[sortKeyCount];
-                        for (int i = 0; i < sortKeys.Length; i++)
-                            sortKeys[i] = valuesForSort[indexArray[i]];
+                if (returnIndexedArray)
+                    DataStructureUtil.sortSpan(indexArray.AsSpan(0, sortArrayLength), comparer.compareIndices);
+                else
+                    DataStructureUtil.sortSpan(valuesForSort.AsSpan(0, sortArrayLength), comparer.compareValues);
+
+                if (uniqueSort && sortKeyCount > 0) {
+                    Value prevValue = valuesForSort[returnIndexedArray ? indexArray[0] : 0];
+
+                    for (int i = 1; i < sortKeyCount; i++) {
+                        Value curValue = valuesForSort[returnIndexedArray ? indexArray[i] : i];
+                        if (comparer.compareValues(prevValue, curValue) == 0)
+                            return 0;
+
+                        prevValue = curValue;
                     }
-                    Array.Sort(sortKeys, indexArray, 0, sortArrayLength, valueComparer);
                 }
-                else {
-                    Array.Sort(sortKeys, 0, sortArrayLength, valueComparer);
-                }
-
-                if (uniqueSort && !_doUniqueSortCheck(sortKeys.AsSpan(0, sortKeyCount), valueComparer))
-                    return 0;
             }
             else if ((flags & NUMERIC) != 0) {
                 double[] keys = new double[sortKeyCount];
@@ -3585,7 +3608,7 @@ namespace Mariana.AVM2.Core {
                 for (int i = 0; i < values.Length; i++) {
                     ref Value val = ref values[i];
                     if (val.isEmpty) {
-                        // Holes in the returned array msut be filled with the prototype value, like in slice().
+                        // Holes in the returned array must be filled with the prototype value, like in slice().
                         // Also increment nonEmptyCount because the hole in this array will be filled with the
                         // argument value for its position.
                         spliceValues[i] = Value.fromAny(AS_getElement((uint)i + startIndex));

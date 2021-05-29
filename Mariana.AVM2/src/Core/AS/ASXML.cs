@@ -2172,7 +2172,7 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Normalises the child nodes of this node and all its descendants by removing empty text
+        /// Normalizes the child nodes of this node and all its descendants by removing empty text
         /// nodes and merging adjacent text nodes.
         /// </summary>
         /// <returns>This method always returns the instance on which it is called.</returns>

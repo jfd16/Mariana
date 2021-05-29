@@ -23,7 +23,7 @@ namespace Mariana.AVM2.Core {
     /// <para>
     /// Global traits can defined in an application domain can be accessed using
     /// methods such as <see cref="getGlobalTrait(in QName,Boolean)"/>. These methods search the domain
-    /// hierarchy from the domain on which the method is called upto the system domain.
+    /// hierarchy from the domain on which the method is called until the system domain.
     /// Some methods accept an additional argument that can be used to ignore the domain
     /// hierarchy and only search in the domain on which the method is called.
     /// </para>
@@ -688,7 +688,7 @@ namespace Mariana.AVM2.Core {
         /// <returns>A <see cref="Class"/> instance representing the loaded class.</returns>
         ///
         /// <remarks>
-        /// When a class is loaded, its ancestor class (from the parent class upto <see cref="ASObject"/>)
+        /// When a class is loaded, its ancestor class (from the parent class until <see cref="ASObject"/>)
         /// and all implemented interfaces that are declared as exported will be automatically loaded if
         /// they have not been loaded yet. Thus, when loading multiple classes, ensure that they are loaded
         /// in topological order (that is, base classes before derived classes and interfaces before their

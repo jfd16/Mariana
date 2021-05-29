@@ -197,15 +197,16 @@ namespace Mariana.Common {
         }
 
         /// <summary>
-        /// A comparer function used with the <see cref="sortSpan{T}"/> and <see cref="getSpanSortPermutation{T}"/>
-        /// methods.
+        /// A comparer function used with the <see cref="sortSpan{T}(Span{T}, SortComparerIn{T})"/>
+        /// and <see cref="getSpanSortPermutation{T}"/> methods. This takes the arguments as in-parameters
+        /// instead of value parameters and is suitable for large structs.
         /// </summary>
         /// <param name="x">The first argument.</param>
         /// <param name="y">The second argument.</param>
         /// <typeparam name="T">The type of the objects being compared.</typeparam>
         /// <returns>A negative value, zero or a positive value if <paramref name="x"/> is less than, equal
         /// to or greater than <paramref name="y"/> respectively.</returns>
-        public delegate int SortComparer<T>(in T x, in T y);
+        public delegate int SortComparerIn<T>(in T x, in T y);
 
         /// <summary>
         /// Sorts a span in place.
@@ -215,13 +216,73 @@ namespace Mariana.Common {
         /// <typeparam name="T">The element type of the span to sort.</typeparam>
         ///
         /// <exception cref="ArgumentNullException"><paramref name="comparer"/> is null.</exception>
-        public static void sortSpan<T>(Span<T> span, SortComparer<T> comparer) {
+        public static void sortSpan<T>(Span<T> span, Comparison<T> comparer) {
             if (comparer == null)
                 throw new ArgumentNullException(nameof(comparer));
 
             worker(span, comparer, ThreadStaticRandom.instance);
 
-            void worker(Span<T> _span, SortComparer<T> _comparer, Random rng) {
+            void worker(Span<T> _span, Comparison<T> _comparer, Random rng) {
+                void swap(ref T x, ref T y) => (x, y) = (y, x);
+
+                if (_span.Length <= 16) {
+                    // For small spans use insertion sort
+                    for (int i = 1; i < _span.Length; i++) {
+                        ref T y = ref _span[i];
+                        int j = i;
+
+                        while (j > 0) {
+                            ref T x = ref _span[--j];
+                            if (_comparer(x, y) > 0)
+                                swap(ref x, ref y);
+                            y = ref x;
+                        }
+                    }
+                }
+                else {
+                    // Use randomized quicksort for larger spans
+
+                    ref T pivot = ref _span[_span.Length - 1];
+                    int pivotIndex = rng.Next(_span.Length);
+
+                    if (pivotIndex != _span.Length - 1)
+                        swap(ref _span[pivotIndex], ref pivot);
+
+                    int j = 0;
+                    for (int i = 0; i < _span.Length - 1; i++) {
+                        ref T current = ref _span[i];
+                        if (_comparer(current, pivot) >= 0)
+                            continue;
+                        if (i != j)
+                            swap(ref current, ref _span[j]);
+                        j++;
+                    }
+
+                    worker(_span.Slice(0, j), _comparer, rng);
+
+                    if (j < _span.Length - 1) {
+                        swap(ref pivot, ref _span[j]);
+                        worker(_span.Slice(j + 1), _comparer, rng);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Sorts a span in place.
+        /// </summary>
+        /// <param name="span">The span to sort.</param>
+        /// <param name="comparer">A comparison function to use for sorting.</param>
+        /// <typeparam name="T">The element type of the span to sort.</typeparam>
+        ///
+        /// <exception cref="ArgumentNullException"><paramref name="comparer"/> is null.</exception>
+        public static void sortSpan<T>(Span<T> span, SortComparerIn<T> comparer) {
+            if (comparer == null)
+                throw new ArgumentNullException(nameof(comparer));
+
+            worker(span, comparer, ThreadStaticRandom.instance);
+
+            void worker(Span<T> _span, SortComparerIn<T> _comparer, Random rng) {
                 void swap(ref T x, ref T y) => (x, y) = (y, x);
 
                 if (_span.Length <= 16) {
@@ -280,7 +341,7 @@ namespace Mariana.Common {
         /// <exception cref="ArgumentNullException"><paramref name="comparer"/> is null.</exception>
         /// <exception cref="ArgumentException"><paramref name="permutation"/> does not have the same length
         /// as <paramref name="span"/>.</exception>
-        public static void getSpanSortPermutation<T>(ReadOnlySpan<T> span, Span<int> permutation, SortComparer<T> comparer) {
+        public static void getSpanSortPermutation<T>(ReadOnlySpan<T> span, Span<int> permutation, SortComparerIn<T> comparer) {
             if (comparer == null)
                 throw new ArgumentNullException(nameof(comparer));
             if (permutation.Length != span.Length)
@@ -291,7 +352,7 @@ namespace Mariana.Common {
 
             worker(span, permutation, comparer, ThreadStaticRandom.instance);
 
-            void worker(ReadOnlySpan<T> _span, Span<int> _perm, SortComparer<T> _comparer, Random rng) {
+            void worker(ReadOnlySpan<T> _span, Span<int> _perm, SortComparerIn<T> _comparer, Random rng) {
                 void swap(ref int x, ref int y) => (x, y) = (y, x);
 
                 if (_perm.Length <= 16) {

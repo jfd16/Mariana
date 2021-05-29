@@ -362,22 +362,28 @@ namespace Mariana.Common.Tests {
         [Theory]
         [MemberData(nameof(sortSpanTest_data))]
         public void sortSpanTest(int[] arr) {
-            const int REPS = 30;
             var freqTable = makeFrequencyTable(arr);
 
-            for (int i = 0; i < REPS; i++) {
-                int[] sortedArr = arr.AsSpan().ToArray();
-                DataStructureUtil.sortSpan(sortedArr, (in int x, in int y) => x.CompareTo(y));
+            run(arrToSort => DataStructureUtil.sortSpan(arrToSort, (in int x, in int y) => x.CompareTo(y)));
+            run(arrToSort => DataStructureUtil.sortSpan(arrToSort, (int x, int y) => x.CompareTo(y)));
 
-                for (int j = 0; j < sortedArr.Length - 1; j++)
-                    Assert.True(sortedArr[j] <= sortedArr[j + 1]);
+            void run(Action<int[]> sorter) {
+                const int REPS = 30;
 
-                var sortedFreqTable = makeFrequencyTable(sortedArr);
+                for (int i = 0; i < REPS; i++) {
+                    int[] sortedArr = arr.AsSpan().ToArray();
+                    sorter(sortedArr);
 
-                Assert.Equal(freqTable.Count, sortedFreqTable.Count);
-                foreach (var kv in freqTable) {
-                    Assert.True(sortedFreqTable.TryGetValue(kv.Key, out int f));
-                    Assert.Equal(kv.Value, f);
+                    for (int j = 0; j < sortedArr.Length - 1; j++)
+                        Assert.True(sortedArr[j] <= sortedArr[j + 1]);
+
+                    var sortedFreqTable = makeFrequencyTable(sortedArr);
+
+                    Assert.Equal(freqTable.Count, sortedFreqTable.Count);
+                    foreach (var kv in freqTable) {
+                        Assert.True(sortedFreqTable.TryGetValue(kv.Key, out int f));
+                        Assert.Equal(kv.Value, f);
+                    }
                 }
             }
 
@@ -393,7 +399,12 @@ namespace Mariana.Common.Tests {
 
         [Fact]
         public void sortSpanTest_invalidArguments() {
-            Assert.Throws<ArgumentNullException>(() => DataStructureUtil.sortSpan<int>(new[] {1, 2}, null));
+            Assert.Throws<ArgumentNullException>(
+                () => DataStructureUtil.sortSpan(new[] {1, 2}, (Comparison<int>)null)
+            );
+            Assert.Throws<ArgumentNullException>(
+                () => DataStructureUtil.sortSpan(new[] {1, 2}, (DataStructureUtil.SortComparerIn<int>)null)
+            );
         }
 
         [Theory]

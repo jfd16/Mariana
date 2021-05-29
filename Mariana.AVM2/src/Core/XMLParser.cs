@@ -895,7 +895,7 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Reads an end tag. This compeletes the element currently being proessed.
+        /// Reads an end tag. This completes the element currently being processed.
         /// </summary>
         private void _readEndTag() {
             if (m_parserStack.length == 0)
@@ -1141,7 +1141,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="code">The error code.</param>
         /// <param name="arg1">The first argument in the error message.</param>
         /// <param name="arg2">The second argument in the error message.</param>
-        /// <param name="line">The line number at which the error occured. If not set, the
+        /// <param name="line">The line number at which the error occurred. If not set, the
         /// current line number is used.</param>
         private AVM2Exception _error(ErrorCode code, string arg1 = null, string arg2 = null, int line = -1) {
             if (line == -1)

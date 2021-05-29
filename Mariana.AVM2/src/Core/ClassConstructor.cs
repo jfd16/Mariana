@@ -82,7 +82,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="parameters">An array of <see cref="MethodTraitParameter"/> instances
         /// representing the method's formal parameters.</param>
-        /// <param name="hasRest">True if the method acccepts a "rest" parameter.</param>
+        /// <param name="hasRest">True if the method accepts a "rest" parameter.</param>
         protected private void setSignature(MethodTraitParameter[] parameters, bool hasRest) {
             m_params = parameters;
             m_hasRest = hasRest;

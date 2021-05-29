@@ -799,7 +799,7 @@ namespace Mariana.AVM2.Compiler {
 
         private void _emitTrailer() {
             if (m_compilation.isAnyFlagSet(MethodCompilationFlags.READ_GLOBAL_MEMORY | MethodCompilationFlags.WRITE_GLOBAL_MEMORY)) {
-                // If there are global memory instructions, emit the rage check failure code at the end.
+                // If there are global memory instructions, emit the range check failure code at the end.
                 m_ilBuilder.markLabel(m_globalMemOutOfBoundsErrLabel);
                 m_ilBuilder.emit(ILOp.call, KnownMembers.createGlobalMemRangeCheckError);
                 m_ilBuilder.emit(ILOp.@throw);
@@ -1490,7 +1490,7 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode right = ref m_compilation.getDataNode(instr.data.dupOrSwap.nodeId2);
 
             if (((left.flags | right.flags) & DataNodeFlags.NO_PUSH) != 0)
-                // If any one node is marked as nopush then no need to swap.
+                // If any one node is marked as no-push then no need to swap.
                 return;
 
             var stashRight = _emitStashTopOfStack(ref right);
@@ -2970,7 +2970,7 @@ namespace Mariana.AVM2.Compiler {
             int argCount = instr.data.constructSuper.argCount;
             var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
 
-            if (!checkArgCoundValidAndEmitError())
+            if (!checkArgCountValidAndEmitError())
                 return;
 
             if (parentClass == s_objectClass) {
@@ -2990,7 +2990,7 @@ namespace Mariana.AVM2.Compiler {
                 ILEmitHelper.emitThrowError(m_ilBuilder, error.GetType(), (ErrorCode)error.errorID, error.message);
             }
 
-            bool checkArgCoundValidAndEmitError() {
+            bool checkArgCountValidAndEmitError() {
                 ClassConstructor ctor = parentClass.constructor;
                 if (ctor == null && parentClass != s_objectClass)
                     return true;
@@ -3216,6 +3216,9 @@ namespace Mariana.AVM2.Compiler {
                 if (staticInit != null)
                     _emitCallToMethod(staticInit, null, ReadOnlySpan<int>.Empty, noReturn: true);
             }
+
+            ref DataNode pushed = ref m_compilation.getDataNode(instr.stackPushedNodeId);
+            _emitPushConstantNode(ref pushed);
         }
 
         private void _visitNewFunction(ref Instruction instr) {
@@ -3333,7 +3336,7 @@ namespace Mariana.AVM2.Compiler {
                     break;
 
                 case ComparisonType.OBJ_REF:
-                    (ilOp, invIlOp) = isNegativeCompare(instr.opcode) ? (ILOp.beq, ILOp.bne_un) : (ILOp.bne_un, ILOp.beq);
+                    (ilOp, invIlOp) = isNegativeCompare(instr.opcode) ? (ILOp.bne_un, ILOp.beq) : (ILOp.beq, ILOp.bne_un);
                     break;
 
                 case ComparisonType.INT_ZERO_L:

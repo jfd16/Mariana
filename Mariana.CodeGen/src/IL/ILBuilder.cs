@@ -86,12 +86,11 @@ namespace Mariana.CodeGen.IL {
             }
         }
 
-        private static readonly DataStructureUtil.SortComparer<_ExceptionHandler> s_excHandlerSorter =
-            (in _ExceptionHandler h1, in _ExceptionHandler h2) => {
-                int tryEnd1 = h1.tryStart + h1.tryLength;
-                int tryEnd2 = h2.tryStart + h2.tryLength;
-                return (tryEnd1 == tryEnd2) ? 0 : ((tryEnd1 < tryEnd2) ? -1 : 1);
-            };
+        private static readonly Comparison<_ExceptionHandler> s_excHandlerSorter = (h1, h2) => {
+            int tryEnd1 = h1.tryStart + h1.tryLength;
+            int tryEnd2 = h2.tryStart + h2.tryLength;
+            return (tryEnd1 == tryEnd2) ? 0 : ((tryEnd1 < tryEnd2) ? -1 : 1);
+        };
 
         /// <summary>
         /// A token representing a label that can be used as a branch target in emitted code.

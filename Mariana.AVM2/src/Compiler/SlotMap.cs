@@ -22,7 +22,7 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         /// <param name="slotId">The slot index for the trait.</param>
         /// <param name="isStatic">True if the trait is static or global, false for instance traits.</param>
-        /// <returns>The dicitionary key corresponding to the given slot index.</returns>
+        /// <returns>The dictionary key corresponding to the given slot index.</returns>
         private static uint _keyForSlotId(int slotId, bool isStatic) =>
             (uint)(slotId - 1) << 2 | (isStatic ? KEY_STATIC_BIT : 0);
 
@@ -31,7 +31,7 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         /// <param name="dispId">The disp_id for the method.</param>
         /// <param name="isStatic">True if the method is static or global, false for instance method.</param>
-        /// <returns>The dicitionary key corresponding to the given disp_id.</returns>
+        /// <returns>The dictionary key corresponding to the given disp_id.</returns>
         private static uint _keyForDispId(int dispId, bool isStatic) =>
             (uint)(dispId - 1) << 2 | KEY_METHOD_BIT | (isStatic ? KEY_STATIC_BIT : 0);
 

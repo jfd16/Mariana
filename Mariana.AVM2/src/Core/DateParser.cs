@@ -237,7 +237,7 @@ namespace Mariana.AVM2.Core {
         private int m_timeZoneOffset;
 
         /// <summary>
-        /// Parses a date string and returns a timestsamp for the date using the convention followed
+        /// Parses a date string and returns a timestamp for the date using the convention followed
         /// by the <see cref="ASDate"/> class to represent dates internally.
         /// </summary>
         /// <param name="str">The date string to parse.</param>
@@ -259,7 +259,7 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Parses a date string and returns a timestsamp for the date using the convention followed
+        /// Parses a date string and returns a timestamp for the date using the convention followed
         /// by the <see cref="ASDate"/> class to represent dates internally.
         /// </summary>
         /// <param name="str">The date string to parse.</param>
@@ -742,7 +742,7 @@ namespace Mariana.AVM2.Core {
             else if (c == '.' || c == ':') {
                 // Number groups with colons and/or dots can have a maximum of four
                 // numbers, to represent millisecond-precise times. (Groups with
-                // slashes or dashes, on the other hand, can have only upto three
+                // slashes or dashes, on the other hand, can have only up to three
                 // numbers, since they are only used for dates)
 
                 if (_getLastCharFromBuffer() == '.') {

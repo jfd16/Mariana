@@ -321,7 +321,7 @@ namespace Mariana.AVM2.Core {
         /// </param>
         /// <param name="radix">The base in which the string must be interpreted. If this is
         /// zero (the default), base 10 will be used except when the string has the '0x' or '0X'
-        /// prefix, in which case base 16 is used. If this is noot zero, it must be between 2
+        /// prefix, in which case base 16 is used. If this is not zero, it must be between 2
         /// and 36 (inclusive).</param>
         ///
         /// <returns>The parsed integer as a 64-bit floating-point number. If <paramref name="str"/>
@@ -331,7 +331,7 @@ namespace Mariana.AVM2.Core {
         /// <remarks>
         /// <para>
         /// Leading spaces in the string are ignored. If the string contains a character that
-        /// is not a valid digit for the given radix, the prefix of the string upto and not
+        /// is not a valid digit for the given radix, the prefix of the string until and not
         /// including the first such character will be parsed.
         /// </para>
         /// <para>Integers outside the range of ±2^53 cannot be exactly represented; an approximate

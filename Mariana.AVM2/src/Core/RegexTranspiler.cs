@@ -1078,7 +1078,7 @@ namespace Mariana.AVM2.Core {
                         throw _error(Error.INVALID_GROUP_NAME);
 
                     if (m_groupCount == 999) {
-                        // Capturing groups (incuding named) are limited to 999 because the regex transpiler
+                        // Capturing groups (including named) are limited to 999 because the regex transpiler
                         // currently resolves backreferences of only up to three digits.
                         throw _error(Error.GROUP_LIMIT_EXCEEDED);
                     }

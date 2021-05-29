@@ -604,12 +604,12 @@ namespace Mariana.CodeGen {
         /// <param name="type">The type for which to create a signature.</param>
         /// <param name="handleGenerator">A handle generating function for obtaining handles of
         /// non-primitive class and value types. if this is null, only signatures of primitive types
-        /// and array/pointer/byref types derived from primitive types can be created.</param>
+        /// and array/pointer/by-ref types derived from primitive types can be created.</param>
         ///
         /// <returns>A <see cref="TypeSignature"/> representing the signature of <paramref name="type"/>.</returns>
         ///
         /// <exception cref="ArgumentNullException"><paramref name="handleGenerator"/> is null and
-        /// <paramref name="type"/> does not represent a primitive type, an array, pointer or byref
+        /// <paramref name="type"/> does not represent a primitive type, an array, pointer or by-ref
         /// type composed from primitive types, or a generic type or method parameter.</exception>
         public static TypeSignature fromType(Type type, Func<Type, EntityHandle> handleGenerator = null) {
             if (type.IsGenericParameter) {

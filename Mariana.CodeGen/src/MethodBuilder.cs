@@ -209,7 +209,7 @@ namespace Mariana.CodeGen {
         /// an abstract method.</exception>
         public void setMethodBody(ReadOnlySpan<byte> body, ReadOnlySpan<int> virtualTokenLocations = default) {
             if ((attributes & (MethodAttributes.Abstract | MethodAttributes.PinvokeImpl)) != 0)
-                throw new InvalidOperationException("Methods with the Abstract or PInvokeImpl flag cannt have bodies.");
+                throw new InvalidOperationException("Methods with the Abstract or PInvokeImpl flag cannot have bodies.");
 
             m_ilMethodBody = body.ToArray();
             m_ilCodeVirtualTokenLocations = virtualTokenLocations.ToArray();
@@ -228,7 +228,7 @@ namespace Mariana.CodeGen {
                 throw new ArgumentNullException(nameof(body));
 
             if ((attributes & (MethodAttributes.Abstract | MethodAttributes.PinvokeImpl)) != 0)
-                throw new InvalidOperationException("Methods with the Abstract or PInvokeImpl flag cannt have bodies.");
+                throw new InvalidOperationException("Methods with the Abstract or PInvokeImpl flag cannot have bodies.");
 
             m_ilMethodBody = body;
             m_ilCodeVirtualTokenLocations = null;

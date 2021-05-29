@@ -8,9 +8,8 @@
         "recommendations": [
             "ms-dotnettools.csharp",
             "tintoy.msbuild-project-tools",
-            "EditorConfig.EditorConfig",
-            "k--kato.docomment",
-            "bowlerhatllc.vscode-nextgenas",
+            "editorconfig.editorconfig",
+            "bowlerhatllc.vscode-nextgenas"
         ]
     },
     "settings": {

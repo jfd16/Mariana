@@ -58,6 +58,7 @@ namespace Mariana.AVM2.ABC {
         public ABCMultiname getParamTypeName(int index) {
             if ((uint)index >= (uint)m_paramTypeNames.Length)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_OUT_OF_RANGE, nameof(index));
+
             return m_paramTypeNames[index];
         }
 
@@ -70,8 +71,10 @@ namespace Mariana.AVM2.ABC {
         public string getParamName(int index) {
             if (m_paramNames == null)
                 return null;
+
             if ((uint)index >= (uint)m_paramNames.Length)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_OUT_OF_RANGE, nameof(index));
+
             return m_paramNames[index];
         }
 
@@ -83,8 +86,10 @@ namespace Mariana.AVM2.ABC {
         public bool isParamOptional(int index) {
             if ((uint)index >= (uint)m_paramTypeNames.Length)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_OUT_OF_RANGE, nameof(index));
+
             if (m_optionals == null)
                 return false;
+
             return index >= m_paramTypeNames.Length - m_optionals.Length;
         }
 
@@ -98,11 +103,14 @@ namespace Mariana.AVM2.ABC {
         public ASAny getParamDefaultValue(int index) {
             if ((uint)index >= (uint)m_paramTypeNames.Length)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_OUT_OF_RANGE, nameof(index));
+
             if (m_optionals == null)
                 return ASAny.undefined;
+
             int optIndex = index - (m_paramTypeNames.Length - m_optionals.Length);
             if (optIndex < 0)
                 return ASAny.undefined;
+
             return m_optionals[optIndex];
         }
 

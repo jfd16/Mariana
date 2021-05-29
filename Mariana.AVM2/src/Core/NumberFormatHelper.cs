@@ -282,7 +282,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="num">The number for which to create the string representation.</param>
         /// <param name="precision">The number of decimal places in the mantissa of the scientific
         /// notation string. Must be between 0 and 20.</param>
-        /// <returns>The string representaion of <paramref name="num"/> in scientific
+        /// <returns>The string representation of <paramref name="num"/> in scientific
         /// notation with the number of decimal places given by <paramref name="precision"/>.</returns>
         public static string doubleToStringExpNotation(double num, int precision) {
             if (Double.IsNaN(num))
@@ -319,7 +319,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="num">The number for which to create the string representation.</param>
         /// <param name="precision">The number of significant digits. Must be between 1 and 21.</param>
-        /// <returns>The string representaion of <paramref name="num"/> with the number
+        /// <returns>The string representation of <paramref name="num"/> with the number
         /// of significant digits given by <paramref name="precision"/>. If the absolute value of
         /// <paramref name="num"/> is greater than or equal to 10^<paramref name="precision"/>
         /// then scientific notation is used, otherwise fixed-point notation is used.</returns>
@@ -420,7 +420,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="num">The number for which to create the string representation.</param>
         /// <param name="precision">The number of decimal places. Must be between 0 and 21.</param>
-        /// <returns>The string representaion of <paramref name="num"/> in fixed point
+        /// <returns>The string representation of <paramref name="num"/> in fixed point
         /// notation with the number of decimal places given by <paramref name="precision"/>.</returns>
         public static string doubleToStringFixedNotation(double num, int precision) {
             if (Double.IsNaN(num))
@@ -501,7 +501,7 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Returns a string representation of an integral floating-point number in the given base.
         /// </summary>
-        /// <param name="num">The number from which to create the string reprsentation.</param>
+        /// <param name="num">The number from which to create the string representation.</param>
         /// <param name="radix">The base. This must be between 2 and 36.</param>
         /// <returns>The string representation of the number in the given base.</returns>
         public static string doubleIntegerToStringRadix(double num, int radix) {

@@ -1829,13 +1829,16 @@ namespace Mariana.AVM2.Core {
         public static bool AS_hasnext2(ref ASObject obj, ref int index) {
             if (obj == null)
                 return false;
+
             index = obj.AS_nextIndex(index);
             while (index == 0) {
                 obj = obj.AS_proto;
                 if (obj == null)
                     return false;
+
                 index = obj.AS_nextIndex(0);
             }
+
             return true;
         }
 

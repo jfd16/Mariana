@@ -115,7 +115,7 @@ namespace Mariana.CodeGen {
         /// Returns a handle for the given byte array in the blob heap. If the blob does not
         /// exist in the heap, a new blob heap entry is created.
         /// </summary>
-        /// <param name="blob">The byte array whose blop heap handle is to be returned.</param>
+        /// <param name="blob">The byte array whose blob heap handle is to be returned.</param>
         internal BlobHandle getBlobHandle(byte[] blob) {
             lock (m_contextLock)
                 return _getBlobHandleInternal(blob);
@@ -329,7 +329,7 @@ namespace Mariana.CodeGen {
                     : instantiatedType;
 
                 StringHandle name = _getStringHandleInternal(memberInfo.Name);
-                BlobHandle signature = _getMemberInfoSiguatureBlob(memberInfo);
+                BlobHandle signature = _getMemberInfoSignatureBlob(memberInfo);
 
                 handle = m_metadataBuilder.AddMemberReference(declClass, name, signature);
 
@@ -345,7 +345,7 @@ namespace Mariana.CodeGen {
             return handle;
         }
 
-        private BlobHandle _getMemberInfoSiguatureBlob(MemberInfo memberInfo) {
+        private BlobHandle _getMemberInfoSignatureBlob(MemberInfo memberInfo) {
             Type declaringType = memberInfo.DeclaringType;
 
             if (declaringType.IsConstructedGenericType) {

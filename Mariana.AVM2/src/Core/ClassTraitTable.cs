@@ -219,7 +219,7 @@ namespace Mariana.AVM2.Core {
             if (m_isCorrupted)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__CLASS_TRAIT_TABLE_CORRUPTED);
 
-            if (m_count == 0 || localName == null || (!isStatic && m_linksForInstQualified == null)) {
+            if (m_count == 0 || nsSet.count == 0 || localName == null || (!isStatic && m_linksForInstQualified == null)) {
                 trait = null;
                 return BindStatus.NOT_FOUND;
             }

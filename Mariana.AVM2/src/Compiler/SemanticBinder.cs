@@ -2055,15 +2055,25 @@ namespace Mariana.AVM2.Compiler {
                 resolvedProp.propKind = ResolvedPropertyKind.RUNTIME;
             }
             else if (obj.dataType == DataNodeType.GLOBAL) {
-                // Search the global scope (i.e. the application domain)
-                var domain = m_compilation.applicationDomain;
-
+                // Search the global scope.
                 Trait trait;
-                BindStatus status = (nsSet != null)
-                    ? domain.lookupGlobalTrait(localName, nsSet.GetValueOrDefault(), false, out trait)
-                    : domain.lookupGlobalTrait(new QName(ns.GetValueOrDefault(), localName), false, out trait);
 
-                if (status == BindStatus.SUCCESS) {
+                using (var context = m_compilation.getContext()) {
+                    if (!multiname.hasRuntimeArguments) {
+                        // If there are no runtime multiname arguments, lookup directly from the multiname to
+                        // take advantage of internal caching done by the context.
+                        trait = context.value.getGlobalTraitByMultiname(multiname, throwOnAmbiguousMatch: false);
+                    }
+                    else if (nsSet != null) {
+                        trait = context.value.getGlobalTraitByMultiname(
+                            localName, nsSet.GetValueOrDefault(), throwOnAmbiguousMatch: false);
+                    }
+                    else {
+                        trait = context.value.getGlobalTraitByQName(new QName(ns.GetValueOrDefault(), localName));
+                    }
+                }
+
+                if (trait != null) {
                     resolvedProp.propKind = ResolvedPropertyKind.TRAIT;
                     resolvedProp.propInfo = trait;
                 }
@@ -2251,17 +2261,18 @@ namespace Mariana.AVM2.Compiler {
             }
 
             bool search(
+                in ABCMultiname _multiname,
                 string _localName,
                 in Namespace? _ns,
                 in NamespaceSet? _nsSet,
-                DataNodeType type,
+                DataNodeType nodeType,
                 in DataNodeConstant constant,
                 bool isWith,
                 bool lateMultinameBinding,
                 ref ResolvedProperty _resolvedProp,
                 out bool deferToRuntime
             ) {
-                _resolvedProp.objectType = type;
+                _resolvedProp.objectType = nodeType;
                 _resolvedProp.objectClass = null;
 
                 deferToRuntime = false;
@@ -2271,16 +2282,26 @@ namespace Mariana.AVM2.Compiler {
                     return true;
                 }
 
-                if (type == DataNodeType.GLOBAL) {
-                    // Search the global scope (i.e. the application domain)
-                    var domain = m_compilation.applicationDomain;
-
+                if (nodeType == DataNodeType.GLOBAL) {
+                    // Search the global scope.
                     Trait trait;
-                    BindStatus status = (_nsSet != null)
-                        ? domain.lookupGlobalTrait(_localName, _nsSet.GetValueOrDefault(), false, out trait)
-                        : domain.lookupGlobalTrait(new QName(_ns.GetValueOrDefault(), _localName), false, out trait);
 
-                    if (status == BindStatus.SUCCESS) {
+                    using (var context = m_compilation.getContext()) {
+                    if (!_multiname.hasRuntimeArguments) {
+                            // If there are no runtime multiname arguments, lookup directly from the multiname to
+                            // take advantage of internal caching done by the context.
+                            trait = context.value.getGlobalTraitByMultiname(_multiname, throwOnAmbiguousMatch: false);
+                        }
+                        else if (_nsSet != null) {
+                            trait = context.value.getGlobalTraitByMultiname(
+                                _localName, _nsSet.GetValueOrDefault(), throwOnAmbiguousMatch: false);
+                        }
+                        else {
+                            trait = context.value.getGlobalTraitByQName(new QName(_ns.GetValueOrDefault(), _localName));
+                        }
+                    }
+
+                    if (trait != null) {
                         _resolvedProp.propKind = ResolvedPropertyKind.TRAIT;
                         _resolvedProp.propInfo = trait;
                     }
@@ -2295,16 +2316,16 @@ namespace Mariana.AVM2.Compiler {
                 }
                 else {
                     Trait trait = null;
-                    Class klass;
+                    Class nodeClass;
 
-                    if (type == DataNodeType.OBJECT)
-                        klass = constant.classValue;
-                    else if (type == DataNodeType.THIS)
-                        klass = m_compilation.declaringClass;
+                    if (nodeType == DataNodeType.OBJECT)
+                        nodeClass = constant.classValue;
+                    else if (nodeType == DataNodeType.THIS)
+                        nodeClass = m_compilation.declaringClass;
                     else
-                        klass = getClass(type);
+                        nodeClass = getClass(nodeType);
 
-                    if (type == DataNodeType.CLASS) {
+                    if (nodeType == DataNodeType.CLASS) {
                         _resolvedProp.objectClass = constant.classValue;
 
                         // If the object is a class constant, check for static traits on the class.
@@ -2319,14 +2340,14 @@ namespace Mariana.AVM2.Compiler {
                     }
 
                     if (trait == null) {
-                        if (type == DataNodeType.OBJECT)
-                            _resolvedProp.objectClass = klass;
+                        if (nodeType == DataNodeType.OBJECT)
+                            _resolvedProp.objectClass = nodeClass;
 
                         Trait instanceTrait;
 
                         BindStatus status = (_nsSet != null)
-                            ? klass.lookupTrait(_localName, _nsSet.GetValueOrDefault(), false, out instanceTrait)
-                            : klass.lookupTrait(new QName(_ns.GetValueOrDefault(), _localName), false, out instanceTrait);
+                            ? nodeClass.lookupTrait(_localName, _nsSet.GetValueOrDefault(), false, out instanceTrait)
+                            : nodeClass.lookupTrait(new QName(_ns.GetValueOrDefault(), _localName), false, out instanceTrait);
 
                         if (status == BindStatus.SUCCESS)
                             trait = instanceTrait;
@@ -2343,7 +2364,7 @@ namespace Mariana.AVM2.Compiler {
                     // means that the lookup must be deferred to runtime unless it is known that the object
                     // can never have dynamic properties, i.e. its class is non-dynamic and final.
 
-                    if (isWith && (klass.isDynamic || !klass.isFinal)) {
+                    if (isWith && (nodeClass.isDynamic || !nodeClass.isFinal)) {
                         setResolvedAtRuntime(ref _resolvedProp);
                         deferToRuntime = true;
                         return true;
@@ -2366,6 +2387,7 @@ namespace Mariana.AVM2.Compiler {
             for (int i = curScopeStack.Length - 1; i >= 0; i--) {
                 ref DataNode node = ref dataNodes[curScopeStack[i]];
                 bool stopSearch = search(
+                    multiname,
                     localName,
                     ns,
                     nsSet,
@@ -2391,6 +2413,7 @@ namespace Mariana.AVM2.Compiler {
                 var constant = (captured.objClass != null) ? new DataNodeConstant(captured.objClass) : default;
 
                 bool stopSearch = search(
+                    multiname,
                     localName,
                     ns,
                     nsSet,
@@ -2513,9 +2536,10 @@ namespace Mariana.AVM2.Compiler {
         /// is valid in the current context.</returns>
         private bool _isTraitAssignmentValid(Trait trait, ref DataNode value, bool isInit) {
             switch (trait.traitType) {
-                case TraitType.FIELD:
+                case TraitType.FIELD: {
                     if (!((FieldTrait)trait).isReadOnly)
                         return true;
+
                     if (!isInit)
                         return false;
 
@@ -2534,17 +2558,36 @@ namespace Mariana.AVM2.Compiler {
                         return m_compilation.getCurrentConstructor() != null
                             && trait.declaringClass == m_compilation.declaringClass;
                     }
+                }
 
                 case TraitType.CLASS: {
-                    if (!m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCRIPT_INIT)
-                        || value.dataType != DataNodeType.CLASS
-                        || value.constant.classValue != trait)
+                    if (!isInit
+                        || !m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCRIPT_INIT)
+                        || value.dataType != DataNodeType.CLASS)
                     {
                         return false;
                     }
 
-                    using (var lockedContext = m_compilation.getContext())
-                        return lockedContext.value.getExportingScript(trait) == m_compilation.currentScriptInfo;
+                    Class classBeingAssigned = value.constant.classValue;
+
+                    if (classBeingAssigned == trait) {
+                        using (var lockedContext = m_compilation.getContext())
+                            return lockedContext.value.getExportingScript(trait) == m_compilation.currentScriptInfo;
+                    }
+
+                    // If a class constant is being assigned to a different trait via initproperty,
+                    // it may be the case that the resolved trait is from the parent application domain
+                    // and it has the same name as the class, and this prevented the class from being
+                    // registered in the script's application domain if appDomainConflictResolution is
+                    // set to USE_PARENT. In that case, we have to fail silently.
+
+                    if (m_compilation.compileOptions.appDomainConflictResolution != AppDomainConflictResolution.USE_PARENT)
+                        return false;
+
+                    if (trait == m_compilation.applicationDomain.parent.getGlobalTrait(classBeingAssigned.name))
+                        return true;
+
+                    return false;
                 }
 
                 case TraitType.CONSTANT:

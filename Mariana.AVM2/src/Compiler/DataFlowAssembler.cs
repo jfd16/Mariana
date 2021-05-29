@@ -396,11 +396,11 @@ namespace Mariana.AVM2.Compiler {
                 if (entryPoints.Length < 2)
                     continue;
 
-                CFGNodeRef idom = m_compilation.getImmediateDominator(CFGNodeRef.forBasicBlock(block.id));
+                CFGNodeRef immediateDominator = m_compilation.getImmediateDominator(CFGNodeRef.forBasicBlock(block.id));
 
                 for (int j = 0; j < entryPoints.Length; j++) {
                     CFGNodeRef runner = entryPoints[j];
-                    while (runner != idom) {
+                    while (runner != immediateDominator) {
                         Debug.Assert(!runner.isStart);
 
                         ref uint df = ref (runner.isBlock ? ref blockNodeDFs[runner.id] : ref catchNodeDFs[runner.id]);
@@ -539,11 +539,11 @@ namespace Mariana.AVM2.Compiler {
                 if (entryPoints.Length < 2)
                     continue;
 
-                CFGNodeRef idom = m_compilation.getImmediateDominator(CFGNodeRef.forBasicBlock(block.id));
+                CFGNodeRef immediateDominator = m_compilation.getImmediateDominator(CFGNodeRef.forBasicBlock(block.id));
 
                 for (int j = 0; j < entryPoints.Length; j++) {
                     CFGNodeRef runner = entryPoints[j];
-                    while (runner != idom) {
+                    while (runner != immediateDominator) {
                         Debug.Assert(!runner.isStart);
 
                         ref var df = ref (runner.isBlock ? ref blockNodeDFs[runner.id] : ref catchNodeDFs[runner.id]);

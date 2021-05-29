@@ -143,7 +143,10 @@ namespace Mariana.AVM2.Core {
             BindStatus bindStatus = tryGetValue(target, out ASAny value);
             if (bindStatus != BindStatus.SUCCESS) {
                 throw ErrorHelper.createBindingError(
-                    (m_declaringClass == null) ? "global" : m_declaringClass.name.ToString(), name.ToString(), bindStatus);
+                    (m_declaringClass == null) ? "global" : m_declaringClass.name.ToString(),
+                    name.ToString(),
+                    bindStatus
+                );
             }
             return value;
         }
@@ -176,7 +179,10 @@ namespace Mariana.AVM2.Core {
             BindStatus bindStatus = trySetValue(target, value);
             if (bindStatus != BindStatus.SUCCESS) {
                 throw ErrorHelper.createBindingError(
-                    (m_declaringClass == null) ? "global" : m_declaringClass.name.ToString(), name.ToString(), bindStatus);
+                    (m_declaringClass == null) ? "global" : m_declaringClass.name.ToString(),
+                    name.ToString(),
+                    bindStatus
+                );
             }
         }
 
@@ -219,7 +225,10 @@ namespace Mariana.AVM2.Core {
             BindStatus bindStatus = tryInvoke(target, receiver, args, out ASAny returnValue);
             if (bindStatus != BindStatus.SUCCESS) {
                 throw ErrorHelper.createBindingError(
-                    (m_declaringClass == null) ? "global" : m_declaringClass.name.ToString(), name.ToString(), bindStatus);
+                    (m_declaringClass == null) ? "global" : m_declaringClass.name.ToString(),
+                    name.ToString(),
+                    bindStatus
+                );
             }
             return returnValue;
         }
@@ -254,7 +263,10 @@ namespace Mariana.AVM2.Core {
             BindStatus bindStatus = tryConstruct(target, args, out ASAny returnValue);
             if (bindStatus != BindStatus.SUCCESS) {
                 throw ErrorHelper.createBindingError(
-                    (m_declaringClass == null) ? "global" : m_declaringClass.name.ToString(), name.ToString(), bindStatus);
+                    (m_declaringClass == null) ? "global" : m_declaringClass.name.ToString(),
+                    name.ToString(),
+                    bindStatus
+                );
             }
             return returnValue;
         }

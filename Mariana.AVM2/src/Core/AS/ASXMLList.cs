@@ -1808,7 +1808,7 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Normalises this XMLList instance, all element nodes in it and all their descendants by
+        /// Normalizes this XMLList instance, all element nodes in it and all their descendants by
         /// merging adjacent text nodes and removing empty text nodes.
         /// </summary>
         /// <returns>This method always returns the instance on which it is called.</returns>
