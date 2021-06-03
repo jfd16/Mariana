@@ -103,12 +103,16 @@ namespace Mariana.AVM2.ABC {
         private short m_data;
 
         private ABCOpInfo(
-            ImmediateType opType = ImmediateType.NONE, ControlType controlType = ControlType.NONE,
-            int stackPopCount = 0, int stackPushCount = 0,
-            bool pushesToScopeStack = false, bool popsFromScopeStack = false,
-            bool localRead = false, bool localWrite = false,
-            bool isDebug = false)
-        {
+            ImmediateType opType = ImmediateType.NONE,
+            ControlType controlType = ControlType.NONE,
+            int stackPopCount = 0,
+            int stackPushCount = 0,
+            bool pushesToScopeStack = false,
+            bool popsFromScopeStack = false,
+            bool localRead = false,
+            bool localWrite = false,
+            bool isDebug = false
+        ) {
             int data = VALID_FLAG;
             data |= (int)opType;
             data |= (int)controlType << 3;

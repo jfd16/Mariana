@@ -227,21 +227,21 @@ of `AVM2ExportClass`, and only static members can be exported. Module types *can
 classes), which allows for instance the use of C# `static` classes (which are internally `abstract` and
 `sealed`).
 
-### Loading exported classes
+### Importing classes
 
 For classes and module members to be visible to compiled ActionScript 3 code, they must be
-loaded into an application domain. They can be loaded into the system domain, where they will
+imported into an application domain. They can be imported into the system domain, where they will
 be visible to all compiled code, or into a non-system domain so that only code compiled in that
-domain can use them. Loading can be done in one of the following ways:
+domain can use them. Imported can be done in one of the following ways:
 
 * Using the `ApplicationDomain.loadNativeClass` and `ApplicationDomain.loadNativeModule` methods,
-to load classes and modules individually.
-* Using the `ApplicationDomain.loadNativeClassesFromAssembly`, which loads all the classes and
+to import classes and modules individually.
+* Using the `ApplicationDomain.loadNativeClassesFromAssembly`, which imports all the classes and
 modules from an assembly that have the appropriate attributes.
 
-Loading a class or module will automatically load any dependent classes (such as those used
+Importing a class or module will automatically import any dependent classes (such as those used
 in member signatures) into the same application domain if they have the `AVM2ExportClass`
-attribute applied and have not been loaded yet.
+attribute applied and have not been imported yet.
 
 ### Restrictions on exported classes and members
 
