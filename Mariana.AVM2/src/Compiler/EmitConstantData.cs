@@ -354,7 +354,12 @@ namespace Mariana.AVM2.Compiler {
                 if (nsTempLocal.isDefault)
                     nsTempLocal = ilBuilder.acquireTempLocal(typeof(Namespace));
 
-                if (qname.ns.kind == NamespaceKind.PRIVATE) {
+                if (qname.ns.kind == NamespaceKind.ANY) {
+                    ilBuilder.emit(ILOp.ldloca, nsTempLocal);
+                    ilBuilder.emit(ILOp.dup);
+                    ilBuilder.emit(ILOp.initobj, typeof(Namespace));
+                }
+                else if (qname.ns.kind == NamespaceKind.PRIVATE) {
                     ilBuilder.emit(ILOp.ldc_i4, qname.ns.privateNamespaceId);
                     ilBuilder.emit(ILOp.call, KnownMembers.namespaceCreatePrivateFromId, 0);
                     ilBuilder.emit(ILOp.stloc, nsTempLocal);

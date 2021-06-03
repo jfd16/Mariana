@@ -312,7 +312,6 @@ namespace Mariana.AVM2.Core {
             }
 
             private void _state_propName() {
-
                 const int POOL_MAX_LENGTH = 32;
 
                 string str = m_str;
@@ -499,7 +498,6 @@ namespace Mariana.AVM2.Core {
             /// </summary>
             /// <returns>The number.</returns>
             private double _readNumber() {
-
                 // JSON does not allow these in numbers:
                 // - Leading zeroes
                 // - Decimal point at the beginning (e.g. ".2")
@@ -529,15 +527,14 @@ namespace Mariana.AVM2.Core {
                         throw _error(_Error.INVALID_NUMBER);
                 }
 
-                bool result = NumberFormatHelper.stringToDouble(
+                bool isValidNumber = NumberFormatHelper.stringToDouble(
                     span, out double value, out int charsRead, strict: false, allowHex: false);
 
-                if (!result)
+                if (!isValidNumber)
                     throw _error(_Error.INVALID_NUMBER);
 
                 m_pos += charsRead;
                 return value;
-
             }
 
             /// <summary>
@@ -814,7 +811,6 @@ namespace Mariana.AVM2.Core {
             }
 
             private void _state_visit() {
-
                 bool parentIsArray = m_stack.length != 0 && m_stack[m_stack.length - 1].objType != _ObjType.OBJECT;
 
                 // If a replacer is given, pass the current key-value pair through it.
@@ -907,7 +903,6 @@ namespace Mariana.AVM2.Core {
 
                 // We have an array or object that we need to recurse into.
                 m_curState = _State.ENTER;
-
             }
 
             private bool _tryCallToJSON(out ASAny result) {
@@ -939,7 +934,6 @@ namespace Mariana.AVM2.Core {
             }
 
             private void _state_enter() {
-
                 _StackItem stackItem;
                 ASObject curObj = m_curObject.value;
 
@@ -1000,7 +994,6 @@ namespace Mariana.AVM2.Core {
                 }
 
                 m_curState = _State.NEXT;
-
             }
 
             private _StackItem _createStackItemForArray(ASObject arrOrVec, _ObjType objType, int length) {
@@ -1036,7 +1029,6 @@ namespace Mariana.AVM2.Core {
             }
 
             private void _state_next() {
-
                 if (m_stack.length == 0) {
                     m_curState = _State.END;
                     return;
@@ -1101,7 +1093,6 @@ namespace Mariana.AVM2.Core {
                     m_curObject = dynProps.getValueFromIndex(nextDynIndex);
                     m_curState = _State.VISIT;
                 }
-
             }
 
             private void _state_leave() {
@@ -1154,7 +1145,6 @@ namespace Mariana.AVM2.Core {
             /// </summary>
             /// <param name="str">The string to escape and write.</param>
             private void _writeJSONEscapedString(string str) {
-
                 char[] buffer = m_stringBuffer;
                 int bufSize = 0;
                 int bufPos = 0;
@@ -1245,7 +1235,6 @@ namespace Mariana.AVM2.Core {
                 m_parts.add("\"");
                 m_parts.add(new string(buffer, 0, bufPos));
                 m_parts.add("\"");
-
             }
 
         }

@@ -91,7 +91,6 @@ namespace Mariana.AVM2.Compiler {
             m_queuedBlockIds.Enqueue(curBlockId);
 
             while (m_queuedBlockIds.Count != 0) {
-
                 curBlockId = m_queuedBlockIds.Dequeue();
                 ref BasicBlock curBlock = ref m_compilation.getBasicBlock(curBlockId);
 
@@ -193,7 +192,6 @@ namespace Mariana.AVM2.Compiler {
                 else if (opInfo.controlType == ABCOpInfo.ControlType.THROW) {
                     curBlock.exitType = BasicBlockExitType.THROW;
                 }
-
             }
         }
 

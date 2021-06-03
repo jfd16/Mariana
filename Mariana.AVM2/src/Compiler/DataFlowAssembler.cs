@@ -117,7 +117,6 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _firstPassVisitBasicBlock(ref BasicBlock block) {
-
             var cfgNodeRefArrPool = m_compilation.cfgNodeRefArrayPool;
             var staticIntArrPool = m_compilation.staticIntArrayPool;
 
@@ -295,7 +294,6 @@ namespace Mariana.AVM2.Compiler {
 
             if (block.excHandlerId != -1)
                 _firstPassVisitExcHandler(ref m_compilation.getExceptionHandler(block.excHandlerId));
-
         }
 
         private void _firstPassVisitExcHandler(ref ExceptionHandler eh) {
@@ -859,7 +857,7 @@ namespace Mariana.AVM2.Compiler {
 
                 // Pop from stack.
 
-                // The pop count was stored in the "single" field in the first pass, so retrive it
+                // The pop count was stored in the "single" field in the first pass, so retrieve it
                 // here and replace it with the node ids.
                 int stackPopCount = instr.stackPoppedNodeIds.single;
                 instr.stackPoppedNodeIds = default;
@@ -992,7 +990,6 @@ namespace Mariana.AVM2.Compiler {
                     m_queuedBlockIds.Enqueue(nextBlock.id);
                 }
             }
-
         }
 
         /// <summary>
