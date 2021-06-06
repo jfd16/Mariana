@@ -123,7 +123,7 @@ class Example {
         scriptLoader.compile(abcFile);
 
         // Finish the compilation
-        scriptLoader.runCompiledScripts();
+        scriptLoader.finishCompilation();
 
         // Create an instance of the Main class
         ASAny instance = domain.getGlobalClass(new QName("com.example", "Main")).construct(ReadOnlySpan<ASAny>.Empty);
