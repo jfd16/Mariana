@@ -1,6 +1,5 @@
 using System;
 using System.Globalization;
-using System.Text;
 using Mariana.AVM2.Native;
 
 using static Mariana.AVM2.Core.DateHelper;
@@ -80,14 +79,14 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Creates a new Date object from a <see cref="System.DateTime"/> object.
+        /// Creates a new Date object from a <see cref="DateTime"/> object.
         /// </summary>
         /// <param name="datetime">The DateTime object from which to create the new date. If the DateTime
         /// object's <see cref="DateTime.Kind" qualifyHint="true"/> property is not
         /// <see cref="DateTimeKind.Utc" qualifyHint="true"/>, the DateTime object is considered to
         /// be in local time.</param>
         public ASDate(DateTime datetime) {
-            m_value = (long)(datetime.ToUniversalTime() - unixZeroAsDateTime).TotalMilliseconds + UNIX_ZERO_TIMESTAMP;
+            m_value = (long)(datetime.ToUniversalTime() - DateTime.UnixEpoch).TotalMilliseconds + UNIX_ZERO_TIMESTAMP;
             if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
                 m_value = INVALID_VALUE;
         }
@@ -405,81 +404,6 @@ namespace Mariana.AVM2.Core {
                 getYearAndDayFromTimestamp(m_value, out int curYear, out _);
                 m_value += (long)getYearStartDayDiff((int)year.value, curYear) * MS_PER_DAY;
             }
-        }
-
-        /// <summary>
-        /// Appends the string representation of the given integer to a StringBuilder. This is used by
-        /// <see cref="AS_toString"/> and related methods.
-        /// </summary>
-        /// <param name="sb">The <see cref="StringBuilder"/> to which to append the
-        /// integer.</param>
-        /// <param name="val">The integer value.</param>
-        private void _writeIntegerToSB(StringBuilder sb, int val) {
-            if (val < 0) {
-                sb.Append('-');
-                val = -val;
-            }
-
-            int div = 1;
-            while (true) {
-                int div2 = div * 10;
-                if (div2 > val)
-                    break;
-                div = div2;
-            }
-
-            do {
-                int digit = val / div;
-                sb.Append((char)('0' + digit));
-                val -= digit * div;
-                div /= 10;
-            } while (div != 0);
-        }
-
-        /// <summary>
-        /// Appends the string representation of the given two-digit positive integer to a
-        /// StringBuilder. This is used by <see cref="AS_toString"/> and related methods.
-        /// </summary>
-        /// <param name="sb">The <see cref="StringBuilder"/> to which to append the
-        /// integer.</param>
-        /// <param name="val">The integer value. This must be between 0 and 99. For numbers between 0
-        /// and 9, a leading zero is written.</param>
-        private void _writeTwoDigitIntegerToSB(StringBuilder sb, int val) {
-            int digit1 = val / 10;
-            sb.Append((char)('0' + digit1));
-            sb.Append((char)('0' + val - digit1 * 10));
-        }
-
-        /// <summary>
-        /// Appends a string representation of the given time zone offset to a StringBuilder. This is
-        /// used by <see cref="AS_toString"/> and related methods.
-        /// </summary>
-        /// <param name="sb">The <see cref="StringBuilder"/> to which to append the time zone
-        /// offset.</param>
-        /// <param name="offsetMin">The time zone offset behind UTC, in minutes.</param>
-        private void _writeTimeZoneOffsetToSB(StringBuilder sb, int offsetMin) {
-            sb.Append("GMT");
-
-            if (offsetMin > 0) {
-                sb.Append('-');
-            }
-            else {
-                sb.Append('+');
-                offsetMin = -offsetMin;
-            }
-
-            int offsetHours = offsetMin / 60;
-            offsetMin -= offsetHours * 60;
-
-            int digit1, digit2, digit3, digit4;
-            digit1 = offsetHours / 10;
-            digit2 = offsetHours - 10 * digit1;
-            digit3 = offsetMin / 10;
-            digit4 = offsetMin - 10 * digit3;
-            sb.Append((char)('0' + digit1));
-            sb.Append((char)('0' + digit2));
-            sb.Append((char)('0' + digit3));
-            sb.Append((char)('0' + digit4));
         }
 
         /// <summary>
@@ -828,13 +752,8 @@ namespace Mariana.AVM2.Core {
         /// dates.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
-        public double getUTCDay() {
-            if (m_value == INVALID_VALUE)
-                return Double.NaN;
-
-            getYearAndDayFromTimestamp(m_value, out int year, out int dayOfYear);
-            return (getYearBeginWeekDay(year) + dayOfYear) % 7;
-        }
+        public double getUTCDay() =>
+            (m_value == INVALID_VALUE) ? Double.NaN : (double)(((int)(m_value / MS_PER_DAY) + 5) % 7);
 
         /// <summary>
         /// Returns the date value of the Date object.
@@ -1027,8 +946,8 @@ namespace Mariana.AVM2.Core {
             OptionalParam<double> hour = default,
             OptionalParam<double> min = default,
             OptionalParam<double> sec = default,
-            OptionalParam<double> ms = default)
-        {
+            OptionalParam<double> ms = default
+        ) {
             if (m_value == INVALID_VALUE)
                 return Double.NaN;
 
@@ -1186,12 +1105,8 @@ namespace Mariana.AVM2.Core {
         /// dates.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
-        public double getDay() {
-            if (m_value == INVALID_VALUE)
-                return Double.NaN;
-            getYearAndDayFromTimestamp(universalTimestampToLocal(m_value), out int year, out int ord);
-            return (double)((getYearBeginWeekDay(year) + ord) % 7);
-        }
+        public double getDay() =>
+            (m_value == INVALID_VALUE) ? Double.NaN : (double)(((int)(universalTimestampToLocal(m_value) / MS_PER_DAY) + 5) % 7);
 
         /// <summary>
         /// Gets the difference between the date and time represented by the current instance in UTC
@@ -1485,27 +1400,28 @@ namespace Mariana.AVM2.Core {
             if (m_value == INVALID_VALUE)
                 return INVALID_STRING;
 
-            Span<int> components = stackalloc int[11];
-            getDateComponents(components);
-            StringBuilder sb = new StringBuilder();
+            DateComponents components = getDateComponents();
 
-            sb.Append(s_toStringWeekdayNames[components[10]]);
-            sb.Append(' ');
-            sb.Append(s_toStringMonthNames[components[1]]);
-            sb.Append(' ');
-            _writeIntegerToSB(sb, components[2]);
-            sb.Append(' ');
-            _writeTwoDigitIntegerToSB(sb, components[3]);
-            sb.Append(':');
-            _writeTwoDigitIntegerToSB(sb, components[4]);
-            sb.Append(':');
-            _writeTwoDigitIntegerToSB(sb, components[5]);
-            sb.Append(' ');
-            _writeTimeZoneOffsetToSB(sb, components[7]);
-            sb.Append(' ');
-            _writeIntegerToSB(sb, components[0]);
+            Span<char> stackBuffer = stackalloc char[40];
+            var builder = new DateStringBuilder(stackBuffer);
 
-            return sb.ToString();
+            builder.writeString(s_toStringWeekdayNames[components.dayOfWeek]);
+            builder.writeChar(' ');
+            builder.writeString(s_toStringMonthNames[components.month]);
+            builder.writeChar(' ');
+            builder.writeInteger(components.day);
+            builder.writeChar(' ');
+            builder.writeTwoDigitInteger(components.hour);
+            builder.writeChar(':');
+            builder.writeTwoDigitInteger(components.minute);
+            builder.writeChar(':');
+            builder.writeTwoDigitInteger(components.second);
+            builder.writeChar(' ');
+            builder.writeTimeZoneOffset(components.timezoneOffset);
+            builder.writeChar(' ');
+            builder.writeInteger(components.year);
+
+            return builder.makeString();
         }
 
         /// <summary>
@@ -1519,19 +1435,20 @@ namespace Mariana.AVM2.Core {
             if (m_value == INVALID_VALUE)
                 return INVALID_STRING;
 
-            Span<int> components = stackalloc int[11];
-            getDateComponents(components);
-            StringBuilder sb = new StringBuilder();
+            DateComponents components = getDateComponents();
 
-            sb.Append(s_toStringWeekdayNames[components[10]]);
-            sb.Append(' ');
-            sb.Append(s_toStringMonthNames[components[1]]);
-            sb.Append(' ');
-            _writeIntegerToSB(sb, components[2]);
-            sb.Append(' ');
-            _writeIntegerToSB(sb, components[0]);
+            Span<char> stackBuffer = stackalloc char[20];
+            var builder = new DateStringBuilder(stackBuffer);
 
-            return sb.ToString();
+            builder.writeString(s_toStringWeekdayNames[components.dayOfWeek]);
+            builder.writeChar(' ');
+            builder.writeString(s_toStringMonthNames[components.month]);
+            builder.writeChar(' ');
+            builder.writeInteger(components.day);
+            builder.writeChar(' ');
+            builder.writeInteger(components.year);
+
+            return builder.makeString();
         }
 
         /// <summary>
@@ -1545,19 +1462,20 @@ namespace Mariana.AVM2.Core {
             if (m_value == INVALID_VALUE)
                 return INVALID_STRING;
 
-            Span<int> components = stackalloc int[11];
-            getDateComponents(components);
-            StringBuilder sb = new StringBuilder();
+            DateComponents components = getDateComponents();
 
-            _writeTwoDigitIntegerToSB(sb, components[3]);
-            sb.Append(':');
-            _writeTwoDigitIntegerToSB(sb, components[4]);
-            sb.Append(':');
-            _writeTwoDigitIntegerToSB(sb, components[5]);
-            sb.Append(' ');
-            _writeTimeZoneOffsetToSB(sb, components[7]);
+            Span<char> stackBuffer = stackalloc char[20];
+            var builder = new DateStringBuilder(stackBuffer);
 
-            return sb.ToString();
+            builder.writeTwoDigitInteger(components.hour);
+            builder.writeChar(':');
+            builder.writeTwoDigitInteger(components.minute);
+            builder.writeChar(':');
+            builder.writeTwoDigitInteger(components.second);
+            builder.writeChar(' ');
+            builder.writeTimeZoneOffset(components.timezoneOffset);
+
+            return builder.makeString();
         }
 
         /// <summary>
@@ -1571,26 +1489,27 @@ namespace Mariana.AVM2.Core {
             if (m_value == INVALID_VALUE)
                 return INVALID_STRING;
 
-            Span<int> components = stackalloc int[11];
-            getDateComponents(components, true);
-            StringBuilder sb = new StringBuilder();
+            DateComponents components = getDateComponents(utc: true);
 
-            sb.Append(s_toStringWeekdayNames[components[10]]);
-            sb.Append(' ');
-            sb.Append(s_toStringMonthNames[components[1]]);
-            sb.Append(' ');
-            _writeIntegerToSB(sb, components[2]);
-            sb.Append(' ');
-            _writeTwoDigitIntegerToSB(sb, components[3]);
-            sb.Append(':');
-            _writeTwoDigitIntegerToSB(sb, components[4]);
-            sb.Append(':');
-            _writeTwoDigitIntegerToSB(sb, components[5]);
-            sb.Append(' ');
-            _writeIntegerToSB(sb, components[0]);
-            sb.Append(" UTC");
+            Span<char> stackBuffer = stackalloc char[32];
+            var builder = new DateStringBuilder(stackBuffer);
 
-            return sb.ToString();
+            builder.writeString(s_toStringWeekdayNames[components.dayOfWeek]);
+            builder.writeChar(' ');
+            builder.writeString(s_toStringMonthNames[components.month]);
+            builder.writeChar(' ');
+            builder.writeInteger(components.day);
+            builder.writeChar(' ');
+            builder.writeTwoDigitInteger(components.hour);
+            builder.writeChar(':');
+            builder.writeTwoDigitInteger(components.minute);
+            builder.writeChar(':');
+            builder.writeTwoDigitInteger(components.second);
+            builder.writeChar(' ');
+            builder.writeInteger(components.year);
+            builder.writeString(" UTC");
+
+            return builder.makeString();
         }
 
         /// <summary>
@@ -1604,33 +1523,33 @@ namespace Mariana.AVM2.Core {
             if (m_value == INVALID_VALUE)
                 return INVALID_STRING;
 
-            Span<int> components = stackalloc int[11];
-            getDateComponents(components);
+            DateComponents components = getDateComponents();
 
-            if (components[0] >= 1 && components[0] <= 9999)
+            if (components.year >= 1 && components.year <= 9999)
                 return toDateTime().ToString("F", CultureInfo.CurrentCulture);
 
             // Anything which cannot be represented by DateTime is currently not
             // locale-formatted, but instead uses a locale-independent format similar
             // to toString() but without the time zone.
 
-            StringBuilder sb = new StringBuilder();
+            Span<char> stackBuffer = stackalloc char[32];
+            var builder = new DateStringBuilder(stackBuffer);
 
-            sb.Append(s_toStringWeekdayNames[components[10]]);
-            sb.Append(' ');
-            sb.Append(s_toStringMonthNames[components[1]]);
-            sb.Append(' ');
-            _writeIntegerToSB(sb, components[2]);
-            sb.Append(' ');
-            _writeTwoDigitIntegerToSB(sb, components[3]);
-            sb.Append(':');
-            _writeTwoDigitIntegerToSB(sb, components[4]);
-            sb.Append(':');
-            _writeTwoDigitIntegerToSB(sb, components[5]);
-            sb.Append(' ');
-            _writeIntegerToSB(sb, components[0]);
+            builder.writeString(s_toStringWeekdayNames[components.dayOfWeek]);
+            builder.writeChar(' ');
+            builder.writeString(s_toStringMonthNames[components.month]);
+            builder.writeChar(' ');
+            builder.writeInteger(components.day);
+            builder.writeChar(' ');
+            builder.writeTwoDigitInteger(components.hour);
+            builder.writeChar(':');
+            builder.writeTwoDigitInteger(components.minute);
+            builder.writeChar(':');
+            builder.writeTwoDigitInteger(components.second);
+            builder.writeChar(' ');
+            builder.writeInteger(components.year);
 
-            return sb.ToString();
+            return builder.makeString();
         }
 
         /// <summary>
@@ -1645,26 +1564,26 @@ namespace Mariana.AVM2.Core {
             if (m_value == INVALID_VALUE)
                 return INVALID_STRING;
 
-            Span<int> components = stackalloc int[11];
-            getDateComponents(components);
+            DateComponents components = getDateComponents();
 
-            if (components[0] >= 1 && components[0] <= 9999)
+            if (components.year >= 1 && components.year <= 9999)
                 return toDateTime().ToString("D", CultureInfo.CurrentCulture);
 
             // TODO: Anything which cannot be represented by DateTime is currently
             // not locale-formatted.
 
-            StringBuilder sb = new StringBuilder();
+            Span<char> stackBuffer = stackalloc char[24];
+            var builder = new DateStringBuilder(stackBuffer);
 
-            sb.Append(s_toStringWeekdayNames[components[10]]);
-            sb.Append(' ');
-            sb.Append(s_toStringMonthNames[components[1]]);
-            sb.Append(' ');
-            _writeIntegerToSB(sb, components[2]);
-            sb.Append(' ');
-            _writeIntegerToSB(sb, components[0]);
+            builder.writeString(s_toStringWeekdayNames[components.dayOfWeek]);
+            builder.writeChar(' ');
+            builder.writeString(s_toStringMonthNames[components.month]);
+            builder.writeChar(' ');
+            builder.writeInteger(components.day);
+            builder.writeChar(' ');
+            builder.writeInteger(components.year);
 
-            return sb.ToString();
+            return builder.makeString();
         }
 
         /// <summary>
@@ -1679,24 +1598,24 @@ namespace Mariana.AVM2.Core {
             if (m_value == INVALID_VALUE)
                 return INVALID_STRING;
 
-            Span<int> components = stackalloc int[11];
-            getDateComponents(components);
+            DateComponents components = getDateComponents();
 
-            if (components[0] >= 1 && components[0] <= 9999)
+            if (components.year >= 1 && components.year <= 9999)
                 return toDateTime().ToString("T", CultureInfo.CurrentCulture);
 
             // TODO: Anything which cannot be represented by DateTime is currently
             // not locale-formatted.
 
-            StringBuilder sb = new StringBuilder();
+            Span<char> stackBuffer = stackalloc char[16];
+            var builder = new DateStringBuilder(stackBuffer);
 
-            _writeTwoDigitIntegerToSB(sb, components[3]);
-            sb.Append(':');
-            _writeTwoDigitIntegerToSB(sb, components[4]);
-            sb.Append(':');
-            _writeTwoDigitIntegerToSB(sb, components[5]);
+            builder.writeTwoDigitInteger(components.hour);
+            builder.writeChar(':');
+            builder.writeTwoDigitInteger(components.minute);
+            builder.writeChar(':');
+            builder.writeTwoDigitInteger(components.second);
 
-            return sb.ToString();
+            return builder.makeString();
         }
 
         /// <summary>
@@ -1739,8 +1658,8 @@ namespace Mariana.AVM2.Core {
         /// represented by a <see cref="DateTime"/> object.
         /// </remarks>
         public DateTime toDateTime(bool utc = false) {
-            DateTime dt = unixZeroAsDateTime.AddMilliseconds(
-                (utc ? m_value : universalTimestampToLocal(m_value)) - UNIX_ZERO_TIMESTAMP);
+            long msFromUnixEpoch = (utc ? m_value : universalTimestampToLocal(m_value)) - UNIX_ZERO_TIMESTAMP;
+            DateTime dt = DateTime.UnixEpoch.AddMilliseconds(msFromUnixEpoch);
 
             if (!utc)
                 dt = DateTime.SpecifyKind(dt, DateTimeKind.Local);
@@ -1751,38 +1670,27 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Gets all the components of the date.
         /// </summary>
-        /// <param name="components">A span into which the components are to be written.</param>
         /// <param name="utc">If set to true, return the components in UTC, otherwise, return the
         /// components in local time.</param>
+        /// <returns>A <see cref="DateComponents"/> structure containing all the components of the
+        /// time instant represented by this <see cref="ASDate"/> instance.</returns>
+        ///
+        /// <exception cref="AVM2Exception">TypeError #10241: This <see cref="ASDate"/> instance
+        /// represents an invalid date.</exception>
         ///
         /// <remarks>
-        /// <para>
-        /// The date components are written in the following order: year, month (zero-based),
-        /// day of the month, hour, minute, second, millisecond, timezone offset in minutes (positive
-        /// for behind UTC, 0 if <paramref name="utc"/> is true), whether the time is in daylight
-        /// savings (0 if false, 1 if true, 0 if <paramref name="utc"/> is true), day of the year
-        /// (zero-based), day of the week (zero-based, with Sunday as the first day). If the date is
-        /// invalid, all components will be set to 0.
-        /// </para>
         /// When many components of a date are required at the same time, using this method is faster
         /// than using the properties or methods for each of the individual components.
         /// </remarks>
-        public void getDateComponents(Span<int> components, bool utc = false) {
-            components = components.Slice(0, 11);
-
-            if (m_value == INVALID_VALUE) {
-                components.Fill(0);
-                return;
-            }
+        public DateComponents getDateComponents(bool utc = false) {
+            if (m_value == INVALID_VALUE)
+                throw ErrorHelper.createError(ErrorCode.MARIANA__INVALID_DATE_GET_COMPONENTS);
 
             long timestamp = utc ? m_value : universalTimestampToLocal(m_value);
-            int timePart = (int)(timestamp % MS_PER_DAY);
+            int datePart = (int)(timestamp / MS_PER_DAY);
+            int timePart = (int)(timestamp - (long)datePart * MS_PER_DAY);
 
             getDayMonthYearFromTimestamp(timestamp, out int year, out int month, out int day);
-
-            components[0] = year;
-            components[1] = month;
-            components[2] = day + 1;
 
             int hour = timePart / MS_PER_HOUR;
             int minSecMs = timePart - hour * MS_PER_HOUR;
@@ -1791,17 +1699,14 @@ namespace Mariana.AVM2.Core {
             int second = secMs / MS_PER_SEC;
             int ms = secMs - second * MS_PER_SEC;
 
-            components[3] = hour;
-            components[4] = minute;
-            components[5] = second;
-            components[6] = ms;
-
-            components[7] = utc ? 0 : (int)((m_value - timestamp) / MS_PER_MIN);
-            components[8] = (!utc && components[7] != localTimezoneOffset) ? 1 : 0;
+            int timezoneOffset = utc ? 0 : (int)((m_value - timestamp) / MS_PER_MIN);
+            bool isDaylight = !utc && timezoneOffset != localTimezoneOffset;
 
             int monthOffset = getMonthStartDayOfYear(year, month);
-            components[9] = monthOffset + day;
-            components[10] = (getYearBeginWeekDay(year) + monthOffset + day) % 7;
+            int dayOfYear = monthOffset + day;
+            int dayOfWeek = (datePart + 5) % 7;
+
+            return new DateComponents(year, month, day + 1, hour, minute, second, ms, dayOfYear, dayOfWeek, timezoneOffset, utc, isDaylight);
         }
 
         /// <exclude/>
@@ -1813,6 +1718,110 @@ namespace Mariana.AVM2.Core {
         /// defined on the <see cref="ASDate"/> type.
         /// </summary>
         internal static new ASAny __AS_INVOKE(ReadOnlySpan<ASAny> args) => (new ASDate()).AS_toString();
+
+        /// <summary>
+        /// Used by <see cref="AS_toString"/> and related methods to build date and time strings.
+        /// </summary>
+        private ref struct DateStringBuilder {
+
+            private Span<char> m_buffer;
+            private int m_position;
+
+            public DateStringBuilder(Span<char> buffer) {
+                m_buffer = buffer;
+                m_position = 0;
+            }
+
+            /// <summary>
+            /// Appends a single character to the buffer.
+            /// </summary>
+            /// <param name="ch">The character to append.</param>
+            public void writeChar(char ch) {
+                m_buffer[m_position] = ch;
+                m_position++;
+            }
+
+            /// <summary>
+            /// Appends a span of characters to the buffer.
+            /// </summary>
+            /// <param name="str">The span to append.</param>
+            public void writeString(ReadOnlySpan<char> str) {
+                str.CopyTo(m_buffer.Slice(m_position));
+                m_position += str.Length;
+            }
+
+            /// <summary>
+            /// Appends an integer value to the buffer.
+            /// </summary>
+            /// <param name="value">The integer value.</param>
+            public void writeInteger(int value) {
+                if (value < 0) {
+                    writeChar('-');
+                    value = -value;
+                }
+
+                int startPosition = m_position;
+                do {
+                    int nextValue = value / 10;
+                    int digit = value - nextValue * 10;
+                    writeChar((char)('0' + digit));
+                    value = nextValue;
+                } while (value != 0);
+
+                m_buffer.Slice(startPosition, m_position - startPosition).Reverse();
+            }
+
+            /// <summary>
+            /// Writes a positive integer to the buffer using exactly two digits.
+            /// </summary>
+            /// <param name="value">The integer value.</param>
+            public void writeTwoDigitInteger(int value) {
+                int digit1 = value / 10;
+                m_buffer[m_position] = (char)('0' + digit1);
+                m_buffer[m_position + 1] = (char)('0' + value - digit1 * 10);
+                m_position += 2;
+            }
+
+            /// <summary>
+            /// Appends a string representation of the given time zone offset.
+            /// </summary>
+            /// <param name="offsetMin">The time zone offset behind UTC, in minutes.</param>
+            public void writeTimeZoneOffset(int offsetMin) {
+                writeString("GMT");
+
+                if (offsetMin > 0) {
+                    writeChar('-');
+                }
+                else {
+                    writeChar('+');
+                    offsetMin = -offsetMin;
+                }
+
+                int offsetHours = offsetMin / 60;
+                offsetMin -= offsetHours * 60;
+
+                int digit1, digit2, digit3, digit4;
+                digit1 = offsetHours / 10;
+                digit2 = offsetHours - 10 * digit1;
+                digit3 = offsetMin / 10;
+                digit4 = offsetMin - 10 * digit3;
+
+                Span<char> span = m_buffer.Slice(m_position, 4);
+                m_position += 4;
+
+                span[3] = (char)('0' + digit4);
+                span[2] = (char)('0' + digit3);
+                span[1] = (char)('0' + digit2);
+                span[0] = (char)('0' + digit1);
+            }
+
+            /// <summary>
+            /// Creates a string from the current contents of the buffer.
+            /// </summary>
+            /// <returns>The created string.</returns>
+            public string makeString() => new string(m_buffer.Slice(0, m_position));
+
+        }
 
     }
 

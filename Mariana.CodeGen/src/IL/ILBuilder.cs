@@ -1483,9 +1483,7 @@ namespace Mariana.CodeGen.IL {
         /// precision loss.</para>
         /// </remarks>
         public void emit(ILOp opcode, int arg) {
-
             switch (_getOperandKind(opcode)) {
-
                 case _OperandKind.INT8:
                     _ensureCodeBufferSpace(3);
                     _writeOpcode(opcode);
@@ -1502,30 +1500,40 @@ namespace Mariana.CodeGen.IL {
                     _updateStack(opcode);
                     break;
 
-                case _OperandKind.INT32:
-                    if (opcode == ILOp.ldc_i4 || opcode == ILOp.ldc_i4_s) {
-                        if (arg >= -1 && arg <= 8) {
-                            // Use single-byte opcodes for these values.
+                case _OperandKind.INT32: {
+                    if (opcode == ILOp.ldc_i4_s)
+                        opcode = ILOp.ldc_i4;
+
+                    bool isLdcI4ShortForm = false;
+
+                    if (opcode == ILOp.ldc_i4) {
+                        if ((uint)(arg + 1) <= 9) {
+                            // arg is between -1 and 8
                             _ensureCodeBufferSpace(1);
                             _writeOpcode((ILOp)((int)ILOp.ldc_i4_0 + arg));
                             _updateStack(opcode);
-                            break;
+                            isLdcI4ShortForm = true;
                         }
-
-                        if (arg >= -128 && arg <= 127) {
-                            opcode = ILOp.ldc_i4_s;
-                            goto case _OperandKind.INT8;
+                        else if ((uint)(arg + 128) <= 255) {
+                            // arg is between -128 and 127
+                            _ensureCodeBufferSpace(2);
+                            _writeOpcode(ILOp.ldc_i4_s);
+                            m_codeBuffer[m_position] = (byte)arg;
+                            m_position++;
+                            isLdcI4ShortForm = true;
                         }
-
-                        opcode = ILOp.ldc_i4;
                     }
 
-                    _ensureCodeBufferSpace(6);
-                    _writeOpcode(opcode);
-                    WriteInt32LittleEndian(m_codeBuffer.AsSpan(m_position, 4), arg);
-                    m_position += 4;
+                    if (!isLdcI4ShortForm) {
+                        _ensureCodeBufferSpace(6);
+                        _writeOpcode(opcode);
+                        WriteInt32LittleEndian(m_codeBuffer.AsSpan(m_position, 4), arg);
+                        m_position += 4;
+                    }
+
                     _updateStack(opcode);
                     break;
+                }
 
                 case _OperandKind.INT64:
                     emit(opcode, (long)arg);
@@ -1545,7 +1553,6 @@ namespace Mariana.CodeGen.IL {
                 default:
                     throw new ArgumentException("Opcode '" + opcode + "' cannot be used with an integer argument.", nameof(opcode));
             }
-
         }
 
         /// <summary>
@@ -1649,20 +1656,21 @@ namespace Mariana.CodeGen.IL {
         /// loss.</para>
         /// </remarks>
         public void emit(ILOp opcode, long arg) {
-
             _OperandKind operandType = _getOperandKind(opcode);
 
             if (operandType == _OperandKind.INT64) {
                 bool isMorphed = false;
 
                 if (opcode == ILOp.ldc_i8) {
-                    if (arg >= -1 && arg <= 8) {
+                    if ((ulong)(arg + 1) <= 9) {
+                        // arg is between -1 and 8
                         _ensureCodeBufferSpace(2);
                         _writeOpcode((ILOp)((int)ILOp.ldc_i4_0 + (int)arg));
                         _writeOpcode(ILOp.conv_i8);
                         isMorphed = true;
                     }
-                    else if (arg >= -128 && arg < 127) {
+                    else if ((ulong)(arg + 128) <= 255) {
+                        // arg is between -128 and 127
                         _ensureCodeBufferSpace(4);
                         _writeOpcode(ILOp.ldc_i4_s);
                         m_codeBuffer[m_position++] = (byte)arg;
@@ -1697,7 +1705,6 @@ namespace Mariana.CodeGen.IL {
             }
 
             _updateStack(opcode);
-
         }
 
         /// <summary>

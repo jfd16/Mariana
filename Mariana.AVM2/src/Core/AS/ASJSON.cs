@@ -475,7 +475,7 @@ namespace Mariana.AVM2.Core {
                     // Current object is an array.
                     int arrLen = m_arrBuffer.length - stackItem.arrBufMark;
                     if (arrLen != 0) {
-                        obj = ASArray.fromObjectSpan<ASObject>(m_arrBuffer.asSpan(stackItem.arrBufMark, arrLen));
+                        obj = ASArray.fromObjectSpan(m_arrBuffer.asSpan(stackItem.arrBufMark, arrLen));
                         m_arrBuffer.removeRange(stackItem.arrBufMark, arrLen);
                     }
                     else {

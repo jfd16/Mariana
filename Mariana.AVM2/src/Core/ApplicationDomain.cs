@@ -128,7 +128,18 @@ namespace Mariana.AVM2.Core {
             if (klass != null)
                 return klass.applicationDomain;
 
-            s_moduleToDomainMap.TryGetValue(type, out var domain);
+            return getDomainOfModule(type);
+        }
+
+        /// <summary>
+        /// Returns the application domain into which the given module type has been imported.
+        /// </summary>
+        /// <returns>The <see cref="ApplicationDomain"/> instance representing the domain into
+        /// which the module is imported, or null if the module has not been registered using
+        /// <see cref="registerModule"/>.</returns>
+        /// <param name="moduleType">The <see cref="Type"/> representing the module class.</param>
+        internal static ApplicationDomain getDomainOfModule(Type moduleType) {
+            s_moduleToDomainMap.TryGetValue(moduleType, out var domain);
             return domain;
         }
 

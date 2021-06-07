@@ -129,7 +129,9 @@ namespace Mariana.CodeGen {
         /// types. If there should not be any constraints on the type parameter, pass an empty
         /// span.</param>
         ///
-        /// <exception cref="ArgumentException"><paramref name="name"/> is null or the empty string.</exception>
+        /// <exception cref="ArgumentException"><paramref name="name"/> is null or the empty string,
+        /// or one of the handles in <paramref name="constraints"/> does not refer to a TypeDef,
+        /// TypeRef or TypeSpec.</exception>
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="position"/> is negative, or
         /// greater than or equal to the number of generic parameters declared for this method
         /// (the type parameter count provided to <see cref="TypeBuilder.defineMethod"/>).</exception>
@@ -144,6 +146,19 @@ namespace Mariana.CodeGen {
 
             if (name == null || name.Length == 0)
                 throw new ArgumentException("Generic parameter name must not be null or an empty string.", nameof(name));
+
+            for (int i = 0; i < constraints.Length; i++) {
+                HandleKind handleKind = constraints[i].Kind;
+
+                if (constraints[i].IsNil
+                    || (handleKind != HandleKind.TypeDefinition
+                        && handleKind != HandleKind.TypeReference
+                        && handleKind != HandleKind.TypeSpecification))
+                {
+                    throw new ArgumentException(
+                        "Generic parameter constraint handle must be a TypeDef, TypeRef or TypeSpec.", $"{nameof(constraints)}[{i}]");
+                }
+            }
 
             ref var genParam = ref m_genParams[position];
             genParam.name = name;
@@ -280,8 +295,8 @@ namespace Mariana.CodeGen {
             EntityHandle realMethodHandle = tokenMapping.getMappedHandle(m_handle);
 
             for (int i = 0; i < genParams.Length; i++) {
-                ref var gp = ref genParams[i];
-                entriesList.add(new GenericParameter(realMethodHandle, i, gp.name, gp.attrs, gp.constraints));
+                ref var genParam = ref genParams[i];
+                entriesList.add(new GenericParameter(realMethodHandle, i, genParam.name, genParam.attrs, genParam.constraints));
             }
         }
 

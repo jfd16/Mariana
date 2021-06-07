@@ -857,18 +857,17 @@ namespace Mariana.AVM2.Native {
         internal static void createModule(Type moduleType, ApplicationDomain domain) {
             domain = domain ?? ApplicationDomain.systemDomain;
 
-            if (!moduleType.IsDefined(typeof(AVM2ExportModuleAttribute))) {
-                throw ErrorHelper.createError(
-                    ErrorCode.MARIANA__NATIVE_CLASS_LOAD_MODULE_NO_EXPORT_ATTR, moduleType);
-            }
-            if (!moduleType.IsVisible) {
-                throw ErrorHelper.createError(
-                    ErrorCode.MARIANA__NATIVE_CLASS_LOAD_NONPUBLIC, moduleType);
-            }
-            if (moduleType.IsGenericType) {
-                throw ErrorHelper.createError(
-                    ErrorCode.MARIANA__NATIVE_CLASS_LOAD_MODULE_GENERIC, moduleType);
-            }
+            if (ApplicationDomain.getDomainOfModule(moduleType) != null)
+                throw ErrorHelper.createError(ErrorCode.MARIANA__NATIVE_CLASS_LOAD_MODULE_EXISTS, moduleType);
+
+            if (!moduleType.IsDefined(typeof(AVM2ExportModuleAttribute)))
+                throw ErrorHelper.createError(ErrorCode.MARIANA__NATIVE_CLASS_LOAD_MODULE_NO_EXPORT_ATTR, moduleType);
+
+            if (!moduleType.IsVisible)
+                throw ErrorHelper.createError(ErrorCode.MARIANA__NATIVE_CLASS_LOAD_NONPUBLIC, moduleType);
+
+            if (moduleType.IsGenericType)
+                throw ErrorHelper.createError(ErrorCode.MARIANA__NATIVE_CLASS_LOAD_MODULE_GENERIC, moduleType);
 
             MemberInfo[] members = moduleType.FindMembers(
                 memberType: MemberTypes.Field | MemberTypes.Method | MemberTypes.Property,

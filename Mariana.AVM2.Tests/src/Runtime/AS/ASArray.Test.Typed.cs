@@ -37,11 +37,17 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(fromObjectSpanTest_data))]
         public void fromObjectSpanTest(ASObject[] data) {
-            var instance = ASArray.fromObjectSpan<ASObject>(data);
-            Assert.Equal(data.Length, (int)instance.length);
+            var dataCopy = data.AsSpan().ToArray();
 
-            for (int i = 0; i < data.Length; i++)
-                AssertHelper.identical(data[i], instance.AS_getElement(i));
+            test(ASArray.fromObjectSpan<ASObject>(data));
+            test(ASArray.fromObjectSpan(new ReadOnlySpan<ASObject>(data)));
+
+            void test(ASArray instance) {
+                Assert.Equal(data.Length, (int)instance.length);
+
+                for (int i = 0; i < dataCopy.Length; i++)
+                    AssertHelper.identical(dataCopy[i], instance.AS_getElement(i));
+            }
         }
 
         public static IEnumerable<object[]> fromObjectSpanTest_derivedClass_data = TupleHelper.toArrays(
@@ -54,11 +60,17 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(fromObjectSpanTest_derivedClass_data))]
         public void fromObjectSpanTest_derivedClass(ASArrayTest_ClassA[] data) {
-            var instance = ASArray.fromObjectSpan<ASObject>(data);
-            Assert.Equal(data.Length, (int)instance.length);
+            var dataCopy = data.AsSpan().ToArray();
 
-            for (int i = 0; i < data.Length; i++)
-                AssertHelper.identical(data[i], instance.AS_getElement(i));
+            test(ASArray.fromObjectSpan<ASArrayTest_ClassA>(data));
+            test(ASArray.fromObjectSpan(new ReadOnlySpan<ASArrayTest_ClassA>(data)));
+
+            void test(ASArray instance) {
+                Assert.Equal(data.Length, (int)instance.length);
+
+                for (int i = 0; i < dataCopy.Length; i++)
+                    AssertHelper.identical(dataCopy[i], instance.AS_getElement(i));
+            }
         }
 
         public static IEnumerable<object[]> fromArraySpanAndEnumerableTest_int_data = TupleHelper.toArrays(
@@ -70,17 +82,21 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(fromArraySpanAndEnumerableTest_int_data))]
         public void fromArraySpanAndEnumerableTest_int(int[] data) {
+            var dataCopy = data.AsSpan().ToArray();
+
             test(ASArray.fromSpan<int>(data));
+            test(ASArray.fromSpan(new ReadOnlySpan<int>(data)));
             test(ASArray.fromTypedArray(data));
             test(ASArray.fromEnumerable(data));
             test(ASArray.fromEnumerable(data.Select(x => x)));
 
             void test(ASArray instance) {
                 Assert.Equal(data.Length, (int)instance.length);
-                for (int i = 0; i < data.Length; i++) {
+
+                for (int i = 0; i < dataCopy.Length; i++) {
                     ASAny element = instance.AS_getElement(i);
                     Assert.IsType<ASint>(element.value);
-                    Assert.Equal(data[i], (int)element);
+                    Assert.Equal(dataCopy[i], (int)element);
                 }
             }
         }
@@ -94,17 +110,21 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(fromArraySpanAndEnumerableTest_uint_data))]
         public void fromArraySpanAndEnumerableTest_uint(uint[] data) {
+            var dataCopy = data.AsSpan().ToArray();
+
             test(ASArray.fromSpan<uint>(data));
+            test(ASArray.fromSpan(new ReadOnlySpan<uint>(data)));
             test(ASArray.fromTypedArray(data));
             test(ASArray.fromEnumerable(data));
             test(ASArray.fromEnumerable(data.Select(x => x)));
 
             void test(ASArray instance) {
                 Assert.Equal(data.Length, (int)instance.length);
-                for (int i = 0; i < data.Length; i++) {
+
+                for (int i = 0; i < dataCopy.Length; i++) {
                     ASAny element = instance.AS_getElement(i);
                     Assert.IsType<ASuint>(element.value);
-                    Assert.Equal(data[i], (uint)element);
+                    Assert.Equal(dataCopy[i], (uint)element);
                 }
             }
         }
@@ -122,17 +142,21 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(fromArraySpanAndEnumerableTest_number_data))]
         public void fromArraySpanAndEnumerableTest_number(double[] data) {
+            var dataCopy = data.AsSpan().ToArray();
+
             test(ASArray.fromSpan<double>(data));
+            test(ASArray.fromSpan(new ReadOnlySpan<double>(data)));
             test(ASArray.fromTypedArray(data));
             test(ASArray.fromEnumerable(data));
             test(ASArray.fromEnumerable(data.Select(x => x)));
 
             void test(ASArray instance) {
                 Assert.Equal(data.Length, (int)instance.length);
-                for (int i = 0; i < data.Length; i++) {
+
+                for (int i = 0; i < dataCopy.Length; i++) {
                     ASAny element = instance.AS_getElement(i);
                     Assert.True(element.value is ASint || element.value is ASuint || element.value is ASNumber);
-                    Assert.Equal(data[i], (double)element);
+                    Assert.Equal(dataCopy[i], (double)element);
                 }
             }
         }
@@ -152,21 +176,25 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(fromArraySpanAndEnumerableTest_string_data))]
         public void fromArraySpanAndEnumerableTest_string(string[] data) {
+            var dataCopy = data.AsSpan().ToArray();
+
             test(ASArray.fromSpan<string>(data));
+            test(ASArray.fromSpan(new ReadOnlySpan<string>(data)));
             test(ASArray.fromTypedArray(data));
             test(ASArray.fromEnumerable(data));
             test(ASArray.fromEnumerable(data.Select(x => x)));
 
             void test(ASArray instance) {
                 Assert.Equal(data.Length, (int)instance.length);
-                for (int i = 0; i < data.Length; i++) {
+
+                for (int i = 0; i < dataCopy.Length; i++) {
                     ASAny element = instance.AS_getElement(i);
-                    if (data[i] == null) {
+                    if (dataCopy[i] == null) {
                         AssertHelper.identical(ASAny.@null, element);
                     }
                     else {
                         Assert.IsType<ASString>(element.value);
-                        Assert.Equal(data[i], (string)element);
+                        Assert.Equal(dataCopy[i], (string)element);
                     }
                 }
             }
@@ -181,17 +209,21 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(fromArraySpanAndEnumerableTest_bool_data))]
         public void fromArraySpanAndEnumerableTest_bool(bool[] data) {
+            var dataCopy = data.AsSpan().ToArray();
+
             test(ASArray.fromSpan<bool>(data));
+            test(ASArray.fromSpan(new ReadOnlySpan<bool>(data)));
             test(ASArray.fromTypedArray(data));
             test(ASArray.fromEnumerable(data));
             test(ASArray.fromEnumerable(data.Select(x => x)));
 
             void test(ASArray instance) {
                 Assert.Equal(data.Length, (int)instance.length);
-                for (int i = 0; i < data.Length; i++) {
+
+                for (int i = 0; i < dataCopy.Length; i++) {
                     ASAny element = instance.AS_getElement(i);
                     Assert.IsType<ASBoolean>(element.value);
-                    Assert.Equal(data[i], (bool)element);
+                    Assert.Equal(dataCopy[i], (bool)element);
                 }
             }
         }
@@ -225,15 +257,18 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(fromArraySpanAndEnumerableTest_any_data))]
         public void fromArraySpanAndEnumerableTest_any(ASAny[] data) {
+            var dataCopy = data.AsSpan().ToArray();
+
             test(ASArray.fromSpan<ASAny>(data));
+            test(ASArray.fromSpan(new ReadOnlySpan<ASAny>(data)));
             test(ASArray.fromTypedArray(data));
             test(ASArray.fromEnumerable(data));
             test(ASArray.fromEnumerable(data.Select(x => x)));
 
             void test(ASArray instance) {
                 Assert.Equal(data.Length, (int)instance.length);
-                for (int i = 0; i < data.Length; i++)
-                    AssertHelper.identical(data[i], instance.AS_getElement(i));
+                for (int i = 0; i < dataCopy.Length; i++)
+                    AssertHelper.identical(dataCopy[i], instance.AS_getElement(i));
             }
         }
 
@@ -264,15 +299,18 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(fromArraySpanAndEnumerableTest_object_data))]
         public void fromArraySpanAndEnumerableTest_object(ASObject[] data) {
+            var dataCopy = data.AsSpan().ToArray();
+
             test(ASArray.fromSpan<ASObject>(data));
+            test(ASArray.fromSpan(new ReadOnlySpan<ASObject>(data)));
             test(ASArray.fromTypedArray(data));
             test(ASArray.fromEnumerable(data));
             test(ASArray.fromEnumerable(data.Select(x => x)));
 
             void test(ASArray instance) {
                 Assert.Equal(data.Length, (int)instance.length);
-                for (int i = 0; i < data.Length; i++)
-                    AssertHelper.identical(data[i], instance.AS_getElement(i));
+                for (int i = 0; i < dataCopy.Length; i++)
+                    AssertHelper.identical(dataCopy[i], instance.AS_getElement(i));
             }
         }
 
@@ -292,15 +330,18 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(fromArraySpanAndEnumerableTest_class_data))]
         public void fromArraySpanAndEnumerableTest_class(ASArrayTest_ClassA[] data) {
+            var dataCopy = data.AsSpan().ToArray();
+
             test(ASArray.fromSpan<ASArrayTest_ClassA>(data));
+            test(ASArray.fromSpan(new ReadOnlySpan<ASArrayTest_ClassA>(data)));
             test(ASArray.fromTypedArray(data));
             test(ASArray.fromEnumerable(data));
             test(ASArray.fromEnumerable(data.Select(x => x)));
 
             void test(ASArray instance) {
                 Assert.Equal(data.Length, (int)instance.length);
-                for (int i = 0; i < data.Length; i++)
-                    AssertHelper.identical(data[i], instance.AS_getElement(i));
+                for (int i = 0; i < dataCopy.Length; i++)
+                    AssertHelper.identical(dataCopy[i], instance.AS_getElement(i));
             }
         }
 
@@ -320,15 +361,18 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(fromArraySpanAndEnumerableTest_interface_data))]
         public void fromArraySpanAndEnumerableTest_interface(ASArrayTest_IA[] data) {
+            var dataCopy = data.AsSpan().ToArray();
+
             test(ASArray.fromSpan<ASArrayTest_IA>(data));
+            test(ASArray.fromSpan(new ReadOnlySpan<ASArrayTest_IA>(data)));
             test(ASArray.fromTypedArray(data));
             test(ASArray.fromEnumerable(data));
             test(ASArray.fromEnumerable(data.Select(x => x)));
 
             void test(ASArray instance) {
                 Assert.Equal(data.Length, (int)instance.length);
-                for (int i = 0; i < data.Length; i++)
-                    AssertHelper.identical((ASObject)(object)data[i], instance.AS_getElement(i));
+                for (int i = 0; i < dataCopy.Length; i++)
+                    AssertHelper.identical((ASObject)(object)dataCopy[i], instance.AS_getElement(i));
             }
         }
 

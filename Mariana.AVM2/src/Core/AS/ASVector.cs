@@ -125,6 +125,26 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
+        /// Creates a new Vector with data from the given span.
+        /// </summary>
+        ///
+        /// <param name="data">The span containing the elements of the <see cref="ASVector{T}"/> instance.</param>
+        /// <param name="isFixed">A Boolean value indicating whether the vector has a fixed length. Any
+        /// attempt to change the length of a fixed-length vector will result in an error.</param>
+        public static ASVector<T> fromSpan(Span<T> data, bool isFixed = false) => fromSpan((ReadOnlySpan<T>)data, isFixed);
+
+        /// <summary>
+        /// Creates a new Vector with data from the given span, converting the span elements to
+        /// the vector's element type.
+        /// </summary>
+        ///
+        /// <param name="data">The span containing the elements of the <see cref="ASVector{T}"/> instance.</param>
+        /// <param name="isFixed">A Boolean value indicating whether the vector has a fixed length. Any
+        /// attempt to change the length of a fixed-length vector will result in an error.</param>
+        /// <typeparam name="U">The type of the elements in <paramref name="data"/>.</typeparam>
+        public static ASVector<T> fromSpan<U>(Span<U> data, bool isFixed = false) => fromSpan((ReadOnlySpan<U>)data, isFixed);
+
+        /// <summary>
         /// Creates a new Vector with data from the given array.
         /// </summary>
         ///

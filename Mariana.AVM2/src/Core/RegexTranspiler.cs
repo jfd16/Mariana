@@ -16,10 +16,11 @@ namespace Mariana.AVM2.Core {
     /// octal-backreference ambiguity.</description></item>
     /// <item><description>Resolves octal vs. backreference ambiguities in the original regex, and converts
     /// backreferences to the <c>\k&lt;N&gt;</c> syntax of .NET regex.</description></item>
-    /// <item><description>Escapes certain characters which are not escaped in the original regex, but are
+    /// <item><description>Escapes certain characters that are not escaped in the original regex, but are
     /// literal in their context. (e.g. <c>[[]</c> to <c>[\[]</c>)</description></item>
     /// <item><description>Strips nonsignificant whitespace, if extended mode is enabled.</description></item>
-    /// <item><description>Replaces dots with equivalent expressions, if dotall mode is enabled.</description></item>
+    /// <item><description>Replaces '.', '^' and '$' characters with equivalent expressions, depending
+    /// on whether multiline and/or dotall mode is enabled.</description></item>
     /// <item><description>Creates a group number to name map, if named groups are present.</description></item>
     /// </list>
     /// </remarks>
@@ -82,7 +83,30 @@ namespace Mariana.AVM2.Core {
                 @"Invalid named group reference \k<...>."
         };
 
-        private static readonly char[] s_eolChars = {'\r', '\n'};
+        /// <summary>
+        /// The characters at which a line comment ends in extended mode.
+        /// </summary>
+        private static readonly char[] s_xCommentEndChars = {'\r', '\n', '\u2028', '\u2029'};
+
+        /// <summary>
+        /// The equivalent expression in .NET regex for '.' when dotall mode is disabled.
+        /// </summary>
+        private const string DOT_EXPR_NO_DOTALL = @"[^\r\n\u2028\u2029]";
+
+        /// <summary>
+        /// The equivalent expression in .NET regex for '.' when dotall mode is enabled.
+        /// </summary>
+        private const string DOT_EXPR_DOTALL = @"[\s\S]";
+
+        /// <summary>
+        /// The equivalent expression in .NET regex for '^' when multiline mode is enabled.
+        /// </summary>
+        private const string START_ANCHOR_EXPR_MULTILINE = @"(?<=[\r\n\u2028\u2029]|\A)";
+
+        /// <summary>
+        /// The equivalent expression in .NET regex for '$' when multiline mode is enabled.
+        /// </summary>
+        private const string END_ANCHOR_EXPR_MULTILINE = @"(?=[\r\n\u2028\u2029]|\z)";
 
         /// <summary>
         /// Represents a backreference construct in the regex pattern being transpiled that can
@@ -178,7 +202,7 @@ namespace Mariana.AVM2.Core {
         /// first group as number 0. If there are no named groups in the pattern, returns
         /// null.</returns>
         public string[] getGroupNames() {
-            if (m_groupCount == 0)
+            if (m_groupNameIndexMap.Count == 0)
                 return null;
 
             var names = new string[m_groupCount];
@@ -197,9 +221,10 @@ namespace Mariana.AVM2.Core {
         /// Parses and transpiles an AS3 regex pattern.
         /// </summary>
         /// <param name="pattern">The regex pattern string.</param>
+        /// <param name="multiline">Set to true if multiline mode is being used.</param>
         /// <param name="dotall">Set to true if dotall mode is being used.</param>
         /// <param name="extended">Set to true if extended mode is being used.</param>
-        public void transpile(string pattern, bool dotall, bool extended) {
+        public void transpile(string pattern, bool multiline, bool dotall, bool extended) {
             m_buffer = new char[pattern.Length];
             m_bufpos = 0;
             m_source = pattern;
@@ -255,13 +280,21 @@ namespace Mariana.AVM2.Core {
                         break;
 
                     case '.':
-                        if (dotall)
-                            _writeDotAll();
-                        else
-                            _writeChar('.');
-
+                        _writeDot(dotall);
                         m_srcpos++;
                         quantifierNotExpected = false;
+                        break;
+
+                    case '^':
+                        _writeStartAnchor(multiline);
+                        m_srcpos++;
+                        quantifierNotExpected = true;
+                        break;
+
+                    case '$':
+                        _writeEndAnchor(multiline);
+                        m_srcpos++;
+                        quantifierNotExpected = true;
                         break;
 
                     case '(':
@@ -290,7 +323,7 @@ namespace Mariana.AVM2.Core {
 
                         // This doesn't seem to be documented (docs say only whitespace is ignored),
                         // but Flash Player does support #-style line comments in extended mode.
-                        int eolPos = pattern.IndexOfAny(s_eolChars, m_srcpos);
+                        int eolPos = pattern.IndexOfAny(s_xCommentEndChars, m_srcpos);
                         m_srcpos = (eolPos != -1) ? eolPos + 1 : pattern.Length;
                         break;
                     }
@@ -893,7 +926,7 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         private void _readNumericReference(char c1, char c2 = '\0', char c3 = '\0') {
             if (m_isInCharSet) {
-                // In character set, there cannot be any backreferences. Only octals.
+                // In a character set, there cannot be any backreferences. Only octals.
                 _writeOctal(c1, c2, c3);
                 return;
             }
@@ -935,20 +968,45 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Writes the equivalent expression for a dot in dotall mode into the buffer.
+        /// Writes the equivalent expression for a dot character into the buffer.
         /// </summary>
-        private void _writeDotAll() {
-            // Although .NET regex has a Singleline option which is equivalent to the dotall mode, it is
-            // not available when the ECMAScript option is also set (this implementation of RegExp
-            // does use that option), so the dot must be substituted with an equivalent expression
-            // during transpilation such as '[\s\S]'.
-            var span = _appendToBuffer(6);
-            span[5] = ']';
-            span[4] = 'S';
-            span[3] = '\\';
-            span[2] = 's';
-            span[1] = '\\';
-            span[0] = '[';
+        /// <param name="dotAllEnabled">True if dot-matches-all mode is enabled, false otherwise.</param>
+        private void _writeDot(bool dotAllEnabled) {
+            string dotPattern = dotAllEnabled ? DOT_EXPR_DOTALL : DOT_EXPR_NO_DOTALL;
+            var span = _appendToBuffer(dotPattern.Length);
+            dotPattern.AsSpan().CopyTo(span);
+        }
+
+        /// <summary>
+        /// Writes the equivalent expression for a '^' character into the buffer.
+        /// </summary>
+        /// <param name="multilineEnabled">True if multiline mode is enabled, false otherwise.</param>
+        private void _writeStartAnchor(bool multilineEnabled) {
+            if (!multilineEnabled) {
+                _writeChar('^');
+            }
+            else {
+                var span = _appendToBuffer(START_ANCHOR_EXPR_MULTILINE.Length);
+                START_ANCHOR_EXPR_MULTILINE.AsSpan().CopyTo(span);
+            }
+        }
+
+        /// <summary>
+        /// Writes the equivalent expression for a '$' character into the buffer.
+        /// </summary>
+        /// <param name="multilineEnabled">True if multiline mode is enabled, false otherwise.</param>
+        private void _writeEndAnchor(bool multilineEnabled) {
+            if (!multilineEnabled) {
+                // If multiline is false, the .NET regex equivalent is '\z', not '$'
+                // ('$' matches in .NET if there is a newline before the end of the string, but not in ECMAScript)
+                var span = _appendToBuffer(2);
+                span[1] = 'z';
+                span[0] = '\\';
+            }
+            else {
+                var span = _appendToBuffer(END_ANCHOR_EXPR_MULTILINE.Length);
+                END_ANCHOR_EXPR_MULTILINE.AsSpan().CopyTo(span);
+            }
         }
 
         /// <summary>
@@ -1168,13 +1226,13 @@ namespace Mariana.AVM2.Core {
             }
 
             if (src.Length - m_srcpos <= 1)     // Only one character left: this indicates an unterminated set
-                _error(Error.UNTERMINATED_CHAR_SET);
+                throw _error(Error.UNTERMINATED_CHAR_SET);
 
             if (ch == '^') {
                 // If '^' is at the start of the set, it negates the set.
                 // The set [^] matches all characters, and is equivalent to a "dot-all" expression.
                 if (src[m_srcpos + 1] == ']') {
-                    _writeDotAll();
+                    _writeDot(dotAllEnabled: true);
                     m_srcpos += 2;
                     return;
                 }

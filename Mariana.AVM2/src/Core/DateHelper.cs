@@ -18,7 +18,7 @@ namespace Mariana.AVM2.Core {
 
         private static readonly byte[] s_monthLookupTable = _createMonthLookupTable();
 
-        private static int s_baseTimezoneOffset = (int)TimeZoneInfo.Local.BaseUtcOffset.TotalMilliseconds;
+        private static int s_baseTimezoneOffset = checked((int)TimeZoneInfo.Local.BaseUtcOffset.TotalMilliseconds);
 
         private static DSTRule[] s_daylightRules = _importRulesFromCurrentTimeZone();
 
@@ -47,11 +47,6 @@ namespace Mariana.AVM2.Core {
         /// To obtain the Unix/ECMAScript date value, subtract this from a timestamp.
         /// </summary>
         public const long UNIX_ZERO_TIMESTAMP = MIN_TIMESTAMP + 8640000000000000;
-
-        /// <summary>
-        /// The Unix/ECMAScript zero date as a <see cref="DateTime"/> instance.
-        /// </summary>
-        public static readonly DateTime unixZeroAsDateTime = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
 
         /// <summary>
         /// Gets the day of the week for January 1 of a given year. The value returned is a positive
@@ -205,7 +200,8 @@ namespace Mariana.AVM2.Core {
 
             // To get the actual year, first make an estimate of the year by assuming that one year
             // has exactly 365.2425 days.
-            year = (int)((double)days / 365.2425) - 271821;
+            const double approxYearsPerDay = 1.0 / 365.2425;
+            year = (int)((double)days * approxYearsPerDay) - 271821;
 
             // The correction can be made to the estimated year by checking the day-of-year with
             // respect to the estimated year.
@@ -425,8 +421,8 @@ namespace Mariana.AVM2.Core {
                 // to give the required offsets.
 
                 const int unixZeroDays = (int)(UNIX_ZERO_TIMESTAMP / MS_PER_DAY);
-                int ruleStart = (int)Math.Floor((adjustmentRule.DateStart - unixZeroAsDateTime).TotalDays) + unixZeroDays;
-                int ruleEnd = (int)Math.Floor((adjustmentRule.DateEnd - unixZeroAsDateTime).TotalDays) + unixZeroDays;
+                int ruleStart = (int)Math.Floor((adjustmentRule.DateStart - DateTime.UnixEpoch).TotalDays) + unixZeroDays;
+                int ruleEnd = (int)Math.Floor((adjustmentRule.DateEnd - DateTime.UnixEpoch).TotalDays) + unixZeroDays;
 
                 // Check for two special cases. In one case, the starting value of the rule's accepted range
                 // is the minimum possible date, and in this case the rule should be considered for all dates
@@ -434,9 +430,9 @@ namespace Mariana.AVM2.Core {
                 // In the other case, the end value of the accepted range for the rule is the maximum possible,
                 // and such rules are considered for all dates beyond that date as well.
 
-                if (adjustmentRule.DateStart == DateTime.MinValue)
+                if (adjustmentRule.DateStart == DateTime.MinValue.Date)
                     ruleStart = Int32.MinValue;
-                if (adjustmentRule.DateEnd == DateTime.MaxValue)
+                if (adjustmentRule.DateEnd == DateTime.MaxValue.Date)
                     ruleEnd = Int32.MaxValue;
 
                 long delta = (long)adjustmentRule.DaylightDelta.TotalMilliseconds;

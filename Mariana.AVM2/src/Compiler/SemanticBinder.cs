@@ -1138,7 +1138,6 @@ namespace Mariana.AVM2.Compiler {
                 | (1 << (int)DataNodeType.UNDEFINED);
 
             const int anyDataTypeMask = (1 << (int)DataNodeType.ANY) | (1 << (int)DataNodeType.UNDEFINED);
-            const int stringDataTypeMask = 1 << (int)DataNodeType.STRING;
 
             int inputTypeBits = 1 << (int)input1.dataType | 1 << (int)input2.dataType;
 
@@ -1151,9 +1150,11 @@ namespace Mariana.AVM2.Compiler {
             else if ((inputTypeBits & numberAddDataTypeMask) == inputTypeBits) {
                 output.dataType = DataNodeType.NUMBER;
             }
-            else if ((inputTypeBits & stringDataTypeMask) != 0 && (input1.isNotNull || input2.isNotNull)) {
+            else if ((input1.dataType == DataNodeType.STRING && input1.isNotNull)
+                || (input2.dataType == DataNodeType.STRING && input2.isNotNull))
+            {
                 // This instruction is definitely a string concatenation if at least one input is
-                // definitely not null or undefined, because null + null => 0 and null + undefined => NaN
+                // a non-null string, because null + null => 0 and null + undefined => NaN
                 output.dataType = DataNodeType.STRING;
             }
             else {
@@ -1788,6 +1789,15 @@ namespace Mariana.AVM2.Compiler {
             if (method.hasReturn) {
                 node.setDataTypeFromClass(method.returnType);
                 node.isConstant = false;
+
+                if (node.dataType == DataNodeType.STRING
+                    && method.declaringClass != null
+                    && ClassTagSet.primitive.contains(method.declaringClass.tag))
+                {
+                    // All methods on primitive types that return strings never return null, so
+                    // we set the non-null flag so that string concatenation can be optimized.
+                    node.isNotNull = true;
+                }
             }
             else {
                 node.dataType = DataNodeType.UNDEFINED;

@@ -410,12 +410,12 @@ namespace Mariana.CodeGen {
             if ((attributes & MethodAttributes.Static) != 0) {
                 if (paramTypes.Length != 0)
                     throw new ArgumentException("Static constructors must not have parameters.", nameof(paramTypes));
-                methodName = ".cctor";
+                methodName = ConstructorInfo.TypeConstructorName;
             }
             else {
                 if ((m_typeAttrs & TypeAttributes.Interface) != 0)
                     throw new ArgumentException("The Static attribute must be set for a constructor on an interface type.", nameof(attributes));
-                methodName = ".ctor";
+                methodName = ConstructorInfo.ConstructorName;
             }
 
             attributes |= MethodAttributes.SpecialName | MethodAttributes.RTSpecialName;
@@ -439,17 +439,33 @@ namespace Mariana.CodeGen {
         ///
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="position"/> is negative
         /// or not less than the number of generic type parameters declared by this type.</exception>
-        /// <exception cref="ArgumentException"><paramref name="name"/> is null or the empty string.</exception>
+        /// <exception cref="ArgumentException"><paramref name="name"/> is null or the empty string,
+        /// or one of the handles in <paramref name="constraints"/> does not refer to a TypeDef,
+        /// TypeRef or TypeSpec.</exception>
         public void defineGenericParameter(
-            int position, string name,
+            int position,
+            string name,
             GenericParameterAttributes attributes = GenericParameterAttributes.None,
-            ReadOnlySpan<EntityHandle> constraints = default)
-        {
+            ReadOnlySpan<EntityHandle> constraints = default
+        ) {
             if ((uint)position >= (uint)m_genParams.Length)
                 throw new ArgumentOutOfRangeException(nameof(position));
 
             if (name == null || name.Length == 0)
                 throw new ArgumentException("Generic parameter name must not be null or an empty string.", nameof(name));
+
+            for (int i = 0; i < constraints.Length; i++) {
+                HandleKind handleKind = constraints[i].Kind;
+
+                if (constraints[i].IsNil
+                    || (handleKind != HandleKind.TypeDefinition
+                        && handleKind != HandleKind.TypeReference
+                        && handleKind != HandleKind.TypeSpecification))
+                {
+                    throw new ArgumentException(
+                        "Generic parameter constraint handle must be a TypeDef, TypeRef or TypeSpec.", $"{nameof(constraints)}[{i}]");
+                }
+            }
 
             ref var genParam = ref m_genParams[position];
             genParam.name = name;
@@ -607,8 +623,8 @@ namespace Mariana.CodeGen {
         {
             _GenParam[] genParams = m_genParams;
             for (int i = 0; i < genParams.Length; i++) {
-                ref var gp = ref genParams[i];
-                entriesList.add(new GenericParameter(m_handle, i, gp.name, gp.attrs, gp.constraints));
+                ref var genParam = ref genParams[i];
+                entriesList.add(new GenericParameter(m_handle, i, genParam.name, genParam.attrs, genParam.constraints));
             }
 
             Span<MethodBuilder> methodDefs = m_methodDefs.asSpan();

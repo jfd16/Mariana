@@ -378,7 +378,37 @@ namespace Mariana.AVM2.Core {
         ///
         /// <remarks>
         /// If the element type is <see cref="ASObject"/> or a subclass of it, use of
-        /// the faster <see cref="fromObjectSpan{T}"/> method is recommended.
+        /// the faster <see cref="fromObjectSpan{T}(Span{T})"/> method is recommended.
+        /// </remarks>
+        public static ASArray fromSpan<T>(Span<T> span) => fromSpan((ReadOnlySpan<T>)span);
+
+        /// <summary>
+        /// Creates a new <see cref="ASArray"/> instance using values from the given span.
+        /// </summary>
+        ///
+        /// <param name="span">A span containing the elements of the array to be created.</param>
+        /// <typeparam name="T">The type of the elements in the span. This must be a
+        /// subclass of <see cref="ASObject"/>.</typeparam>
+        /// <returns>The created array.</returns>
+        ///
+        /// <remarks>
+        /// Use of this method is recommended instead <see cref="fromSpan{T}(Span{T})"/> when the
+        /// element type is <see cref="ASObject"/> or a subclass of it, as it has better
+        /// performance
+        /// </remarks>
+        public static ASArray fromObjectSpan<T>(Span<T> span) where T : ASObject => fromObjectSpan((ReadOnlySpan<T>)span);
+
+        /// <summary>
+        /// Creates a new <see cref="ASArray"/> instance using values from the given span.
+        /// </summary>
+        ///
+        /// <param name="span">A span containing the elements of the array to be created.</param>
+        /// <typeparam name="T">The type of the elements in the span.</typeparam>
+        /// <returns>The created array.</returns>
+        ///
+        /// <remarks>
+        /// If the element type is <see cref="ASObject"/> or a subclass of it, use of
+        /// the faster <see cref="fromObjectSpan{T}(ReadOnlySpan{T})"/> method is recommended.
         /// </remarks>
         public static ASArray fromSpan<T>(ReadOnlySpan<T> span) {
             ASArray array = new ASArray();
@@ -407,7 +437,7 @@ namespace Mariana.AVM2.Core {
         /// <returns>The created array.</returns>
         ///
         /// <remarks>
-        /// Use of this method is recommended instead <see cref="fromSpan{T}"/> when the
+        /// Use of this method is recommended instead <see cref="fromSpan{T}(ReadOnlySpan{T})"/> when the
         /// element type is <see cref="ASObject"/> or a subclass of it, as it has better
         /// performance
         /// </remarks>

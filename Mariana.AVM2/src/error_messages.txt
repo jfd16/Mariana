@@ -1,137 +1,137 @@
-﻿1000	Error				The system is out of memory.
-1001	Error				The method $1 is not implemented.
-1002	RangeError			Number.toPrecision has a range of 1 to 21. Number.toFixed and Number.toExponential have a range of 0 to 20. Specified value is not within expected range.
-1003	RangeError			The radix argument must be between 2 and 36; got $1.
-1005	RangeError			Array length is not a positive integer ($1).
-1006	TypeError			$1 is not a function.
-1007	TypeError			Instantiation attempted on a non-constructor.
-1008	TypeError			$1 is ambiguous; Found more than one matching binding.
-1009	TypeError			Cannot access a property or method of a null object reference.
-1010	TypeError			A term is undefined and has no properties.
-1011	VerifyError			Method '$2' contained illegal opcode $1 at offset $3.
+﻿1000    Error               The system is out of memory.
+1001    Error               The method $1 is not implemented.
+1002    RangeError          Number.toPrecision has a range of 1 to 21. Number.toFixed and Number.toExponential have a range of 0 to 20. Specified value is not within expected range.
+1003    RangeError          The radix argument must be between 2 and 36; got $1.
+1005    RangeError          Array length is not a positive integer ($1).
+1006    TypeError           $1 is not a function.
+1007    TypeError           Instantiation attempted on a non-constructor.
+1008    TypeError           $1 is ambiguous; Found more than one matching binding.
+1009    TypeError           Cannot access a property or method of a null object reference.
+1010    TypeError           A term is undefined and has no properties.
+1011    VerifyError         Method '$2' contained illegal opcode $1 at offset $3.
 1013    VerifyError         Cannot call OP_findproperty when scopeDepth is 0. (method: $1; offset: $2)
-1014	VerifyError			Class '$1' could not be found.
-1015	VerifyError			Method cannot set default xml namespace. (method: $1; offset: $2)
-1016	TypeError			Descendants operator (..) not supported on type $1.
-1017	VerifyError			Scope stack overflow. (method: $1; offset: $2)
-1018	VerifyError			Scope stack underflow. (method: $1; offset: $2)
-1019	VerifyError			Getscopeobject $1 is out of bounds. (method: $2; offset: $3)
-1020	VerifyError			Code cannot fall off the end of a method. (method: $1)
-1021	VerifyError			At least one branch target was not on a valid instruction in the method. (method: $1, offset: $2)
-1022	VerifyError			Type void may only be used as a function return type.
-1023	VerifyError			Stack overflow. (method: $1; offset: $2)
-1024	VerifyError			Stack underflow. (method: $1; offset: $2)
-1025	VerifyError			An invalid register $1 was accessed. (method: $2; offset: $3)
-1026	VerifyError			Slot $1 exceeds slot count of $2. (method: $3; offset: $4)
-1027	VerifyError			method_info $1 exceeds method_count=$2.
-1028	VerifyError			disp_id $1 exceeds max disp_id of $2. (method: $3; offset: $4)
-1030	VerifyError			Stack depth unbalanced. $1 != $2. (method: $3; offset: $4)
-1031	VerifyError			Scope depth unbalanced. $1 != $2. (method: $3; offset: $4)
-1032	VerifyError			Cpool index $1 out of range $2.
-1034	TypeError			Type coercion failed: cannot convert $1 to $2.
-1035	VerifyError			Illegal super expression in method $1.
-1037	ReferenceError		Cannot assign to a method $1 on $2.
-1038	DefinitionError		'$1' is already defined.
-1040	TypeError			The right-hand side of instanceof must be a class or function.
-1041	TypeError			The right-hand side of is or as operator must be a class.
+1014    VerifyError         Class '$1' could not be found.
+1015    VerifyError         Method cannot set default xml namespace. (method: $1; offset: $2)
+1016    TypeError           Descendants operator (..) not supported on type $1.
+1017    VerifyError         Scope stack overflow. (method: $1; offset: $2)
+1018    VerifyError         Scope stack underflow. (method: $1; offset: $2)
+1019    VerifyError         Getscopeobject $1 is out of bounds. (method: $2; offset: $3)
+1020    VerifyError         Code cannot fall off the end of a method. (method: $1)
+1021    VerifyError         At least one branch target was not on a valid instruction in the method. (method: $1, offset: $2)
+1022    VerifyError         Type void may only be used as a function return type.
+1023    VerifyError         Stack overflow. (method: $1; offset: $2)
+1024    VerifyError         Stack underflow. (method: $1; offset: $2)
+1025    VerifyError         An invalid register $1 was accessed. (method: $2; offset: $3)
+1026    VerifyError         Slot $1 exceeds slot count of $2. (method: $3; offset: $4)
+1027    VerifyError         method_info $1 exceeds method_count=$2.
+1028    VerifyError         disp_id $1 exceeds max disp_id of $2. (method: $3; offset: $4)
+1030    VerifyError         Stack depth unbalanced. $1 != $2. (method: $3; offset: $4)
+1031    VerifyError         Scope depth unbalanced. $1 != $2. (method: $3; offset: $4)
+1032    VerifyError         Cpool index $1 out of range $2.
+1034    TypeError           Type coercion failed: cannot convert $1 to $2.
+1035    VerifyError         Illegal super expression in method $1.
+1037    ReferenceError      Cannot assign to a method $1 on $2.
+1038    DefinitionError     '$1' is already defined.
+1040    TypeError           The right-hand side of instanceof must be a class or function.
+1041    TypeError           The right-hand side of is or as operator must be a class.
 1043    VerifyError         Invalid code_length=$1 (method: $2)
-1044	VerifyError			method_info $1: unsupported flags $2.
-1045	VerifyError			Unsupported trait kind: $1.
-1050	TypeError			Cannot convert Object to primitive.
+1044    VerifyError         method_info $1: unsupported flags $2.
+1045    VerifyError         Unsupported trait kind: $1.
+1050    TypeError           Cannot convert Object to primitive.
 1051    VerifyError         Illegal early binding access to '$1'. (method: $1, offset: $2)
-1052	URIError			Invalid URI passed to $1 function.
-1053	VerifyError			Illegal override of '$1' in '$2'.
-1054	VerifyError			Illegal range or target offsets in exception handler. (method: $1)
-1056	ReferenceError		Cannot create property $1 on $2.
+1052    URIError            Invalid URI passed to $1 function.
+1053    VerifyError         Illegal override of '$1' in '$2'.
+1054    VerifyError         Illegal range or target offsets in exception handler. (method: $1)
+1056    ReferenceError      Cannot create property $1 on $2.
 1057    VerifyError         Interface '$1' may only contain methods.
 1058    VerifyError         Illegal operand type: $1 must be Namespace.
-1060	VerifyError			ClassInfo $1 exceeds class_count=$2.
-1063	ArgumentError		Argument count mismatch on $1: expected $2, got $3.
-1064	TypeError			Cannot call method $1/$2 as constructor.
-1065	ReferenceError		Variable '$1' is not defined.
-1066	EvalError			Function('function body') is not supported.
-1068	VerifyError			$1 and $2 cannot be reconciled. (method: $3; offset: $4)
-1069	ReferenceError		Property $1 not found on $2 and there is no default value.
-1072	VerifyError			Disp_id 0 is illegal.
-1074	ReferenceError		Illegal write to read-only property $1 on $2.
-1075	TypeError			Math is not a function.
-1076	TypeError			Math is not a constructor.
-1077	ReferenceError		Illegal read to write-only property $1 on $2.
-1078	VerifyError			Illegal opcode/multiname combination: $1 <$2>. (method: $3; offset: $4)
-1080	VerifyError			Illegal value for namespace.
-1083	TypeError			The prefix '$1' for element or attribute '$2' is not bound. (line $3)
-1085	TypeError			The element '$1' must be terminated by the matching end tag '$1'. (line $2)
-1086	TypeError			The $1 method only works on lists containing one item.
-1087	TypeError			Assignment to indexed XML is not allowed.
-1088	TypeError			No markup in the the document must appear after the root element.
-1090	TypeError			XML parser failure: Element is malformed. (line $1)
-1091	TypeError			XML parser failure: Unterminated CDATA section. (line $1)
-1092	TypeError			XML parser failure: Unterminated XML declaration. (line $1)
-1093	TypeError			XML parser failure: Unterminated DOCTYPE declaration. (line $1)
-1094	TypeError			XML parser failure: Unterminated comment. (line $1)
-1095	TypeError			XML parser failure: Unterminated attribute. (line $1)
-1096	TypeError			XML parser failure: Unterminated element. (line $1)
-1097	TypeError			XML parser failure: Unterminated processing instruction. (line $1)
-1098	TypeError			Illegal prefix '$1' for 'no namespace'.
+1060    VerifyError         ClassInfo $1 exceeds class_count=$2.
+1063    ArgumentError       Argument count mismatch on $1: expected $2, got $3.
+1064    TypeError           Cannot call method $1/$2 as constructor.
+1065    ReferenceError      Variable '$1' is not defined.
+1066    EvalError           Function('function body') is not supported.
+1068    VerifyError         $1 and $2 cannot be reconciled. (method: $3; offset: $4)
+1069    ReferenceError      Property $1 not found on $2 and there is no default value.
+1072    VerifyError         Disp_id 0 is illegal.
+1074    ReferenceError      Illegal write to read-only property $1 on $2.
+1075    TypeError           Math is not a function.
+1076    TypeError           Math is not a constructor.
+1077    ReferenceError      Illegal read to write-only property $1 on $2.
+1078    VerifyError         Illegal opcode/multiname combination: $1 <$2>. (method: $3; offset: $4)
+1080    VerifyError         Illegal value for namespace.
+1083    TypeError           The prefix '$1' for element or attribute '$2' is not bound. (line $3)
+1085    TypeError           The element '$1' must be terminated by the matching end tag '$1'. (line $2)
+1086    TypeError           The $1 method only works on lists containing one item.
+1087    TypeError           Assignment to indexed XML is not allowed.
+1088    TypeError           No markup in the the document must appear after the root element.
+1090    TypeError           XML parser failure: Element is malformed. (line $1)
+1091    TypeError           XML parser failure: Unterminated CDATA section. (line $1)
+1092    TypeError           XML parser failure: Unterminated XML declaration. (line $1)
+1093    TypeError           XML parser failure: Unterminated DOCTYPE declaration. (line $1)
+1094    TypeError           XML parser failure: Unterminated comment. (line $1)
+1095    TypeError           XML parser failure: Unterminated attribute. (line $1)
+1096    TypeError           XML parser failure: Unterminated element. (line $1)
+1097    TypeError           XML parser failure: Unterminated processing instruction. (line $1)
+1098    TypeError           Illegal prefix '$1' for 'no namespace'.
 
 1100    TypeError           Cannot supply flags when constructing one RegExp from another.
-1102	VerifyError			Illegal default value for type $1.
-1103	VerifyError			Class '$1' cannot extend final base class.
-1104	TypeError			Attribute '$1' was already specified for element '$2'. (line $3)
-1107	VerifyError			The ABC data is corrupt, attempt to read out of bounds.
-1108	VerifyError			The newclass opcode was used with the incorrect base class (method: $1; offset: $2)
-1110	VerifyError			$1 cannot extend $2.
-1111	VerifyError			$1 cannot implement $2.
-1112	ArgumentError		Argument count mismatch on class coercion. Expected 1, got $1.
-1113	VerifyError			OP_newactivation used in method without NEED_ACTIVATION flag. (method: $1; offset: $2)
+1102    VerifyError         Illegal default value for type $1.
+1103    VerifyError         Class '$1' cannot extend final base class.
+1104    TypeError           Attribute '$1' was already specified for element '$2'. (line $3)
+1107    VerifyError         The ABC data is corrupt, attempt to read out of bounds.
+1108    VerifyError         The newclass opcode was used with the incorrect base class (method: $1; offset: $2)
+1110    VerifyError         $1 cannot extend $2.
+1111    VerifyError         $1 cannot implement $2.
+1112    ArgumentError       Argument count mismatch on class coercion. Expected 1, got $1.
+1113    VerifyError         OP_newactivation used in method without NEED_ACTIVATION flag. (method: $1; offset: $2)
 1115    TypeError           Class is not a constructor.
-1117	TypeError			Invalid XML name: $1
+1117    TypeError           Invalid XML name: $1
 1118    TypeError           Illegal cyclical loop between nodes.
-1123	TypeError			Filter operation not supported on type $1.
-1125	RangeError			The index $1 is out of range $2.
-1126	RangeError			Cannot change the length of a fixed Vector.
-1127	TypeError			Type application attempted on a non-parameterized type '$1'.
-1128	TypeError			Incorrect number of type parameters for '$1'. Expected $2, got $3.
-1129	TypeError			Cyclic structure cannot be converted to JSON string.
-1131	TypeError			Replacer argument to JSON.stringify must be an array or a two parameter function.
-1132	SyntaxError			Invalid JSON parse input: $1 (line $2)
+1123    TypeError           Filter operation not supported on type $1.
+1125    RangeError          The index $1 is out of range $2.
+1126    RangeError          Cannot change the length of a fixed Vector.
+1127    TypeError           Type application attempted on a non-parameterized type '$1'.
+1128    TypeError           Incorrect number of type parameters for '$1'. Expected $2, got $3.
+1129    TypeError           Cyclic structure cannot be converted to JSON string.
+1131    TypeError           Replacer argument to JSON.stringify must be an array or a two parameter function.
+1132    SyntaxError         Invalid JSON parse input: $1 (line $2)
 
 1506    RangeError          The specified range is invalid.
-1510	TypeError			When the callback argument is a method of a class, the optional this argument must be null.
+1510    TypeError           When the callback argument is a method of a class, the optional this argument must be null.
 
-2006	ArgumentError		The supplied index is out of bounds.
-2007	ArgumentError		Parameter $1 must be non-null.
-2008	ArgumentError		Parameter $1 must be one of the accepted values.
-2012	Error				$1 class cannot be instantiated.
+2006    ArgumentError       The supplied index is out of bounds.
+2007    ArgumentError       Parameter $1 must be non-null.
+2008    ArgumentError       Parameter $1 must be one of the accepted values.
+2012    Error               $1 class cannot be instantiated.
 
 # ADDITIONAL ERRORS
 # (not used by Flash Player)
 
-10003	DefinitionError		A trait with the name '$1' already exists in class '$2'.
-10008	TypeError			No class with the underlying type '$1' exists.
-10009	DefinitionError		Signature mismatch in common trait '$1' inherited by interface '$2' from '$3' and '$4'.
-10010	DefinitionError		The trait '$1' of class '$2' hides an inherited trait with the same name but is not an overridden method.
+10003   DefinitionError     A trait with the name '$1' already exists in class '$2'.
+10008   TypeError           No class with the underlying type '$1' exists.
+10009   DefinitionError     Signature mismatch in common trait '$1' inherited by interface '$2' from '$3' and '$4'.
+10010   DefinitionError     The trait '$1' of class '$2' hides an inherited trait with the same name but is not an overridden method.
 
-10011	TypeError   		Attempt to retrieve trait information from a corrupted class.
-10013	ArgumentError		Private namespaces cannot be created with the Namespace constructor. Use Namespace.createPrivate instead.
-10014	ArgumentError		NSCategory.ANY is a reserved namespace kind and cannot be used with the Namespace constructor.
-10015	Error       		Private namespace limit has been exceeded.
-10016	ArgumentError		Invalid namespace kind: $1
-10017	ArgumentError		Non-private namespaces cannot have null names.
+10011   TypeError           Attempt to retrieve trait information from a corrupted class.
+10013   ArgumentError       Private namespaces cannot be created with the Namespace constructor. Use Namespace.createPrivate instead.
+10014   ArgumentError       NSCategory.ANY is a reserved namespace kind and cannot be used with the Namespace constructor.
+10015   Error               Private namespace limit has been exceeded.
+10016   ArgumentError       Invalid namespace kind: $1
+10017   ArgumentError       Non-private namespaces cannot have null names.
 
-10032	SyntaxError			RegExp parse error: $1
-10034	TypeError			Arguments to the applytype operator must be classes.
+10032   SyntaxError         RegExp parse error: $1
+10034   TypeError           Arguments to the applytype operator must be classes.
 
-10039	TypeError			A scope is required to create a function closure for the method $1.
-10040	TypeError			The receiver to a method closure or delegate must be null for static and global methods, and non-null for instance methods.
-10041	TypeError			Cannot create a method closure for the method $1 because it takes a scope argument.
-10045	TypeError			The getValue, setValue, invoke and construct methods of Trait objects that do not take a target argument can be used only on static traits.
-10049	TypeError			GenericComparer<T> does not support type '$1'.
+10039   TypeError           A scope is required to create a function closure for the method $1.
+10040   TypeError           The receiver to a method closure or delegate must be null for static and global methods, and non-null for instance methods.
+10041   TypeError           Cannot create a method closure for the method $1 because it takes a scope argument.
+10045   TypeError           The getValue, setValue, invoke and construct methods of Trait objects that do not take a target argument can be used only on static traits.
+10049   TypeError           GenericComparer<T> does not support type '$1'.
 
 10051   TypeError           Invalid typed key lookup for class '$1'.
 
-10056	TypeError			The boxed form of a primitive type cannot be used directly as a type argument for Vector. Use the associated non-boxed primitive type, or the Object type for indirect boxing.
-10057	TypeError			'$1' cannot be used as a type argument.
+10056   TypeError           The boxed form of a primitive type cannot be used directly as a type argument for Vector. Use the associated non-boxed primitive type, or the Object type for indirect boxing.
+10057   TypeError           '$1' cannot be used as a type argument.
 10058   TypeError           ASObject.AS_fromBoxed(): The argument is not an Object or a valid primitive type.
 
 10060   ArgumentError       Argument '$1' cannot be null.
@@ -140,8 +140,8 @@
 10070   Error               Cannot load an ABC script in the system domain.
 
 10101   NativeClassLoadError    A class with the underlying type '$1' already exists.
-10102	NativeClassLoadError	Cannot load type '$1': Type is not an interface, and it does not extend ASObject.
-10103	NativeClassLoadError	Cannot load type '$1': Type contains generic parameters.
+10102   NativeClassLoadError    Cannot load type '$1': Type is not an interface, and it does not extend ASObject.
+10103   NativeClassLoadError    Cannot load type '$1': Type contains generic parameters.
 10104   NativeClassLoadError    Cannot load type '$1': Type has non-public visibility.
 10105   NativeClassLoadError    Cannot load type '$1': Nested types cannot be loaded.
 10106   NativeClassLoadError    Cannot load type '$1': Invalid class name: Namespace kind cannot be ANY or PRIVATE.
@@ -156,6 +156,7 @@
 10115   NativeClassLoadError    Cannot load type '$1': Interfaces cannot contain prototype methods.
 10116   NativeClassLoadError    Vector cannot be instantiated with the uninstantiated Vector type.
 10117   NativeClassLoadError    Cannot load an instantiation of Vector using ApplicationDomain.loadNativeClass().
+10118   NativeClassLoadError    Cannot load type '$1': Module is already loaded.
 
 10120   NativeClassLoadError    Class '$1' cannot export more than one constructor.
 10121   NativeClassLoadError    Invalid trait '$1' in class '$2': Unsupported constant type.
@@ -175,16 +176,17 @@
 
 10201   TypeError               createChildNode() can only be used on element nodes.
 10202   TypeError               Assigning to the nodeText property is not supported on element nodes.
-10230	TypeError           	XML parser failure: Misplaced or invalid DOCTYPE declaration. (line $1)
-10231	TypeError	            XML parser failure: Invalid name. (line $1)
-10232	TypeError	            XML parser failure: Invalid entity name. (line $1)
-10233	TypeError	            XML parser failure: Unterminated entity. (line $1)
-10234	TypeError	            XML parser failure: Duplicate namespace declaration. (line $1)
+10230   TypeError               XML parser failure: Misplaced or invalid DOCTYPE declaration. (line $1)
+10231   TypeError               XML parser failure: Invalid name. (line $1)
+10232   TypeError               XML parser failure: Invalid entity name. (line $1)
+10233   TypeError               XML parser failure: Unterminated entity. (line $1)
+10234   TypeError               XML parser failure: Duplicate namespace declaration. (line $1)
 10235   TypeError               XML parser failure: Invalid character sequence in comment. (line $1)
+10241   TypeError               getDateComponents cannot be called on an invalid Date.
 
-10301	VerifyError         	Invalid u30 value in ABC file.
-10302	VerifyError         	Index into namespace set or multiname pool cannot be zero.
-10303	VerifyError         	Invalid multiname kind: $1.
+10301   VerifyError             Invalid u30 value in ABC file.
+10302   VerifyError             Index into namespace set or multiname pool cannot be zero.
+10303   VerifyError             Invalid multiname kind: $1.
 10304   VerifyError             Invalid UTF-8 in string constant.
 10305   VerifyError             method_info $1: option_count exceeds param_count.
 10306   VerifyError             Invalid class or trait name: name must be a QName.
@@ -216,4 +218,3 @@
 10360   VerifyError             Cannot create a function from method_info $1 with the newfunction opcode.
 10362   VerifyError             The newclass instruction can used to initialize a class only once. (method: $1, offset: $2)
 10363   VerifyError             Cannot create a function from method_info $1 with the newfunction opcode: Captured scope types do not match exactly.
-

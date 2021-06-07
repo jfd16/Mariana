@@ -69,7 +69,7 @@ namespace Mariana.AVM2.Core {
                         endOfMessage--;
 
                     string errMsg = line.Substring(charsRead, endOfMessage - charsRead + 1);
-                    errInfoDict[(ErrorCode)errCode] = new _ErrInfo {type = errType, msg = errMsg};
+                    errInfoDict.Add((ErrorCode)errCode, new _ErrInfo {type = errType, msg = errMsg});
                 }
             }
 

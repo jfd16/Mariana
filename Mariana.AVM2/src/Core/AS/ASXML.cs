@@ -2801,7 +2801,7 @@ namespace Mariana.AVM2.Core {
                     }
                 }
 
-                return ASArray.fromObjectSpan<ASNamespace>(nsList.asSpan());
+                return ASArray.fromObjectSpan(nsList.asSpan());
             }
 
             public override ASArray namespaceDeclarations() {
@@ -2833,7 +2833,7 @@ namespace Mariana.AVM2.Core {
                 if (isAnyDeclRemoved)
                     thisNodeDeclsSpan = DataStructureUtil.compactNulls(thisNodeDeclsSpan);
 
-                return ASArray.fromObjectSpan<ASNamespace>(thisNodeDeclsSpan);
+                return ASArray.fromObjectSpan(thisNodeDeclsSpan);
             }
 
             /// <summary>

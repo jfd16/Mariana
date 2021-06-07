@@ -22,6 +22,7 @@ namespace Mariana.AVM2.Core {
         private const int AUX_FLAG_GLOBAL = 1;
         private const int AUX_FLAG_DOTALL = 2;
         private const int AUX_FLAG_EXTENDED = 4;
+        private const int AUX_FLAG_MULTILINE = 8;
 
         private Regex m_internalRegex;
         private string m_source;
@@ -118,7 +119,7 @@ namespace Mariana.AVM2.Core {
             flags = ASString.AS_convertString(flags);
 
             m_source = pattern;
-            RegexOptions regexOptions = 0;
+            RegexOptions regexOptions = RegexOptions.CultureInvariant | RegexOptions.ECMAScript;
 
             for (int i = 0; i < flags.Length; i++) {
                 switch (flags[i]) {
@@ -129,7 +130,7 @@ namespace Mariana.AVM2.Core {
                         m_auxFlags |= AUX_FLAG_EXTENDED;
                         break;
                     case 'm':
-                        regexOptions |= RegexOptions.Multiline;
+                        m_auxFlags |= AUX_FLAG_MULTILINE;
                         break;
                     case 's':
                         m_auxFlags |= AUX_FLAG_DOTALL;
@@ -142,12 +143,13 @@ namespace Mariana.AVM2.Core {
 
             var transpiler = new RegexTranspiler();
             transpiler.transpile(
-                pattern, (m_auxFlags & AUX_FLAG_DOTALL) != 0, (m_auxFlags & AUX_FLAG_EXTENDED) != 0);
-
-            m_internalRegex = new Regex(
-                transpiler.transpiledPattern,
-                regexOptions | RegexOptions.CultureInvariant | RegexOptions.ECMAScript
+                pattern,
+                (m_auxFlags & AUX_FLAG_MULTILINE) != 0,
+                (m_auxFlags & AUX_FLAG_DOTALL) != 0,
+                (m_auxFlags & AUX_FLAG_EXTENDED) != 0
             );
+
+            m_internalRegex = new Regex(transpiler.transpiledPattern, regexOptions);
 
             m_groupNames = transpiler.getGroupNames();
             m_groupCount = transpiler.groupCount;
@@ -306,11 +308,10 @@ namespace Mariana.AVM2.Core {
         /// <remarks>
         /// If this is set, the '^' and '$' characters in the pattern matches the beginning and end of
         /// lines in the target string respectively, rather than only the beginning and end of the
-        /// entire string. This corresponds to the <see cref="RegexOptions.Multiline" qualifyHint="true"/>
-        /// option in .NET regex.
+        /// entire string.
         /// </remarks>
         [AVM2ExportTrait]
-        public virtual bool multiline => (m_internalRegex.Options & RegexOptions.Multiline) != 0;
+        public virtual bool multiline => (m_auxFlags & AUX_FLAG_MULTILINE) != 0;
 
         /// <summary>
         /// Returns a Boolean value indicating whether the regular expression matches the given
@@ -416,16 +417,11 @@ namespace Mariana.AVM2.Core {
                 DynamicPropertyCollection namedProps = groupArray.AS_dynamicProps;
 
                 for (int i = 0, n = groups.Count; i < n; i++) {
-                    if (!groups[i].Success) {
-                        groupArray[i] = ASAny.undefined;
-                    }
-                    else {
-                        string groupValue = groups[i].Value;
-                        groupArray[i] = groupValue;
+                    ASAny capturedValue = groups[i].Success ? (ASAny)groups[i].Value : ASAny.undefined;
 
-                        if (i != 0 && m_groupNames != null && m_groupNames[i - 1] != null)
-                            namedProps[m_groupNames[i - 1]] = groupValue;
-                    }
+                    groupArray[i] = capturedValue;
+                    if (i != 0 && m_groupNames != null && m_groupNames[i - 1] != null)
+                        namedProps[m_groupNames[i - 1]] = capturedValue;
                 }
 
                 namedProps["input"] = str;
@@ -433,6 +429,14 @@ namespace Mariana.AVM2.Core {
 
                 _result = groupArray;
             }
+        }
+
+        /// <inheritdoc/>
+        public override bool AS_tryInvoke(ASAny receiver, ReadOnlySpan<ASAny> args, out ASAny result) {
+            // Calling a RegExp as a function calls exec()
+            // See: https://github.com/adobe/avmplus/blob/master/core/RegExpObject.cpp#L208
+            result = exec((args.Length == 0) ? "" : ASAny.AS_convertString(args[0]));
+            return true;
         }
 
         /// <exclude/>
