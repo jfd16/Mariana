@@ -44,7 +44,7 @@ namespace Mariana.Common {
                     || (ch <= 0x7F && noEscapeChars.Contains(ch));
 
                 if (bufPos == bufLen) {
-                    DataStructureUtil.resizeArray(ref buffer, bufLen, bufLen + 1, false);
+                    DataStructureUtil.expandArray(ref buffer);
                     bufLen = buffer.Length;
                 }
 
@@ -92,7 +92,7 @@ namespace Mariana.Common {
                 do {
                     // Write the percent encoding for each byte
                     if (bufLen - bufPos < 3) {
-                        DataStructureUtil.resizeArray(ref buffer, bufPos, bufPos + 3, false);
+                        DataStructureUtil.expandArray(ref buffer, 3);
                         bufLen = buffer.Length;
                     }
                     buffer[bufPos] = '%';

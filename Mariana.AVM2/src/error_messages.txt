@@ -163,7 +163,6 @@
 10122   NativeClassLoadError    Invalid trait '$1' in class '$2': The boxed form of a primitive type cannot be used as a field type or in a method signature.
 10123   NativeClassLoadError    Invalid trait '$1' in class '$2': Generic methods cannot be exported.
 10124   NativeClassLoadError    Invalid trait '$1' in class '$2': Invalid signature for property getter/setter method.
-10125   NativeClassLoadError    Invalid trait '$1' in class '$2': Interface trait in non-public namespace.
 10126   NativeClassLoadError    Invalid trait '$1' in class '$2': Method optional parameters must not be followed by required parameters.
 10127   NativeClassLoadError    Invalid trait '$1' in class '$2': Rest parameter must be the last parameter of a method.
 10128   NativeClassLoadError    Invalid trait '$1' in class '$2': Default parameter value cannot be coerced to the parameter type.

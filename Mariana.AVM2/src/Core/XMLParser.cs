@@ -513,7 +513,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="value">A Unicode code point value.</param>
         private static void _writeCodePoint(ref char[] buffer, ref int position, int value) {
             if (buffer.Length - position < 2)
-                DataStructureUtil.resizeArray(ref buffer, position, position + 2, false);
+                DataStructureUtil.expandArray(ref buffer, 2);
 
             if (value > 0xFFFF) {
                 // Split into surrogate pairs.
@@ -578,7 +578,7 @@ namespace Mariana.AVM2.Core {
 
             char[] textBuffer = m_buffer;
             if (charsRead > textBuffer.Length)
-                DataStructureUtil.resizeArray(ref textBuffer, textBuffer.Length, charsRead, false);
+                DataStructureUtil.resizeArray(ref textBuffer, textBuffer.Length, charsRead);
 
             m_str.CopyTo(m_pos, textBuffer, 0, charsRead);
             int textBufPos = charsRead;
@@ -603,7 +603,7 @@ namespace Mariana.AVM2.Core {
                 int charsToCopy = (nextIndex == -1) ? span.Length : nextIndex;
 
                 if (textBuffer.Length - textBufPos < charsToCopy)
-                    DataStructureUtil.resizeArray(ref textBuffer, textBufPos, textBufPos + charsToCopy, false);
+                    DataStructureUtil.resizeArray(ref textBuffer, textBufPos, textBufPos + charsToCopy);
 
                 span.Slice(0, charsToCopy).CopyTo(textBuffer.AsSpan(textBufPos));
                 textBufPos += charsToCopy;
@@ -679,7 +679,7 @@ namespace Mariana.AVM2.Core {
             char[] textBuffer = m_buffer;
 
             if (textBuffer.Length < charsRead)
-                DataStructureUtil.resizeArray(ref textBuffer, textBuffer.Length, charsRead, false);
+                DataStructureUtil.resizeArray(ref textBuffer, textBuffer.Length, charsRead);
 
             m_str.CopyTo(m_pos, textBuffer, 0, charsRead);
             m_pos += charsRead;
@@ -709,7 +709,7 @@ namespace Mariana.AVM2.Core {
                     throw _error(ErrorCode.XML_PARSER_UNTERMINATED_ATTR);
 
                 if (textBuffer.Length - textBufPos < nextIndex)
-                    DataStructureUtil.resizeArray(ref textBuffer, textBufPos, textBufPos + nextIndex, false);
+                    DataStructureUtil.resizeArray(ref textBuffer, textBufPos, textBufPos + nextIndex);
 
                 span.Slice(0, nextIndex).CopyTo(textBuffer.AsSpan(textBufPos));
                 textBufPos += nextIndex;

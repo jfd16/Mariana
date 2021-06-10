@@ -462,7 +462,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="c">The character to write.</param>
         private void _writeCharToBuffer(char c) {
             if (m_buffer.Length == m_bufferpos)
-                DataStructureUtil.resizeArray(ref m_buffer, m_bufferpos, m_bufferpos + 1, false);
+                DataStructureUtil.expandArray(ref m_buffer);
             m_buffer[m_bufferpos++] = c;
         }
 

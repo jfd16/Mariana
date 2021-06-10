@@ -82,16 +82,21 @@ namespace Mariana.Common {
         /// Resizes the specified array to the new length.
         /// </summary>
         ///
-        /// <param name="arr">The array. This must not be null. If a new array is allocated,
+        /// <param name="array">The array. This must not be null. If a new array is allocated,
         /// it will be written to this argument.</param>
         /// <param name="length">The current length. This must be a positive value less
-        /// than or equal to the length of <paramref name="arr"/>.</param>
+        /// than or equal to the length of <paramref name="array"/>.</param>
         /// <param name="newLength">The new length to resize the array to.</param>
         /// <param name="exact">If set to true (and <paramref name="newLength"/> is greater than the
-        /// length of <paramref name="arr"/>), use the exact value of <paramref name="newLength"/>
+        /// length of <paramref name="array"/>), use the exact value of <paramref name="newLength"/>
         /// as the length of the new array to be allocated.</param>
         ///
         /// <typeparam name="T">The type of the array.</typeparam>
+        ///
+        /// <exception cref="ArgumentNullException"><paramref name="array"/> is null.</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="length"/> is negative or
+        /// greater than the length of <paramref name="array"/>, or <paramref name="newLength"/>
+        /// is negative.</exception>
         ///
         /// <remarks>
         /// <list type="bullet">
@@ -102,7 +107,7 @@ namespace Mariana.Common {
         /// Note that this is different from the <see cref="Array.Resize" qualifyHint="true"/>
         /// method, which creates a new array of a smaller size.
         /// </description></item>
-        /// <item><description>If <paramref name="newLength"/> is less than or equal to the length of <paramref name="arr"/>
+        /// <item><description>If <paramref name="newLength"/> is less than or equal to the length of <paramref name="array"/>
         /// but not less than <paramref name="length"/>, all elements in the range
         /// [<paramref name="length"/>, <paramref name="newLength"/> - 1] are set to the
         /// default value of <typeparamref name="T"/>.</description></item>
@@ -110,28 +115,73 @@ namespace Mariana.Common {
         /// Otherwise, a new array is created. If <paramref name="exact"/> is true, the length of
         /// the new array is equal to <paramref name="newLength"/>. If <paramref name="exact"/> is
         /// false, the length of the new array is calculated using the <see cref="getNextArraySize"/> method.
-        /// The elements of <paramref name="arr"/> from index 0 to <paramref name="length"/> - 1 will be
-        /// copied to the new array. The new array will be assigned to the <paramref name="arr"/> argument.
+        /// The elements of <paramref name="array"/> from index 0 to <paramref name="length"/> - 1 will be
+        /// copied to the new array. The new array will be assigned to the <paramref name="array"/> argument.
         /// </description></item>
         /// </list>
         /// </remarks>
-        public static void resizeArray<T>(ref T[] arr, int length, int newLength, bool exact) {
-            if (arr == null)
-                throw new ArgumentNullException(nameof(arr));
-            if ((uint)length > (uint)arr.Length || newLength < 0)
+        public static void resizeArray<T>(ref T[] array, int length, int newLength, bool exact = false) {
+            T[] currentArray = array;
+
+            if (currentArray == null)
+                throw new ArgumentNullException(nameof(array));
+
+            if ((uint)length > (uint)currentArray.Length || newLength < 0)
                 throw new ArgumentOutOfRangeException(nameof(length));
 
-            if (newLength <= arr.Length) {
+            if (newLength <= currentArray.Length) {
                 if (newLength < length)
-                    arr.AsSpan(newLength, length - newLength).Clear();
+                    currentArray.AsSpan(newLength, length - newLength).Clear();
                 else
-                    arr.AsSpan(length, newLength - length).Clear();
+                    currentArray.AsSpan(length, newLength - length).Clear();
             }
             else {
-                T[] temp = new T[exact ? newLength : getNextArraySize(length, newLength)];
-                (new ReadOnlySpan<T>(arr, 0, length)).CopyTo(temp);
-                arr = temp;
+                T[] newArray = new T[exact ? newLength : getNextArraySize(length, newLength)];
+                (new ReadOnlySpan<T>(currentArray, 0, length)).CopyTo(newArray);
+                array = newArray;
             }
+        }
+
+        /// <summary>
+        /// Allocates a new array whose length is at least <paramref name="minExpandSize"/>
+        /// greater than the length of <paramref name="array"/>, and copies the elements
+        /// of <paramref name="array"/> to it.
+        /// </summary>
+        ///
+        /// <param name="array">The array to expand. The newly allocated array, will be written
+        /// to this argument.</param>
+        /// <param name="minExpandSize">The minimum number of elements that must be available in
+        /// the expanded array after the existing elements of <paramref name="array"/>.</param>
+        ///
+        /// <typeparam name="T">The type of the array.</typeparam>
+        ///
+        /// <exception cref="ArgumentNullException"><paramref name="array"/> is null.</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="minExpandSize"/> is
+        /// negative, or the sum of the length of <paramref name="array"/> and
+        /// <paramref name="minExpandSize"/> is greater than the maximum value of
+        /// <see cref="Int32"/>.</exception>
+        ///
+        /// <remarks>
+        /// The elements of the expanded array after the existing elements of <paramref name="array"/>
+        /// are guaranteed to be initialized to the default value of <typeparamref name="T"/>.
+        /// </remarks>
+        public static void expandArray<T>(ref T[] array, int minExpandSize = 1) {
+            T[] currentArray = array;
+
+            if (currentArray == null)
+                throw new ArgumentNullException(nameof(array));
+
+            if (minExpandSize == 0)
+                return;
+
+            int newLength = currentArray.Length + minExpandSize;
+            if (minExpandSize < 0 || newLength < 0)
+                throw new ArgumentOutOfRangeException(nameof(minExpandSize));
+
+            T[] newArray = new T[getNextArraySize(array.Length, newLength)];
+            (new ReadOnlySpan<T>(currentArray)).CopyTo(newArray);
+
+            array = newArray;
         }
 
         /// <summary>

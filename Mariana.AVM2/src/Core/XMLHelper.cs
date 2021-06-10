@@ -213,7 +213,7 @@ namespace Mariana.AVM2.Core {
             if (buffer == null)
                 buffer = new char[bufferInitLength];
             else if (buffer.Length < bufferInitLength)
-                DataStructureUtil.resizeArray(ref buffer, buffer.Length, bufferInitLength, false);
+                DataStructureUtil.resizeArray(ref buffer, buffer.Length, bufferInitLength);
 
             str.CopyTo(start, buffer, 0, indexOfFirstEscapeChar);
 
@@ -249,7 +249,7 @@ namespace Mariana.AVM2.Core {
                 }
 
                 if (bufLen - bufPos < esc.Length) {
-                    DataStructureUtil.resizeArray(ref buffer, bufLen, bufPos + esc.Length, false);
+                    DataStructureUtil.expandArray(ref buffer, esc.Length);
                     bufLen = buffer.Length;
                 }
 
@@ -269,7 +269,7 @@ namespace Mariana.AVM2.Core {
                 ReadOnlySpan<char> copyChars = (nextIndex == -1) ? span : span.Slice(0, nextIndex);
 
                 if (bufLen - bufPos < copyChars.Length) {
-                    DataStructureUtil.resizeArray(ref buffer, bufLen, bufPos + copyChars.Length, false);
+                    DataStructureUtil.resizeArray(ref buffer, bufLen, bufPos + copyChars.Length);
                     bufLen = buffer.Length;
                 }
                 copyChars.CopyTo(buffer.AsSpan(bufPos));

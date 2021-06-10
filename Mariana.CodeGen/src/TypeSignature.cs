@@ -806,7 +806,7 @@ namespace Mariana.CodeGen {
 
         public void appendByte(byte value) {
             if (m_pos == m_currentBuffer.Length)
-                DataStructureUtil.resizeArray(ref m_currentBuffer, m_pos, m_pos + 1, false);
+                DataStructureUtil.expandArray(ref m_currentBuffer);
 
             m_currentBuffer[m_pos++] = value;
         }
@@ -815,7 +815,7 @@ namespace Mariana.CodeGen {
             int sigLength = sig.byteLength;
 
             if (m_pos > m_currentBuffer.Length - sigLength)
-                DataStructureUtil.resizeArray(ref m_currentBuffer, m_pos, m_pos + sigLength, false);
+                DataStructureUtil.resizeArray(ref m_currentBuffer, m_pos, m_pos + sigLength);
 
             sig.writeToSpan(m_currentBuffer.AsSpan(m_pos, sigLength));
             m_pos += sigLength;
@@ -823,7 +823,7 @@ namespace Mariana.CodeGen {
 
         public void appendCompressedUnsignedInt(int value) {
             if (m_pos > m_currentBuffer.Length - 4)
-                DataStructureUtil.resizeArray(ref m_currentBuffer, m_pos, m_pos + 4, false);
+                DataStructureUtil.expandArray(ref m_currentBuffer, 4);
 
             Span<byte> span = m_currentBuffer.AsSpan(m_pos, 4);
 
@@ -850,7 +850,7 @@ namespace Mariana.CodeGen {
 
         public void appendCompressedSignedInt(int value) {
             if (m_pos > m_currentBuffer.Length - 4)
-                DataStructureUtil.resizeArray(ref m_currentBuffer, m_pos, m_pos + 4, false);
+                DataStructureUtil.expandArray(ref m_currentBuffer, 4);
 
             Span<byte> span = m_currentBuffer.AsSpan(m_pos, 4);
 

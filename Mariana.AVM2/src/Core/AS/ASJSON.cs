@@ -618,7 +618,7 @@ namespace Mariana.AVM2.Core {
                     }
 
                     if (bufsize == bufpos) {
-                        DataStructureUtil.resizeArray(ref buffer, bufsize, bufsize + 1, false);
+                        DataStructureUtil.expandArray(ref buffer);
                         bufsize = buffer.Length;
                     }
 
@@ -1182,10 +1182,12 @@ namespace Mariana.AVM2.Core {
                     bool isControl = c < 0x20;
 
                     if (isControl || c == '"' || c == '\\') {
-                        // Character that must be escaped.
+                        // Characters that must be escaped.
                         int maxEscapedSize = isControl ? 6 : 2;
-                        if (bufSize - bufPos < maxEscapedSize)
-                            DataStructureUtil.resizeArray(ref buffer, bufSize, bufPos + maxEscapedSize, false);
+                        if (bufSize - bufPos < maxEscapedSize) {
+                            DataStructureUtil.expandArray(ref buffer, maxEscapedSize);
+                            bufSize = buffer.Length;
+                        }
 
                         buffer[bufPos++] = '\\';
                         switch (c) {
@@ -1224,7 +1226,7 @@ namespace Mariana.AVM2.Core {
                     }
                     else {
                         if (bufPos == bufSize) {
-                            DataStructureUtil.resizeArray(ref buffer, bufSize, bufSize + 1, false);
+                            DataStructureUtil.expandArray(ref buffer);
                             bufSize = buffer.Length;
                         }
                         buffer[bufPos++] = c;

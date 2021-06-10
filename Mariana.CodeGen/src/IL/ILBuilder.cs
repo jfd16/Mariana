@@ -1424,7 +1424,8 @@ namespace Mariana.CodeGen.IL {
             else {
                 WriteInt32LittleEndian(
                     m_codeBuffer.AsSpan(m_position, 4),
-                    (byte)((int)opcode >> 8) | (byte)opcode << 8 | localId << 16);
+                    (byte)((int)opcode >> 8) | (byte)opcode << 8 | localId << 16
+                );
                 m_position += 4;
             }
         }

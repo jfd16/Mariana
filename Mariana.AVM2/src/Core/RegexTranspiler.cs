@@ -683,7 +683,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="value">The character to write to the token stream.</param>
         private void _writeChar(char value) {
             if (m_buffer.Length == m_bufpos)
-                DataStructureUtil.resizeArray(ref m_buffer, m_buffer.Length, m_bufpos + 1, false);
+                DataStructureUtil.expandArray(ref m_buffer);
 
             m_buffer[m_bufpos++] = value;
             m_charSetLastChar = value;
@@ -696,7 +696,7 @@ namespace Mariana.AVM2.Core {
         /// <returns>A span into which the characters can be written.</returns>
         private Span<char> _appendToBuffer(int numChars) {
             if (m_buffer.Length - m_bufpos < numChars)
-                DataStructureUtil.resizeArray(ref m_buffer, m_buffer.Length, m_bufpos + numChars, false);
+                DataStructureUtil.resizeArray(ref m_buffer, m_buffer.Length, m_bufpos + numChars);
 
             m_bufpos += numChars;
             return new Span<char>(m_buffer, m_bufpos - numChars, numChars);
@@ -971,24 +971,17 @@ namespace Mariana.AVM2.Core {
         /// Writes the equivalent expression for a dot character into the buffer.
         /// </summary>
         /// <param name="dotAllEnabled">True if dot-matches-all mode is enabled, false otherwise.</param>
-        private void _writeDot(bool dotAllEnabled) {
-            string dotPattern = dotAllEnabled ? DOT_EXPR_DOTALL : DOT_EXPR_NO_DOTALL;
-            var span = _appendToBuffer(dotPattern.Length);
-            dotPattern.AsSpan().CopyTo(span);
-        }
+        private void _writeDot(bool dotAllEnabled) => _appendToBuffer(dotAllEnabled ? DOT_EXPR_DOTALL : DOT_EXPR_NO_DOTALL);
 
         /// <summary>
         /// Writes the equivalent expression for a '^' character into the buffer.
         /// </summary>
         /// <param name="multilineEnabled">True if multiline mode is enabled, false otherwise.</param>
         private void _writeStartAnchor(bool multilineEnabled) {
-            if (!multilineEnabled) {
+            if (multilineEnabled)
+                _appendToBuffer(START_ANCHOR_EXPR_MULTILINE);
+            else
                 _writeChar('^');
-            }
-            else {
-                var span = _appendToBuffer(START_ANCHOR_EXPR_MULTILINE.Length);
-                START_ANCHOR_EXPR_MULTILINE.AsSpan().CopyTo(span);
-            }
         }
 
         /// <summary>
@@ -996,16 +989,15 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="multilineEnabled">True if multiline mode is enabled, false otherwise.</param>
         private void _writeEndAnchor(bool multilineEnabled) {
-            if (!multilineEnabled) {
-                // If multiline is false, the .NET regex equivalent is '\z', not '$'
-                // ('$' matches in .NET if there is a newline before the end of the string, but not in ECMAScript)
-                var span = _appendToBuffer(2);
-                span[1] = 'z';
-                span[0] = '\\';
+            if (multilineEnabled) {
+                _appendToBuffer(END_ANCHOR_EXPR_MULTILINE);
             }
             else {
-                var span = _appendToBuffer(END_ANCHOR_EXPR_MULTILINE.Length);
-                END_ANCHOR_EXPR_MULTILINE.AsSpan().CopyTo(span);
+                // If multiline is false, the .NET regex equivalent is '\z', not '$'
+                // ('$' matches in .NET if there is a newline before the end of the string, but not in ECMAScript)
+                Span<char> span = _appendToBuffer(2);
+                span[1] = 'z';
+                span[0] = '\\';
             }
         }
 
@@ -1372,9 +1364,9 @@ namespace Mariana.AVM2.Core {
                 }
                 else {
                     int digit1 = forwardRef.groupNumber / 100;
-                    int t = forwardRef.groupNumber - digit1 * 100;
-                    int digit2 = t / 10;
-                    int digit3 = t - digit2 * 10;
+                    int lastTwoDigits = forwardRef.groupNumber - digit1 * 100;
+                    int digit2 = lastTwoDigits / 10;
+                    int digit3 = lastTwoDigits - digit2 * 10;
 
                     if (digit1 == 0 && digit2 == 0)
                         _writeOctal((char)(digit3 + '0'));

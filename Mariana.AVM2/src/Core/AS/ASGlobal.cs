@@ -228,7 +228,7 @@ namespace Mariana.AVM2.Core {
                 if (noEncode) {
                     // No percent encoding
                     if (bufPos == bufLen) {
-                        DataStructureUtil.resizeArray(ref buffer, bufLen, bufLen + 1, false);
+                        DataStructureUtil.expandArray(ref buffer);
                         bufLen = buffer.Length;
                     }
                     buffer[bufPos++] = ch;
@@ -237,7 +237,7 @@ namespace Mariana.AVM2.Core {
 
                 if (ch > 0xFF) {
                     if (bufLen - bufPos < 6) {
-                        DataStructureUtil.resizeArray(ref buffer, bufPos, bufPos + 6, false);
+                        DataStructureUtil.expandArray(ref buffer, 6);
                         bufLen = buffer.Length;
                     }
 
@@ -250,7 +250,7 @@ namespace Mariana.AVM2.Core {
                 }
                 else {
                     if (bufLen - bufPos < 3) {
-                        DataStructureUtil.resizeArray(ref buffer, bufPos, bufPos + 3, false);
+                        DataStructureUtil.expandArray(ref buffer, 3);
                         bufLen = buffer.Length;
                     }
                     buffer[bufPos] = '%';

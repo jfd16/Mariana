@@ -220,34 +220,73 @@ namespace Mariana.Common.Tests {
             }
         }
 
+        public static IEnumerable<object[]> expandArrayTest_data = new (int, int)[] {
+            (0, 0),
+            (1, 0),
+            (100, 0),
+            (0, 1),
+            (0, 100),
+            (1, 1),
+            (1, 10),
+            (10, 1),
+            (10, 10),
+            (10, 50),
+            (100, 1),
+            (100, 25),
+            (100, 99),
+            (100, 125),
+            (141, 12834)
+        }.Select(x => new object[] {x.Item1, x.Item2});
+
+        [Theory]
+        [MemberData(nameof(expandArrayTest_data))]
+        public void expandArrayTest(int arrLen, int expandSize) {
+            byte[] arr1 = new byte[arrLen];
+            arr1.AsSpan().Fill(255);
+
+            byte[] arr2 = arr1;
+            DataStructureUtil.expandArray(ref arr2, expandSize);
+
+            if (expandSize == 0) {
+                Assert.Same(arr1, arr2);
+            }
+            else {
+                Assert.NotSame(arr1, arr2);
+                Assert.Equal(arr2.Length, DataStructureUtil.getNextArraySize(arrLen, arrLen + expandSize));
+            }
+
+            Assert.Equal<byte>(Enumerable.Repeat<byte>(255, arrLen), arr2.Take(arrLen));
+            Assert.Equal<byte>(Enumerable.Repeat<byte>(0, arr2.Length - arrLen), arr2.Skip(arrLen));
+        }
+
         [Fact]
         public void resizeArrayTest_invalidArguments() {
             run(exact: false);
             run(exact: true);
 
             void run(bool exact) {
-                int[] arr = null;
-                int[] arr2 = arr;
+                int[] arr1 = null;
+                int[] arr2 = arr1;
 
                 Assert.Throws<ArgumentNullException>(() => DataStructureUtil.resizeArray(ref arr2, 0, 0, exact));
                 Assert.Throws<ArgumentNullException>(() => DataStructureUtil.resizeArray(ref arr2, 1, 0, exact));
                 Assert.Throws<ArgumentNullException>(() => DataStructureUtil.resizeArray(ref arr2, 1, 2, exact));
                 Assert.Throws<ArgumentNullException>(() => DataStructureUtil.resizeArray(ref arr2, -1, 0, exact));
 
-                Assert.Same(arr, arr2);
+                Assert.Same(arr1, arr2);
 
-                arr = new int[0];
-                arr2 = arr;
+                arr1 = new int[0];
+                arr2 = arr1;
 
                 Assert.Throws<ArgumentOutOfRangeException>(() => DataStructureUtil.resizeArray(ref arr2, 1, 0, exact));
                 Assert.Throws<ArgumentOutOfRangeException>(() => DataStructureUtil.resizeArray(ref arr2, -1, 0, exact));
                 Assert.Throws<ArgumentOutOfRangeException>(() => DataStructureUtil.resizeArray(ref arr2, 0, -1, exact));
                 Assert.Throws<ArgumentOutOfRangeException>(() => DataStructureUtil.resizeArray(ref arr2, -1, -1, exact));
 
-                Assert.Same(arr, arr2);
+                Assert.Same(arr1, arr2);
 
-                arr = new int[5000];
-                arr2 = arr;
+                arr1 = new int[5000];
+                arr2 = arr1;
 
                 Assert.Throws<ArgumentOutOfRangeException>(() => DataStructureUtil.resizeArray(ref arr2, -1, 0, exact));
                 Assert.Throws<ArgumentOutOfRangeException>(() => DataStructureUtil.resizeArray(ref arr2, 0, -1, exact));
@@ -256,8 +295,28 @@ namespace Mariana.Common.Tests {
                 Assert.Throws<ArgumentOutOfRangeException>(() => DataStructureUtil.resizeArray(ref arr2, 5001, 5001, exact));
                 Assert.Throws<ArgumentOutOfRangeException>(() => DataStructureUtil.resizeArray(ref arr2, 5001, 5002, exact));
 
-                Assert.Same(arr, arr2);
+                Assert.Same(arr1, arr2);
             }
+        }
+
+        [Fact]
+        public void expandArrayTest_invalidArguments() {
+            int[] arr1 = null;
+            int[] arr2 = arr1;
+
+            Assert.Throws<ArgumentNullException>(() => DataStructureUtil.expandArray(ref arr2, -1));
+            Assert.Throws<ArgumentNullException>(() => DataStructureUtil.expandArray(ref arr2, 0));
+            Assert.Throws<ArgumentNullException>(() => DataStructureUtil.expandArray(ref arr2, 1));
+            Assert.Throws<ArgumentNullException>(() => DataStructureUtil.expandArray(ref arr2, 100));
+            Assert.Same(arr1, arr2);
+
+            arr1 = new int[100];
+            arr2 = arr1;
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => DataStructureUtil.expandArray(ref arr2, -1));
+            Assert.Throws<ArgumentOutOfRangeException>(() => DataStructureUtil.expandArray(ref arr2, Int32.MinValue));
+            Assert.Throws<ArgumentOutOfRangeException>(() => DataStructureUtil.expandArray(ref arr2, Int32.MaxValue - 99));
+            Assert.Same(arr1, arr2);
         }
 
         public static IEnumerable<object[]> compactNullsTest_data = new string[][] {

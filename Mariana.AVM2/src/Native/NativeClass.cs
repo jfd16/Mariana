@@ -14,7 +14,7 @@ namespace Mariana.AVM2.Native {
         private bool m_containsProtoMethods;
         private bool m_containsIndexMethods;
         private Class m_vectorElementType;
-        private NativeClass m_classForProto;
+        private NativeClass m_classForInstProto;
 
         private NativeClass(
             QName name,
@@ -43,7 +43,7 @@ namespace Mariana.AVM2.Native {
             }
 
             setMetadata(_extractMetadata(underlyingType.GetCustomAttributes<TraitMetadataAttribute>()));
-            m_classForProto = this;
+            m_classForInstProto = this;
         }
 
         private void _loadParentAndInterfaces() {
@@ -84,8 +84,11 @@ namespace Mariana.AVM2.Native {
         {
             domain = domain ?? ApplicationDomain.systemDomain;
 
-            // When loading a dependent class, we do not need to check if it has already
-            // been loaded because that is done before calling this method (by ClassTypeMap.getOrCreateClass)
+            // If isDependent is true, this call is a callback from ClassTypeMap.getOrCreateClass, which
+            // calls this method only if the class has not been imported.
+            // Otherwise, this call is from a public API such as ApplicationDomain.loadNativeClass, and
+            // it is an error if the class has already been imported.
+
             if (!isDependent) {
                 if (ClassTypeMap.getClass(underlyingType) != null)
                     throw ErrorHelper.createError(ErrorCode.MARIANA__NATIVE_CLASS_LOAD_TYPE_EXISTS, underlyingType);
@@ -112,21 +115,38 @@ namespace Mariana.AVM2.Native {
             var createdClass = new NativeClass(
                 name, domain, tag, underlyingType, classAttr, vecElementType, canHideInheritedTraits, dontLoadParentAndInterfaces);
 
+            // Add the class to the application domain's global traits, unless it is declared as
+            // hidden or is an instantiation of Vector.
+
             if (!classAttr.hiddenFromGlobal && vecElementType == null) {
-                bool addedToGlobals = domain.tryDefineGlobalTrait(createdClass);
-                if (!addedToGlobals)
+                bool classWasAddedToDomain = domain.tryDefineGlobalTrait(createdClass);
+                if (!classWasAddedToDomain)
                     throw ErrorHelper.createError(ErrorCode.ALREADY_DEFINED, createdClass.name);
             }
+
+            // If isDependent is true, this call is a callback from ClassTypeMap.getOrCreateClass, which
+            // would add the created class returned by this call to the map.
+            // Otherwise, the class must be added to the map explicitly.
 
             if (!isDependent)
                 ClassTypeMap.addClass(underlyingType, createdClass);
 
             if (classInternalAttr != null) {
-                if (classInternalAttr.primitiveType != null)
+                if (classInternalAttr.primitiveType != null) {
+                    // The created class represents a primitive type. Map it to the primitive type in
+                    // addition to the underlying type (which is the boxed object type). This allows
+                    // for example `Class.fromType(typeof(int))` to return the class that represents
+                    // the AS3 int type.
                     ClassTypeMap.addClass(classInternalAttr.primitiveType, createdClass);
+                }
 
-                if (classInternalAttr.usePrototypeOf != null && classInternalAttr.usePrototypeOf != underlyingType)
-                    createdClass.m_classForProto = (NativeClass)_getDependentClass(classInternalAttr.usePrototypeOf, domain);
+                if (classInternalAttr.usePrototypeOf != null && classInternalAttr.usePrototypeOf != underlyingType) {
+                    // usePrototypeOf is used by classes for which instances must have the prototype of
+                    // another class. The class still has its own prototype, accessible from the class
+                    // object as its `prototype` property, but instances don't see it. This is currently
+                    // used by int and uint which use the prototype of Number.
+                    createdClass.m_classForInstProto = (NativeClass)_getDependentClass(classInternalAttr.usePrototypeOf, domain);
+                }
             }
 
             return createdClass;
@@ -162,7 +182,9 @@ namespace Mariana.AVM2.Native {
             if (vecElementType != null)
                 localName += ".<" + vecElementType.name.ToString() + ">";
 
-            localName = String.Intern(localName);
+            // Don't intern synthesized names for vector instantiations.
+            if (vecElementType == null)
+                localName = String.Intern(localName);
 
             if (ns.isPublic)
                 return QName.publicName(localName);
@@ -204,6 +226,10 @@ namespace Mariana.AVM2.Native {
                 Type interfaceType = interfaceTypes[i];
 
                 if (!interfaceType.IsDefined(typeof(AVM2ExportClassAttribute))) {
+                    // An exported interface cannot extend an interface that is not exported, otherwise
+                    // it would be impossible for an AS3 class to implement it.
+                    // However, a class is allowed to implement a non-exported interface.
+
                     if (underlyingType.IsInterface) {
                         throw ErrorHelper.createError(
                             ErrorCode.MARIANA__NATIVE_CLASS_INTERFACE_EXTENDS_UNEXPORTED, name, interfaceType);
@@ -253,8 +279,7 @@ namespace Mariana.AVM2.Native {
         /// </summary>
         /// <param name="klass">The class.</param>
         /// <returns>A name for <paramref name="klass"/> that can be displayed in an error message.</returns>
-        private static string _getClassNameForErrorMsg(Class klass) =>
-            (klass == null) ? "<global>" : klass.name.ToString();
+        private static string _getClassNameForErrorMsg(Class klass) => (klass == null) ? "<global>" : klass.name.ToString();
 
         private static Class _getVectorElementClass(Type underlyingType, ApplicationDomain domain) {
             if (!underlyingType.IsConstructedGenericType)
@@ -278,7 +303,7 @@ namespace Mariana.AVM2.Native {
 
         public override Class vectorElementType => m_vectorElementType;
 
-        internal override ASObject prototypeForInstance => m_classForProto.prototypeObject;
+        internal override ASObject prototypeForInstance => m_classForInstProto.prototypeObject;
 
         protected private override void initClass() {
             if (underlyingType == typeof(ASVector<>)) {
@@ -313,20 +338,26 @@ namespace Mariana.AVM2.Native {
             if (!isInterface)
                 bindingAttr |= BindingFlags.Static;
 
-            bool memberFilter(MemberInfo m) =>
-                m.IsDefined(typeof(AVM2ExportTraitAttribute), false)
-                || (m_containsProtoMethods && m.IsDefined(typeof(AVM2ExportPrototypeMethodAttribute), false));
+            bool memberFilter(MemberInfo member) {
+                if (member.IsDefined(typeof(AVM2ExportTraitAttribute), inherit: false))
+                    return true;
 
-            MemberInfo[] members = underlyingType.FindMembers(
-                MemberTypes.Field | MemberTypes.Method | MemberTypes.Property | MemberTypes.Constructor,
-                bindingAttr,
-                (m, fc) => memberFilter(m),
-                null
-            );
+                if (m_containsProtoMethods && member.IsDefined(typeof(AVM2ExportPrototypeMethodAttribute), inherit: false))
+                    return true;
+
+                return false;
+            }
+
+            const MemberTypes searchMemberTypes =
+                MemberTypes.Field | MemberTypes.Method | MemberTypes.Property | MemberTypes.Constructor;
+
+            MemberInfo[] members = underlyingType.FindMembers(searchMemberTypes, bindingAttr, (m, fc) => memberFilter(m), null);
 
             ClassConstructor classCtor = null;
-            DynamicPropertyCollection protoProperties = prototypeObject.AS_dynamicProps;
 
+            // This contains all trait-exported methods and property accessors. This will be
+            // used to check for unexported methods on interfaces or unexported interface
+            // implementations in classes.
             var exportedMethodSet = new ReferenceSet<MethodInfo>();
 
             for (int i = 0; i < members.Length; i++) {
@@ -335,7 +366,7 @@ namespace Mariana.AVM2.Native {
                 var traitAttr = memberAttrs.OfType<AVM2ExportTraitAttribute>().FirstOrDefault();
                 var metadataAttrs = memberAttrs.OfType<TraitMetadataAttribute>();
 
-                Trait trait = null;
+                Trait createdTrait = null;
 
                 MemberTypes memberType = members[i].MemberType;
 
@@ -345,9 +376,9 @@ namespace Mariana.AVM2.Native {
 
                     FieldInfo fieldInfo = (FieldInfo)members[i];
                     if (fieldInfo.IsLiteral)
-                        trait = _makeConstantTrait(fieldInfo, traitAttr, this, applicationDomain, metadataAttrs);
+                        createdTrait = _makeConstantTrait(fieldInfo, traitAttr, this, applicationDomain, metadataAttrs);
                     else
-                        trait = _makeFieldTrait(fieldInfo, traitAttr, this, applicationDomain, metadataAttrs);
+                        createdTrait = _makeFieldTrait(fieldInfo, traitAttr, this, applicationDomain, metadataAttrs);
                 }
                 else if (memberType == MemberTypes.Property) {
                     if (traitAttr == null)
@@ -356,7 +387,7 @@ namespace Mariana.AVM2.Native {
                     PropertyTrait propTrait = _makePropertyTrait(
                         (PropertyInfo)members[i], traitAttr, this, applicationDomain, metadataAttrs);
 
-                    trait = propTrait;
+                    createdTrait = propTrait;
 
                     if (propTrait.getter != null)
                         exportedMethodSet.add(propTrait.getter.underlyingMethodInfo);
@@ -364,34 +395,41 @@ namespace Mariana.AVM2.Native {
                         exportedMethodSet.add(propTrait.setter.underlyingMethodInfo);
                 }
                 else if (memberType == MemberTypes.Method) {
+                    // A method could be exported as a trait, a prototype method, or both.
                     MethodInfo methodInfo = (MethodInfo)members[i];
 
+                    // A method is exported as a prototype method if the AVM2ExportClass attribute on the
+                    // class has containsProtoMethods = true and the method has the AVM2ExportPrototypeMethod
+                    // attribute.
                     AVM2ExportPrototypeMethodAttribute protoMethodAttr = null;
-                    string protoMethodName = null;
-
-                    if (m_containsProtoMethods) {
+                    if (m_containsProtoMethods)
                         protoMethodAttr = memberAttrs.OfType<AVM2ExportPrototypeMethodAttribute>().FirstOrDefault();
-                        if (protoMethodAttr != null)
-                            protoMethodName = protoMethodAttr.name ?? String.Intern(methodInfo.Name);
-                    }
 
-                    if (traitAttr == null && protoMethodAttr == null)
+                    if (traitAttr == null && protoMethodAttr == null) {
+                        // The method is not exported as a trait or prototype method, so skip.
                         continue;
+                    }
 
                     MethodTrait methodTrait = null;
 
                     if (traitAttr != null) {
                         methodTrait = _makeMethodTrait(methodInfo, traitAttr, this, applicationDomain, metadataAttrs);
                         exportedMethodSet.add(methodInfo);
-                        trait = methodTrait;
-                    }
-                    else if (protoMethodAttr != null) {
-                        methodTrait = _makeMethodTrait(methodInfo, QName.publicName(protoMethodName), this, applicationDomain, null);
+                        createdTrait = methodTrait;
                     }
 
                     if (protoMethodAttr != null) {
-                        string protoName = protoMethodAttr.name;
-                        protoProperties.setValue(protoMethodName, methodTrait.createFunctionClosure(), isEnum: false);
+                        string protoMethodName = protoMethodAttr.name ?? String.Intern(methodInfo.Name);
+
+                        // If this method is exported only as a prototype method, create a new MethodTrait using
+                        // the prototype export name. If it is also exported as a trait, a MethodTrait has already
+                        // been created and we can use the same one to create the prototype function closure.
+                        if (methodTrait == null) {
+                            methodTrait = _makeMethodTrait(
+                                methodInfo, QName.publicName(protoMethodName), this, applicationDomain, null);
+                        }
+
+                        prototypeObject.AS_dynamicProps.setValue(protoMethodName, methodTrait.createFunctionClosure(), isEnum: false);
                     }
                 }
                 else if (memberType == MemberTypes.Constructor) {
@@ -406,36 +444,43 @@ namespace Mariana.AVM2.Native {
                     setConstructor(classCtor);
                 }
 
-                if (trait != null) {
-                    bool defined = tryDefineTrait(trait);
-                    if (!defined)
-                        throw ErrorHelper.createError(ErrorCode.MARIANA__CLASS_TRAIT_ALREADY_EXISTS, trait.name, name);
+                if (createdTrait != null) {
+                    bool traitWasAddedToClass = tryDefineTrait(createdTrait);
+                    if (!traitWasAddedToClass)
+                        throw ErrorHelper.createError(ErrorCode.MARIANA__CLASS_TRAIT_ALREADY_EXISTS, createdTrait.name, name);
                 }
             }
 
             if (isInterface) {
-                // All instance methods of an interface must be exported.
+                // All instance methods of an interface must be exported (either as methods,
+                // or accessors of exported properties)
+
                 MemberInfo[] unexportedMethods = underlyingType.FindMembers(
                     MemberTypes.Method,
                     BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly,
-                    (m, fc) => !m.IsDefined(typeof(AVM2ExportTraitAttribute), false),
+                    (m, fc) => !m.IsDefined(typeof(AVM2ExportTraitAttribute), inherit: false),
                     null
                 );
 
                 for (int i = 0; i < unexportedMethods.Length; i++) {
-                    // Check if an unexported method is an accessor for an exported property.
                     if (!exportedMethodSet.find((MethodInfo)unexportedMethods[i])) {
                         throw ErrorHelper.createError(
-                            ErrorCode.MARIANA__NATIVE_CLASS_INTERFACE_UNEXPORTED_METHOD, name, unexportedMethods[i].Name);
+                            ErrorCode.MARIANA__NATIVE_CLASS_INTERFACE_UNEXPORTED_METHOD,
+                            name,
+                            unexportedMethods[i].Name
+                        );
                     }
                 }
             }
             else {
                 // All class methods that implement interface methods of exported interfaces must be exported.
+
                 var interfaces = getImplementedInterfaces();
                 for (int i = 0; i < interfaces.length; i++) {
-                    if (parent != null && parent.canAssignTo(interfaces[i]))
+                    if (parent != null && parent.canAssignTo(interfaces[i])) {
+                        // No need to check interfaces implemented by the base class.
                         continue;
+                    }
 
                     InterfaceMapping interfaceMap = underlyingType.GetInterfaceMap(interfaces[i].underlyingType);
                     MethodInfo[] targetMethods = interfaceMap.TargetMethods;
@@ -455,7 +500,7 @@ namespace Mariana.AVM2.Native {
         }
 
         private static QName _makeTraitName(
-            string localName, NamespaceKind nsKind, string nsName, Class declClass)
+            string localName, NamespaceKind nsKind, string nsUri, Class declClass)
         {
             Namespace ns;
 
@@ -466,12 +511,12 @@ namespace Mariana.AVM2.Native {
                 );
             }
 
-            if (nsName == null)
+            if (nsUri == null)
                 ns = Namespace.@public;
             else if (nsKind == NamespaceKind.ANY)
-                ns = new Namespace(nsName);
+                ns = new Namespace(nsUri);
             else
-                ns = new Namespace(nsKind, nsName);
+                ns = new Namespace(nsKind, nsUri);
 
             if (ns.isPublic)
                 return QName.publicName(localName);
@@ -493,9 +538,12 @@ namespace Mariana.AVM2.Native {
         }
 
         private static ConstantTrait _makeConstantTrait(
-            FieldInfo fieldInfo, AVM2ExportTraitAttribute attr, NativeClass declClass, ApplicationDomain domain,
-            IEnumerable<TraitMetadataAttribute> metadataAttrs)
-        {
+            FieldInfo fieldInfo,
+            AVM2ExportTraitAttribute attr,
+            NativeClass declClass,
+            ApplicationDomain domain,
+            IEnumerable<TraitMetadataAttribute> metadataAttrs
+        ) {
             string localName = attr.name ?? String.Intern(fieldInfo.Name);
 
             QName traitName = _makeTraitName(localName, attr.nsKind, attr.nsUri, declClass);
@@ -548,11 +596,6 @@ namespace Mariana.AVM2.Native {
                     ErrorCode.MARIANA__NATIVE_CLASS_GENERIC_METHOD, traitName, _getClassNameForErrorMsg(declClass));
             }
 
-            if (declClass != null && declClass.isInterface && !traitName.ns.isPublic) {
-                throw ErrorHelper.createError(
-                    ErrorCode.MARIANA__NATIVE_CLASS_INTERFACE_TRAIT_NONPUBLIC, traitName, _getClassNameForErrorMsg(declClass));
-            }
-
             bool isOverride =
                 methodInfo.IsVirtual
                 && methodInfo.GetBaseDefinition().DeclaringType != methodInfo.DeclaringType;
@@ -594,15 +637,11 @@ namespace Mariana.AVM2.Native {
             string localName = attr.name ?? String.Intern(propInfo.Name);
             QName traitName = _makeTraitName(localName, attr.nsKind, attr.nsUri, declClass);
 
-            if (declClass != null && declClass.isInterface && !traitName.ns.isPublic) {
-                throw ErrorHelper.createError(
-                    ErrorCode.MARIANA__NATIVE_CLASS_INTERFACE_TRAIT_NONPUBLIC, traitName, _getClassNameForErrorMsg(declClass));
-            }
-
             MethodTrait getter = null, setter = null;
 
             MethodInfo getterMethodInfo = propInfo.GetGetMethod();
             MethodInfo setterMethodInfo = propInfo.GetSetMethod();
+
             bool isStatic = (getterMethodInfo == null) ? setterMethodInfo.IsStatic : getterMethodInfo.IsStatic;
 
             if (getterMethodInfo != null) {
@@ -656,27 +695,36 @@ namespace Mariana.AVM2.Native {
         }
 
         private static void _makeMethodParams(
-            MethodBase methodInfo, QName traitName, NativeClass declClass, ApplicationDomain domain,
-            out MethodTraitParameter[] paramList, out bool hasRest)
-        {
-
+            MethodBase methodInfo,
+            QName traitName,
+            NativeClass declClass,
+            ApplicationDomain domain,
+            out MethodTraitParameter[] paramList,
+            out bool hasRest
+        ) {
             ParameterInfo[] paramInfos = methodInfo.GetParameters();
-            int numParams = paramInfos.Length;
+            int paramCount = paramInfos.Length;
+
             hasRest = false;
 
-            if (paramInfos.Length != 0 && paramInfos[numParams - 1].ParameterType == typeof(RestParam)) {
+            if (paramInfos.Length != 0 && paramInfos[paramCount - 1].ParameterType == typeof(RestParam)) {
                 hasRest = true;
-                numParams--;
+                paramCount--;
             }
 
-            paramList = new MethodTraitParameter[numParams];
+            paramList = new MethodTraitParameter[paramCount];
 
             int firstOptionalParamIndex = -1;
 
-            for (int i = 0; i < numParams; i++) {
+            for (int i = 0; i < paramCount; i++) {
                 ParameterInfo paramInfo = paramInfos[i];
+
                 Type paramInfoType = paramInfo.ParameterType;
+
+                Class paramTypeClass;
                 bool isOptional = false;
+                bool hasDefault = false;
+                ASAny defaultVal = default;
 
                 if (paramInfoType.IsConstructedGenericType && paramInfoType.GetGenericTypeDefinition() == typeof(OptionalParam<>)) {
                     isOptional = true;
@@ -686,16 +734,19 @@ namespace Mariana.AVM2.Native {
                 _throwIfBoxedPrimitive(paramInfoType, traitName, declClass);
 
                 if (paramInfoType == typeof(RestParam)) {
+                    // RestParam can only be the last parameter of the method, which was checked earlier.
                     throw ErrorHelper.createError(
-                        ErrorCode.MARIANA__NATIVE_CLASS_METHOD_REST_PARAM, traitName, _getClassNameForErrorMsg(declClass));
+                        ErrorCode.MARIANA__NATIVE_CLASS_METHOD_REST_PARAM,
+                        traitName,
+                        _getClassNameForErrorMsg(declClass)
+                    );
                 }
 
-                Class paramType = _getDependentClass(paramInfoType, domain);
-                bool hasDefault = false;
-                ASAny defaultVal = default;
+                paramTypeClass = _getDependentClass(paramInfoType, domain);
 
                 if (!isOptional) {
-                    hasDefault = _tryGetParamDefaultValue(paramInfo, paramType, traitName, declClass, out defaultVal);
+                    // If this is not an OptionalParam<T>, check if it has a default value.
+                    hasDefault = _tryGetParamDefaultValue(paramInfo, paramTypeClass, traitName, declClass, out defaultVal);
                     isOptional = hasDefault;
                 }
 
@@ -703,30 +754,43 @@ namespace Mariana.AVM2.Native {
                     firstOptionalParamIndex = i;
                 }
                 else if (firstOptionalParamIndex != -1 && !isOptional) {
+                    // A required parameter cannot be after an optional one.
                     throw ErrorHelper.createError(
                         ErrorCode.MARIANA__NATIVE_CLASS_METHOD_OPTIONAL_PARAMS, traitName, _getClassNameForErrorMsg(declClass));
                 }
 
                 // Parameter names do not need interning, as parameters are almost never looked up by name.
-                paramList[i] = new MethodTraitParameter(paramInfos[i].Name, paramType, isOptional, hasDefault, defaultVal);
-            }
+                string paramName = paramInfos[i].Name;
 
+                paramList[i] = new MethodTraitParameter(paramName, paramTypeClass, isOptional, hasDefault, defaultVal);
+            }
         }
 
         private static bool _tryGetParamDefaultValue(
             ParameterInfo paramInfo, Class paramType, QName traitName, Class declClass, out ASAny defaultVal)
         {
-            var attr = paramInfo.GetCustomAttribute(typeof(ParamDefaultValueAttribute));
+            var defaultValueAttr =
+                paramInfo.GetCustomAttribute(typeof(ParamDefaultValueAttribute)) as ParamDefaultValueAttribute;
 
-            if (attr is ParamDefaultValueAttribute optionalAttr) {
-                string namespaceURI = null;
-                if (paramType != null && paramType.tag == ClassTag.NAMESPACE)
-                    namespaceURI = optionalAttr.m_value as string;
+            if (defaultValueAttr != null) {
+                // ParamDefaultValueAttribute takes priority over default value in ParameterInfo.
 
-                if (namespaceURI != null)
-                    defaultVal = new ASNamespace(namespaceURI);
-                else
-                    defaultVal = ASAny.AS_fromBoxed(optionalAttr.m_value);
+                if (paramType != null && paramType.tag == ClassTag.NAMESPACE) {
+                    // If the parameter type is a namespace, the default value must be a string
+                    // that will be used as the URI to construct the default namespace value.
+
+                    if (!(defaultValueAttr.m_value is string defaultValueURI)) {
+                        throw ErrorHelper.createError(
+                            ErrorCode.MARIANA__NATIVE_CLASS_METHOD_INVALID_DEFAULT,
+                            traitName,
+                            _getClassNameForErrorMsg(declClass)
+                        );
+                    }
+                    defaultVal = new ASNamespace(defaultValueURI);
+                }
+                else {
+                    defaultVal = ASAny.AS_fromBoxed(defaultValueAttr.m_value);
+                }
             }
             else if (paramInfo.IsOptional) {
                 if (paramType == null) {
@@ -738,6 +802,7 @@ namespace Mariana.AVM2.Native {
                 }
             }
             else {
+                // No default value.
                 defaultVal = default(ASAny);
                 return false;
             }
@@ -746,7 +811,7 @@ namespace Mariana.AVM2.Native {
             // property, which triggers a class initialization (which may lead to recursion)
 
             bool mustCoerceToParamType = paramType != null
-                && (defaultVal.value == null || defaultVal.value.GetType() != paramType.underlyingType);
+                && (defaultVal.isUndefinedOrNull || defaultVal.value.GetType() != paramType.underlyingType);
 
             if (mustCoerceToParamType) {
                 switch (paramType.tag) {
@@ -765,13 +830,17 @@ namespace Mariana.AVM2.Native {
                     case ClassTag.BOOLEAN:
                         defaultVal = (bool)defaultVal;
                         break;
+
                     default:
                         if (defaultVal.isUndefined) {
                             defaultVal = ASAny.@null;
                         }
                         else if (!defaultVal.isNull && paramType.underlyingType != typeof(ASObject)) {
                             throw ErrorHelper.createError(
-                                ErrorCode.MARIANA__NATIVE_CLASS_METHOD_INVALID_DEFAULT, traitName, _getClassNameForErrorMsg(declClass));
+                                ErrorCode.MARIANA__NATIVE_CLASS_METHOD_INVALID_DEFAULT,
+                                traitName,
+                                _getClassNameForErrorMsg(declClass)
+                            );
                         }
                         break;
                 }
@@ -872,7 +941,7 @@ namespace Mariana.AVM2.Native {
             MemberInfo[] members = moduleType.FindMembers(
                 memberType: MemberTypes.Field | MemberTypes.Method | MemberTypes.Property,
                 bindingAttr: BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly,
-                filter: (m, fc) => m.IsDefined(typeof(AVM2ExportTraitAttribute), false),
+                filter: (m, fc) => m.IsDefined(typeof(AVM2ExportTraitAttribute), inherit: false),
                 filterCriteria: null
             );
 
@@ -946,15 +1015,15 @@ namespace Mariana.AVM2.Native {
                 if ((type.Attributes & TypeAttributes.Public) == 0)
                     continue;
 
-                if (type.IsDefined(typeof(AVM2ExportClassAttribute), false)) {
+                if (type.IsDefined(typeof(AVM2ExportClassAttribute), inherit: false)) {
                     // Don't load the base class or interfaces of the class as dependents because
-                    // they may also be available in the same assembly and have not been loaded yet.
+                    // they may also be available in `types` and have not been loaded yet.
                     // Otherwise, a "class with the underlying type already exists" error may be
                     // thrown when the dependent class is loaded for the second time.
                     var klass = _internalCreateClass(type, domain, dontLoadParentAndInterfaces: true);
                     createdClasses.add(klass);
                 }
-                else if (type.IsDefined(typeof(AVM2ExportModuleAttribute), false)) {
+                else if (type.IsDefined(typeof(AVM2ExportModuleAttribute), inherit: false)) {
                     createModule(type, domain);
                 }
             }
@@ -1139,7 +1208,8 @@ namespace Mariana.AVM2.Native {
 
                         default:
                             if (bufPos == buffer.Length)
-                                DataStructureUtil.resizeArray(ref buffer, bufPos, bufPos + 1, false);
+                                DataStructureUtil.expandArray(ref buffer);
+
                             buffer[bufPos++] = ch;
                             break;
                     }

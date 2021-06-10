@@ -44,7 +44,7 @@ namespace Mariana.AVM2.Core {
                 b[p] = c;
             }
             else {
-                DataStructureUtil.resizeArray(ref buffer, pos, pos + 1, true);
+                DataStructureUtil.expandArray(ref buffer);
                 buffer[pos] = c;
             }
             pos++;

@@ -309,7 +309,7 @@ namespace Mariana.AVM2.Core {
                 if (value < 0)
                     throw ErrorHelper.createError(ErrorCode.ARRAY_LENGTH_NOT_POSITIVE_INTEGER);
 
-                DataStructureUtil.resizeArray(ref m_data, m_length, value, true);
+                DataStructureUtil.resizeArray(ref m_data, m_length, value, exact: true);
                 m_length = value;
             }
         }
@@ -599,7 +599,7 @@ namespace Mariana.AVM2.Core {
             if (m_fixed)
                 throw ErrorHelper.createError(ErrorCode.VECTOR_FIXED_LENGTH_CHANGE);
             if (m_data.Length == m_length)
-                DataStructureUtil.resizeArray(ref m_data, m_length, m_length + 1, false);
+                DataStructureUtil.expandArray(ref m_data);
             m_length++;
         }
 
@@ -1246,7 +1246,7 @@ namespace Mariana.AVM2.Core {
                 throw ErrorHelper.createError(ErrorCode.VECTOR_FIXED_LENGTH_CHANGE);
 
             if (m_data.Length - m_length < argCount)
-                DataStructureUtil.resizeArray(ref m_data, m_length, m_length + argCount, false);
+                DataStructureUtil.resizeArray(ref m_data, m_length, m_length + argCount);
 
             var converter = GenericTypeConverter<ASAny, T>.instance;
 

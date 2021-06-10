@@ -29,6 +29,8 @@ namespace Mariana.AVM2.Core {
 
         /// <summary>
         /// The minimum value in the permitted range of timestamps for Date objects.
+        /// This is chosen so that timestamps are positive after when adding a negative timezone
+        /// offset for doing calculations in local time.
         /// </summary>
         public const long MIN_TIMESTAMP = 9417600000;
 
@@ -36,6 +38,13 @@ namespace Mariana.AVM2.Core {
         /// The maximum value in the permitted range of timestamps values for Date objects.
         /// </summary>
         public const long MAX_TIMESTAMP = MIN_TIMESTAMP + 17280000000000000;
+
+        /// <summary>
+        /// The maximum possible timestamp value in local time. Any local timestamp greater than this
+        /// value is definitely invalid and its corresponding timestamp in UTC is always greater than
+        /// <see cref="MAX_TIMESTAMP"/>.
+        /// </summary>
+        public const long MAX_LOCAL_TIMESTAMP = MAX_TIMESTAMP + 9417600000;
 
         /// <summary>
         /// The difference between the minimum and maximum timestamp values.
@@ -47,6 +56,16 @@ namespace Mariana.AVM2.Core {
         /// To obtain the Unix/ECMAScript date value, subtract this from a timestamp.
         /// </summary>
         public const long UNIX_ZERO_TIMESTAMP = MIN_TIMESTAMP + 8640000000000000;
+
+        /// <summary>
+        /// The minimum year representable by a Date object.
+        /// </summary>
+        public const int MIN_YEAR = -271821;
+
+        /// <summary>
+        /// The maximum year representable by a Date object.
+        /// </summary>
+        public const int MAX_YEAR = 275760;
 
         /// <summary>
         /// Gets the day of the week for January 1 of a given year. The value returned is a positive
@@ -81,20 +100,30 @@ namespace Mariana.AVM2.Core {
         ///
         /// <param name="month">The month.</param>
         /// <param name="year">The year.</param>
-        /// <returns>True if the year and month were adjusted; false if they were not.</returns>
-        public static bool adjustMonthAndYear(ref int year, ref int month) {
-            if (month > 11) {
-                int addYears = month / 12;
-                year += addYears;
-                month -= addYears * 12;
-                return true;
-            }
-            if (month < 0) {
-                year += (month + 1) / 12 - 1;
-                month = (7200000 + month) % 12;
-                return true;
-            }
-            return false;
+        public static void adjustMonthAndYear(ref int year, ref int month) {
+            if ((uint)month <= 11)
+                return;
+
+            int yearDelta = (month < 0) ? (month + 1) / 12 - 1 : month / 12;
+            year += yearDelta;
+            month -= yearDelta * 12;
+        }
+
+        /// <summary>
+        /// Adjusts the given month and year such that the month is a positive integer between 0 and
+        /// 11. If the month is negative, years are subtracted; if it is greater than 11, years are
+        /// added. For a month between 0 and 11, the month and year remain unchanged.
+        /// </summary>
+        ///
+        /// <param name="month">The month. This must be an integer.</param>
+        /// <param name="year">The year. This must be an integer.</param>
+        public static void adjustMonthAndYearDouble(ref double year, ref double month) {
+            if (month >= 0.0 && month <= 11.0)
+                return;
+
+            double yearDelta = Math.Floor(month / 12.0);
+            year += yearDelta;
+            month -= yearDelta * 12.0;
         }
 
         /// <summary>
@@ -125,6 +154,29 @@ namespace Mariana.AVM2.Core {
 
             int yearDiv100 = year / 100;
             return year != yearDiv100 * 100 || (yearDiv100 & 3) == 0;
+        }
+
+        /// <summary>
+        /// Returns a value indicating whether the given year is a leap year.
+        /// </summary>
+        /// <param name="year">The year.</param>
+        /// <returns>True if <paramref name="year"/> is a leap year, otherwise false.</returns>
+        public static bool isLeapYearDouble(double year) {
+            // Multiplying by 0.25 is exactly the same as dividing by 4,
+            // since 4 is a power of 2.
+            if (Math.Truncate(year * 0.25) * 4.0 != year) {
+                // Not divisible by 4.
+                return false;
+            }
+            if (year % 100.0 != 0.0) {
+                // Not divisible by 100
+                return true;
+            }
+            if (year % 400.0 == 0.0) {
+                // Divisible by 400
+                return true;
+            }
+            return false;
         }
 
         /// <summary>
@@ -161,7 +213,7 @@ namespace Mariana.AVM2.Core {
         /// Returns the difference in days between 1 January of the specified year and the reference
         /// date of 1 January -271821.
         /// </summary>
-        /// <param name="year">The year.</param>
+        /// <param name="year">The year. This must be between <see cref="MIN_YEAR"/> and <see cref="MAX_YEAR"/>.</param>
         /// <returns>The difference in days between 1 January of the specified year and the reference
         /// date of 1 January -271821.</returns>
         public static int getYearStartDaysFromZero(int year) {
@@ -172,18 +224,56 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Returns the difference in days between 1 January of two years. Both years must be
-        /// not less than -271821.
+        /// Returns the difference in days between 1 January of the specified year and the reference
+        /// date of 1 January -271821. Unlike <see cref="getYearStartDaysFromZero"/>, this is safe to
+        /// use with years outside the range from <see cref="MIN_YEAR"/> to <see cref="MAX_YEAR"/>.
         /// </summary>
-        /// <param name="fromYear">The first year.</param>
-        /// <param name="toYear">The second year.</param>
-        /// <returns>The difference in days between the beginning of <paramref name="toYear"/>
-        /// and <paramref name="fromYear"/>.</returns>
-        public static int getYearStartDayDiff(int fromYear, int toYear) {
-            return (toYear - fromYear) * 365
-                + ((toYear + 271823) >> 2) - ((fromYear + 271823) >> 2)
-                - ((toYear + 271899) / 100) + ((fromYear + 271899) / 100)
-                + ((toYear + 271999) / 400) - ((fromYear + 271999) / 400);
+        /// <param name="year">The year.</param>
+        /// <returns>The difference in days between 1 January of the specified year and the reference
+        /// date of 1 January -271821.</returns>
+        public static long getYearStartDaysFromZeroLong(int year) {
+            if (year >= MIN_YEAR) {
+                long days = (long)(uint)(year + 271821) * 365
+                    + ((uint)(year + 271823) >> 2)
+                    - (uint)(year + 271899) / 100
+                    + (uint)(year + 271999) / 400;
+
+                return (long)days;
+            }
+            else {
+                uint negYear = (uint)(-year);
+                long negDays = (long)(negYear - 271821) * 365
+                    + ((negYear - 271820) >> 2)
+                    - (negYear - 271800) / 100
+                    + (negYear - 271600) / 400;
+
+                return -negDays;
+            }
+        }
+
+        /// <summary>
+        /// Returns the difference in days between 1 January of the specified year and
+        /// 1 January 1970. The year is given as a double value and does not have to be
+        /// in the range from <see cref="MIN_YEAR"/> to <see cref="MAX_YEAR"/>.
+        /// </summary>
+        /// <param name="year">The year. This must be an integer.</param>
+        /// <returns>The difference in days between 1 January of the specified year and
+        /// 1 January 1970.</returns>
+        public static double getYearStartDaysFromUnixZeroDouble(double year) {
+            // Multiplying by 0.25 is exactly the same as dividing by 4,
+            // since 4 is a power of 2.
+            if (year >= 1970.0) {
+                return ((year - 1970.0) * 365.0)
+                    + Math.Truncate((year - 1969.0) * 0.25)
+                    - Math.Truncate((year - 1901.0) / 100.0)
+                    + Math.Truncate((year - 1601.0) / 400.0);
+            }
+            else {
+                return ((year - 1970.0) * 365.0)
+                    + Math.Truncate((year - 1972.0) * 0.25)
+                    - Math.Truncate((year - 2000.0) / 100.0)
+                    + Math.Truncate((year - 2000.0) / 400.0);
+            }
         }
 
         /// <summary>
@@ -385,12 +475,12 @@ namespace Mariana.AVM2.Core {
         ///
         /// <returns>The created timestamp.</returns>
         public static long createTimestamp(
-            int year, int month, int day, long hour, long min, long sec, long ms, bool isLocal)
+            int year, int month, int day, int hour, int min, int sec, int ms, bool isLocal)
         {
             adjustMonthAndYear(ref year, ref month);
 
-            int days = getYearStartDaysFromZero(year) + getMonthStartDayOfYear(year, month) + day;
-            long value = (long)days * MS_PER_DAY + (hour * MS_PER_HOUR + min * MS_PER_MIN + sec * MS_PER_SEC + ms);
+            long days = getYearStartDaysFromZeroLong(year) + getMonthStartDayOfYear(year, month) + day;
+            long value = days * MS_PER_DAY + (long)hour * MS_PER_HOUR + (long)min * MS_PER_MIN + (long)sec * MS_PER_SEC + ms;
 
             return isLocal ? localTimestampToUniversal(value) : value;
         }
@@ -430,9 +520,9 @@ namespace Mariana.AVM2.Core {
                 // In the other case, the end value of the accepted range for the rule is the maximum possible,
                 // and such rules are considered for all dates beyond that date as well.
 
-                if (adjustmentRule.DateStart == DateTime.MinValue.Date)
+                if (adjustmentRule.DateStart.Date == DateTime.MinValue.Date)
                     ruleStart = Int32.MinValue;
-                if (adjustmentRule.DateEnd == DateTime.MaxValue.Date)
+                if (adjustmentRule.DateEnd.Date == DateTime.MaxValue.Date)
                     ruleEnd = Int32.MaxValue;
 
                 long delta = (long)adjustmentRule.DaylightDelta.TotalMilliseconds;

@@ -54,6 +54,19 @@ namespace Mariana.AVM2.ABC {
                 : s_utf8EncodingWithThrowFallback;
         }
 
+        private void _readBytesFromStream(Span<byte> buffer) {
+            Span<byte> remaining = buffer;
+
+            while (!remaining.IsEmpty) {
+                int bytesRead = m_stream.Read(remaining);
+
+                if (bytesRead <= 0)
+                    throw ErrorHelper.createError(ErrorCode.ABC_DATA_CORRUPT);
+
+                remaining = remaining.Slice(bytesRead);
+            }
+        }
+
         private byte _readU8() {
             int b = m_stream.ReadByte();
             if (b == -1)
@@ -62,42 +75,46 @@ namespace Mariana.AVM2.ABC {
         }
 
         private ushort _readU16() {
-            int b = m_stream.ReadByte() | m_stream.ReadByte() << 8;
-            if (b < 0)
+            int lowByte = m_stream.ReadByte();
+            if (lowByte == -1)
                 throw ErrorHelper.createError(ErrorCode.ABC_DATA_CORRUPT);
-            return (ushort)b;
+
+            int highByte = m_stream.ReadByte();
+            if (highByte == -1)
+                throw ErrorHelper.createError(ErrorCode.ABC_DATA_CORRUPT);
+
+            return (ushort)(highByte << 8 | lowByte);
         }
 
         private uint _readU32() {
-            uint v = 0;
+            uint value = 0;
             int shift = 0;
 
             for (int i = 0; i < 5; i++) {
-                int b = m_stream.ReadByte();
-                if (b == -1)
+                int byteValue = m_stream.ReadByte();
+                if (byteValue == -1)
                     throw ErrorHelper.createError(ErrorCode.ABC_DATA_CORRUPT);
 
-                v |= (uint)((b & 127) << shift);
-                if ((b & 128) == 0)
+                value |= (uint)((byteValue & 127) << shift);
+                if ((byteValue & 128) == 0)
                     break;
 
                 shift += 7;
             }
 
-            return v;
+            return value;
         }
 
         private int _readU30() {
-            uint v = _readU32();
-            if ((v & 0xC0000000u) != 0u)
+            uint value = _readU32();
+            if ((value & 0xC0000000u) != 0u)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_ILLEGAL_U30_VALUE);
-            return (int)v;
+            return (int)value;
         }
 
         private double _readD64() {
             Span<byte> buffer = stackalloc byte[8];
-            if (m_stream.Read(buffer) != 8)
-                throw ErrorHelper.createError(ErrorCode.ABC_DATA_CORRUPT);
+            _readBytesFromStream(buffer);
             return BitConverter.Int64BitsToDouble(ReadInt64LittleEndian(buffer));
         }
 
@@ -107,8 +124,7 @@ namespace Mariana.AVM2.ABC {
                 return "";
 
             Span<byte> buffer = (length < 1024) ? stackalloc byte[length] : new byte[length];
-            if (m_stream.Read(buffer) != length)
-                throw ErrorHelper.createError(ErrorCode.ABC_DATA_CORRUPT);
+            _readBytesFromStream(buffer);
 
             string str;
             try {
@@ -591,8 +607,7 @@ namespace Mariana.AVM2.ABC {
                 int codeSize = _readU30();
                 byte[] code = new byte[codeSize];
 
-                if (m_stream.Read(code, 0, codeSize) != codeSize)
-                    throw ErrorHelper.createError(ErrorCode.ABC_DATA_CORRUPT);
+                _readBytesFromStream(code);
 
                 int excBlockCount = _readU30();
                 var excBlocks = Array.Empty<ABCExceptionInfo>();

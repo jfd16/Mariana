@@ -49,6 +49,16 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         private const string INVALID_STRING = "Invalid Date";
 
+        /// <summary>
+        /// The maximum date value in milliseconds, relative to the Unix epoch, as a double value.
+        /// </summary>
+        private const double MAX_DOUBLE_DATE_VALUE = 8640000000000000.0;
+
+        /// <summary>
+        /// The maximum integer value that can be exactly represented as a double, equal to 2^53-1
+        /// </summary>
+        private const double MAX_SAFE_DOUBLE_INT = 9007199254740991.0;
+
         private static readonly string[] s_toStringMonthNames = {
             "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
         };
@@ -75,7 +85,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="offset">The offset from the zero value in milliseconds.</param>
         public ASDate(double offset) {
-            m_value = (Math.Abs(offset) <= 8640000000000000.0) ? (long)offset + UNIX_ZERO_TIMESTAMP : INVALID_VALUE;
+            m_value = (Math.Abs(offset) < MAX_DOUBLE_DATE_VALUE + 1.0) ? (long)offset + UNIX_ZERO_TIMESTAMP : INVALID_VALUE;
         }
 
         /// <summary>
@@ -87,8 +97,7 @@ namespace Mariana.AVM2.Core {
         /// be in local time.</param>
         public ASDate(DateTime datetime) {
             m_value = (long)(datetime.ToUniversalTime() - DateTime.UnixEpoch).TotalMilliseconds + UNIX_ZERO_TIMESTAMP;
-            if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
-                m_value = INVALID_VALUE;
+            _internalCheckTimestamp();
         }
 
         /// <summary>
@@ -98,12 +107,14 @@ namespace Mariana.AVM2.Core {
         public ASDate(string dateString) {
             if (dateString == null) {
                 m_value = UNIX_ZERO_TIMESTAMP;
+                return;
             }
-            else {
-                bool isValid = DateParser.tryParse(dateString, out m_value);
-                if (!isValid || (ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
-                    m_value = INVALID_VALUE;
-            }
+
+            bool isValid = DateParser.tryParse(dateString, out m_value);
+            if (isValid)
+                _internalCheckTimestamp();
+            else
+                m_value = INVALID_VALUE;
         }
 
         /// <summary>
@@ -127,25 +138,9 @@ namespace Mariana.AVM2.Core {
         /// 1.
         /// </remarks>
         public ASDate(
-            double year, double month, double day,
-            double hour = 0, double min = 0, double sec = 0, double ms = 0,
-            bool isUTC = false)
+            double year, double month, double day, double hour = 0, double min = 0, double sec = 0, double ms = 0, bool isUTC = false)
         {
-            if (!_validateDateComponent(year)
-                || !_validateDateComponent(month)
-                || !_validateDateComponent(day)
-                || !_validateTimeComponent(hour)
-                || !_validateTimeComponent(min)
-                || !_validateTimeComponent(sec)
-                || !_validateTimeComponent(ms))
-            {
-                return;
-            }
-
-            m_value = createTimestamp((int)year, (int)month, (int)day - 1, (long)hour, (long)min, (long)sec, (long)ms, !isUTC);
-
-            if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
-                m_value = INVALID_VALUE;
+            m_value = _internalCreateTimestampFromComponents(year, month, day, hour, min, sec, ms, !isUTC);
         }
 
         /// <summary>
@@ -160,17 +155,22 @@ namespace Mariana.AVM2.Core {
             double year, month, day = 1, hour = 0, min = 0, sec = 0, ms = 0;
 
             switch (rest.length) {
-                case 1:
+                case 1: {
                     // Only one argument: a date value or a date string.
-                    if (rest[0].value is ASString) {
-                        bool success = DateParser.tryParse((string)rest[0], out m_value);
-                        if (!success || (ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
+                    ASAny primitive = ASObject.AS_toPrimitive(rest[0].value);
+
+                    if (primitive.value is ASString) {
+                        bool isValidString = DateParser.tryParse((string)primitive, out m_value);
+                        if (isValidString)
+                            _internalCheckTimestamp();
+                        else
                             m_value = INVALID_VALUE;
                     }
                     else {
-                        setTime((double)rest[0]);
+                        setTime((double)primitive);
                     }
                     return;
+                }
 
                 // If more than one argument is given, then they are treated as
                 // date components.
@@ -195,108 +195,157 @@ namespace Mariana.AVM2.Core {
                     break;
             }
 
-            if (!_validateDateComponent(year)
-                || !_validateDateComponent(month)
-                || !_validateDateComponent(day)
-                || !_validateTimeComponent(hour)
-                || !_validateTimeComponent(min)
-                || !_validateTimeComponent(sec)
-                || !_validateTimeComponent(ms))
+            m_value = _internalCreateTimestampFromComponents(year, month, day, hour, min, sec, ms, isLocal: true);
+        }
+
+        private static long _internalCreateTimestampFromComponents(
+            double year, double month, double day, double hour, double min, double sec, double ms, bool isLocal)
+        {
+            if (!Double.IsFinite(year) || !Double.IsFinite(month) || !Double.IsFinite(day)
+                || !Double.IsFinite(hour) || !Double.IsFinite(min) || !Double.IsFinite(sec) || !Double.IsFinite(ms))
             {
-                return;
+                return INVALID_VALUE;
             }
 
-            m_value = createTimestamp(
-                (int)year, (int)month, (int)day - 1, (long)hour, (long)min, (long)sec, (long)ms, isLocal: true);
+            // Calculate the time component of the timestamp.
+            double timeValue =
+                Math.Truncate(hour) * MS_PER_HOUR + Math.Truncate(min) * MS_PER_MIN + Math.Truncate(sec) * MS_PER_SEC + Math.Truncate(ms);
 
-            if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
-                m_value = INVALID_VALUE;
+            if (!Double.IsFinite(timeValue))
+                return INVALID_VALUE;
+
+            year = Math.Truncate(year);
+            month = Math.Truncate(month);
+            day = Math.Truncate(day);
+
+            // 1900 must be added to two-digit years, as per ECMA 262.
+            // This is for both the Date constructor and Date.UTC.
+            if (year >= 0.0 && year <= 99.0)
+                year += 1900.0;
+
+            long timestamp;
+
+            // If all components are representable as integers, we can avoid the expensive floating
+            // point divisions for calculating the year and month offsets and do it using integer math.
+            // We need a lower threshold for the year because it must not overflow when it is adjusted
+            // for months outside [0, 11].
+
+            const int safeIntegerYear = 1900000000;
+
+            int iYear = (int)year;
+            int iMonth = (int)month;
+            int iDay = (int)day;
+
+            if ((double)iYear == year
+                && (double)iMonth == month
+                && (double)iDay == day
+                && iYear >= -safeIntegerYear
+                && iYear <= safeIntegerYear
+                && Math.Abs(timeValue) <= MAX_SAFE_DOUBLE_INT)
+            {
+                adjustMonthAndYear(ref iYear, ref iMonth);
+
+                long days = getYearStartDaysFromZeroLong(iYear) + getMonthStartDayOfYear(iYear, iMonth) + iDay - 1;
+
+                // Because |timeValue| is bounded at 2^53-1 on this path, it cannot "cancel out"
+                // an overflow in days * MS_PER_DAY and give a valid timestamp.
+                if (days > (Int64.MaxValue / MS_PER_DAY))
+                    return INVALID_VALUE;
+
+                timestamp = days * MS_PER_DAY + (long)timeValue;
+            }
+            else {
+                // This is the slow path, where the date contribution to the timestamp is calculated using
+                // floating point math.
+                // Here we do all calculations relative to Unix zero and then add UNIX_ZERO_TIMESTAMP at
+                // the end, otherwise results may be different from ECMAScript spec due to rounding.
+
+                adjustMonthAndYearDouble(ref year, ref month);
+
+                double yearOffset = getYearStartDaysFromUnixZeroDouble(year);
+                double monthOffset = getMonthStartDayOfYear((int)month, isLeapYearDouble(year));
+                double floatTimestamp = (yearOffset + monthOffset + day - 1.0) * MS_PER_DAY + timeValue;
+
+                if (Math.Abs(floatTimestamp) > MAX_SAFE_DOUBLE_INT) {
+                    // Early exit to ensure that the double-to-long conversion does not give an
+                    // undefined result.
+                    return INVALID_VALUE;
+                }
+
+                timestamp = (long)floatTimestamp + UNIX_ZERO_TIMESTAMP;
+            }
+
+            if (isLocal)
+                timestamp = localTimestampToUniversal(timestamp);
+
+            if ((ulong)(timestamp - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
+                return INVALID_VALUE;
+
+            return timestamp;
         }
-
-        /// <summary>
-        /// This method is used to validate time components (hour, minute, second, millisecond)
-        /// passed to methods which modify the date. If validation fails, the date value is set
-        /// to the invalid value.
-        /// </summary>
-        /// <param name="d">The argument to validate.</param>
-        /// <returns>True if validation succeeds, false if it fails.</returns>
-        private bool _validateTimeComponent(double d) {
-            if (Math.Abs(d) <= 9007199254740991d)
-                return true;
-
-            m_value = INVALID_VALUE;
-            return false;
-        }
-
-        /// <summary>
-        /// This method is used to validate time components (hour, minute, second, millisecond)
-        /// that are used to create a date.
-        /// </summary>
-        /// <param name="d">The argument to validate.</param>
-        /// <returns>True if validation succeeds, false if it fails.</returns>
-        private static bool _isValidTimeComponent(double d) => Math.Abs(d) <= 9007199254740991d;
-
-        /// <summary>
-        /// This method is used to validate date components (year, month, day) passed to methods
-        /// which modify the date value. If validation fails, the date value is set to the invalid value.
-        /// </summary>
-        /// <param name="d">The argument to validate.</param>
-        /// <returns>True if validation succeeds, false if it fails.</returns>
-        private bool _validateDateComponent(double d) {
-            if (Math.Abs(d) <= 2147483647d)
-                return true;
-
-            m_value = INVALID_VALUE;
-            return false;
-        }
-
-        /// <summary>
-        /// This method is used to validate date components (year, month, day)
-        /// that are used to create a date.
-        /// </summary>
-        /// <param name="d">The argument to validate.</param>
-        /// <returns>True if validation succeeds, false if it fails.</returns>
-        private static bool _isValidDateComponent(double d) => Math.Abs(d) <= 2147483647d;
 
         private void _internalSetSecMs(in OptionalParam<double> sec, in OptionalParam<double> ms) {
-            if ((sec.isSpecified && !_validateTimeComponent(sec.value))
-                || (ms.isSpecified && !_validateTimeComponent(ms.value)))
-            {
+            if (!sec.isSpecified && !ms.isSpecified)
                 return;
+
+            int iSec = (int)sec.value;
+            int iMs = (int)ms.value;
+
+            if ((double)iSec == Math.Truncate(sec.value) && (double)iMs == Math.Truncate(ms.value)) {
+                // Fast path when the arguments are within the integer range.
+                // This will be hit even if one of the arguments is unspecified, as
+                // the value field will be zero.
+
+                int currentSecPart, currentMsPart;
+                currentSecPart = (int)(m_value % MS_PER_MIN);
+                currentMsPart = currentSecPart % MS_PER_SEC;
+                currentSecPart -= currentMsPart;
+
+                if (sec.isSpecified)
+                    m_value += ((long)iSec * MS_PER_SEC) - currentSecPart;
+                if (ms.isSpecified)
+                    m_value += iMs - currentMsPart;
             }
-
-            long oldSec, oldMs;
-            oldSec = m_value % MS_PER_MIN;
-            oldMs = (int)oldSec % MS_PER_SEC;
-            oldSec -= oldMs;
-
-            long newSec = sec.isSpecified ? (long)sec.value * MS_PER_SEC : oldSec;
-            long newMs = ms.isSpecified ? (long)ms.value : oldMs;
-            m_value = m_value + (newSec - oldSec) + (newMs - oldMs);
+            else {
+                _internalSetHourMinSecMsSlow(default, default, sec, ms);
+            }
         }
 
         private void _internalSetMinSecMs(
             in OptionalParam<double> min, in OptionalParam<double> sec, in OptionalParam<double> ms)
         {
-            if ((min.isSpecified && !_validateTimeComponent(min.value))
-                || (sec.isSpecified && !_validateTimeComponent(sec.value))
-                || (ms.isSpecified && !_validateTimeComponent(ms.value)))
-            {
+            if (!min.isSpecified && !sec.isSpecified && !ms.isSpecified)
                 return;
+
+            int iMin = (int)min.value;
+            int iSec = (int)sec.value;
+            int iMs = (int)ms.value;
+
+            if ((double)iMin == Math.Truncate(min.value)
+                && (double)iSec == Math.Truncate(sec.value)
+                && (double)iMs == Math.Truncate(ms.value))
+            {
+                // Fast path when the arguments are within the integer range.
+                // This will be hit even if some of the arguments are unspecified, as
+                // the value field will be zero.
+
+                int currentMinPart, currentSecPart, currentMsPart;
+                currentMinPart = (int)(m_value % MS_PER_HOUR);
+                currentSecPart = currentMinPart % MS_PER_MIN;
+                currentMinPart -= currentSecPart;
+                currentMsPart = currentSecPart % MS_PER_SEC;
+                currentSecPart -= currentMsPart;
+
+                if (min.isSpecified)
+                    m_value += ((long)iMin * MS_PER_MIN) - currentMinPart;
+                if (sec.isSpecified)
+                    m_value += ((long)iSec * MS_PER_SEC) - currentSecPart;
+                if (ms.isSpecified)
+                    m_value += (long)iMs - currentMsPart;
             }
-
-            long oldMin, oldSec, oldMs;
-            oldMin = m_value % MS_PER_HOUR;
-            oldSec = (int)oldMin % MS_PER_MIN;
-            oldMin -= oldSec;
-            oldMs = (int)oldSec % MS_PER_SEC;
-            oldSec -= oldMs;
-
-            long newMin = min.isSpecified ? (long)min.value * MS_PER_MIN : oldMin;
-            long newSec = sec.isSpecified ? (long)sec.value * MS_PER_SEC : oldSec;
-            long newMs = ms.isSpecified ? (long)ms.value : oldMs;
-
-            m_value = m_value + (newMin - oldMin) + (newSec - oldSec) + (newMs - oldMs);
+            else {
+                _internalSetHourMinSecMsSlow(default, min, sec, ms);
+            }
         }
 
         private void _internalSetHourMinSecMs(
@@ -305,105 +354,251 @@ namespace Mariana.AVM2.Core {
             in OptionalParam<double> sec,
             in OptionalParam<double> ms
         ) {
-            if ((hour.isSpecified && !_validateTimeComponent(hour.value))
-                || (min.isSpecified && !_validateTimeComponent(min.value))
-                || (sec.isSpecified && !_validateTimeComponent(sec.value))
-                || (ms.isSpecified && !_validateTimeComponent(ms.value)))
+            if (!hour.isSpecified && !min.isSpecified && !sec.isSpecified && !ms.isSpecified)
+                return;
+
+            int iHour = (int)hour.value;
+            int iMin = (int)min.value;
+            int iSec = (int)sec.value;
+            int iMs = (int)ms.value;
+
+            if ((double)iHour == Math.Truncate(hour.value)
+                && (double)iMin == Math.Truncate(min.value)
+                && (double)iSec == Math.Truncate(sec.value)
+                && (double)iMs == Math.Truncate(ms.value))
             {
+                // Fast path when the arguments are within the integer range.
+                // This will be hit even if some of the arguments are unspecified, as
+                // the value field will be zero.
+
+                int currentHourPart, currentMinPart, currentSecPart, currentMsPart;
+
+                currentHourPart = (int)(m_value % MS_PER_DAY);
+                currentMinPart = currentHourPart % MS_PER_HOUR;
+                currentHourPart -= currentMinPart;
+                currentSecPart = currentMinPart % MS_PER_MIN;
+                currentMinPart -= currentSecPart;
+                currentMsPart = currentSecPart % MS_PER_SEC;
+                currentSecPart -= currentMsPart;
+
+                if (hour.isSpecified)
+                    m_value += ((long)iHour * MS_PER_HOUR) - currentHourPart;
+                if (min.isSpecified)
+                    m_value += ((long)iMin * MS_PER_MIN) - currentMinPart;
+                if (sec.isSpecified)
+                    m_value += ((long)iSec * MS_PER_SEC) - currentSecPart;
+                if (ms.isSpecified)
+                    m_value += (long)iMs - currentMsPart;
+            }
+            else {
+                _internalSetHourMinSecMsSlow(hour, min, sec, ms);
+            }
+        }
+
+        private void _internalSetHourMinSecMsSlow(
+            in OptionalParam<double> hour,
+            in OptionalParam<double> min,
+            in OptionalParam<double> sec,
+            in OptionalParam<double> ms
+        ) {
+            // Check for infinity/NaN. These will pass for unspecified arguments which evaluate to 0.
+            if (!Double.IsFinite(hour.value) || !Double.IsFinite(min.value)
+                || !Double.IsFinite(sec.value) || !Double.IsFinite(ms.value))
+            {
+                m_value = INVALID_VALUE;
                 return;
             }
 
-            long oldHour, oldMin, oldSec, oldMs;
+            double hourValue = Math.Truncate(hour.value);
+            double minValue = Math.Truncate(min.value);
+            double secValue = Math.Truncate(sec.value);
+            double msValue = Math.Truncate(ms.value);
 
-            oldHour = m_value % MS_PER_DAY;
-            oldMin = (int)oldHour % MS_PER_HOUR;
-            oldHour -= oldMin;
-            oldSec = (int)oldMin % MS_PER_MIN;
-            oldMin -= oldSec;
-            oldMs = (int)oldSec % MS_PER_SEC;
-            oldSec -= oldMs;
+            int currentTimePart = (int)(m_value % MS_PER_DAY);
+            int currentHourPart, currentMinPart, currentSecPart, currentMsPart;
 
-            long newHour = hour.isSpecified ? (long)hour.value * MS_PER_HOUR : oldHour;
-            long newMin = min.isSpecified ? (long)min.value * MS_PER_MIN : oldMin;
-            long newSec = sec.isSpecified ? (long)sec.value * MS_PER_SEC : oldSec;
-            long newMs = ms.isSpecified ? (long)ms.value : oldMs;
+            currentHourPart = (int)(m_value % MS_PER_DAY);
+            currentMinPart = currentHourPart % MS_PER_HOUR;
+            currentHourPart -= currentMinPart;
+            currentSecPart = currentMinPart % MS_PER_MIN;
+            currentMinPart -= currentSecPart;
+            currentMsPart = currentSecPart % MS_PER_SEC;
+            currentSecPart -= currentMsPart;
 
-            m_value = m_value + (newHour - oldHour) + (newMin - oldMin) + (newSec - oldSec) + (newMs - oldMs);
+            double newTimePart = 0.0;
+            newTimePart += hour.isSpecified ? hourValue * MS_PER_HOUR : (double)currentHourPart;
+            newTimePart += min.isSpecified ? minValue * MS_PER_MIN : (double)currentMinPart;
+            newTimePart += sec.isSpecified ? secValue * MS_PER_SEC : (double)currentSecPart;
+            newTimePart += ms.isSpecified ? msValue : (double)currentMsPart;
+
+            double floatTimestamp =
+                (double)(m_value - currentTimePart - UNIX_ZERO_TIMESTAMP) + newTimePart;
+
+            if (Math.Abs(floatTimestamp) > MAX_SAFE_DOUBLE_INT) {
+                m_value = INVALID_VALUE;
+                return;
+            }
+
+            m_value = (long)floatTimestamp + UNIX_ZERO_TIMESTAMP;
         }
 
         private void _internalSetMonthDay(in OptionalParam<double> month, in OptionalParam<double> day) {
-            if ((day.isSpecified && !_validateDateComponent(day.value))
-                || (month.isSpecified && !_validateDateComponent(month.value)))
-            {
+            if (!day.isSpecified && !month.isSpecified)
                 return;
+
+            int iMonth = (int)month.value;
+            int iDay = (int)day.value;
+
+            if ((double)iMonth == Math.Truncate(month.value) && (double)iDay == Math.Truncate(day.value)) {
+                // Fast path when the arguments are within the integer range.
+                // This will be hit even if some of the arguments are unspecified, as
+                // the value field will be zero.
+
+                getDayMonthYearFromTimestamp(m_value, out int curYear, out int curMonth, out int curDay);
+                int newYear = curYear;
+                int newMonth = curMonth;
+                int newDay = day.isSpecified ? iDay : curDay + 1;
+
+                if (month.isSpecified) {
+                    newMonth = iMonth;
+                    adjustMonthAndYear(ref newYear, ref newMonth);
+                }
+
+                long totalAdjustDays = 0;
+
+                if (newYear == curYear) {
+                    // If there is no year change, avoid a relatively expensive getYearStartDaysFromZeroLong call.
+                    bool curYearIsLeap = isLeapYear(curYear);
+
+                    totalAdjustDays +=
+                        getMonthStartDayOfYear(newMonth, curYearIsLeap) - getMonthStartDayOfYear(curMonth, curYearIsLeap);
+
+                    if (day.isSpecified)
+                        totalAdjustDays += (long)newDay - curDay;
+                }
+                else {
+                    long currentTimePart = m_value % MS_PER_DAY;
+                    m_value = currentTimePart;
+
+                    totalAdjustDays = getYearStartDaysFromZeroLong(newYear) + getMonthStartDayOfYear(newYear, newMonth) + newDay - 1;
+                }
+
+                if (Math.Abs(totalAdjustDays) > (MAX_LOCAL_TIMESTAMP / MS_PER_DAY)) {
+                    // Definitely an invalid date, as there is nothing to cancel out this addition.
+                    m_value = INVALID_VALUE;
+                    return;
+                }
+
+                m_value += totalAdjustDays * MS_PER_DAY;
             }
-
-            getDayMonthYearFromTimestamp(m_value, out int currentYear, out int currentMonth, out int currentDay);
-
-            int monthAdjDays = 0;
-
-            if (month.isSpecified) {
-                int newMonth = (int)month.value;
-                int yearAfterMonthAdjust = currentYear;
-
-                if (adjustMonthAndYear(ref yearAfterMonthAdjust, ref newMonth))
-                    monthAdjDays += getYearStartDayDiff(currentYear, yearAfterMonthAdjust);
-
-                monthAdjDays += getMonthStartDayOfYear(yearAfterMonthAdjust, newMonth);
-                monthAdjDays -= getMonthStartDayOfYear(currentYear, currentMonth);
+            else {
+                _internalSetYearMonthDay(default, month, day);
             }
-
-            long dayAdjustDays = day.isSpecified ? (long)((int)day.value - currentDay - 1) : 0L;
-
-            m_value += ((long)monthAdjDays + dayAdjustDays) * MS_PER_DAY;
         }
 
         private void _internalSetYearMonthDay(
             in OptionalParam<double> year, in OptionalParam<double> month, in OptionalParam<double> day)
         {
-            if ((year.isSpecified && !_validateDateComponent(year.value))
-                || (month.isSpecified && !_validateDateComponent(month.value))
-                || (day.isSpecified && !_validateDateComponent(day.value)))
+            if (!year.isSpecified && !month.isSpecified && !day.isSpecified)
+                return;
+
+            int iYear = (int)year.value;
+            int iMonth = (int)month.value;
+            int iDay = (int)day.value;
+
+            // We need a lower fast path threshold for the year because it must not overflow when it is adjusted
+            // for months outside [0, 11].
+            const int safeIntegerYear = 1900000000;
+
+            if ((double)iYear == Math.Truncate(year.value)
+                && (double)iMonth == Math.Truncate(month.value)
+                && (double)iDay == Math.Truncate(day.value)
+                && iYear >= -safeIntegerYear && iYear <= safeIntegerYear)
             {
+                // Fast path when the arguments are within the integer range.
+                // This will be hit even if some of the arguments are unspecified, as
+                // the value field will be zero.
+
+                int newYear, newMonth, newDay;
+
+                if (year.isSpecified && month.isSpecified && day.isSpecified) {
+                    // All three arguments are supplied. In this case we can avoid the getDayMonthYearFromTimestamp call.
+                    newYear = iYear;
+                    newMonth = iMonth;
+                    newDay = iDay;
+                    adjustMonthAndYear(ref newYear, ref newMonth);
+                }
+                else {
+                    getDayMonthYearFromTimestamp(m_value, out int curYear, out int curMonth, out int curDay);
+
+                    newYear = year.isSpecified ? iYear : curYear;
+                    newDay = day.isSpecified ? iDay : curDay + 1;
+                    newMonth = curMonth;
+
+                    if (month.isSpecified) {
+                        newMonth = iMonth;
+                        adjustMonthAndYear(ref newYear, ref newMonth);
+                    }
+                }
+
+                long newDatePartDays = getYearStartDaysFromZeroLong(newYear) + getMonthStartDayOfYear(newYear, newMonth) + newDay - 1;
+
+                if (Math.Abs(newDatePartDays) > (MAX_LOCAL_TIMESTAMP / MS_PER_DAY)) {
+                    // Definitely an invalid date, as there is nothing to cancel out this addition.
+                    m_value = INVALID_VALUE;
+                    return;
+                }
+
+                m_value = newDatePartDays * MS_PER_DAY + m_value % MS_PER_DAY;
+            }
+            else {
+                _internalSetYearMonthDaySlow(year, month, day);
+            }
+        }
+
+        private void _internalSetYearMonthDaySlow(
+            in OptionalParam<double> year, in OptionalParam<double> month, in OptionalParam<double> day)
+        {
+            // Check for infinity/NaN. These will pass for unspecified arguments which evaluate to 0.
+            if (!Double.IsFinite(year.value) || !Double.IsFinite(month.value) || !Double.IsFinite(day.value)) {
+                m_value = INVALID_VALUE;
                 return;
             }
 
-            if (month.isSpecified || day.isSpecified) {
-                getDayMonthYearFromTimestamp(m_value, out int curYear, out int curMonth, out int curDay);
+            double yearValue = Math.Truncate(year.value);
+            double monthValue = Math.Truncate(month.value);
+            double dayValue = Math.Truncate(day.value);
 
-                int newYear, yearAdjDays;
-                if (!year.isSpecified) {
-                    newYear = curYear;
-                    yearAdjDays = 0;
-                }
-                else {
-                    newYear = (int)year.value;
-                    yearAdjDays = getYearStartDayDiff(curYear, newYear);
-                }
+            int currentTimePart = (int)(m_value % MS_PER_DAY);
 
-                int monthAdjDays = 0;
-                if (month.isSpecified) {
-                    int newMonth = (int)month.value;
-                    int newYearAfterMonthAdjust = newYear;
+            getDayMonthYearFromTimestamp(m_value, out int currentYear, out int currentMonth, out int currentDay);
 
-                    if (adjustMonthAndYear(ref newYearAfterMonthAdjust, ref newMonth))
-                        monthAdjDays += getYearStartDayDiff(newYear, newYearAfterMonthAdjust);
+            double newYear = year.isSpecified ? yearValue : (double)currentYear;
+            double newMonth = month.isSpecified ? monthValue : (double)currentMonth;
+            double newDay = day.isSpecified ? dayValue : (double)(currentDay + 1);
 
-                    monthAdjDays += getMonthStartDayOfYear(newYearAfterMonthAdjust, newMonth);
-                    monthAdjDays -= getMonthStartDayOfYear(newYear, curMonth);
-                }
+            adjustMonthAndYearDouble(ref newYear, ref newMonth);
 
-                long dayAdjDays = day.isSpecified ? (long)((int)day.value - curDay - 1) : 0;
+            double yearOffset = getYearStartDaysFromUnixZeroDouble(newYear);
+            double monthOffset = getMonthStartDayOfYear((int)newMonth, isLeapYearDouble(newYear));
+            double newDatePart = yearOffset + monthOffset + newDay - 1.0;
 
-                m_value += ((long)yearAdjDays + (long)monthAdjDays + dayAdjDays) * MS_PER_DAY;
+            if (Math.Abs(newDatePart) > (double)(MAX_LOCAL_TIMESTAMP / MS_PER_DAY)) {
+                // Definitely invalid becacuse currentTimePart cannot be negative.
+                m_value = INVALID_VALUE;
+                return;
             }
-            else {
-                if (!year.isSpecified)
-                    return;
 
-                getYearAndDayFromTimestamp(m_value, out int curYear, out _);
-                m_value += (long)getYearStartDayDiff((int)year.value, curYear) * MS_PER_DAY;
-            }
+            m_value = (long)newDatePart * MS_PER_DAY + currentTimePart + UNIX_ZERO_TIMESTAMP;
+        }
+
+        /// <summary>
+        /// Checks if the internal timestamp value in this instance is valid, and sets it to
+        /// <see cref="INVALID_VALUE"/> if it is not.
+        /// </summary>
+        private void _internalCheckTimestamp() {
+            if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
+                m_value = INVALID_VALUE;
         }
 
         /// <summary>
@@ -433,21 +628,8 @@ namespace Mariana.AVM2.Core {
         public static double UTC(
             double year, double month, double day = 1, double hour = 0, double min = 0, double sec = 0, double ms = 0)
         {
-            if (!_isValidDateComponent(year)
-                || !_isValidDateComponent(month)
-                || !_isValidDateComponent(day)
-                || !_isValidTimeComponent(hour)
-                || !_isValidTimeComponent(min)
-                || !_isValidTimeComponent(sec)
-                || !_isValidTimeComponent(ms))
-            {
-                return Double.NaN;
-            }
-
-            long value = createTimestamp(
-                (int)year, (int)month, (int)day - 1, (long)hour, (long)min, (long)sec, (long)ms, isLocal: false);
-
-            if (value < MIN_TIMESTAMP || value > MAX_TIMESTAMP)
+            long value = _internalCreateTimestampFromComponents(year, month, day, hour, min, sec, ms, isLocal: false);
+            if (value == INVALID_VALUE)
                 return Double.NaN;
 
             return (double)(value - UNIX_ZERO_TIMESTAMP);
@@ -491,13 +673,8 @@ namespace Mariana.AVM2.Core {
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
         public double setUTCMilliseconds(OptionalParam<double> ms = default) {
-            if (m_value == INVALID_VALUE || !ms.isSpecified || !_validateTimeComponent(ms.value))
-                return getTime();
-
-            m_value = m_value - m_value % 1000L + (long)ms.value;
-
-            if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
-                m_value = INVALID_VALUE;
+            if (ms.isSpecified)
+                this.millisecondsUTC = ms.value;
 
             return getTime();
         }
@@ -527,10 +704,14 @@ namespace Mariana.AVM2.Core {
             if (m_value == INVALID_VALUE)
                 return Double.NaN;
 
-            _internalSetSecMs(sec, ms);
-
-            if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
-                m_value = INVALID_VALUE;
+            if (sec.isSpecified && !ms.isSpecified) {
+                // Fast path
+                this.secondsUTC = sec.value;
+            }
+            else {
+                _internalSetSecMs(sec, ms);
+                _internalCheckTimestamp();
+            }
 
             return getTime();
         }
@@ -567,10 +748,14 @@ namespace Mariana.AVM2.Core {
             if (m_value == INVALID_VALUE)
                 return Double.NaN;
 
-            _internalSetMinSecMs(min, sec, ms);
-
-            if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
-                m_value = INVALID_VALUE;
+            if (min.isSpecified && !sec.isSpecified && !ms.isSpecified) {
+                // Fast path
+                this.minutesUTC = min.value;
+            }
+            else {
+                _internalSetMinSecMs(min, sec, ms);
+                _internalCheckTimestamp();
+            }
 
             return getTime();
         }
@@ -612,10 +797,14 @@ namespace Mariana.AVM2.Core {
             if (m_value == INVALID_VALUE)
                 return Double.NaN;
 
-            _internalSetHourMinSecMs(hour, min, sec, ms);
-
-            if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
-                m_value = INVALID_VALUE;
+            if (hour.isSpecified && !min.isSpecified && !sec.isSpecified && !ms.isSpecified) {
+                // Fast path
+                this.hoursUTC = hour.value;
+            }
+            else {
+                _internalSetHourMinSecMs(hour, min, sec, ms);
+                _internalCheckTimestamp();
+            }
 
             return getTime();
         }
@@ -645,15 +834,8 @@ namespace Mariana.AVM2.Core {
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
         public double setUTCDate(OptionalParam<double> day = default) {
-            if (m_value == INVALID_VALUE || !day.isSpecified || !_validateDateComponent(day.value))
-                return getTime();
-
-            getDayMonthYearFromTimestamp(m_value, out _, out _, out int currentDay);
-
-            m_value += (long)((int)day.value - currentDay - 1) * MS_PER_DAY;
-
-            if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
-                m_value = INVALID_VALUE;
+            if (day.isSpecified)
+                this.dateUTC = day.value;
 
             return getTime();
         }
@@ -693,9 +875,7 @@ namespace Mariana.AVM2.Core {
                 return Double.NaN;
 
             _internalSetMonthDay(month, day);
-
-            if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
-                m_value = INVALID_VALUE;
+            _internalCheckTimestamp();
 
             return getTime();
         }
@@ -737,9 +917,7 @@ namespace Mariana.AVM2.Core {
                 return Double.NaN;
 
             _internalSetYearMonthDay(year, month, day);
-
-            if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
-                m_value = INVALID_VALUE;
+            _internalCheckTimestamp();
 
             return getTime();
         }
@@ -789,13 +967,10 @@ namespace Mariana.AVM2.Core {
         public double setTime(double v) {
             // setTime() is the only method that can change an invalid date into a valid date.
             // It does not check the validity of the date before changing it.
-            if (!_validateTimeComponent(v))
-                return Double.NaN;
-
-            m_value = (long)v + UNIX_ZERO_TIMESTAMP;
-
-            if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
+            if (Double.IsNaN(v) || Math.Abs(v) >= MAX_DOUBLE_DATE_VALUE + 1.0)
                 m_value = INVALID_VALUE;
+            else
+                m_value = (long)v + UNIX_ZERO_TIMESTAMP;
 
             return getTime();
         }
@@ -819,14 +994,8 @@ namespace Mariana.AVM2.Core {
         /// NaN.</returns>
         [AVM2ExportPrototypeMethod]
         public double setMilliseconds(OptionalParam<double> ms = default) {
-            if (m_value == INVALID_VALUE || !ms.isSpecified || !_validateTimeComponent(ms.value))
-                return getTime();
-
-            long localValue = universalTimestampToLocal(m_value);
-            m_value = localTimestampToUniversal(localValue - localValue % 1000 + (long)ms.value);
-
-            if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
-                m_value = INVALID_VALUE;
+            if (ms.isSpecified)
+                this.milliseconds = ms.value;
 
             return getTime();
         }
@@ -856,15 +1025,20 @@ namespace Mariana.AVM2.Core {
             if (m_value == INVALID_VALUE)
                 return Double.NaN;
 
-            m_value = universalTimestampToLocal(m_value);
-            _internalSetSecMs(sec, ms);
+            if (sec.isSpecified && !ms.isSpecified) {
+                // Fast path
+                this.seconds = sec.value;
+            }
+            else {
+                m_value = universalTimestampToLocal(m_value);
+                _internalSetSecMs(sec, ms);
 
-            if (m_value == INVALID_VALUE)
-                return Double.NaN;
+                if (m_value == INVALID_VALUE)
+                    return Double.NaN;
 
-            m_value = localTimestampToUniversal(m_value);
-            if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
-                m_value = INVALID_VALUE;
+                m_value = localTimestampToUniversal(m_value);
+                _internalCheckTimestamp();
+            }
 
             return getTime();
         }
@@ -901,15 +1075,20 @@ namespace Mariana.AVM2.Core {
             if (m_value == INVALID_VALUE)
                 return Double.NaN;
 
-            m_value = universalTimestampToLocal(m_value);
-            _internalSetMinSecMs(min, sec, ms);
+            if (min.isSpecified && !sec.isSpecified && !ms.isSpecified) {
+                // Fast path
+                this.minutes = min.value;
+            }
+            else {
+                m_value = universalTimestampToLocal(m_value);
+                _internalSetMinSecMs(min, sec, ms);
 
-            if (m_value == INVALID_VALUE)
-                return Double.NaN;
+                if (m_value == INVALID_VALUE)
+                    return Double.NaN;
 
-            m_value = localTimestampToUniversal(m_value);
-            if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
-                m_value = INVALID_VALUE;
+                m_value = localTimestampToUniversal(m_value);
+                _internalCheckTimestamp();
+            }
 
             return getTime();
         }
@@ -951,15 +1130,20 @@ namespace Mariana.AVM2.Core {
             if (m_value == INVALID_VALUE)
                 return Double.NaN;
 
-            m_value = universalTimestampToLocal(m_value);
-            _internalSetHourMinSecMs(hour, min, sec, ms);
+            if (hour.isSpecified && !min.isSpecified && !sec.isSpecified && !ms.isSpecified) {
+                // Fast path
+                this.hours = hour.value;
+            }
+            else {
+                m_value = universalTimestampToLocal(m_value);
+                _internalSetHourMinSecMs(hour, min, sec, ms);
 
-            if (m_value == INVALID_VALUE)
-                return Double.NaN;
+                if (m_value == INVALID_VALUE)
+                    return Double.NaN;
 
-            m_value = localTimestampToUniversal(m_value);
-            if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
-                m_value = INVALID_VALUE;
+                m_value = localTimestampToUniversal(m_value);
+                _internalCheckTimestamp();
+            }
 
             return getTime();
         }
@@ -989,16 +1173,8 @@ namespace Mariana.AVM2.Core {
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
         public double setDate(OptionalParam<double> day = default) {
-            if (m_value == INVALID_VALUE || !day.isSpecified || !_validateDateComponent(day.value))
-                return getTime();
-
-            long localValue = universalTimestampToLocal(m_value);
-            getDayMonthYearFromTimestamp(localValue, out _, out _, out int currentDay);
-
-            m_value = localTimestampToUniversal(localValue + (long)((int)day.value - currentDay - 1) * MS_PER_DAY);
-
-            if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
-                m_value = INVALID_VALUE;
+            if (day.isSpecified)
+                this.dateUTC = day.value;
 
             return getTime();
         }
@@ -1041,8 +1217,7 @@ namespace Mariana.AVM2.Core {
                 return Double.NaN;
 
             m_value = localTimestampToUniversal(m_value);
-            if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
-                m_value = INVALID_VALUE;
+            _internalCheckTimestamp();
 
             return getTime();
         }
@@ -1091,8 +1266,7 @@ namespace Mariana.AVM2.Core {
                 return Double.NaN;
 
             m_value = localTimestampToUniversal(m_value);
-            if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
-                m_value = INVALID_VALUE;
+            _internalCheckTimestamp();
 
             return getTime();
         }
@@ -1125,6 +1299,7 @@ namespace Mariana.AVM2.Core {
         public double getTimezoneOffset() {
             if (m_value == INVALID_VALUE)
                 return Double.NaN;
+
             return (double)((m_value - universalTimestampToLocal(m_value)) / MS_PER_MIN);
         }
 
@@ -1135,13 +1310,17 @@ namespace Mariana.AVM2.Core {
         public double millisecondsUTC {
             get => getUTCMilliseconds();
             set {
-                if (m_value == INVALID_VALUE || !_validateTimeComponent(value))
+                if (m_value == INVALID_VALUE)
                     return;
 
-                m_value = m_value - m_value % MS_PER_SEC + (long)value;
-
-                if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
+                if (Double.IsNaN(value) || Math.Abs(value) > MAX_SAFE_DOUBLE_INT) {
+                    // Definitely invalid, nothing to cancel it out.
                     m_value = INVALID_VALUE;
+                }
+                else {
+                    m_value = m_value - m_value % MS_PER_SEC + (long)value;
+                    _internalCheckTimestamp();
+                }
             }
         }
 
@@ -1152,14 +1331,18 @@ namespace Mariana.AVM2.Core {
         public double secondsUTC {
             get => getUTCSeconds();
             set {
-                if (m_value == INVALID_VALUE || !_validateTimeComponent(value))
+                if (m_value == INVALID_VALUE)
                     return;
 
-                int oldSecs = (int)(m_value % MS_PER_MIN);
-                m_value = m_value - oldSecs + (long)value * MS_PER_SEC + (oldSecs % MS_PER_SEC);
-
-                if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
+                if (Double.IsNaN(value) || Math.Abs(value) > MAX_SAFE_DOUBLE_INT) {
+                    // Definitely invalid, nothing to cancel it out.
                     m_value = INVALID_VALUE;
+                }
+                else {
+                    int currentSecPart = (int)(m_value % MS_PER_MIN);
+                    m_value = m_value - currentSecPart + (currentSecPart % MS_PER_SEC) + (long)value * MS_PER_SEC;
+                    _internalCheckTimestamp();
+                }
             }
         }
 
@@ -1170,14 +1353,18 @@ namespace Mariana.AVM2.Core {
         public double minutesUTC {
             get => getUTCMinutes();
             set {
-                if (m_value == INVALID_VALUE || !_validateTimeComponent(value))
+                if (m_value == INVALID_VALUE)
                     return;
 
-                int oldMins = (int)(m_value % MS_PER_HOUR);
-                m_value = m_value - oldMins + (long)value * MS_PER_MIN + (oldMins % MS_PER_MIN);
-
-                if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
+                if (Double.IsNaN(value) || Math.Abs(value) > MAX_SAFE_DOUBLE_INT) {
+                    // Definitely invalid, nothing to cancel it out.
                     m_value = INVALID_VALUE;
+                }
+                else {
+                    int currentMinPart = (int)(m_value % MS_PER_HOUR);
+                    m_value = m_value - currentMinPart + (currentMinPart % MS_PER_MIN) + (long)value * MS_PER_MIN;
+                    _internalCheckTimestamp();
+                }
             }
         }
 
@@ -1188,14 +1375,18 @@ namespace Mariana.AVM2.Core {
         public double hoursUTC {
             get => getUTCHours();
             set {
-                if (m_value == INVALID_VALUE || !_validateTimeComponent(value))
+                if (m_value == INVALID_VALUE)
                     return;
 
-                int oldHours = (int)(m_value % MS_PER_DAY);
-                m_value = m_value - oldHours + (long)value * MS_PER_HOUR + (oldHours % MS_PER_HOUR);
-
-                if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
+                if (Double.IsNaN(value) || Math.Abs(value) > MAX_SAFE_DOUBLE_INT) {
+                    // Definitely invalid, nothing to cancel it out.
                     m_value = INVALID_VALUE;
+                }
+                else {
+                    int currentHourPart = (int)(m_value % MS_PER_DAY);
+                    m_value = m_value - currentHourPart + (currentHourPart % MS_PER_HOUR) + (long)value * MS_PER_HOUR;
+                    _internalCheckTimestamp();
+                }
             }
         }
 
@@ -1206,14 +1397,18 @@ namespace Mariana.AVM2.Core {
         public double dateUTC {
             get => getUTCDate();
             set {
-                if (m_value == INVALID_VALUE || !_validateDateComponent(value))
+                if (m_value == INVALID_VALUE)
                     return;
 
-                getDayMonthYearFromTimestamp(m_value, out _, out _, out int currentDay);
-                m_value += (long)((int)value - currentDay - 1) * MS_PER_DAY;
-
-                if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
+                if (Double.IsNaN(value) || Math.Abs(value) > (double)Int32.MaxValue) {
+                    // Definitely invalid, nothing to cancel it out.
                     m_value = INVALID_VALUE;
+                }
+                else {
+                    getDayMonthYearFromTimestamp(m_value, out _, out _, out int currentDay);
+                    m_value += ((long)value - (currentDay + 1)) * MS_PER_DAY;
+                    _internalCheckTimestamp();
+                }
             }
         }
 
@@ -1248,14 +1443,18 @@ namespace Mariana.AVM2.Core {
         public double milliseconds {
             get => getMilliseconds();
             set {
-                if (m_value == INVALID_VALUE || !_validateTimeComponent(value))
+                if (m_value == INVALID_VALUE)
                     return;
 
-                long local = universalTimestampToLocal(m_value);
-                m_value = localTimestampToUniversal(local - local % MS_PER_SEC + (long)value);
-
-                if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
+                if (Double.IsNaN(value) || Math.Abs(value) > MAX_SAFE_DOUBLE_INT) {
+                    // Definitely invalid, nothing to cancel it out.
                     m_value = INVALID_VALUE;
+                }
+                else {
+                    long localTimestamp = universalTimestampToLocal(m_value);
+                    m_value = localTimestampToUniversal(localTimestamp - localTimestamp % MS_PER_SEC + (long)value);
+                    _internalCheckTimestamp();
+                }
             }
         }
 
@@ -1266,15 +1465,22 @@ namespace Mariana.AVM2.Core {
         public double seconds {
             get => getSeconds();
             set {
-                if (m_value == INVALID_VALUE || !_validateTimeComponent(value))
+                if (m_value == INVALID_VALUE)
                     return;
 
-                long local = universalTimestampToLocal(m_value);
-                int oldSecs = (int)(local % MS_PER_MIN);
-                m_value = localTimestampToUniversal(local - oldSecs + (long)value * MS_PER_SEC + (local % MS_PER_SEC));
-
-                if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
+                if (Double.IsNaN(value) || Math.Abs(value) > MAX_SAFE_DOUBLE_INT) {
+                    // Definitely invalid, nothing to cancel it out.
                     m_value = INVALID_VALUE;
+                }
+                else {
+                    long localTimestamp = universalTimestampToLocal(m_value);
+                    int currentSecPart = (int)(localTimestamp % MS_PER_MIN);
+
+                    m_value = localTimestampToUniversal(
+                        localTimestamp - currentSecPart + (currentSecPart % MS_PER_SEC) + (long)value * MS_PER_SEC
+                    );
+                    _internalCheckTimestamp();
+                }
             }
         }
 
@@ -1285,15 +1491,22 @@ namespace Mariana.AVM2.Core {
         public double minutes {
             get => getMinutes();
             set {
-                if (m_value == INVALID_VALUE || !_validateTimeComponent(value))
+                if (m_value == INVALID_VALUE)
                     return;
 
-                long local = universalTimestampToLocal(m_value);
-                int oldMins = (int)(local % MS_PER_HOUR);
-                m_value = localTimestampToUniversal(local - oldMins + (long)value * MS_PER_MIN + (local % MS_PER_MIN));
-
-                if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
+                if (Double.IsNaN(value) || Math.Abs(value) > MAX_SAFE_DOUBLE_INT) {
+                    // Definitely invalid, nothing to cancel it out.
                     m_value = INVALID_VALUE;
+                }
+                else {
+                    long localTimestamp = universalTimestampToLocal(m_value);
+                    int currentMinPart = (int)(localTimestamp % MS_PER_HOUR);
+
+                    m_value = localTimestampToUniversal(
+                        localTimestamp - currentMinPart + (currentMinPart % MS_PER_MIN) + (long)value * MS_PER_MIN
+                    );
+                    _internalCheckTimestamp();
+                }
             }
         }
 
@@ -1304,15 +1517,21 @@ namespace Mariana.AVM2.Core {
         public double hours {
             get => getHours();
             set {
-                if (m_value == INVALID_VALUE || !_validateTimeComponent(value))
+                if (m_value == INVALID_VALUE)
                     return;
 
-                long local = universalTimestampToLocal(m_value);
-                int oldHours = (int)(local % MS_PER_DAY);
-                m_value = localTimestampToUniversal(local - oldHours + (long)value * MS_PER_HOUR + (local % MS_PER_HOUR));
-
-                if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
+                if (Double.IsNaN(value) || Math.Abs(value) > MAX_SAFE_DOUBLE_INT) {
+                    // Definitely invalid, nothing to cancel it out.
                     m_value = INVALID_VALUE;
+                }
+                else {
+                    long localTimestamp = universalTimestampToLocal(m_value);
+                    int currentHourPart = (int)(localTimestamp % MS_PER_DAY);
+                    m_value = localTimestampToUniversal(
+                        localTimestamp - currentHourPart + (currentHourPart % MS_PER_HOUR) + (long)value * MS_PER_HOUR
+                    );
+                    _internalCheckTimestamp();
+                }
             }
         }
 
@@ -1323,16 +1542,21 @@ namespace Mariana.AVM2.Core {
         public double date {
             get => getDate();
             set {
-                if (m_value == INVALID_VALUE || !_validateDateComponent(value))
+                if (m_value == INVALID_VALUE)
                     return;
 
-                long local = universalTimestampToLocal(m_value);
-                getDayMonthYearFromTimestamp(local, out _, out _, out int currentDay);
-
-                m_value = localTimestampToUniversal(local + (long)((int)value - currentDay - 1) * MS_PER_DAY);
-
-                if ((ulong)(m_value - MIN_TIMESTAMP) > TIMESTAMP_RANGE)
+                if (Double.IsNaN(value) || Math.Abs(value) > (double)Int32.MaxValue) {
+                    // Definitely invalid, nothing to cancel it out.
                     m_value = INVALID_VALUE;
+                }
+                else {
+                    long localTimestamp = universalTimestampToLocal(m_value);
+                    getDayMonthYearFromTimestamp(localTimestamp, out _, out _, out int currentDay);
+
+                    long deltaDays = (long)value - (currentDay + 1);
+                    m_value = localTimestampToUniversal(localTimestamp + deltaDays * MS_PER_DAY);
+                    _internalCheckTimestamp();
+                }
             }
         }
 
