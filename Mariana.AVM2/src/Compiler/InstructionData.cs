@@ -27,6 +27,7 @@ namespace Mariana.AVM2.Compiler {
         [FieldOffset(0)] public GetScopeObject getScopeObject;
         [FieldOffset(0)] public CoerceOrIsType coerceOrIsType;
         [FieldOffset(0)] public Add add;
+        [FieldOffset(0)] public BinaryOp binaryOp;
         [FieldOffset(0)] public Compare compare;
         [FieldOffset(0)] public CompareBranch compareBranch;
         [FieldOffset(0)] public NewCatch newCatch;
@@ -247,6 +248,17 @@ namespace Mariana.AVM2.Compiler {
             /// True if the output of this instruction is an internal node of a string concatenation tree.
             /// </summary>
             public bool isConcatTreeInternalNode;
+        }
+
+        /// <summary>
+        /// Instruction-specific data for a binary arithmetic instruction (other than add).
+        /// </summary>
+        public struct BinaryOp {
+            /// <summary>
+            /// If this is true, unsigned arithmetic is always used for a division or modulo
+            /// instruction even if the operands are signed.
+            /// </summary>
+            public bool forceUnsignedDivOrMod;
         }
 
         /// <summary>

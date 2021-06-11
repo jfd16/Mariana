@@ -1884,11 +1884,12 @@ namespace Mariana.AVM2.Compiler {
                 _emitTypeCoerceForStackTop2(ref left, ref right, output.dataType, output.dataType);
 
                 if (output.dataType == DataNodeType.NUMBER) {
+                    // Floating-point division/remainder.
                     m_ilBuilder.emit((instr.opcode == ABCOp.divide) ? ILOp.div : ILOp.rem);
                     return;
                 }
 
-                bool isUnsigned = left.dataType == DataNodeType.UINT || right.dataType == DataNodeType.UINT;
+                bool isUnsigned = shouldUseUnsignedDivOrMod(ref instr, ref left, ref right);
 
                 ILOp opcode = isUnsigned
                     ? ((instr.opcode == ABCOp.divide) ? ILOp.div_un : ILOp.rem_un)
@@ -1942,6 +1943,19 @@ namespace Mariana.AVM2.Compiler {
                 }
 
                 m_ilBuilder.markLabel(label2);
+            }
+
+            bool shouldUseUnsignedDivOrMod(ref Instruction _instr, ref DataNode _left, ref DataNode _right) {
+                if (_instr.data.binaryOp.forceUnsignedDivOrMod)
+                    return true;
+
+                bool leftIsUnsigned =
+                    _left.dataType == DataNodeType.UINT || (_left.isConstant && _left.constant.intValue >= 0);
+
+                bool rightIsUnsigned =
+                    _right.dataType == DataNodeType.UINT || (_right.isConstant && _right.constant.intValue >= 0);
+
+                return leftIsUnsigned && rightIsUnsigned;
             }
         }
 

@@ -1040,9 +1040,11 @@ namespace Mariana.AVM2.Compiler {
                 case ABCOp.sxi16:
                     output.dataType = DataNodeType.INT;
                     break;
+
                 case ABCOp.not:
                     output.dataType = DataNodeType.BOOL;
                     break;
+
                 default:
                     output.dataType = DataNodeType.NUMBER;
                     break;
@@ -1170,14 +1172,14 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
             var inputIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode input1 = ref m_compilation.getDataNode(inputIds[0]);
-            ref DataNode input2 = ref m_compilation.getDataNode(inputIds[1]);
+            ref DataNode leftInput = ref m_compilation.getDataNode(inputIds[0]);
+            ref DataNode rightInput = ref m_compilation.getDataNode(inputIds[1]);
 
             output.constant = default;
             output.isConstant = false;
             output.isNotNull = false;
 
-            if (tryEvalConstBinaryOp(ref input1, ref input2, ref output, instr.opcode))
+            if (tryEvalConstBinaryOp(ref leftInput, ref rightInput, ref output, instr.opcode))
                 return;
 
             ABCOp opcode = instr.opcode;
@@ -1188,28 +1190,33 @@ namespace Mariana.AVM2.Compiler {
                 output.dataType = (opcode == ABCOp.urshift) ? DataNodeType.UINT : DataNodeType.INT;
             }
             else {
-                var integerMode = m_compilation.compileOptions.integerArithmeticMode;
+                output.dataType = DataNodeType.NUMBER;
 
-                bool areInputsIntegersOfSameType =
-                    isInteger(input1.dataType) && isInteger(input2.dataType)
-                    && (input1.dataType == input2.dataType
-                        || (input1.isConstant && input1.constant.intValue >= 0)
-                        || (input2.isConstant && input2.constant.intValue >= 0));
+                var integerOptMode = m_compilation.compileOptions.integerArithmeticMode;
+                if (integerOptMode != IntegerArithmeticMode.EXPLICIT_ONLY) {
+                    // If both are operands are integers of the same signedness, we can use integer
+                    // arithmetic for these instructions under one these conditions:
+                    // - The integerArithmeticMode compiler option is set to 'aggressive'.
+                    // - The operation is part of an expression that is coerced to an integer type
+                    //   (This is checked in SemanticBinderSecondPass::_checkForFloatToIntegerOp)
+                    // - The operation is a modulo operation and the right operand is definitely
+                    //   non-zero. The only case in which this can be verified at this stage is
+                    //   when the right operand is a non-zero constant.
 
-                // If both are operands are of the same type then we can only use integer arithmetic
-                // if aggressive integer arithmetic is enabled or the operation is part of an
-                // expression that is coerced to an integer type (which is checked in the next pass)
-                // The modulo operation is an exception, as the result of that operation is always
-                // representable as an integer whenever both inputs are integers of the same signedness.
+                    bool areInputsIntegersOfSameType =
+                        isInteger(leftInput.dataType) && isInteger(rightInput.dataType)
+                        && (
+                            leftInput.dataType == rightInput.dataType
+                            || (leftInput.isConstant && leftInput.constant.intValue >= 0)
+                            || (rightInput.isConstant && rightInput.constant.intValue >= 0)
+                        );
 
-                if (areInputsIntegersOfSameType
-                    && (integerMode == IntegerArithmeticMode.AGGRESSIVE
-                        || (opcode == ABCOp.modulo && integerMode == IntegerArithmeticMode.DEFAULT)))
-                {
-                    output.dataType = input1.dataType;
-                }
-                else {
-                    output.dataType = DataNodeType.NUMBER;
+                    if (areInputsIntegersOfSameType) {
+                        if (integerOptMode == IntegerArithmeticMode.AGGRESSIVE)
+                            output.dataType = leftInput.dataType;
+                        else if (opcode == ABCOp.modulo && rightInput.isConstant && rightInput.constant.intValue != 0)
+                            output.dataType = leftInput.dataType;
+                    }
                 }
             }
 
@@ -1332,6 +1339,8 @@ namespace Mariana.AVM2.Compiler {
             indLocal.isNotNull = true;
             pushed.dataType = DataNodeType.BOOL;
             pushed.isNotNull = true;
+
+            m_localStateChangedFromLastVisit = true;
         }
 
         private void _visitNextNameValue(ref Instruction instr) {
@@ -3608,10 +3617,13 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
-            if (output.isConstant)
+            if (output.isConstant) {
                 _markStackNodeAsNoPush(ref input);
-            else
+            }
+            else {
                 _checkForSpecialObjectCoerce(ref input);
+                _checkForIntegerModuloCompareZero(ref input);
+            }
         }
 
         private void _visitUnaryNumberOp(ref Instruction instr) {
@@ -3751,6 +3763,8 @@ namespace Mariana.AVM2.Compiler {
                     _checkForFloatToIntegerOp(ref input, DataNodeType.INT);
                 else if (instr.opcode == ABCOp.convert_u)
                     _checkForFloatToIntegerOp(ref input, DataNodeType.UINT);
+                else if (instr.opcode == ABCOp.convert_b)
+                    _checkForIntegerModuloCompareZero(ref input);
             }
         }
 
@@ -3796,6 +3810,7 @@ namespace Mariana.AVM2.Compiler {
         private void _visitIfTrueFalse(ref Instruction instr) {
             ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
             _checkForSpecialObjectCoerce(ref input);
+            _checkForIntegerModuloCompareZero(ref input);
         }
 
         private void _visitLookupSwitch(ref Instruction instr) {
@@ -4414,8 +4429,12 @@ namespace Mariana.AVM2.Compiler {
             }
 
             node.onPushCoerceType = toType;
+
             if (node.isConstant)
                 m_dataNodeIdsWithConstPushConversions.add(node.id);
+
+            if (toType == DataNodeType.BOOL)
+                _checkForIntegerModuloCompareZero(ref node);
         }
 
         private void _requireStackNodeObjectOrAny(ref DataNode node, int instrId) {
@@ -4774,6 +4793,42 @@ namespace Mariana.AVM2.Compiler {
         }
 
         /// <summary>
+        /// Checks if a signed integer modulo operation whose result is tested for equality with
+        /// zero or coerced to a Boolean can be optimized to an unsigned modulo.
+        /// </summary>
+        /// <param name="node">A node that is being coerced to the Boolean type or used in an equality
+        /// comparison with zero.</param>
+        private void _checkForIntegerModuloCompareZero(ref DataNode node) {
+            if (node.isConstant || !isInteger(node.dataType) || node.isPhi || m_compilation.getDataNodeUseCount(ref node) > 1)
+                return;
+
+            int pushInstrId = m_compilation.getStackNodePushInstrId(ref node);
+            if (pushInstrId == -1)
+                return;
+
+            ref Instruction pushInstr = ref m_compilation.getInstruction(pushInstrId);
+            if (pushInstr.opcode != ABCOp.modulo)
+                return;
+
+            var pushInstrPoppedIds = m_compilation.getInstructionStackPoppedNodes(ref pushInstr);
+            ref DataNode rightOperand = ref m_compilation.getDataNode(pushInstrPoppedIds[1]);
+
+            Debug.Assert(isInteger(rightOperand.dataType));
+
+            if (!rightOperand.isConstant)
+                return;
+
+            int rightOpConstVal = rightOperand.constant.intValue;
+
+            if (rightOpConstVal > 0 && (rightOpConstVal & (rightOpConstVal - 1)) == 0) {
+                // Right operand is a constant power of two. In this case it is safe to use
+                // unsigned modulo if the result is only being tested for equality with zero.
+                // This allows the JIT to optimize it to a single bitwise-and instruction.
+                pushInstr.data.binaryOp.forceUnsignedDivOrMod = true;
+            }
+        }
+
+        /// <summary>
         /// Returns a value from the <see cref="ComparisonType"/> enumeration representing the kind
         /// of comparison to be made when a comparison instruction is executed on the given input nodes.
         /// </summary>
@@ -5001,11 +5056,13 @@ namespace Mariana.AVM2.Compiler {
                 case ComparisonType.INT_ZERO_L:
                     _requireStackNodeAsType(ref right, DataNodeType.INT, instrId);
                     _markStackNodeAsNoPush(ref left);
+                    _checkForIntegerModuloCompareZero(ref right);
                     break;
 
                 case ComparisonType.INT_ZERO_R:
                     _requireStackNodeAsType(ref left, DataNodeType.INT, instrId);
                     _markStackNodeAsNoPush(ref right);
+                    _checkForIntegerModuloCompareZero(ref left);
                     break;
 
                 case ComparisonType.ANY_UNDEF_L:
@@ -5336,13 +5393,25 @@ namespace Mariana.AVM2.Compiler {
 
                 case IntrinsicName.NUMBER_NEW_1:
                 case IntrinsicName.STRING_NEW_1:
-                case IntrinsicName.BOOLEAN_NEW_1:
                 {
                     ref DataNode input = ref m_compilation.getDataNode(argsOnStack[0]);
                     if (resultIsConst)
                         _markStackNodeAsNoPush(ref input);
                     else
                         _checkForSpecialObjectCoerce(ref input);
+                    break;
+                }
+
+                case IntrinsicName.BOOLEAN_NEW_1:
+                {
+                    ref DataNode input = ref m_compilation.getDataNode(argsOnStack[0]);
+                    if (resultIsConst) {
+                        _markStackNodeAsNoPush(ref input);
+                    }
+                    else {
+                        _checkForSpecialObjectCoerce(ref input);
+                        _checkForIntegerModuloCompareZero(ref input);
+                    }
                     break;
                 }
 
