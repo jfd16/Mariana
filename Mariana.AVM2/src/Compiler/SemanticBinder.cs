@@ -328,7 +328,7 @@ namespace Mariana.AVM2.Compiler {
                     | DataNodeFlags.NOT_NULL
                     | DataNodeFlags.WITH_SCOPE
                     | DataNodeFlags.ARGUMENT
-                    | DataNodeFlags.LATE_MULTINAME_BINDING;
+                    | DataNodeFlags.LATE_MULTINAME_TRAIT_BINDING;
 
                 node.flags = (node.flags & ~transferMask) | (source.flags & transferMask);
                 return;
@@ -340,7 +340,7 @@ namespace Mariana.AVM2.Compiler {
             node.isNotNull &= source.isNotNull;
             node.isArgument &= source.isArgument;
 
-            node.flags |= source.flags & DataNodeFlags.LATE_MULTINAME_BINDING;
+            node.flags |= source.flags & DataNodeFlags.LATE_MULTINAME_TRAIT_BINDING;
 
             if (nodeType == sourceType) {
                 switch (nodeType) {
@@ -757,7 +757,7 @@ namespace Mariana.AVM2.Compiler {
             dest.constant = source.constant;
 
             const DataNodeFlags transferFlags =
-                DataNodeFlags.CONSTANT | DataNodeFlags.NOT_NULL | DataNodeFlags.LATE_MULTINAME_BINDING;
+                DataNodeFlags.CONSTANT | DataNodeFlags.NOT_NULL | DataNodeFlags.LATE_MULTINAME_TRAIT_BINDING;
 
             dest.flags = (dest.flags & ~transferFlags) | (source.flags & transferFlags);
         }
@@ -962,17 +962,7 @@ namespace Mariana.AVM2.Compiler {
 
             if (instr.opcode == ABCOp.coerce_a) {
                 _copyDataNodeTypeInfo(ref input, ref output);
-
-                // If the input type is not a final class, then any property binding on the
-                // result of coerce_a with a namespace set must be deferred to runtime, as
-                // the runtime type of the node may be a derived class that declares a trait
-                // having the same name in another namespace of the set (which must be chosen
-                // over the base class trait that compile-time binding would select).
-
-                Class inputClass = m_compilation.getDataNodeClass(input);
-                if (inputClass != null && !inputClass.isFinal)
-                    output.flags |= DataNodeFlags.LATE_MULTINAME_BINDING;
-
+                output.flags |= DataNodeFlags.LATE_MULTINAME_TRAIT_BINDING;
                 return;
             }
 
@@ -1393,8 +1383,23 @@ namespace Mariana.AVM2.Compiler {
                 case ABCOp.getproperty: {
                     ref DataNode resultNode = ref m_compilation.getDataNode(instr.stackPushedNodeId);
                     _resolveGetProperty(ref resolvedProp, ref resultNode);
+
+                    bool resultUseLateMultinameTraitBinding =
+                        (objectNode.flags & DataNodeFlags.LATE_MULTINAME_TRAIT_BINDING) != 0;
+
+                    if (!resultUseLateMultinameTraitBinding && multiname.hasRuntimeArguments) {
+                        // If the multiname has runtime arguments then we must set the LATE_MULTINAME_TRAIT_BINDING
+                        // flag on the result, but not if it resolved to an index property on a Vector.
+                        resultUseLateMultinameTraitBinding =
+                            multiname.hasRuntimeArguments && !_resolvedPropIsVectorIndex(resolvedProp);
+                    }
+
+                    if (resultUseLateMultinameTraitBinding)
+                        resultNode.flags |= DataNodeFlags.LATE_MULTINAME_TRAIT_BINDING;
+
                     break;
                 }
+
                 case ABCOp.setproperty:
                 case ABCOp.initproperty:
                 {
@@ -1403,6 +1408,7 @@ namespace Mariana.AVM2.Compiler {
                     _resolveSetProperty(ref resolvedProp, ref valueNode, isInit);
                     break;
                 }
+
                 case ABCOp.deleteproperty: {
                     ref DataNode resultNode = ref m_compilation.getDataNode(instr.stackPushedNodeId);
                     _resolveDeleteProperty(ref resolvedProp, ref resultNode);
@@ -1461,6 +1467,13 @@ namespace Mariana.AVM2.Compiler {
             var argsOnStackIds = stackPopIds.Slice(stackPopIds.Length - instr.data.callProperty.argCount);
 
             _resolveCallOrConstructProperty(ref resolvedProp, instr.opcode, instr.stackPushedNodeId, argsOnStackIds);
+
+            if (instr.stackPushedNodeId != -1
+                && (multiname.hasRuntimeArguments || (objectNode.flags & DataNodeFlags.LATE_MULTINAME_TRAIT_BINDING) != 0))
+            {
+                ref DataNode result = ref m_compilation.getDataNode(instr.stackPushedNodeId);
+                result.flags |= DataNodeFlags.LATE_MULTINAME_TRAIT_BINDING;
+            }
         }
 
         private void _visitGetSetSuper(ref Instruction instr, bool isFirstVisit) {
@@ -1490,7 +1503,7 @@ namespace Mariana.AVM2.Compiler {
             }
             else {
                 ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[stackPopIds.Length - 1]);
-                _resolveSetProperty(ref resolvedProp, ref valueNode, false);
+                _resolveSetProperty(ref resolvedProp, ref valueNode, isInit: false);
             }
         }
 
@@ -1637,15 +1650,15 @@ namespace Mariana.AVM2.Compiler {
                 instr.data.callMethod.resolvedPropId = m_compilation.createResolvedProperty().id;
 
             var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode obj = ref m_compilation.getDataNode(stackPopIds[0]);
+            ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
 
             int methodId = instr.data.callMethod.methodOrDispId;
             MethodTrait method;
 
             if (instr.opcode == ABCOp.callmethod) {
-                (Class klass, bool isStatic) = (obj.dataType == DataNodeType.CLASS)
-                    ? (obj.constant.classValue, true)
-                    : (m_compilation.getDataNodeClass(obj), false);
+                (Class klass, bool isStatic) = (objectNode.dataType == DataNodeType.CLASS)
+                    ? (objectNode.constant.classValue, true)
+                    : (m_compilation.getDataNodeClass(objectNode), false);
 
                 method = (klass as ScriptClass)?.getMethodByDispId(instr.data.callMethod.methodOrDispId, isStatic);
                 if (method == null) {
@@ -1693,12 +1706,24 @@ namespace Mariana.AVM2.Compiler {
             _getRuntimeMultinameArgIds(stackPopIds, multiname, out int rtNsNodeId, out int rtNameNodeId);
             _resolvePropertyInCurrentScope(multiname, rtNsNodeId, rtNameNodeId, instr.id, ref scopeRef, ref resolvedProp);
 
-            ref DataNode obj = ref m_compilation.getDataNode(instr.stackPushedNodeId);
+            ref DataNode objectNode = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
-            obj.dataType = resolvedProp.objectType;
-            obj.constant = (resolvedProp.objectClass != null) ? new DataNodeConstant(resolvedProp.objectClass) : default;
-            obj.isConstant = isConstantType(obj.dataType);
-            obj.isNotNull = true;
+            objectNode.dataType = resolvedProp.objectType;
+            objectNode.constant = (resolvedProp.objectClass != null) ? new DataNodeConstant(resolvedProp.objectClass) : default;
+            objectNode.isConstant = isConstantType(objectNode.dataType);
+            objectNode.isNotNull = true;
+
+            if (!scopeRef.isNull) {
+                bool hasLateMultinameTraitBinding = scopeRef.isLocal
+                    ? (m_compilation.getDataNode(scopeRef.idOrCaptureHeight).flags & DataNodeFlags.LATE_MULTINAME_TRAIT_BINDING) != 0
+                    : m_compilation.getCapturedScopeItems()[scopeRef.idOrCaptureHeight].lateMultinameTraitBinding;
+
+                if (hasLateMultinameTraitBinding
+                    || (multiname.hasRuntimeArguments && !_resolvedPropIsVectorIndex(resolvedProp)))
+                {
+                    objectNode.flags |= DataNodeFlags.LATE_MULTINAME_TRAIT_BINDING;
+                }
+            }
         }
 
         private void _visitGetLex(ref Instruction instr, bool isFirstVisit) {
@@ -1722,6 +1747,15 @@ namespace Mariana.AVM2.Compiler {
 
             ref DataNode result = ref m_compilation.getDataNode(instr.stackPushedNodeId);
             _resolveGetProperty(ref resolvedProp, ref result);
+
+            if (!scopeRef.isNull) {
+                bool hasLateMultinameTraitBinding = scopeRef.isLocal
+                    ? (m_compilation.getDataNode(scopeRef.idOrCaptureHeight).flags & DataNodeFlags.LATE_MULTINAME_TRAIT_BINDING) != 0
+                    : m_compilation.getCapturedScopeItems()[scopeRef.idOrCaptureHeight].lateMultinameTraitBinding;
+
+                if (hasLateMultinameTraitBinding)
+                    result.flags |= DataNodeFlags.LATE_MULTINAME_TRAIT_BINDING;
+            }
         }
 
         private void _visitNewActivation(ref Instruction instr) {
@@ -2012,7 +2046,7 @@ namespace Mariana.AVM2.Compiler {
         /// <summary>
         /// Resolves a property on an object.
         /// </summary>
-        /// <param name="obj">A reference to a <see cref="DataNode"/> representing the object on
+        /// <param name="objectNode">A reference to a <see cref="DataNode"/> representing the object on
         /// which the property is to be resolved.</param>
         /// <param name="multiname">An <see cref="ABCMultiname"/> instance representing the property name.</param>
         /// <param name="rtNsNodeId">The node id of the runtime namespace argument on the stack, if
@@ -2025,16 +2059,21 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="resolvedProp">A <see cref="ResolvedProperty"/> instance into which the resolution
         /// information will be written.</param>
         private void _resolvePropertyOnObject(
-            ref DataNode obj, in ABCMultiname multiname, int rtNsNodeId, int rtNameNodeId, int instrId, ref ResolvedProperty resolvedProp)
-        {
-            Debug.Assert(obj.dataType != DataNodeType.UNKNOWN);
+            ref DataNode objectNode,
+            in ABCMultiname multiname,
+            int rtNsNodeId,
+            int rtNameNodeId,
+            int instrId,
+            ref ResolvedProperty resolvedProp
+        ) {
+            Debug.Assert(objectNode.dataType != DataNodeType.UNKNOWN);
 
-            resolvedProp.objectType = obj.dataType;
+            resolvedProp.objectType = objectNode.dataType;
             resolvedProp.rtNamespaceType = (rtNsNodeId != -1) ? m_compilation.getDataNode(rtNsNodeId).dataType : DataNodeType.UNKNOWN;
             resolvedProp.rtNameType = (rtNameNodeId != -1) ? m_compilation.getDataNode(rtNameNodeId).dataType : DataNodeType.UNKNOWN;
 
-            if (obj.dataType == DataNodeType.OBJECT || obj.dataType == DataNodeType.CLASS)
-                resolvedProp.objectClass = obj.constant.classValue;
+            if (objectNode.dataType == DataNodeType.OBJECT || objectNode.dataType == DataNodeType.CLASS)
+                resolvedProp.objectClass = objectNode.constant.classValue;
             else
                 resolvedProp.objectClass = null;
 
@@ -2049,6 +2088,11 @@ namespace Mariana.AVM2.Compiler {
                     && isNumeric(resolvedProp.rtNameType)
                     && (ns.GetValueOrDefault().isPublic || nsSet.GetValueOrDefault().containsPublic))
                 {
+                    // If the local name is a runtime argument that has a numeric type, check for index properties
+                    // on the object's class.
+                    // If the type of the name is int or uint and an index property with that index type is available,
+                    // use it. Otherwise use the index property with index type Number.
+
                     Class klass = (resolvedProp.objectType == DataNodeType.REST) ? arrayClass : resolvedProp.objectClass;
                     var specials = klass.classSpecials;
 
@@ -2069,11 +2113,19 @@ namespace Mariana.AVM2.Compiler {
                 }
             }
             else if ((ns == null && nsSet == null)
-                || (nsSet.GetValueOrDefault().count > 1 && (obj.flags & DataNodeFlags.LATE_MULTINAME_BINDING) != 0))
+                || (nsSet.GetValueOrDefault().count > 1
+                    && (multiname.hasRuntimeArguments || (objectNode.flags & DataNodeFlags.LATE_MULTINAME_TRAIT_BINDING) != 0)
+                    && !m_compilation.isDataNodeClassFinal(objectNode)))
             {
+                // We always defer to runtime in these cases:
+                // - No compile-time namespace (or namespace set) is available.
+                // - The multiname has runtime arguments or the object node has the LATE_MULTINAME_TRAIT_BINDING
+                //   flag set, the object's class is not final and we have a namespace set with two or more
+                //   namespaces (so the runtime type of the object may be a derived class with a trait in another
+                //   namespace).
                 resolvedProp.propKind = ResolvedPropertyKind.RUNTIME;
             }
-            else if (obj.dataType == DataNodeType.GLOBAL) {
+            else if (objectNode.dataType == DataNodeType.GLOBAL) {
                 // Search the global scope.
                 Trait trait;
 
@@ -2097,9 +2149,9 @@ namespace Mariana.AVM2.Compiler {
                     resolvedProp.propInfo = trait;
                 }
             }
-            else if (obj.dataType != DataNodeType.ANY
-                && obj.dataType != DataNodeType.NULL
-                && obj.dataType != DataNodeType.UNDEFINED)
+            else if (objectNode.dataType != DataNodeType.ANY
+                && objectNode.dataType != DataNodeType.NULL
+                && objectNode.dataType != DataNodeType.UNDEFINED)
             {
                 Trait trait = null;
 
@@ -2118,7 +2170,7 @@ namespace Mariana.AVM2.Compiler {
                 if (trait == null) {
                     Class klass = (resolvedProp.objectType == DataNodeType.OBJECT)
                         ? resolvedProp.objectClass
-                        : m_compilation.getDataNodeClass(obj);
+                        : m_compilation.getDataNodeClass(objectNode);
 
                     Trait instanceTrait;
 
@@ -2194,17 +2246,17 @@ namespace Mariana.AVM2.Compiler {
         /// <summary>
         /// Resolves a property on an object from its slot index.
         /// </summary>
-        /// <param name="obj">A reference to a <see cref="DataNode"/> representing the object on
+        /// <param name="objectNode">A reference to a <see cref="DataNode"/> representing the object on
         /// which the property is to be resolved.</param>
         /// <param name="slotId">The slot index of the property.</param>
         /// <param name="instrId">The id of the instruction that requested the property resolution.</param>
         /// <param name="resolvedProp">A <see cref="ResolvedProperty"/> instance into which the resolution
         /// information will be written.</param>
-        private void _resolveSlotOnObject(ref DataNode obj, int slotId, int instrId, ref ResolvedProperty resolvedProp) {
-            resolvedProp.objectType = obj.dataType;
+        private void _resolveSlotOnObject(ref DataNode objectNode, int slotId, int instrId, ref ResolvedProperty resolvedProp) {
+            resolvedProp.objectType = objectNode.dataType;
 
-            if (obj.dataType == DataNodeType.OBJECT || obj.dataType == DataNodeType.CLASS)
-                resolvedProp.objectClass = obj.constant.classValue;
+            if (objectNode.dataType == DataNodeType.OBJECT || objectNode.dataType == DataNodeType.CLASS)
+                resolvedProp.objectClass = objectNode.constant.classValue;
             else
                 resolvedProp.objectClass = null;
 
@@ -2212,7 +2264,7 @@ namespace Mariana.AVM2.Compiler {
             resolvedProp.rtNameType = DataNodeType.UNKNOWN;
             resolvedProp.propKind = ResolvedPropertyKind.UNKNOWN;
 
-            if (obj.dataType == DataNodeType.GLOBAL) {
+            if (objectNode.dataType == DataNodeType.GLOBAL) {
                 Trait trait;
                 using (var lockedContext = m_compilation.getContext())
                     trait = lockedContext.value.getScriptTraitSlot(m_compilation.currentScriptInfo, slotId);
@@ -2223,9 +2275,9 @@ namespace Mariana.AVM2.Compiler {
                 }
             }
             else {
-                (Class klass, bool isStatic) = (obj.dataType == DataNodeType.CLASS)
-                    ? (obj.constant.classValue, true)
-                    : (m_compilation.getDataNodeClass(obj), false);
+                (Class klass, bool isStatic) = (objectNode.dataType == DataNodeType.CLASS)
+                    ? (objectNode.constant.classValue, true)
+                    : (m_compilation.getDataNodeClass(objectNode), false);
 
                 Trait trait = (klass is ScriptClass scriptClass) ? scriptClass.getTraitAtSlot(slotId, isStatic) : null;
                 if (trait != null) {
@@ -2235,7 +2287,7 @@ namespace Mariana.AVM2.Compiler {
             }
 
             if (resolvedProp.propKind == ResolvedPropertyKind.UNKNOWN)
-                throw m_compilation.createError(ErrorCode.ILLEGAL_EARLY_BINDING, instrId, m_compilation.getDataNodeTypeName(obj));
+                throw m_compilation.createError(ErrorCode.ILLEGAL_EARLY_BINDING, instrId, m_compilation.getDataNodeTypeName(objectNode));
         }
 
         /// <summary>
@@ -2256,9 +2308,13 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="resolvedProp">A <see cref="ResolvedProperty"/> instance into which the resolution
         /// information will be written.</param>
         private void _resolvePropertyInCurrentScope(
-            in ABCMultiname multiname, int rtNsNodeId, int rtNameNodeId, int instrId,
-            ref LocalOrCapturedScopeRef scopeRef, ref ResolvedProperty resolvedProp)
-        {
+            in ABCMultiname multiname,
+            int rtNsNodeId,
+            int rtNameNodeId,
+            int instrId,
+            ref LocalOrCapturedScopeRef scopeRef,
+            ref ResolvedProperty resolvedProp
+        ) {
             if (m_curScopeStackNodeIds.length == 0 && m_compilation.getCapturedScopeItems().length == 0)
                 throw m_compilation.createError(ErrorCode.FINDPROPERTY_SCOPE_DEPTH_ZERO, instrId);
 
@@ -2287,7 +2343,7 @@ namespace Mariana.AVM2.Compiler {
                 DataNodeType nodeType,
                 in DataNodeConstant constant,
                 bool isWith,
-                bool lateMultinameBinding,
+                bool lateMultinameTraitBinding,
                 ref ResolvedProperty _resolvedProp,
                 out bool deferToRuntime
             ) {
@@ -2296,7 +2352,11 @@ namespace Mariana.AVM2.Compiler {
 
                 deferToRuntime = false;
 
-                if (_nsSet.GetValueOrDefault().count > 1 && lateMultinameBinding) {
+                if ((_multiname.hasRuntimeArguments || lateMultinameTraitBinding)
+                    && _nsSet.GetValueOrDefault().count > 1
+                    && nodeType == DataNodeType.OBJECT
+                    && !constant.classValue.isFinal)
+                {
                     deferToRuntime = true;
                     return true;
                 }
@@ -2413,7 +2473,7 @@ namespace Mariana.AVM2.Compiler {
                     node.dataType,
                     node.constant,
                     node.isWithScope,
-                    (node.flags & DataNodeFlags.LATE_MULTINAME_BINDING) != 0,
+                    (node.flags & DataNodeFlags.LATE_MULTINAME_TRAIT_BINDING) != 0,
                     ref resolvedProp,
                     out bool deferToRuntime
                 );
@@ -2439,7 +2499,7 @@ namespace Mariana.AVM2.Compiler {
                     captured.dataType,
                     constant,
                     captured.isWithScope,
-                    captured.lateMultinameBinding,
+                    captured.lateMultinameTraitBinding,
                     ref resolvedProp,
                     out bool deferToRuntime
                 );
@@ -2540,6 +2600,19 @@ namespace Mariana.AVM2.Compiler {
                     result.dataType = DataNodeType.ANY;
                     break;
             }
+        }
+
+        /// <summary>
+        /// Returns true if the given <see cref="ResolvedProperty"/> represents an indexing operation on a
+        /// Vector instance.
+        /// </summary>
+        /// <param name="resolvedProp">A reference to a <see cref="ResolvedProperty"/> instance.</param>
+        /// <returns>True if the given <see cref="ResolvedProperty"/> represents an indexing operation on a
+        /// Vector instance, otherwise false.</returns>
+        private static bool _resolvedPropIsVectorIndex(in ResolvedProperty resolvedProp) {
+            return resolvedProp.propKind == ResolvedPropertyKind.INDEX
+                && resolvedProp.objectType == DataNodeType.OBJECT
+                && resolvedProp.objectClass.isVectorInstantiation;
         }
 
         /// <summary>
@@ -3910,9 +3983,9 @@ namespace Mariana.AVM2.Compiler {
 
         private void _visitGetDescendants(ref Instruction instr) {
             var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode obj = ref m_compilation.getDataNode(stackPopIds[0]);
+            ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
 
-            _requireStackNodeObjectOrAny(ref obj, instr.id);
+            _requireStackNodeObjectOrAny(ref objectNode, instr.id);
 
             ResolvedProperty dummyResolvedProp = default;
             dummyResolvedProp.propKind = ResolvedPropertyKind.RUNTIME;
@@ -3938,7 +4011,7 @@ namespace Mariana.AVM2.Compiler {
 
         private void _visitGetOrDeleteProperty(ref Instruction instr) {
             var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode obj = ref m_compilation.getDataNode(stackPopIds[0]);
+            ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.accessProperty.resolvedPropId);
 
             _checkRuntimeMultinameArgs(ref resolvedProp, stackPopIds.Slice(1), instr.id);
@@ -3947,7 +4020,7 @@ namespace Mariana.AVM2.Compiler {
             // when a namespace set is used and the object is possibly an XML or XMLList instance.
             ABCMultiname multiname = m_compilation.abcFile.resolveMultiname(instr.data.accessProperty.multinameId);
             if (multiname.usesNamespaceSet && resolvedProp.propKind == ResolvedPropertyKind.RUNTIME) {
-                Class objClass = m_compilation.getDataNodeClass(obj);
+                Class objClass = m_compilation.getDataNodeClass(objectNode);
                 if (objClass == null || objClass == objectClass || ClassTagSet.xmlOrXmlList.contains(objClass.tag))
                     m_compilation.setFlag(MethodCompilationFlags.MAY_USE_DXNS);
             }
@@ -3957,25 +4030,27 @@ namespace Mariana.AVM2.Compiler {
             switch (resolvedProp.propKind) {
                 case ResolvedPropertyKind.TRAIT: {
                     var trait = (Trait)resolvedProp.propInfo;
-                    _checkTraitAccessObject(ref obj, trait, instr.id);
+                    _checkTraitAccessObject(ref objectNode, trait, instr.id);
                     break;
                 }
 
                 case ResolvedPropertyKind.INDEX:
-                    if (instr.opcode == ABCOp.deleteproperty && obj.dataType == DataNodeType.REST)
+                    if (instr.opcode == ABCOp.deleteproperty && objectNode.dataType == DataNodeType.REST)
                         m_compilation.setFlag(MethodCompilationFlags.HAS_REST_ARRAY);
                     break;
 
                 case ResolvedPropertyKind.RUNTIME:
-                    _requireStackNodeObjectOrAny(ref obj, instr.id);
+                    _requireStackNodeObjectOrAny(ref objectNode, instr.id);
                     break;
             }
         }
 
         private void _visitSetProperty(ref Instruction instr) {
             var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode obj = ref m_compilation.getDataNode(stackPopIds[0]);
-            ref DataNode value = ref m_compilation.getDataNode(stackPopIds[stackPopIds.Length - 1]);
+
+            ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
+            ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[stackPopIds.Length - 1]);
+
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.accessProperty.resolvedPropId);
 
             _checkRuntimeMultinameArgs(ref resolvedProp, stackPopIds.Slice(1), instr.id);
@@ -3984,7 +4059,7 @@ namespace Mariana.AVM2.Compiler {
             // when a namespace set is used and the object is possibly an XML or XMLList instance.
             ABCMultiname multiname = m_compilation.abcFile.resolveMultiname(instr.data.accessProperty.multinameId);
             if (multiname.usesNamespaceSet && resolvedProp.propKind == ResolvedPropertyKind.RUNTIME) {
-                Class objClass = m_compilation.getDataNodeClass(obj);
+                Class objClass = m_compilation.getDataNodeClass(objectNode);
                 if (objClass == null || objClass == objectClass || ClassTagSet.xmlOrXmlList.contains(objClass.tag))
                     m_compilation.setFlag(MethodCompilationFlags.MAY_USE_DXNS);
             }
@@ -3994,18 +4069,18 @@ namespace Mariana.AVM2.Compiler {
             switch (resolvedProp.propKind) {
                 case ResolvedPropertyKind.TRAIT: {
                     var trait = (Trait)resolvedProp.propInfo;
-                    _checkTraitAccessObject(ref obj, trait, instr.id);
+                    _checkTraitAccessObject(ref objectNode, trait, instr.id);
 
                     switch (trait.traitType) {
                         case TraitType.CLASS:
-                            Debug.Assert(value.isConstant);
-                            _markStackNodeAsNoPush(ref value);
+                            Debug.Assert(valueNode.isConstant);
+                            _markStackNodeAsNoPush(ref valueNode);
                             break;
                         case TraitType.FIELD:
-                            _requireStackNodeAsType(ref value, ((FieldTrait)trait).fieldType, instr.id);
+                            _requireStackNodeAsType(ref valueNode, ((FieldTrait)trait).fieldType, instr.id);
                             break;
                         case TraitType.PROPERTY:
-                            _requireStackNodeAsType(ref value, ((PropertyTrait)trait).setter.getParameters()[0].type, instr.id);
+                            _requireStackNodeAsType(ref valueNode, ((PropertyTrait)trait).setter.getParameters()[0].type, instr.id);
                             break;
                         default:
                             Debug.Assert(false);    // Should not reach here.
@@ -4016,22 +4091,22 @@ namespace Mariana.AVM2.Compiler {
 
                 case ResolvedPropertyKind.TRAIT_RT_INVOKE: {
                     var trait = (Trait)resolvedProp.propInfo;
-                    _checkTraitAccessObject(ref obj, trait, instr.id);
-                    _requireStackNodeAsType(ref value, DataNodeType.ANY, instr.id);
+                    _checkTraitAccessObject(ref objectNode, trait, instr.id);
+                    _requireStackNodeAsType(ref valueNode, DataNodeType.ANY, instr.id);
                     break;
                 }
 
                 case ResolvedPropertyKind.INDEX: {
-                    if (obj.dataType == DataNodeType.REST)
+                    if (objectNode.dataType == DataNodeType.REST)
                         m_compilation.setFlag(MethodCompilationFlags.HAS_REST_ARRAY);
 
-                    _requireStackNodeAsType(ref value, ((IndexProperty)resolvedProp.propInfo).valueType, instr.id);
+                    _requireStackNodeAsType(ref valueNode, ((IndexProperty)resolvedProp.propInfo).valueType, instr.id);
                     break;
                 }
 
                 case ResolvedPropertyKind.RUNTIME: {
-                    _requireStackNodeObjectOrAny(ref obj, instr.id);
-                    _requireStackNodeAsType(ref value, DataNodeType.ANY, instr.id);
+                    _requireStackNodeObjectOrAny(ref objectNode, instr.id);
+                    _requireStackNodeAsType(ref valueNode, DataNodeType.ANY, instr.id);
                     break;
                 }
             }
@@ -4039,39 +4114,39 @@ namespace Mariana.AVM2.Compiler {
 
         private void _visitGetSlot(ref Instruction instr) {
             var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode obj = ref m_compilation.getDataNode(stackPopIds[0]);
+            ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.getSetSlot.resolvedPropId);
 
             Debug.Assert(resolvedProp.propKind == ResolvedPropertyKind.TRAIT);
 
             var trait = (Trait)resolvedProp.propInfo;
-            _checkTraitAccessObject(ref obj, trait, instr.id);
+            _checkTraitAccessObject(ref objectNode, trait, instr.id);
         }
 
         private void _visitSetSlot(ref Instruction instr) {
             var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode value = ref m_compilation.getDataNode(stackPopIds[stackPopIds.Length - 1]);
+            ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[stackPopIds.Length - 1]);
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.getSetSlot.resolvedPropId);
 
             var trait = (Trait)resolvedProp.propInfo;
 
             if (instr.opcode != ABCOp.setglobalslot) {
-                ref DataNode obj = ref m_compilation.getDataNode(stackPopIds[0]);
-                _checkTraitAccessObject(ref obj, trait, instr.id);
+                ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
+                _checkTraitAccessObject(ref objectNode, trait, instr.id);
             }
 
             if (resolvedProp.propKind == ResolvedPropertyKind.TRAIT_RT_INVOKE) {
-                _requireStackNodeAsType(ref value, DataNodeType.ANY, instr.id);
+                _requireStackNodeAsType(ref valueNode, DataNodeType.ANY, instr.id);
                 return;
             }
 
             switch (trait.traitType) {
                 case TraitType.CLASS:
-                    Debug.Assert(value.isConstant);
-                    _markStackNodeAsNoPush(ref value);
+                    Debug.Assert(valueNode.isConstant);
+                    _markStackNodeAsNoPush(ref valueNode);
                     break;
                 case TraitType.FIELD:
-                    _requireStackNodeAsType(ref value, ((FieldTrait)trait).fieldType, instr.id);
+                    _requireStackNodeAsType(ref valueNode, ((FieldTrait)trait).fieldType, instr.id);
                     break;
                 default:
                     Debug.Assert(false);    // Should not reach here.
@@ -4081,15 +4156,15 @@ namespace Mariana.AVM2.Compiler {
 
         private void _visitIn(ref Instruction instr) {
             var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode name = ref m_compilation.getDataNode(stackPopIds[0]);
-            ref DataNode obj = ref m_compilation.getDataNode(stackPopIds[1]);
+            ref DataNode nameNode = ref m_compilation.getDataNode(stackPopIds[0]);
+            ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[1]);
 
-            _requireStackNodeAsType(ref name, DataNodeType.STRING, instr.id);
-            _requireStackNodeObjectOrAny(ref obj, instr.id);
+            _requireStackNodeAsType(ref nameNode, DataNodeType.STRING, instr.id);
+            _requireStackNodeObjectOrAny(ref objectNode, instr.id);
 
             // Check if a runtime binding may access the default XML namespace. This happens
             // when the object is possibly an XML or XMLList instance.
-            Class objClass = m_compilation.getDataNodeClass(obj);
+            Class objClass = m_compilation.getDataNodeClass(objectNode);
             if (objClass == null || objClass == objectClass || ClassTagSet.xmlOrXmlList.contains(objClass.tag))
                 m_compilation.setFlag(MethodCompilationFlags.MAY_USE_DXNS);
         }
@@ -4099,7 +4174,7 @@ namespace Mariana.AVM2.Compiler {
             var argNodeIds = stackPopIds.Slice(stackPopIds.Length - instr.data.callProperty.argCount);
             bool isConstruct = instr.opcode == ABCOp.constructprop;
 
-            ref DataNode obj = ref m_compilation.getDataNode(stackPopIds[0]);
+            ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.callProperty.resolvedPropId);
 
             _checkRuntimeMultinameArgs(ref resolvedProp, stackPopIds.Slice(1), instr.id);
@@ -4111,7 +4186,7 @@ namespace Mariana.AVM2.Compiler {
                 case ResolvedPropertyKind.TRAIT_RT_INVOKE:
                 {
                     var trait = (Trait)resolvedProp.propInfo;
-                    _checkTraitAccessObject(ref obj, trait, instr.id);
+                    _checkTraitAccessObject(ref objectNode, trait, instr.id);
 
                     if (resolvedProp.propKind == ResolvedPropertyKind.TRAIT_RT_INVOKE)
                         _requireStackArgsAny(argNodeIds, instr.id);
@@ -4125,7 +4200,7 @@ namespace Mariana.AVM2.Compiler {
                 }
 
                 case ResolvedPropertyKind.INTRINSIC:
-                    _checkIntrinsicInvokeOrConstruct(ref resolvedProp, obj.id, argNodeIds, instr.stackPushedNodeId, instr.id);
+                    _checkIntrinsicInvokeOrConstruct(ref resolvedProp, objectNode.id, argNodeIds, instr.stackPushedNodeId, instr.id);
                     break;
 
                 case ResolvedPropertyKind.INDEX:
@@ -4134,7 +4209,7 @@ namespace Mariana.AVM2.Compiler {
                     break;
 
                 case ResolvedPropertyKind.RUNTIME:
-                    _requireStackNodeObjectOrAny(ref obj, instr.id);
+                    _requireStackNodeObjectOrAny(ref objectNode, instr.id);
                     _requireStackArgsAny(argNodeIds, instr.id);
                     m_compilation.setFlag(MethodCompilationFlags.MAY_USE_DXNS);
                     break;
@@ -4145,7 +4220,7 @@ namespace Mariana.AVM2.Compiler {
             var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
             var argNodeIds = stackPopIds.Slice(stackPopIds.Length - instr.data.callMethod.argCount);
 
-            ref DataNode obj = ref m_compilation.getDataNode(stackPopIds[0]);
+            ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.callMethod.resolvedPropId);
 
             Debug.Assert(
@@ -4154,7 +4229,7 @@ namespace Mariana.AVM2.Compiler {
             );
 
             var method = (MethodTrait)resolvedProp.propInfo;
-            _checkTraitAccessObject(ref obj, method, instr.id);
+            _checkTraitAccessObject(ref objectNode, method, instr.id);
 
             if (resolvedProp.propKind == ResolvedPropertyKind.TRAIT_RT_INVOKE)
                 _requireStackArgsAny(argNodeIds, instr.id);
@@ -4182,12 +4257,12 @@ namespace Mariana.AVM2.Compiler {
                     var trait = (Trait)resolvedProp.propInfo;
 
                     if (instr.opcode == ABCOp.call) {
-                        ref DataNode obj = ref m_compilation.getDataNode(stackPopIds[1]);
+                        ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[1]);
 
                         if (!trait.isStatic)
-                            _checkTraitAccessObject(ref obj, trait, instr.id);
-                        else if (obj.isConstant)
-                            _markStackNodeAsNoPush(ref obj);
+                            _checkTraitAccessObject(ref objectNode, trait, instr.id);
+                        else if (objectNode.isConstant)
+                            _markStackNodeAsNoPush(ref objectNode);
                     }
 
                     if (resolvedProp.propKind == ResolvedPropertyKind.TRAIT_RT_INVOKE)
@@ -4291,24 +4366,24 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitGlobalMemoryLoad(ref Instruction instr) {
-            ref DataNode address = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
-            _requireStackNodeAsType(ref address, DataNodeType.INT, instr.id);
+            ref DataNode addressNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            _requireStackNodeAsType(ref addressNode, DataNodeType.INT, instr.id);
             m_compilation.setFlag(MethodCompilationFlags.READ_GLOBAL_MEMORY);
         }
 
         private void _visitGlobalMemoryStore(ref Instruction instr) {
             var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode value = ref m_compilation.getDataNode(stackPopIds[0]);
-            ref DataNode address = ref m_compilation.getDataNode(stackPopIds[1]);
+            ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[0]);
+            ref DataNode addressNode = ref m_compilation.getDataNode(stackPopIds[1]);
 
             m_compilation.setFlag(MethodCompilationFlags.WRITE_GLOBAL_MEMORY);
 
-            _requireStackNodeAsType(ref address, DataNodeType.INT, instr.id);
+            _requireStackNodeAsType(ref addressNode, DataNodeType.INT, instr.id);
 
             if (instr.opcode == ABCOp.sf32 || instr.opcode == ABCOp.sf64)
-                _requireStackNodeAsType(ref value, DataNodeType.NUMBER, instr.id);
+                _requireStackNodeAsType(ref valueNode, DataNodeType.NUMBER, instr.id);
             else
-                _requireStackNodeAsType(ref value, DataNodeType.INT, instr.id);
+                _requireStackNodeAsType(ref valueNode, DataNodeType.INT, instr.id);
         }
 
         private CapturedScopeItem[] _createCapturedScope(ReadOnlySpan<int> innerCaptureIds) {
@@ -4325,7 +4400,7 @@ namespace Mariana.AVM2.Compiler {
                 DataNodeType nodeType = node.dataType;
                 Class nodeClass = null;
                 bool isWithScope = (node.flags & DataNodeFlags.WITH_SCOPE) != 0;
-                bool lateMultinameBinding = (node.flags & DataNodeFlags.LATE_MULTINAME_BINDING) != 0;
+                bool lateMultinameTraitBinding = (node.flags & DataNodeFlags.LATE_MULTINAME_TRAIT_BINDING) != 0;
 
                 switch (node.dataType) {
                     case DataNodeType.OBJECT:
@@ -4343,7 +4418,7 @@ namespace Mariana.AVM2.Compiler {
                         break;
                 }
 
-                scope[outerCapture.Length + i] = new CapturedScopeItem(nodeType, nodeClass, isWithScope, lateMultinameBinding);
+                scope[outerCapture.Length + i] = new CapturedScopeItem(nodeType, nodeClass, isWithScope, lateMultinameTraitBinding);
             }
 
             return scope;

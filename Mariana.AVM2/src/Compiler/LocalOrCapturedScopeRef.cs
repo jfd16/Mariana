@@ -38,7 +38,8 @@ namespace Mariana.AVM2.Compiler {
 
         /// <summary>
         /// Returns the data node id of a local scope stack object or the height of a captured scope
-        /// stack object. For the null reference, this property has an unspecified value.
+        /// stack object (with the bottom of the captured scope stack starting at zero). For the null
+        /// reference, this property has an unspecified value.
         /// </summary>
         public int idOrCaptureHeight => m_id & ID_MASK;
 

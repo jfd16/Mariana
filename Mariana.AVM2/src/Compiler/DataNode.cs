@@ -223,10 +223,11 @@ namespace Mariana.AVM2.Compiler {
         LOCAL_WRITE_THROUGH = 4096,
 
         /// <summary>
-        /// Indicates that property binding on the node where the name is a multiname with a
-        /// namespace set must always be deferred to runtime, even when the node type is known.
+        /// Indicates that trait property binding on the node where the name is a multiname with a
+        /// namespace set must be deferred to runtime, even when the node type is known (unless it
+        /// is a final class).
         /// </summary>
-        LATE_MULTINAME_BINDING = 8192,
+        LATE_MULTINAME_TRAIT_BINDING = 8192,
 
     }
 

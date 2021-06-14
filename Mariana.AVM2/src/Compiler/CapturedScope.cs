@@ -97,7 +97,7 @@ namespace Mariana.AVM2.Compiler {
         /// True if multiname-based property binding on the captured scope object must always
         /// be done at runtime.
         /// </summary>
-        public readonly bool lateMultinameBinding;
+        public readonly bool lateMultinameTraitBinding;
 
         /// <summary>
         /// The <see cref="Class"/> for the type of the captured value (if <see cref="dataType"/>
@@ -122,7 +122,7 @@ namespace Mariana.AVM2.Compiler {
             this.dataType = dataType;
             this.isWithScope = isWithScope;
             this.objClass = objClass;
-            this.lateMultinameBinding = lateMultinameBinding;
+            this.lateMultinameTraitBinding = lateMultinameBinding;
         }
 
         /// <summary>

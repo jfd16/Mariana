@@ -444,7 +444,7 @@ namespace Mariana.AVM2.Compiler {
                 sb.Append(" np");
             if ((node.flags & DataNodeFlags.PUSH_OPTIONAL_PARAM) != 0)
                 sb.Append(" opt");
-            if ((node.flags & DataNodeFlags.LATE_MULTINAME_BINDING) != 0)
+            if ((node.flags & DataNodeFlags.LATE_MULTINAME_TRAIT_BINDING) != 0 && node.dataType != DataNodeType.ANY)
                 sb.Append(" lb");
 
             if (node.onPushCoerceType != DataNodeType.UNKNOWN) {

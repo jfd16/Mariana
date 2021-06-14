@@ -902,6 +902,16 @@ namespace Mariana.AVM2.Compiler {
         }
 
         /// <summary>
+        /// Returns a value indicating whether the data type of the given node is a final class.
+        /// </summary>
+        /// <param name="node">A reference to a data node.</param>
+        /// <returns>True if the data type of <paramref name="node"/> is a final class, otherwise false.</returns>
+        public bool isDataNodeClassFinal(in DataNode node) {
+            Class klass = getDataNodeClass(node);
+            return klass != null && klass.isFinal;
+        }
+
+        /// <summary>
         /// Returns the name of the data type of the data node with the given id.
         /// </summary>
         /// <param name="nodeId">The id of the data node.</param>
