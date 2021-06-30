@@ -42,12 +42,16 @@ namespace Mariana.AVM2.Tests.Helpers {
         /// <param name="expected">The expected <see cref="ASAny"/> instance.</param>
         /// <param name="actual">The actual instance to check against <see cref="expected"/>.</param>
         public static void identical(ASAny expected, ASAny actual) {
-            if (expected.isUndefined)
+            if (expected.isUndefined) {
                 Assert.True(actual.isUndefined, $"Expected {actual} to be undefined.");
-            else if (expected.isNull)
+            }
+            else if (expected.isNull) {
                 Assert.True(actual.isNull, $"Expected {actual} to be null.");
-            else
+            }
+            else {
+                Assert.IsType(expected.value.GetType(), actual.value);
                 Assert.Same(expected.value, actual.value);
+            }
         }
 
         /// <summary>

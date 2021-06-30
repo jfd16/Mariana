@@ -5,13 +5,18 @@ using Mariana.Common;
 namespace Mariana.AVM2.Tests.Helpers {
 
     /// <summary>
-    /// An application domain into which to load any AVM2 classes needed for tests.
+    /// An application domain into which any AVM2 classes needed for tests should be loaded.
     /// </summary>
     internal static class TestAppDomain {
 
         private static ApplicationDomain s_domain = new ApplicationDomain();
         private static ReferenceSet<Type> s_loadedClasses = new ReferenceSet<Type>();
         private static object s_lock = new object();
+
+        /// <summary>
+        /// Gets the instance of the testing application domain.
+        /// </summary>
+        public static ApplicationDomain instance => s_domain;
 
         /// <summary>
         /// Ensures that the given classes are loaded into the test domain.

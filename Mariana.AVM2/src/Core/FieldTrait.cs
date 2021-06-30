@@ -53,7 +53,7 @@ namespace Mariana.AVM2.Core {
         public bool isReadOnly => m_isReadOnly;
 
         /// <inheritdoc/>
-        public override TraitType traitType => TraitType.FIELD;
+        public sealed override TraitType traitType => TraitType.FIELD;
 
         /// <summary>
         /// Sets the underlying <see cref="FieldInfo"/> of the field trait represented by this
@@ -91,7 +91,8 @@ namespace Mariana.AVM2.Core {
         public override BindStatus tryGetValue(ASAny target, out ASAny value) {
             if (target.isUndefined && !isStatic)
                 throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            value = m_lazyRuntimeDispatch.value(target, default(ASAny), false);
+
+            value = m_lazyRuntimeDispatch.value(target, default(ASAny), set: false);
             return BindStatus.SUCCESS;
         }
 
@@ -108,7 +109,8 @@ namespace Mariana.AVM2.Core {
                 throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
             if (isReadOnly)
                 return BindStatus.FAILED_READONLY;
-            m_lazyRuntimeDispatch.value(target, value, true);
+
+            m_lazyRuntimeDispatch.value(target, value, set: true);
             return BindStatus.SUCCESS;
         }
 
@@ -125,7 +127,7 @@ namespace Mariana.AVM2.Core {
             if (target.isUndefined && !isStatic)
                 throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
 
-            ASObject f = m_lazyRuntimeDispatch.value(target, default(ASAny), false).value;
+            ASObject f = m_lazyRuntimeDispatch.value(target, default(ASAny), set: false).value;
             if (f != null)
                 return f.AS_tryInvoke(receiver, args, out result) ? BindStatus.SUCCESS : BindStatus.FAILED_NOTFUNCTION;
 
@@ -146,7 +148,7 @@ namespace Mariana.AVM2.Core {
             if (target.isUndefined && !isStatic)
                 throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
 
-            ASObject f = m_lazyRuntimeDispatch.value(target, default(ASAny), false).value;
+            ASObject f = m_lazyRuntimeDispatch.value(target, default(ASAny), set: false).value;
             if (f != null)
                 return f.AS_tryConstruct(args, out result) ? BindStatus.SUCCESS : BindStatus.FAILED_NOTCONSTRUCTOR;
 

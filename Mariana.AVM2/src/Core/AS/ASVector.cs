@@ -791,7 +791,7 @@ namespace Mariana.AVM2.Core {
         /// </item>
         /// </list>
         /// </exception>
-        public T this[int index] {
+        public new T this[int index] {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get {
                 if ((uint)index >= (uint)m_length)

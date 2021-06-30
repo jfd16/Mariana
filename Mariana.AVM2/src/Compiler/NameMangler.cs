@@ -44,7 +44,7 @@ namespace Mariana.AVM2.Compiler {
         /// <returns>The mangled <see cref="TypeName"/>.</returns>
         /// <param name="name">The qualified name from which to create a mangled type name.</param>
         public TypeName createTypeName(in QName name) {
-            string nsStr = _mangleNamespace(name.ns, true);
+            string nsStr = _mangleNamespace(name.ns, noNameSeparator: true);
 
             string localStr;
             if (nsStr.Length == 0 && name.localName == MODULE_RESERVED_TYPE_NAME) {

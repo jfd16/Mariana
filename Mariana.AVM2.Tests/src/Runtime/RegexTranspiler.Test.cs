@@ -712,6 +712,10 @@ namespace Mariana.AVM2.Tests {
                 @"(?P<x>a)(?P<y1>(?P<y2>b))",
                 new Result("(a)((b))", groupNames: new[] {"x", "y1", "y2"})
             ),
+            new TestCase(
+                "(?P<abc>abc)(?P<Abc>def)",
+                new Result("(abc)(def)", new[] {"abc", "Abc"})
+            ),
 
             new TestCase(
                 @"(?P<a>([0-9]){3}-)+(?P<b>(?:[0-9].){4,5})(?P<c>(foo)$)",

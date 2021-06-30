@@ -618,17 +618,17 @@ namespace Mariana.AVM2.Compiler {
 
             sb.Append(' ', indentSpaces).Append("Stack: ");
             for (int i = 0; i < entryStack.Length; i++)
-                sb.Append(' ').Append(dataNodeToString(entryStack[i], true));
+                sb.Append(' ').Append(dataNodeToString(entryStack[i], includeFlow: true));
             sb.AppendLine();
 
             sb.Append(' ', indentSpaces).Append("Scope: ");
             for (int i = 0; i < entryScope.Length; i++)
-                sb.Append(' ').Append(dataNodeToString(entryScope[i], true));
+                sb.Append(' ').Append(dataNodeToString(entryScope[i], includeFlow: true));
             sb.AppendLine();
 
             sb.Append(' ', indentSpaces).Append("Locals:");
             for (int i = 0; i < entryLocals.Length; i++)
-                sb.Append(' ').Append(dataNodeToString(entryLocals[i], true));
+                sb.Append(' ').Append(dataNodeToString(entryLocals[i], includeFlow: true));
             sb.AppendLine();
 
             sb.Append(' ', indentSpaces).Append('{').AppendLine();

@@ -36,7 +36,10 @@ namespace Mariana.AVM2.Compiler {
 
     internal sealed class ScriptProperty : PropertyTrait {
         internal ScriptProperty(in QName name, Class declClass, ApplicationDomain domain, bool isStatic)
-            : base(name, declClass, domain, isStatic, null, null) { }
+            : base(name, declClass, domain, isStatic, getter: null, setter: null)
+        {
+
+        }
 
         internal new void setAccessors(MethodTrait getter, MethodTrait setter) => base.setAccessors(getter, setter);
     }

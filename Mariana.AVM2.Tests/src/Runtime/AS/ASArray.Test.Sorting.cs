@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using Mariana.AVM2.Core;
-using Mariana.AVM2.Native;
 using Mariana.AVM2.Tests.Helpers;
 using Xunit;
 
@@ -11,38 +11,36 @@ namespace Mariana.AVM2.Tests {
 
     using IndexDict = Dictionary<uint, ASAny>;
 
-    /// <summary>
-    /// Used in sortOn tests.
-    /// </summary>
-    [AVM2ExportClass]
-    public class ASArrayTest_ClassWithProps : ASObject {
-        static ASArrayTest_ClassWithProps() =>
-            TestAppDomain.ensureClassesLoaded(typeof(ASArrayTest_ClassWithProps));
-
-        [AVM2ExportTrait]
-        public readonly ASAny x;
-
-        [AVM2ExportTrait]
-        public readonly ASAny y;
-
-        private ASAny m_z;
-        private ASAny m_w;
-
-        [AVM2ExportTrait]
-        public ASAny z => m_z;
-
-        [AVM2ExportTrait]
-        public ASAny w => m_w;
-
-        public ASArrayTest_ClassWithProps(ASAny x, ASAny y, ASAny z, ASAny w) {
-            this.x = x;
-            this.y = y;
-            m_z = z;
-            m_w = w;
-        }
-    }
-
     public partial class ASArrayTest {
+
+        /// <summary>
+        /// Used in sortOn tests.
+        /// </summary>
+        private class ClassWithProps : MockClassInstance {
+            private ASAny m_x;
+            private ASAny m_y;
+            private ASAny m_z;
+            private ASAny m_w;
+
+            public ClassWithProps(ASAny x, ASAny y, ASAny z, ASAny w) : base(s_mockClass) {
+                m_x = x;
+                m_y = y;
+                m_z = z;
+                m_w = w;
+            }
+
+            private static readonly MockClass s_mockClass = new MockClass(
+                name: "ASArrayTest_ClassWithProps",
+                fields: new[] {
+                    new MockFieldTrait("x", isReadOnly: true, getValueFunc: obj => ((ClassWithProps)obj).m_x),
+                    new MockFieldTrait("y", isReadOnly: true, getValueFunc: obj => ((ClassWithProps)obj).m_y),
+                },
+                properties: new[] {
+                    new MockPropertyTrait("z", getter: new MockMethodTrait(invokeFunc: (obj, args) => ((ClassWithProps)obj).m_z)),
+                    new MockPropertyTrait("w", getter: new MockMethodTrait(invokeFunc: (obj, args) => ((ClassWithProps)obj).m_w)),
+                }
+            );
+        }
 
         private static int compareWithSortFlags(ASAny left, ASAny right, int sortFlags) {
             int cmpResult;
@@ -74,15 +72,21 @@ namespace Mariana.AVM2.Tests {
             return cmpResult;
         }
 
-        private static Comparison<ASAny> makeArraySortCompareFunc(SpyFunctionObject func, int sortFlags) {
+        private static Comparison<ASAny> makeArraySortCompareFunc(MockFunctionObject func, int sortFlags) {
             if (func == null)
                 return (x, y) => compareWithSortFlags(x, y, sortFlags);
 
             // We have a user-provided comparator function. Use the function's call records
             // to build a map of comparison results.
 
-            var compareFuncResults = new Dictionary<(ASAny, ASAny), int>(ByRefPairEqualityComparer.instance);
-            var callRecords = func.getCallRecords();
+            var compareFuncResults = new Dictionary<(ASAny, ASAny), int>(
+                comparer: new FunctionEqualityComparer<(ASAny, ASAny)>(
+                    (x, y) => x.Item1.value == y.Item1.value && x.Item2.value == y.Item2.value,
+                    x => RuntimeHelpers.GetHashCode(x.Item1.value) ^ RuntimeHelpers.GetHashCode(x.Item2.value)
+                )
+            );
+
+            var callRecords = func.getCallHistory();
 
             for (int i = 0; i < callRecords.Length; i++) {
                 ReadOnlySpan<ASAny> callArgs = callRecords[i].getArguments();
@@ -111,11 +115,11 @@ namespace Mariana.AVM2.Tests {
 
             // Elements used for sorting include those in the array + those in the prototype.
             IndexDict originalElements = new IndexDict(originalImage.elements);
-            if (s_currentProtoProperties != null) {
-                foreach (var (key, val) in s_currentProtoProperties) {
-                    if (key < originalImage.length)
-                        originalElements.TryAdd(key, val);
-                }
+            var currentProto = s_currentProtoProperties.value;
+
+            foreach (var (key, val) in currentProto) {
+                if (key < originalImage.length)
+                    originalElements.TryAdd(key, val);
             }
 
             int valueCount = 0;
@@ -145,15 +149,11 @@ namespace Mariana.AVM2.Tests {
             if (isUniqueSort)
                 Assert.True(sortedArray.length - (uint)valueCount <= 1);
 
-            // Clear prototype properties so that we can check holes in the sorted array.
-            // The prototype will be restored at the end.
-            var currentPrototype = new IndexDict(s_currentProtoProperties ?? Enumerable.Empty<KeyValuePair<uint, ASAny>>());
-            setPrototypeProperties(null);
-
             // If RETURNINDEXEDARRAY is set, we use this hashset to verify that every index is unique.
             var visitedIndices = new HashSet<uint>();
 
-            try {
+            // Run in a zone with a fresh Array prototype so that we can check holes in the sorted array.
+            runInZoneWithArrayPrototype(null, () => {
                 for (int i = 0; i < (int)originalImage.length; i++) {
                     ASAny value;
 
@@ -207,20 +207,17 @@ namespace Mariana.AVM2.Tests {
                     foreach (int count in uniqueObjectCounts.Values)
                         Assert.Equal(0, count);
                 }
-            }
-            finally {
-                setPrototypeProperties(currentPrototype);
-            }
+            });
         }
 
-        private static void verifyUniqueSortFailed(Image testImage, SpyFunctionObject compareFunc, int sortFlags) {
+        private static void verifyUniqueSortFailed(Image testImage, MockFunctionObject compareFunc, int sortFlags) {
             bool hasEqual = false;
 
             if (compareFunc != null) {
                 // If a user-provided compare function is used, check that at least one call returned 0.
                 // [This assumes that the sorting procedure never does compareFunc(arr[i], arr[i])!]
 
-                var callRecords = compareFunc.getCallRecords();
+                var callRecords = compareFunc.getCallHistory();
                 for (int i = 0; i < callRecords.Length && !hasEqual; i++)
                     hasEqual = (double)callRecords[i].returnValue == 0.0;
 
@@ -264,7 +261,7 @@ namespace Mariana.AVM2.Tests {
                 foreach (var (arr, img) in testInstances) {
                     foreach (var cmpFn in compareFunctions) {
                         if (cmpFn is Func<ASAny, ASAny, ASAny> del) {
-                            var spyFunc = new SpyFunctionObject((r, args) => del(args[0], args[1]));
+                            var spyFunc = new MockFunctionObject((r, args) => del(args[0], args[1]));
                             testcases.Add((new ArrayWrapper(arr), img, spyFunc, prototype, testAllArgumentVariants));
                         }
                         else {
@@ -1054,11 +1051,10 @@ namespace Mariana.AVM2.Tests {
                 ASArray.DESCENDING | ASArray.UNIQUESORT | ASArray.RETURNINDEXEDARRAY,
             };
 
-            setRandomSeed(39189);
-            setPrototypeProperties(prototype);
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(39189);
 
-            try {
-                if (compareTypeOrFunction is SpyFunctionObject func) {
+                if (compareTypeOrFunction is MockFunctionObject func) {
                     for (int i = 0; i < additionalFlags.Length; i++)
                         runTestWithCompareFuncAndFlags(func, additionalFlags[i]);
                 }
@@ -1067,12 +1063,9 @@ namespace Mariana.AVM2.Tests {
                     for (int i = 0; i < additionalFlags.Length; i++)
                         runTestWithCompareFuncAndFlags(null, cmpTypeFlag | additionalFlags[i]);
                 }
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
 
-            void runTestWithCompareFuncAndFlags(SpyFunctionObject compareFunc, int flags) {
+            void runTestWithCompareFuncAndFlags(MockFunctionObject compareFunc, int flags) {
                 bool isUniqueSort = (flags & ASArray.UNIQUESORT) != 0;
                 bool isReturnIndexedArray = (flags & ASArray.RETURNINDEXEDARRAY) != 0;
 
@@ -1081,7 +1074,7 @@ namespace Mariana.AVM2.Tests {
                     ASAny returnVal = testArray.sort(new RestParam(callArgs));
 
                     if (compareFnClone != null) {
-                        var callRecords = compareFnClone.getCallRecords();
+                        var callRecords = compareFnClone.getCallHistory();
                         for (int i = 0; i < callRecords.Length; i++) {
                             Assert.False(callRecords[i].isConstruct);
                             Assert.Equal(2, callRecords[i].getArguments().Length);
@@ -1113,8 +1106,8 @@ namespace Mariana.AVM2.Tests {
                 }
             }
 
-            IEnumerable<(ASAny[], SpyFunctionObject)> generateArgumentVariants(SpyFunctionObject compareFunc, int flags) {
-                List<(ASAny[], SpyFunctionObject)> arglists = new List<(ASAny[], SpyFunctionObject)>();
+            IEnumerable<(ASAny[], MockFunctionObject)> generateArgumentVariants(MockFunctionObject compareFunc, int flags) {
+                List<(ASAny[], MockFunctionObject)> arglists = new List<(ASAny[], MockFunctionObject)>();
 
                 if (compareFunc != null) {
                     // We need to clone the SpyFunctionObject so that each one has its own list of tracked calls.
@@ -1214,21 +1207,17 @@ namespace Mariana.AVM2.Tests {
                 ASArray.NUMERIC | ASArray.CASEINSENSITIVE | ASArray.DESCENDING | ASArray.UNIQUESORT | ASArray.RETURNINDEXEDARRAY,
             };
 
-            setRandomSeed(9471);
-            setPrototypeProperties(null);
+            runInZoneWithArrayPrototype(null, () => {
+                setRandomSeed(9471);
 
-            try {
                 testWithArgs(Array.Empty<ASAny>());
-                testWithArgs(new ASAny[] {new SpyFunctionObject()});
+                testWithArgs(new ASAny[] {new MockFunctionObject()});
 
                 for (int i = 0; i < flags.Length; i++) {
                     testWithArgs(new ASAny[] {flags[i]});
-                    testWithArgs(new ASAny[] {new SpyFunctionObject(), flags[i]});
+                    testWithArgs(new ASAny[] {new MockFunctionObject(), flags[i]});
                 }
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
 
             void testWithArgs(ASAny[] args) {
                 ASAny returnVal = array.instance.sort(new RestParam(args));
@@ -1260,16 +1249,14 @@ namespace Mariana.AVM2.Tests {
                 new ASAny[] {ASAny.@null},
                 new ASAny[] {"0"},
                 new ASAny[] {new ASObject()},
-                new ASAny[] {new SpyFunctionObject(), ASAny.undefined},
-                new ASAny[] {new SpyFunctionObject(), ASAny.@null},
-                new ASAny[] {new SpyFunctionObject(), "2"},
-                new ASAny[] {new SpyFunctionObject(), new ASObject()},
+                new ASAny[] {new MockFunctionObject(), ASAny.undefined},
+                new ASAny[] {new MockFunctionObject(), ASAny.@null},
+                new ASAny[] {new MockFunctionObject(), "2"},
+                new ASAny[] {new MockFunctionObject(), new ASObject()},
             };
 
-            setRandomSeed(18378);
-            setPrototypeProperties(null);
-
-            try {
+            runInZoneWithArrayPrototype(null, () => {
+                setRandomSeed(18378);
                 for (int i = 0; i < args.Length; i++) {
                     AssertHelper.throwsErrorWithCode(
                         ErrorCode.TYPE_COERCION_FAILED,
@@ -1277,10 +1264,7 @@ namespace Mariana.AVM2.Tests {
                     );
                     verifyArrayMatchesImage(array.instance, image);
                 }
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         private static Comparison<ASAny> makeArraySortOnCompareFunc(string[] names, int[] flags) {
@@ -1312,11 +1296,11 @@ namespace Mariana.AVM2.Tests {
 
             // Elements used for sorting include those in the array + those in the prototype.
             IndexDict originalElements = new IndexDict(originalImage.elements);
-            if (s_currentProtoProperties != null) {
-                foreach (var (key, val) in s_currentProtoProperties) {
-                    if (key < originalImage.length)
-                        originalElements.TryAdd(key, val);
-                }
+            var currentProto = s_currentProtoProperties.value;
+
+            foreach (var (key, val) in currentProto) {
+                if (key < originalImage.length)
+                    originalElements.TryAdd(key, val);
             }
 
             int valueCount = 0;
@@ -1346,17 +1330,13 @@ namespace Mariana.AVM2.Tests {
             if (isUniqueSort)
                 Assert.True(sortedArray.length - (uint)valueCount <= 1);
 
-            // Clear prototype properties so that we can check holes in the sorted array.
-            // The prototype will be restored at the end.
-            var currentPrototype = new IndexDict(s_currentProtoProperties ?? Enumerable.Empty<KeyValuePair<uint, ASAny>>());
-            setPrototypeProperties(null);
-
             // If RETURNINDEXEDARRAY is set, we use this hashset to verify that every index is unique.
             var visitedIndices = new HashSet<uint>();
 
             var compareFunc = makeArraySortOnCompareFunc(propNames, propFlags);
 
-            try {
+            // Run in a zone with a fresh Array prototype so that we can check holes in the sorted array.
+            runInZoneWithArrayPrototype(null, () => {
                 for (int i = 0; i < (int)originalImage.length; i++) {
                     ASAny value;
 
@@ -1410,10 +1390,7 @@ namespace Mariana.AVM2.Tests {
                     foreach (int count in uniqueObjectCounts.Values)
                         Assert.Equal(0, count);
                 }
-            }
-            finally {
-                setPrototypeProperties(currentPrototype);
-            }
+            });
         }
 
         private static void verifyUniqueSortOnFailed(Image testImage, string[] propNames, int[] propFlags) {
@@ -1454,7 +1431,7 @@ namespace Mariana.AVM2.Tests {
             }
 
             ASAny makeTypedObject(ASAny x = default, ASAny y = default, ASAny z = default, ASAny w = default) =>
-                new ASArrayTest_ClassWithProps(x, y, z, w);
+                new ClassWithProps(x, y, z, w);
 
             void addTestCase(
                 (ASArray arr, Image img)[] testInstances,
@@ -2143,10 +2120,9 @@ namespace Mariana.AVM2.Tests {
         {
             int[] globalFlags = {0, ASArray.UNIQUESORT, ASArray.RETURNINDEXEDARRAY, ASArray.UNIQUESORT | ASArray.RETURNINDEXEDARRAY};
 
-            setRandomSeed(78666);
-            setPrototypeProperties(prototype);
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(78666);
 
-            try {
                 for (int i = 0; i < globalFlags.Length; i++) {
                     bool isUniqueSort = (globalFlags[i] & ASArray.UNIQUESORT) != 0;
                     bool isReturnIndexedArray = (globalFlags[i] & ASArray.RETURNINDEXEDARRAY) != 0;
@@ -2185,10 +2161,7 @@ namespace Mariana.AVM2.Tests {
                         );
                     }
                 }
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
 
             IEnumerable<ASAny[]> generateArgumentVariants(int gFlags) {
                 List<ASAny[]> arglists = new List<ASAny[]>();
@@ -2309,7 +2282,7 @@ namespace Mariana.AVM2.Tests {
 
             addTestCase(makeArrayAndImageWithMutations(buildMutationList(
                 mutSetUint(0, 2),
-                mutSetUint((uint)Int32.MaxValue + 1, new ASArrayTest_ClassWithProps(x: 123, y: 0, z: 0, w: 0))
+                mutSetUint((uint)Int32.MaxValue + 1, new ClassWithProps(x: 123, y: 0, z: 0, w: 0))
             )));
 
             addTestCase(makeArrayAndImageWithMutations(buildMutationList(
@@ -2322,10 +2295,9 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(sortOnMethodTest_arrayLengthTooBig_data))]
         public void sortOnMethodTest_arrayLengthTooBig(ArrayWrapper array, Image image) {
-            setRandomSeed(573711);
-            setPrototypeProperties(null);
+            runInZoneWithArrayPrototype(null, () => {
+                setRandomSeed(573711);
 
-            try {
                 testWithArgs("x", default);
                 testWithArgs("x", 0);
                 testWithArgs("x", ASArray.NUMERIC | ASArray.DESCENDING | ASArray.UNIQUESORT | ASArray.RETURNINDEXEDARRAY);
@@ -2335,10 +2307,7 @@ namespace Mariana.AVM2.Tests {
                 testWithArgs(new ASArray(new ASAny[] { "x", "y" }), new ASArray(new ASAny[] { ASArray.NUMERIC, ASArray.DESCENDING }));
                 testWithArgs("x", 0, "abc", "def");
                 testWithArgs(new ASArray(new ASAny[] { "x", "y" }), new ASArray(new ASAny[] { ASArray.NUMERIC, ASArray.DESCENDING }), ASAny.undefined, 123);
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
 
             void testWithArgs(ASAny names, ASAny options, params ASAny[] rest) {
                 ASAny returnVal = array.instance.sortOn(names, options, new RestParam(rest));
@@ -2377,9 +2346,9 @@ namespace Mariana.AVM2.Tests {
             addTestCase(
                 testInstances: new[] {
                     new ASArray(new ASAny[] {
-                        new ASArrayTest_ClassWithProps(x: 0, y: 0, z: 0, w: 0),
+                        new ClassWithProps(x: 0, y: 0, z: 0, w: 0),
                         ASAny.undefined,
-                        new ASArrayTest_ClassWithProps(x: 1, y: 1, z: 1, w: 1)
+                        new ClassWithProps(x: 1, y: 1, z: 1, w: 1)
                     }),
                 },
                 properties: new[] {
@@ -2394,7 +2363,7 @@ namespace Mariana.AVM2.Tests {
                     new ASArray(2)
                 },
                 prototype: new IndexDict {
-                    [1] = new ASArrayTest_ClassWithProps(x: 1, y: 1, z: 1, w: 1)
+                    [1] = new ClassWithProps(x: 1, y: 1, z: 1, w: 1)
                 },
                 properties: new[] {
                     new[] {("a", 0)},
@@ -2409,18 +2378,12 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(sortOnMethodTest_propDoesNotExist_data))]
         public void sortOnMethodTest_propDoesNotExist(ArrayWrapper array, string[] propNames, int[] propFlags, IndexDict prototype) {
-            setRandomSeed(9003);
-            setPrototypeProperties(prototype);
-
-            try {
+            runInZoneWithArrayPrototype(prototype, () => {
                 AssertHelper.throwsErrorWithCode(
                     ErrorCode.PROPERTY_NOT_FOUND,
                     () => array.instance.sortOn(ASArray.fromTypedArray(propNames), ASArray.fromTypedArray(propFlags))
                 );
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
     }

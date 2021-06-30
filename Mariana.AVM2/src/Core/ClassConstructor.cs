@@ -119,7 +119,7 @@ namespace Mariana.AVM2.Core {
         /// </item>
         /// </list>
         /// </exception>
-        public ASAny invoke(ReadOnlySpan<ASAny> args) {
+        public virtual ASAny invoke(ReadOnlySpan<ASAny> args) {
             if (args.Length < m_requiredArgCount || (!m_hasRest && args.Length > m_params.Length))
                 throw ErrorHelper.createArgCountMismatchError(this, args.Length);
 

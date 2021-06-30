@@ -15,8 +15,11 @@ namespace Mariana.AVM2.ABC {
         /// </summary>
         private const int STRING_INTERN_MAX_LEN = 30;
 
-        private static readonly UTF8Encoding s_utf8EncodingWithReplaceFallback = new UTF8Encoding(false, false);
-        private static readonly UTF8Encoding s_utf8EncodingWithThrowFallback = new UTF8Encoding(false, true);
+        private static readonly UTF8Encoding s_utf8EncodingWithReplaceFallback =
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: false);
+
+        private static readonly UTF8Encoding s_utf8EncodingWithThrowFallback =
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
         private Stream m_stream;
 

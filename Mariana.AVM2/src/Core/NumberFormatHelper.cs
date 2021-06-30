@@ -7,6 +7,21 @@ namespace Mariana.AVM2.Core {
     internal static class NumberFormatHelper {
 
         /// <summary>
+        /// The string representation of NaN.
+        /// </summary>
+        private const string NAN_STRING = "NaN";
+
+        /// <summary>
+        /// The string representation of positive infinity.
+        /// </summary>
+        private const string POS_INFINITY_STRING = "Infinity";
+
+        /// <summary>
+        /// The string representation of negative infinity.
+        /// </summary>
+        private const string NEG_INFINITY_STRING = "-Infinity";
+
+        /// <summary>
         /// Number format strings for the ActionScript toFixed() function.
         /// </summary>
         private static readonly string[] s_toFixedFormatStrings = {
@@ -205,9 +220,9 @@ namespace Mariana.AVM2.Core {
             if (num == 0.0)
                 return "0";
             if (Double.IsNaN(num))
-                return "NaN";
+                return NAN_STRING;
             if (Double.IsInfinity(num))
-                return Double.IsNegative(num) ? "-Infinity" : "Infinity";
+                return Double.IsNegative(num) ? NEG_INFINITY_STRING : POS_INFINITY_STRING;
 
             Span<char> buffer = stackalloc char[32];
             string format = Double.IsSubnormal(num) ? "g17" : "r";
@@ -286,9 +301,9 @@ namespace Mariana.AVM2.Core {
         /// notation with the number of decimal places given by <paramref name="precision"/>.</returns>
         public static string doubleToStringExpNotation(double num, int precision) {
             if (Double.IsNaN(num))
-                return "NaN";
+                return NAN_STRING;
             if (Double.IsInfinity(num))
-                return Double.IsNegative(num) ? "-Infinity" : "Infinity";
+                return Double.IsNegative(num) ? NEG_INFINITY_STRING : POS_INFINITY_STRING;
             if (num == 0.0)
                 num = 0.0;  // Don't expose negative zero
 
@@ -325,9 +340,9 @@ namespace Mariana.AVM2.Core {
         /// then scientific notation is used, otherwise fixed-point notation is used.</returns>
         public static string doubleToStringPrecision(double num, int precision) {
             if (Double.IsNaN(num))
-                return "NaN";
+                return NAN_STRING;
             if (Double.IsInfinity(num))
-                return Double.IsNegative(num) ? "-Infinity" : "Infinity";
+                return Double.IsNegative(num) ? NEG_INFINITY_STRING : POS_INFINITY_STRING;
             if (num == 0.0)
                 num = 0.0;  // Don't expose negative zero
 
@@ -424,9 +439,9 @@ namespace Mariana.AVM2.Core {
         /// notation with the number of decimal places given by <paramref name="precision"/>.</returns>
         public static string doubleToStringFixedNotation(double num, int precision) {
             if (Double.IsNaN(num))
-                return "NaN";
+                return NAN_STRING;
             if (Double.IsInfinity(num))
-                return Double.IsNegative(num) ? "-Infinity" : "Infinity";
+                return Double.IsNegative(num) ? NEG_INFINITY_STRING : POS_INFINITY_STRING;
             if (num == 0.0)
                 num = 0.0;  // Don't expose negative zero
 
@@ -444,9 +459,9 @@ namespace Mariana.AVM2.Core {
             if (num == 0.0)
                 return "0";
             if (Double.IsNaN(num))
-                return "NaN";
+                return NAN_STRING;
             if (Double.IsInfinity(num))
-                return Double.IsNegative(num) ? "-Infinity" : "Infinity";
+                return Double.IsNegative(num) ? NEG_INFINITY_STRING : POS_INFINITY_STRING;
 
             int radixBits = s_log2Table[radix];
 
@@ -490,6 +505,7 @@ namespace Mariana.AVM2.Core {
                     _appendCharToBuffer(ref buffer, ref bufPos, '.');
                 exponent -= radixBits;
             }
+
             while (exponent >= 0) {
                 _appendCharToBuffer(ref buffer, ref bufPos, '0');
                 exponent -= radixBits;
@@ -506,9 +522,9 @@ namespace Mariana.AVM2.Core {
         /// <returns>The string representation of the number in the given base.</returns>
         public static string doubleIntegerToStringRadix(double num, int radix) {
             if (Double.IsNaN(num))
-                return "NaN";
+                return NAN_STRING;
             if (Double.IsInfinity(num))
-                return Double.IsNegative(num) ? "-Infinity" : "Infinity";
+                return Double.IsNegative(num) ? NEG_INFINITY_STRING : POS_INFINITY_STRING;
 
             num = Math.Truncate(num);
 
@@ -542,6 +558,7 @@ namespace Mariana.AVM2.Core {
 
             Span<uint> bigint = stackalloc uint[32];
             loadBigInt(bigint, num, out int curIndex);
+
             while (curIndex < bigint.Length) {
                 int next = nextDigit(bigint, ref curIndex, radix);
                 char digitChar = (char)((next > 9) ? ('a' - 10) + next : '0' + next);
@@ -680,7 +697,7 @@ namespace Mariana.AVM2.Core {
                 num = stringToDoubleIntPow2Radix(span, 16, out charsConsumed);
             }
             else if ((uint)span.Length >= 8 && span[0] == 'I'
-                && span.Slice(0, 8).Equals("Infinity", StringComparison.Ordinal))
+                && span.Slice(0, 8).Equals(POS_INFINITY_STRING, StringComparison.Ordinal))
             {
                 num = Double.PositiveInfinity;
                 charsConsumed = 8;
@@ -926,7 +943,7 @@ namespace Mariana.AVM2.Core {
                 return Double.PositiveInfinity;
 
             int exponent = getExponent(bigint, curSize);
-            long mantissa = getMantissa(bigint, curSize, ref exponent);
+            long mantissa = getRoundedMantissa(bigint, curSize, ref exponent);
 
             // The exponent could have overflowed from the rounding up of the mantissa,
             // so we need to check that.
@@ -964,7 +981,7 @@ namespace Mariana.AVM2.Core {
                 return ((size - 1) << 5) | msBitIndex;
             }
 
-            long getMantissa(Span<uint> sp, int size, ref int exp) {
+            long getRoundedMantissa(Span<uint> sp, int size, ref int exp) {
                 int highBits = (exp & 31) + 1;
                 int midBits = Math.Min(53 - highBits, 32);
                 int lowBits = 53 - (highBits + midBits);

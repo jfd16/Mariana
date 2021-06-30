@@ -35,6 +35,8 @@ namespace Mariana.AVM2.Core {
     /// into an application domain, obtain a <see cref="ScriptLoader"/> instance by calling the
     /// <see cref="createScriptLoader"/> method.
     /// </para>
+    /// <para>AVM2 application domains are entirely different from and should not be confused
+    /// with .NET Framework application domains.</para>
     /// </remarks>
     public sealed class ApplicationDomain {
 
@@ -43,13 +45,13 @@ namespace Mariana.AVM2.Core {
         private static ConditionalWeakTable<Type, ApplicationDomain> s_moduleToDomainMap =
             new ConditionalWeakTable<Type, ApplicationDomain>();
 
-        private static ApplicationDomain s_systemDomain = new ApplicationDomain(null, true);
+        private static ApplicationDomain s_systemDomain = new ApplicationDomain(null, isSystem: true);
 
         private ApplicationDomain m_parent;
 
-        private ClassTraitTable m_globalTraitTable = new ClassTraitTable(null, true);
+        private ClassTraitTable m_globalTraitTable = new ClassTraitTable(null, staticOnly: true);
 
-        private ASObject m_globalObject;
+        private ZoneStaticData<ASObject> m_globalObject;
 
         private byte[] m_globalMemory = Array.Empty<byte>();
 
@@ -60,7 +62,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="parent">The parent of the application domain. If this is null, the system
         /// domain is used as the parent.</param>
-        public ApplicationDomain(ApplicationDomain parent = null) : this(parent, false) {}
+        public ApplicationDomain(ApplicationDomain parent = null) : this(parent, isSystem: false) {}
 
         /// <summary>
         /// Creates a new AVM2 application domain.
@@ -72,7 +74,7 @@ namespace Mariana.AVM2.Core {
                 parent = s_systemDomain;
 
             m_parent = parent;
-            m_globalObject = new ASGlobalObject(this);
+            m_globalObject = new ZoneStaticData<ASObject>(() => new ASGlobalObject(this));
         }
 
         /// <summary>
@@ -153,11 +155,19 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         ///
         /// <remarks>
+        /// <para>
         /// The global object is an object that can be used to access the global traits defined in the
         /// application domain as is they were traits on an ordinary object. Global objects can also
         /// have dynamic properties defined.
+        /// </para>
+        /// <para>
+        /// The global object for an application domain in the AVM2 is zone-local, so a domain has one global
+        /// object for each <see cref="StaticZone"/> created (this property returns the object associated with
+        /// the current zone), in addition to a global prototype object that is returned by this property when
+        /// not executing inside a <see cref="StaticZone"/>.
+        /// </para>
         /// </remarks>
-        public ASObject globalObject => m_globalObject;
+        public ASObject globalObject => m_globalObject.value;
 
         /// <summary>
         /// Defines a global trait in this domain.
@@ -177,7 +187,7 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         internal bool tryDefineGlobalTrait(Trait trait, bool canHideFromParent = false) {
             if (!canHideFromParent && m_parent != null) {
-                if (m_parent.lookupGlobalTrait(trait.name, false, out _) == BindStatus.SUCCESS)
+                if (m_parent.lookupGlobalTrait(trait.name, noInherited: false, out _) == BindStatus.SUCCESS)
                     return false;
             }
             return m_globalTraitTable.tryAddTrait(trait);
@@ -217,7 +227,7 @@ namespace Mariana.AVM2.Core {
                 if (curDomain == s_systemDomain)
                     CoreClasses.ensureGlobalsLoaded();
 
-                BindStatus bindStatus = curDomain.m_globalTraitTable.tryGetTrait(name, true, out trait);
+                BindStatus bindStatus = curDomain.m_globalTraitTable.tryGetTrait(name, isStatic: true, out trait);
                 if (bindStatus != BindStatus.NOT_FOUND)
                     return bindStatus;
 
@@ -261,7 +271,7 @@ namespace Mariana.AVM2.Core {
             ApplicationDomain curDomain = this;
 
             while (curDomain != null) {
-                BindStatus bindStatus = curDomain.m_globalTraitTable.tryGetTrait(name, nsSet, true, out trait);
+                BindStatus bindStatus = curDomain.m_globalTraitTable.tryGetTrait(name, nsSet, isStatic: true, out trait);
                 if (bindStatus != BindStatus.NOT_FOUND)
                     return bindStatus;
 

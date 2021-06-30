@@ -113,7 +113,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="prefix">The namespace prefix.</param>
         /// <param name="uri">The namespace URI.</param>
         /// <returns>The created <see cref="ASNamespace"/> instance.</returns>
-        internal static ASNamespace unsafeCreate(string prefix, string uri) => new ASNamespace(prefix, uri, true);
+        internal static ASNamespace unsafeCreate(string prefix, string uri) => new ASNamespace(prefix, uri, _unsafeMarker: true);
 
         /// <summary>
         /// Returns the prefix of this namespace, or undefined if the namespace has no prefix.

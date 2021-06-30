@@ -14,11 +14,22 @@ namespace Mariana.AVM2.Core {
     [AVM2ExportClassInternal(tag = ClassTag.XML)]
     public class ASXML : ASObject {
 
-        private static bool s_ignoreComments = true;
-        private static bool s_ignoreProcessingInstructions = true;
-        private static bool s_ignoreWhitespace = true;
-        private static bool s_prettyPrinting = true;
-        private static int s_prettyIndent = 2;
+        internal class Settings {
+            public bool ignoreComments = true;
+            public bool ignoreProcessingInstructions = true;
+            public bool ignoreWhitespace = true;
+            public bool prettyPrinting = true;
+            public int prettyIndent = 2;
+        }
+
+        private static readonly ZoneStaticData<Settings> s_zoneLocalSettings =
+            new ZoneStaticData<Settings>(() => new Settings());
+
+        /// <summary>
+        /// Gets the <see cref="Settings"/> instance that contains the current settings
+        /// for parsing and serialization.
+        /// </summary>
+        internal static Settings internalSettings => s_zoneLocalSettings.value;
 
         /// <summary>
         /// The value of the "length" property of the AS3 XML class.
@@ -38,8 +49,8 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         [AVM2ExportTrait]
         public static bool ignoreWhitespace {
-            get => s_ignoreWhitespace;
-            set => s_ignoreWhitespace = value;
+            get => s_zoneLocalSettings.value.ignoreWhitespace;
+            set => s_zoneLocalSettings.value.ignoreWhitespace = value;
         }
 
         /// <summary>
@@ -47,8 +58,8 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         [AVM2ExportTrait]
         public static bool ignoreComments {
-            get => s_ignoreComments;
-            set => s_ignoreComments = value;
+            get => s_zoneLocalSettings.value.ignoreComments;
+            set => s_zoneLocalSettings.value.ignoreComments = value;
         }
 
         /// <summary>
@@ -57,8 +68,8 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         [AVM2ExportTrait]
         public static bool ignoreProcessingInstructions {
-            get => s_ignoreProcessingInstructions;
-            set => s_ignoreProcessingInstructions = value;
+            get => s_zoneLocalSettings.value.ignoreProcessingInstructions;
+            set => s_zoneLocalSettings.value.ignoreProcessingInstructions = value;
         }
 
         /// <summary>
@@ -76,8 +87,8 @@ namespace Mariana.AVM2.Core {
         /// <seealso cref="prettyIndent" />
         [AVM2ExportTrait]
         public static bool prettyPrinting {
-            get => s_prettyPrinting;
-            set => s_prettyPrinting = value;
+            get => s_zoneLocalSettings.value.prettyPrinting;
+            set => s_zoneLocalSettings.value.prettyPrinting = value;
         }
 
         /// <summary>
@@ -86,8 +97,8 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         [AVM2ExportTrait]
         public static int prettyIndent {
-            get => s_prettyIndent;
-            set => s_prettyIndent = value;
+            get => s_zoneLocalSettings.value.prettyIndent;
+            set => s_zoneLocalSettings.value.prettyIndent = value;
         }
 
         private ASQName m_name;
@@ -129,7 +140,7 @@ namespace Mariana.AVM2.Core {
                 return argXml;
 
             if (arg.value is ASXMLList argXmlList)
-                return fromXMLList(argXmlList, false);
+                return fromXMLList(argXmlList, deepCopy: false);
 
             return parse(ASAny.AS_convertString(arg));
         }
@@ -151,7 +162,7 @@ namespace Mariana.AVM2.Core {
                 return argXml.copy();
 
             if (arg.value is ASXMLList argXmlList)
-                return fromXMLList(argXmlList, true);
+                return fromXMLList(argXmlList, deepCopy: true);
 
             return parse(ASAny.AS_convertString(arg));
         }
@@ -178,7 +189,7 @@ namespace Mariana.AVM2.Core {
         /// <returns>The XML instance. If <paramref name="xmlList"/> is null, returns an
         /// empty text node.</returns>
         /// <param name="xmlList">An XMLList object to convert to XML.</param>
-        /// <param name="copy">If set to true, return a copy of the item of the XMLList
+        /// <param name="deepCopy">If set to true, return a deep copy of the item of the XMLList
         /// instead of that node itself.</param>
         ///
         /// <exception cref="AVM2Exception">
@@ -186,12 +197,14 @@ namespace Mariana.AVM2.Core {
         /// <item><description>TypeError #1086: <paramref name="xmlList"/> does not have exactly one element.</description></item>
         /// </list>
         /// </exception>
-        public static ASXML fromXMLList(ASXMLList xmlList, bool copy = false) {
+        public static ASXML fromXMLList(ASXMLList xmlList, bool deepCopy = false) {
             if (xmlList == null)
                 return createNode(XMLNodeType.TEXT);
+
             if (xmlList.length() != 1)
                 throw ErrorHelper.createError(ErrorCode.XML_LIST_METHOD_ONE_ITEM_ONLY, "XML");
-            return copy ? xmlList[0].copy() : xmlList[0];
+
+            return deepCopy ? xmlList[0].copy() : xmlList[0];
         }
 
         /// <summary>
@@ -234,13 +247,17 @@ namespace Mariana.AVM2.Core {
         /// static fields.</returns>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         public static ASObject settings() {
+            var settings = s_zoneLocalSettings.value;
+
             ASObject obj = new ASObject();
             DynamicPropertyCollection props = obj.AS_dynamicProps;
-            props[nameof(ignoreWhitespace)] = ignoreWhitespace;
-            props[nameof(ignoreProcessingInstructions)] = ignoreProcessingInstructions;
-            props[nameof(ignoreComments)] = ignoreComments;
-            props[nameof(prettyPrinting)] = prettyPrinting;
-            props[nameof(prettyIndent)] = prettyIndent;
+
+            props[nameof(ignoreWhitespace)] = settings.ignoreWhitespace;
+            props[nameof(ignoreProcessingInstructions)] = settings.ignoreProcessingInstructions;
+            props[nameof(ignoreComments)] = settings.ignoreComments;
+            props[nameof(prettyPrinting)] = settings.prettyPrinting;
+            props[nameof(prettyIndent)] = settings.prettyIndent;
+
             return obj;
         }
 
@@ -256,30 +273,32 @@ namespace Mariana.AVM2.Core {
         /// values.</param>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         public static void setSettings(ASObject obj = null) {
+            var settings = s_zoneLocalSettings.value;
+
             if (obj == null) {
-                ignoreWhitespace = true;
-                ignoreProcessingInstructions = true;
-                ignoreComments = true;
-                prettyPrinting = true;
-                prettyIndent = 2;
+                settings.ignoreWhitespace = true;
+                settings.ignoreProcessingInstructions = true;
+                settings.ignoreComments = true;
+                settings.prettyPrinting = true;
+                settings.prettyIndent = 2;
             }
             else {
                 ASAny propValue;
 
                 if (obj.AS_tryGetProperty(nameof(ignoreWhitespace), out propValue) == BindStatus.SUCCESS)
-                    ignoreWhitespace = (bool)propValue;
+                    settings.ignoreWhitespace = (bool)propValue;
 
                 if (obj.AS_tryGetProperty(nameof(ignoreProcessingInstructions), out propValue) == BindStatus.SUCCESS)
-                    ignoreProcessingInstructions = (bool)propValue;
+                    settings.ignoreProcessingInstructions = (bool)propValue;
 
                 if (obj.AS_tryGetProperty(nameof(ignoreComments), out propValue) == BindStatus.SUCCESS)
-                    ignoreComments = (bool)propValue;
+                    settings.ignoreComments = (bool)propValue;
 
                 if (obj.AS_tryGetProperty(nameof(prettyPrinting), out propValue) == BindStatus.SUCCESS)
-                    prettyPrinting = (bool)propValue;
+                    settings.prettyPrinting = (bool)propValue;
 
                 if (obj.AS_tryGetProperty(nameof(prettyIndent), out propValue) == BindStatus.SUCCESS)
-                    prettyIndent = (int)propValue;
+                    settings.prettyIndent = (int)propValue;
             }
         }
 
@@ -320,24 +339,27 @@ namespace Mariana.AVM2.Core {
             ASXML node;
 
             switch (nodeType) {
-                case XMLNodeType.ELEMENT:
+                case XMLNodeType.ELEMENT: {
                     if (nodeName.uri == null)
                         nodeName = new ASQName(ASNamespace.getDefault(), nodeName.localName);
-                    node = new _ElementNode(nodeName, null);
+
+                    node = new _ElementNode(nodeName, parent: null);
                     if (nodeName.prefix != null && nodeName.uri.Length != 0)
                         node.addNamespace(nodeName.getNamespace());
+
                     break;
+                }
 
                 case XMLNodeType.TEXT:
                 case XMLNodeType.COMMENT:
                 case XMLNodeType.CDATA:
-                    node = new _TextNode(null, null, nodeType, nodeText);
+                    node = new _TextNode(name: null, parent: null, nodeType, nodeText);
                     break;
 
                 case XMLNodeType.PROCESSING_INSTRUCTION:
                     if (nodeName.uri == null || nodeName.uri.Length != 0)
                         nodeName = new ASQName("", nodeName.localName);
-                    node = new _TextNode(nodeName, null, XMLNodeType.PROCESSING_INSTRUCTION, nodeText);
+                    node = new _TextNode(nodeName, parent: null, XMLNodeType.PROCESSING_INSTRUCTION, nodeText);
                     break;
 
                 default:
@@ -356,7 +378,7 @@ namespace Mariana.AVM2.Core {
         /// <remarks>
         /// The following characters are escaped: <c>&lt;</c>, <c>&amp;</c> and <c>&gt;</c>.
         /// </remarks>
-        public static string escapeText(string str) => XMLHelper.escape(str, 0, str.Length, false);
+        public static string escapeText(string str) => XMLHelper.escape(str, 0, str.Length, isAttr: false);
 
         /// <summary>
         /// Returns an escaped string suitable for use as the value of an XML attribute.
@@ -370,7 +392,7 @@ namespace Mariana.AVM2.Core {
         /// <para>This function escapes strings for double-quoted attributes. (The <c>&apos;</c>
         /// character is not escaped.)</para>
         /// </remarks>
-        public static string escapeAttribute(string str) => XMLHelper.escape(str, 0, str.Length, true);
+        public static string escapeAttribute(string str) => XMLHelper.escape(str, 0, str.Length, isAttr: true);
 
         /// <summary>
         /// Parses an XML string and returns the created <see cref="ASXML"/> object.
@@ -433,8 +455,8 @@ namespace Mariana.AVM2.Core {
             if (node1 == null || node2 == null)
                 return false;
 
-            var iter1 = node1.getDescendantEnumerator(true);
-            var iter2 = node2.getDescendantEnumerator(true);
+            var iter1 = node1.getDescendantEnumerator(includeThis: true);
+            var iter2 = node2.getDescendantEnumerator(includeThis: true);
 
             while (true) {
                 bool hasNext1 = iter1.MoveNext(), hasNext2 = iter2.MoveNext();
@@ -879,7 +901,7 @@ namespace Mariana.AVM2.Core {
 
             ASXML lastChild = (children.Length > 0) ? children[children.Length - 1] : null;
 
-            var elem = new _ElementNode(name, null, firstAttr, firstChild, lastChild, nsDecls);
+            var elem = new _ElementNode(name, parent: null, firstAttr, firstChild, lastChild, nsDecls);
 
             for (int i = 0; i < attrs.Length; i++)
                 attrs[i].m_parent = elem;
@@ -895,7 +917,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <returns>The created attribute.</returns>
         internal static ASXML internalCreateAttribute(ASQName name, string value) =>
-            new _TextNode(name, null, XMLNodeType.ATTRIBUTE, value);
+            new _TextNode(name, parent: null, XMLNodeType.ATTRIBUTE, value);
 
         /// <summary>
         /// Checks whether the given name can be used as the name of an attribute of this node.
@@ -1014,7 +1036,7 @@ namespace Mariana.AVM2.Core {
             var genName = XMLGenName.fromQName(name, options);
 
             if (name.ns.kind != NamespaceKind.NAMESPACE && name.ns.kind != NamespaceKind.ANY) {
-                value = new ASXMLList(Array.Empty<ASXML>(), 0, true, this, genName.isAttr);
+                value = new ASXMLList(Array.Empty<ASXML>(), 0, noCopy: true, this, genName.isAttr);
                 return BindStatus.SUCCESS;
             }
 
@@ -1604,7 +1626,7 @@ namespace Mariana.AVM2.Core {
             ASXML lastChild = internalGetLastChild();
 
             if (text != null)
-                internalInsertChildAfter(lastChild, new _TextNode(null, null, XMLNodeType.TEXT, text), mustCopy: false);
+                internalInsertChildAfter(lastChild, new _TextNode(name: null, parent: null, XMLNodeType.TEXT, text), mustCopy: false);
             else if (value.value is ASXMLList xmlList)
                 internalInsertChildrenAfter(lastChild, xmlList, mustCopy: true);
             else
@@ -1648,7 +1670,7 @@ namespace Mariana.AVM2.Core {
             var attrList = new DynamicArray<ASXML>((genName.uri == null && genName.localName == null) ? 0 : 1);
 
             internalFetchNodesByGenName(genName, ref attrList);
-            return new ASXMLList(attrList.getUnderlyingArray(), attrList.length, true, this, genName);
+            return new ASXMLList(attrList.getUnderlyingArray(), attrList.length, noCopy: true, this, genName);
         }
 
         /// <summary>
@@ -1658,9 +1680,10 @@ namespace Mariana.AVM2.Core {
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
         public ASXMLList attributes() {
-            DynamicArray<ASXML> list = new DynamicArray<ASXML>();
+            var list = new DynamicArray<ASXML>();
             internalFetchNodesByType(XMLNodeType.ATTRIBUTE, ref list);
-            return new ASXMLList(list.getUnderlyingArray(), list.length, true, this, true);
+
+            return new ASXMLList(list.getUnderlyingArray(), list.length, noCopy: true, this, targetNameIsAttr: true);
         }
 
         /// <summary>
@@ -1710,9 +1733,10 @@ namespace Mariana.AVM2.Core {
                 return new ASXMLList(indexed, indexed.Length, noCopy: true);
             }
 
-            DynamicArray<ASXML> list = new DynamicArray<ASXML>();
+            var list = new DynamicArray<ASXML>();
             internalFetchNodesByGenName(genName, ref list);
-            return new ASXMLList(list.getUnderlyingArray(), list.length, true, this, genName);
+
+            return new ASXMLList(list.getUnderlyingArray(), list.length, noCopy: true, this, genName);
         }
 
         /// <summary>
@@ -1722,9 +1746,10 @@ namespace Mariana.AVM2.Core {
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
         public ASXMLList children() {
-            DynamicArray<ASXML> list = new DynamicArray<ASXML>();
+            var list = new DynamicArray<ASXML>();
             internalFetchNodesByGenName(XMLGenName.anyChild(), ref list);
-            return new ASXMLList(list.getUnderlyingArray(), list.length, true, this);
+
+            return new ASXMLList(list.getUnderlyingArray(), list.length, noCopy: true, this);
         }
 
         /// <summary>
@@ -1734,9 +1759,10 @@ namespace Mariana.AVM2.Core {
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
         public ASXMLList comments() {
-            DynamicArray<ASXML> commentsList = new DynamicArray<ASXML>();
+            var commentsList = new DynamicArray<ASXML>();
             internalFetchNodesByType(XMLNodeType.COMMENT, ref commentsList);
-            return new ASXMLList(commentsList.getUnderlyingArray(), commentsList.length, true, this);
+
+            return new ASXMLList(commentsList.getUnderlyingArray(), commentsList.length, noCopy: true, this);
         }
 
         /// <summary>
@@ -1815,9 +1841,10 @@ namespace Mariana.AVM2.Core {
             if (genName.isIndex)
                 return new ASXMLList();
 
-            DynamicArray<ASXML> list = new DynamicArray<ASXML>();
+            var list = new DynamicArray<ASXML>();
             internalFetchDescByGenName(genName, ref list);
-            return new ASXMLList(list.getUnderlyingArray(), list.length, true);
+
+            return new ASXMLList(list.getUnderlyingArray(), list.length, noCopy: true);
         }
 
         /// <summary>
@@ -1855,7 +1882,7 @@ namespace Mariana.AVM2.Core {
             var genName = XMLGenName.fromObject(name, 0);
 
             if (genName.isIndex || genName.isAttr)
-                return new ASXMLList(Array.Empty<ASXML>(), 0, true, this);
+                return new ASXMLList(Array.Empty<ASXML>(), 0, noCopy: true, this);
 
             DynamicArray<ASXML> list = new DynamicArray<ASXML>();
 
@@ -1864,7 +1891,7 @@ namespace Mariana.AVM2.Core {
             else
                 internalFetchNodesByGenName(genName, ref list);
 
-            return new ASXMLList(list.getUnderlyingArray(), list.length, true, this, genName);
+            return new ASXMLList(list.getUnderlyingArray(), list.length, noCopy: true, this, genName);
         }
 
         /// <summary>
@@ -1982,7 +2009,7 @@ namespace Mariana.AVM2.Core {
             ASXML insertLocation = _checkChildOfCurrentNode(child1);
 
             if (text != null)
-                internalInsertChildAfter(insertLocation, new _TextNode(null, null, XMLNodeType.TEXT, text), mustCopy: false);
+                internalInsertChildAfter(insertLocation, new _TextNode(name: null, parent: null, XMLNodeType.TEXT, text), mustCopy: false);
             else if (child2.value is ASXMLList xmlList)
                 internalInsertChildrenAfter(insertLocation, xmlList, mustCopy: true);
             else
@@ -2061,7 +2088,7 @@ namespace Mariana.AVM2.Core {
             }
 
             if (text != null)
-                internalInsertChildAfter(insertLocation, new _TextNode(null, null, XMLNodeType.TEXT, text), mustCopy: false);
+                internalInsertChildAfter(insertLocation, new _TextNode(name: null, parent: null, XMLNodeType.TEXT, text), mustCopy: false);
             else if (child2.value is ASXMLList xmlList)
                 internalInsertChildrenAfter(insertLocation, xmlList, mustCopy: true);
             else
@@ -2213,7 +2240,7 @@ namespace Mariana.AVM2.Core {
             string text = XMLHelper.tryGetStringFromObjectOrNode(value);
 
             if (text != null)
-                internalInsertChildAfter(null, new _TextNode(null, null, XMLNodeType.TEXT, text), mustCopy: false);
+                internalInsertChildAfter(null, new _TextNode(name: null, parent: null, XMLNodeType.TEXT, text), mustCopy: false);
             else if (value.value is ASXMLList xmlList)
                 internalInsertChildrenAfter(null, xmlList, mustCopy: true);
             else
@@ -2260,9 +2287,10 @@ namespace Mariana.AVM2.Core {
                 throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
 
             var genName = XMLGenName.fromObjectProcInstrName(name);
-            DynamicArray<ASXML> piList = new DynamicArray<ASXML>();
+            var piList = new DynamicArray<ASXML>();
             internalFetchNodesByGenName(genName, ref piList);
-            return new ASXMLList(piList.getUnderlyingArray(), piList.length, true, this);
+
+            return new ASXMLList(piList.getUnderlyingArray(), piList.length, noCopy: true, this);
         }
 
         /// <summary>
@@ -2346,7 +2374,7 @@ namespace Mariana.AVM2.Core {
 
             if (text != null) {
                 if (text.Length != 0)
-                    internalInsertChildAfter(null, new _TextNode(null, null, XMLNodeType.TEXT, text), mustCopy: false);
+                    internalInsertChildAfter(null, new _TextNode(name: null, parent: null, XMLNodeType.TEXT, text), mustCopy: false);
             }
             else if (value.value is ASXMLList xmlList) {
                 internalInsertChildrenAfter(null, xmlList, mustCopy: true);
@@ -2517,9 +2545,10 @@ namespace Mariana.AVM2.Core {
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
         public ASXMLList text() {
-            DynamicArray<ASXML> list = new DynamicArray<ASXML>();
+            var list = new DynamicArray<ASXML>();
             internalFetchNodesByType(XMLNodeType.TEXT, ref list);
-            return new ASXMLList(list.getUnderlyingArray(), list.length, true, this);
+
+            return new ASXMLList(list.getUnderlyingArray(), list.length, noCopy: true, this);
         }
 
         /// <summary>
@@ -2598,7 +2627,7 @@ namespace Mariana.AVM2.Core {
                 nodeText = text;
             }
 
-            public override ASXML copy() => new _TextNode(m_name, null, m_nodeType, nodeText);
+            public override ASXML copy() => new _TextNode(m_name, parent: null, m_nodeType, nodeText);
 
             public override string nodeText {
                 get => m_text;
@@ -2657,7 +2686,7 @@ namespace Mariana.AVM2.Core {
             private ASXML _copyOrCheckChildToBeInserted(ASXML nodeToInsert, bool mustCopy) {
                 if (nodeToInsert.isAttribute) {
                     // Convert attributes to text nodes.
-                    return new _TextNode(null, null, XMLNodeType.TEXT, nodeToInsert.nodeText);
+                    return new _TextNode(name: null, parent: null, XMLNodeType.TEXT, nodeToInsert.nodeText);
                 }
 
                 if (mustCopy)
@@ -2712,7 +2741,7 @@ namespace Mariana.AVM2.Core {
 
             internal override void internalClearChildren() {
                 while (m_firstChild != null)
-                    _detachNode(m_firstChild, null);
+                    _detachNode(m_firstChild, prevSibling: null);
             }
 
             /// <summary>
@@ -2812,7 +2841,7 @@ namespace Mariana.AVM2.Core {
 
                 // Make a copy of the namespace array because namespaces that are declared
                 // by ancestors need to be removed.
-                ASNamespace[] thisNodeDecls = m_nsdecls.toArray(true);
+                ASNamespace[] thisNodeDecls = m_nsdecls.toArray(alwaysCopy: true);
                 bool isAnyDeclRemoved = false;
 
                 // Check for declarations of ancestor nodes and remove them.
@@ -2925,12 +2954,12 @@ namespace Mariana.AVM2.Core {
             /// </summary>
             /// <returns>A shallow copy of this node.</returns>
             /// <param name="node">The node for which to create a copy.</param>
-            /// <param name="parent">The node to be set as the parent of the copy.</param>
-            private static ASXML _makeShallowCopy(ASXML node, ASXML parent) {
+            /// <param name="newParent">The node to be set as the parent of the copy.</param>
+            private static ASXML _makeShallowCopy(ASXML node, ASXML newParent) {
                 if (!(node is _ElementNode elem))
-                    return new _TextNode(node.m_name, parent, node.m_nodeType, node.nodeText);
+                    return new _TextNode(node.m_name, newParent, node.m_nodeType, node.nodeText);
 
-                _ElementNode newElem = new _ElementNode(node.m_name, parent);
+                _ElementNode newElem = new _ElementNode(node.m_name, newParent);
                 ref ASXML newElemAttrTail = ref newElem.m_firstAttr;
 
                 for (ASXML attr = elem.m_firstAttr; attr != null; attr = attr.m_next) {
@@ -2939,7 +2968,8 @@ namespace Mariana.AVM2.Core {
                     newElemAttrTail = ref newAttr.m_next;
                 }
 
-                newElem.m_nsdecls = new DynamicArray<ASNamespace>(elem.m_nsdecls.toArray(true), elem.m_nsdecls.length);
+                newElem.m_nsdecls =
+                    new DynamicArray<ASNamespace>(elem.m_nsdecls.toArray(alwaysCopy: true), elem.m_nsdecls.length);
 
                 return newElem;
             }
@@ -3026,7 +3056,7 @@ namespace Mariana.AVM2.Core {
                         && ((nodeName.prefix.Length == 0 && nodeName.uri.Length != 0)
                             || nodeName.prefix == "xmlns"))
                     {
-                        nodeName = ASQName.unsafeCreate(null, nodeName.uri, nodeName.localName);
+                        nodeName = ASQName.unsafeCreate(prefix: null, nodeName.uri, nodeName.localName);
                     }
                 }
                 else {
@@ -3050,7 +3080,7 @@ namespace Mariana.AVM2.Core {
                         newNode = new _TextNode(nodeName, this, nodeType, nodeText);
 
                     newNode.m_next = null;
-                    internalInsertChildAfter(m_lastChild, newNode, false);
+                    internalInsertChildAfter(m_lastChild, newNode, mustCopy: false);
                 }
 
                 if (nodeName == null || nodeName.prefix == null || nodeName.uri.Length == 0)
@@ -3107,7 +3137,7 @@ namespace Mariana.AVM2.Core {
                             prefix = null;
 
                         var qname = ASQName.unsafeCreate(prefix, uri, genName.localName);
-                        attribute = new _TextNode(qname, this, XMLNodeType.ATTRIBUTE, null);
+                        attribute = new _TextNode(qname, this, XMLNodeType.ATTRIBUTE, text: null);
                         attribute.m_next = m_firstAttr;
                         m_firstAttr = attribute;
 
@@ -3169,7 +3199,7 @@ namespace Mariana.AVM2.Core {
 
                         if (primitiveString.Length != 0) {
                             target.internalInsertChildAfter(
-                                null, new _TextNode(null, null, XMLNodeType.TEXT, primitiveString), mustCopy: false
+                                null, new _TextNode(name: null, parent: null, XMLNodeType.TEXT, primitiveString), mustCopy: false
                             );
                         }
 
@@ -3184,7 +3214,7 @@ namespace Mariana.AVM2.Core {
                             replacementNode = valueXmlList[0];
                         }
                         else {
-                            replacementNode = new _TextNode(null, null, XMLNodeType.TEXT, ASAny.AS_convertString(value));
+                            replacementNode = new _TextNode(name: null, parent: null, XMLNodeType.TEXT, ASAny.AS_convertString(value));
                             mustCopy = false;
                         }
                     }
@@ -3230,7 +3260,7 @@ namespace Mariana.AVM2.Core {
                 if (!isMultiNamespace && uri == null && searchGenName.localName == null) {
                     // Special case for the "any" name.
                     while (firstNode != null)
-                        firstNode = _detachNode(firstNode, null);
+                        firstNode = _detachNode(firstNode, prevSibling: null);
                     return;
                 }
 
@@ -3354,7 +3384,7 @@ namespace Mariana.AVM2.Core {
                     m_nsdecls[oldIndex] = nameSpace;
                 }
 
-                var iterator = getDescendantEnumerator(true);
+                var iterator = getDescendantEnumerator(includeThis: true);
 
                 while (iterator.MoveNext()) {
                     if (!(iterator.Current is _ElementNode cur))
@@ -3369,12 +3399,12 @@ namespace Mariana.AVM2.Core {
                     }
 
                     if (cur.m_name.prefix == prefix && cur.m_name.uri.Length != 0)
-                        cur.m_name = ASQName.unsafeCreate(null, cur.m_name.uri, cur.m_name.localName);
+                        cur.m_name = ASQName.unsafeCreate(prefix: null, cur.m_name.uri, cur.m_name.localName);
 
                     if (prefix.Length != 0) {
                         for (ASXML attr = cur.m_firstAttr; attr != null; attr = attr.m_next) {
                             if (attr.m_name.prefix == prefix)
-                                attr.m_name = ASQName.unsafeCreate(null, attr.m_name.uri, attr.m_name.localName);
+                                attr.m_name = ASQName.unsafeCreate(prefix: null, attr.m_name.uri, attr.m_name.localName);
                         }
                     }
                 }
@@ -3384,13 +3414,13 @@ namespace Mariana.AVM2.Core {
 
             public override ASXML copy() {
                 ASXML cur = this;
-                ASXML copyCur = _makeShallowCopy(this, null);
+                ASXML copyCur = _makeShallowCopy(this, newParent: null);
 
                 while (true) {
                     if (cur is _ElementNode curElement && curElement.m_firstChild != null) {
                         // Descend into the first child.
                         _ElementNode copyCurElement = (_ElementNode)copyCur;
-                        copyCurElement.m_firstChild = _makeShallowCopy(curElement.m_firstChild, copyCurElement);
+                        copyCurElement.m_firstChild = _makeShallowCopy(curElement.m_firstChild, newParent: copyCurElement);
                         cur = curElement.m_firstChild;
                         copyCur = copyCurElement.m_firstChild;
                         continue;
@@ -3437,7 +3467,7 @@ namespace Mariana.AVM2.Core {
 
             public override ASXML normalize() {
                 DynamicArray<string> tempList = new DynamicArray<string>();
-                DescendantEnumerator iterator = getDescendantEnumerator(true);
+                DescendantEnumerator iterator = getDescendantEnumerator(includeThis: true);
 
                 while (iterator.MoveNext()) {
                     if (!(iterator.Current is _ElementNode curElement))
@@ -3533,7 +3563,7 @@ namespace Mariana.AVM2.Core {
                 if (prefix == null)
                     return this;
 
-                DescendantEnumerator iterator = getDescendantEnumerator(true);
+                DescendantEnumerator iterator = getDescendantEnumerator(includeThis: true);
 
                 while (iterator.MoveNext()) {
                     if (!(iterator.Current is _ElementNode curNode))
@@ -3550,12 +3580,12 @@ namespace Mariana.AVM2.Core {
                     }
 
                     if (curNode.m_name.prefix == prefix)
-                        curNode.m_name = ASQName.unsafeCreate(null, curNode.m_name.uri, curNode.m_name.localName);
+                        curNode.m_name = ASQName.unsafeCreate(prefix: null, curNode.m_name.uri, curNode.m_name.localName);
 
                     if (prefix.Length != 0) {
                         for (ASXML attr = curNode.m_firstAttr; attr != null; attr = attr.m_next) {
                             if (attr.m_name.prefix == prefix)
-                                attr.m_name = ASQName.unsafeCreate(null, attr.m_name.uri, attr.m_name.localName);
+                                attr.m_name = ASQName.unsafeCreate(prefix: null, attr.m_name.uri, attr.m_name.localName);
                         }
                     }
                 }
@@ -3573,7 +3603,7 @@ namespace Mariana.AVM2.Core {
                 ASXML replacementNode;
 
                 if (replacementText != null) {
-                    replacementNode = new _TextNode(null, null, XMLNodeType.TEXT, replacementText);
+                    replacementNode = new _TextNode(name: null, parent: null, XMLNodeType.TEXT, replacementText);
                     mustCopy = false;
                 }
                 else if (valueXmlList != null) {

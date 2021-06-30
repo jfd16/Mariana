@@ -66,7 +66,7 @@ namespace Mariana.AVM2.Core {
             var sysDomain = ApplicationDomain.systemDomain;
 
             // Since there is no way to define an undefined constant in ASGlobal, we have to do it here.
-            sysDomain.tryDefineGlobalTrait(new ConstantTrait("undefined", null, sysDomain, ASAny.undefined));
+            sysDomain.tryDefineGlobalTrait(new ConstantTrait("undefined", declaringClass: null, sysDomain, ASAny.undefined));
 
             Type[] coreClassTypes = s_coreClassTypes;
             for (int i = 0; i < coreClassTypes.Length; i++)

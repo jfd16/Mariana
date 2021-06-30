@@ -11,24 +11,6 @@ namespace Mariana.AVM2.Tests {
     [AVM2ExportClass]
     public interface OperatorsTest_IA { }
 
-    [AVM2ExportClass]
-    public class OperatorsTest_CA : ASObject {
-        [AVM2ExportTrait]
-        public int foo() => 0;
-
-        [AVM2ExportTrait]
-        public int foo2() => 1;
-
-        [AVM2ExportTrait]
-        public static int bar(int x) => x;
-
-        [AVM2ExportTrait]
-        public static int bar2(int x) => x;
-    }
-
-    [AVM2ExportClass]
-    public class OperatorsTest_CB : OperatorsTest_CA, OperatorsTest_IA { }
-
     public class OperatorsTest {
 
         public enum CompareOpResult {
@@ -37,30 +19,22 @@ namespace Mariana.AVM2.Tests {
             NAN
         }
 
-        static OperatorsTest() {
-            TestAppDomain.ensureClassesLoaded(
-                typeof(OperatorsTest_CA),
-                typeof(OperatorsTest_CB)
-            );
-        }
-
-        private static readonly double NEG_ZERO = BitConverter.Int64BitsToDouble(unchecked((long)0x8000000000000000L));
+        private static readonly MockClass mockClassA, mockClassB, mockInterfaceA;
 
         private static readonly ASObject uniqueObject = new ASObject();
         private static readonly ASArray uniqueArray = new ASArray();
         private static readonly ASFunction uniqueFunction = ASFunction.createEmpty();
-        private static readonly ASObject uniqueObjectClassA = new OperatorsTest_CA();
-        private static readonly ASObject uniqueObjectClassB = new OperatorsTest_CB();
+        private static readonly ASObject uniqueObjectClassA = new MockClassInstance(mockClassA);
+        private static readonly ASObject uniqueObjectClassB = new MockClassInstance(mockClassB);
         private static readonly ASNamespace uniqueNamespace = new ASNamespace("x", "abc");
         private static readonly ASQName uniqueQName = new ASQName("abc", "def");
         private static readonly ASXML uniqueXml = xmlElement("a", children: new[] {xmlElement("b"), xmlElement("c")});
         private static readonly ASXMLList uniqueXmlList = xmlList(xmlElement("a"), xmlText(""));
-
         private static readonly ASObject boxedNaN = Double.NaN;
 
         private static readonly ASAny NULL = ASAny.@null;
-
         private static readonly ASAny UNDEF = ASAny.undefined;
+        private static readonly double NEG_ZERO = BitConverter.Int64BitsToDouble(unchecked((long)0x8000000000000000L));
 
         private static ASXML xmlText(string value) => ASXML.createNode(XMLNodeType.TEXT, null, value);
 
@@ -77,7 +51,7 @@ namespace Mariana.AVM2.Tests {
             var obj = new ASObject();
 
             for (int i = 0; i < methods.Length; i++)
-                obj.AS_setProperty(methods[i].name, SpyFunctionObject.withReturn(methods[i].returnVal));
+                obj.AS_setProperty(methods[i].name, MockFunctionObject.withReturn(methods[i].returnVal));
 
             return obj;
         }
@@ -126,6 +100,44 @@ namespace Mariana.AVM2.Tests {
             }
         }
 
+        static OperatorsTest() {
+            TestAppDomain.ensureClassesLoaded(typeof(OperatorsTest_IA));
+
+            Class intClass = Class.fromType(typeof(int));
+
+            mockInterfaceA = new MockClass("IA", isInterface: true);
+
+            mockClassA = new MockClass(
+                name: "A",
+                methods: new[] {
+                    new MockMethodTrait(
+                        "foo", hasReturn: true, returnType: intClass, invokeFunc: (obj, args) => 0
+                    ),
+                    new MockMethodTrait(
+                        "foo2", hasReturn: true, returnType: intClass, invokeFunc: (obj, args) => 0
+                    ),
+                    new MockMethodTrait(
+                        "bar",
+                        isStatic: true,
+                        hasReturn: true,
+                        returnType: intClass,
+                        parameters: new[] {new MethodTraitParameter("", intClass, isOptional: false, hasDefault: false, defaultValue: default)},
+                        invokeFunc: (obj, args) => args[0]
+                    ),
+                    new MockMethodTrait(
+                        "bar2",
+                        isStatic: true,
+                        hasReturn: true,
+                        returnType: intClass,
+                        parameters: new[] {new MethodTraitParameter("", intClass, isOptional: false, hasDefault: false, defaultValue: default)},
+                        invokeFunc: (obj, args) => args[0]
+                    ),
+                }
+            );
+
+            mockClassB = new MockClass("B", parent: mockClassA, interfaces: new[] {mockInterfaceA});
+        }
+
         private static (ASAny x, ASAny y)[] equalityOperatorTests_data_alwaysEqual() => new (ASAny x, ASAny y)[] {
             (x: NULL, y: NULL),
             (x: UNDEF, y: UNDEF),
@@ -167,12 +179,12 @@ namespace Mariana.AVM2.Tests {
             (x: uniqueXmlList, y: uniqueXmlList),
 
             (
-                x: Class.fromType(typeof(OperatorsTest_CA)).getMethod("foo").createMethodClosure(uniqueObjectClassA),
-                y: Class.fromType(typeof(OperatorsTest_CA)).getMethod("foo").createMethodClosure(uniqueObjectClassA)
+                x: mockClassA.getMethod("foo").createMethodClosure(uniqueObjectClassA),
+                y: mockClassA.getMethod("foo").createMethodClosure(uniqueObjectClassA)
             ),
             (
-                x: Class.fromType(typeof(OperatorsTest_CA)).getMethod("bar").createMethodClosure(),
-                y: Class.fromType(typeof(OperatorsTest_CA)).getMethod("bar").createMethodClosure()
+                x: mockClassA.getMethod("bar").createMethodClosure(),
+                y: mockClassA.getMethod("bar").createMethodClosure()
             )
         };
 
@@ -531,34 +543,34 @@ namespace Mariana.AVM2.Tests {
             (x: new ASNamespace("abc"), y: new ASNamespace("def")),
             (x: new ASQName("abc", "def"), y: new ASQName("abc", "ghi")),
             (x: new ASQName("abc", "def"), y: new ASQName("xyz", "def")),
-            (x: new OperatorsTest_CA(), y: new OperatorsTest_CA()),
-            (x: new OperatorsTest_CA(), y: new OperatorsTest_CB()),
+            (x: new MockClassInstance(mockClassA), y: new MockClassInstance(mockClassA)),
+            (x: new MockClassInstance(mockClassA), y: new MockClassInstance(mockClassB)),
 
             (x: ASFunction.createEmpty(), y: ASFunction.createEmpty()),
 
             (
-                x: Class.fromType(typeof(OperatorsTest_CA)).getMethod("foo").createMethodClosure(uniqueObjectClassA),
-                y: Class.fromType(typeof(OperatorsTest_CA)).getMethod("foo2").createMethodClosure(uniqueObjectClassA)
+                x: mockClassA.getMethod("foo").createMethodClosure(uniqueObjectClassA),
+                y: mockClassA.getMethod("foo2").createMethodClosure(uniqueObjectClassA)
             ),
             (
-                x: Class.fromType(typeof(OperatorsTest_CA)).getMethod("foo").createMethodClosure(uniqueObjectClassA),
-                y: Class.fromType(typeof(OperatorsTest_CA)).getMethod("foo").createMethodClosure(new OperatorsTest_CA())
+                x: mockClassA.getMethod("foo").createMethodClosure(uniqueObjectClassA),
+                y: mockClassA.getMethod("foo").createMethodClosure(new MockClassInstance(mockClassA))
             ),
             (
-                x: Class.fromType(typeof(OperatorsTest_CA)).getMethod("foo").createMethodClosure(uniqueObjectClassA),
-                y: Class.fromType(typeof(OperatorsTest_CA)).getMethod("foo2").createMethodClosure(new OperatorsTest_CA())
+                x: mockClassA.getMethod("foo").createMethodClosure(uniqueObjectClassA),
+                y: mockClassA.getMethod("foo2").createMethodClosure(new MockClassInstance(mockClassA))
             ),
             (
-                x: Class.fromType(typeof(OperatorsTest_CA)).getMethod("bar").createMethodClosure(),
-                y: Class.fromType(typeof(OperatorsTest_CA)).getMethod("bar2").createMethodClosure()
+                x: mockClassA.getMethod("bar").createMethodClosure(),
+                y: mockClassA.getMethod("bar2").createMethodClosure()
             ),
             (
-                x: Class.fromType(typeof(OperatorsTest_CA)).getMethod("foo").createFunctionClosure(),
-                y: Class.fromType(typeof(OperatorsTest_CA)).getMethod("foo").createFunctionClosure()
+                x: mockClassA.getMethod("foo").createFunctionClosure(),
+                y: mockClassA.getMethod("foo").createFunctionClosure()
             ),
             (
-                x: Class.fromType(typeof(OperatorsTest_CA)).getMethod("bar").createFunctionClosure(),
-                y: Class.fromType(typeof(OperatorsTest_CA)).getMethod("bar").createFunctionClosure()
+                x: mockClassA.getMethod("bar").createFunctionClosure(),
+                y: mockClassA.getMethod("bar").createFunctionClosure()
             ),
 
             (x: 1234, y: objWithMethods(("valueOf", 1235))),
@@ -2044,80 +2056,82 @@ namespace Mariana.AVM2.Tests {
             }
         }
 
-        public static IEnumerable<object[]> stringAddTest_data = TupleHelper.toArrays(
-            (Array.Empty<string>(), ""),
+        public static IEnumerable<object[]> stringAddTest_data = TupleHelper.toArrays<StringWrapper[], StringWrapper>(
+            (Array.Empty<StringWrapper>(), ""),
 
-            (new string[] {null}, "null"),
-            (new[] {""}, ""),
-            (new[] {"hello"}, "hello"),
+            (new StringWrapper[] {null}, "null"),
+            (new StringWrapper[] {""}, ""),
+            (new StringWrapper[] {"hello"}, "hello"),
 
-            (new string[] {null, null}, "nullnull"),
-            (new[] {"", null}, "null"),
-            (new[] {null, ""}, "null"),
-            (new[] {"hello", null}, "hellonull"),
-            (new[] {null, "hello"}, "nullhello"),
-            (new[] {"", ""}, ""),
-            (new[] {"", "hello"}, "hello"),
-            (new[] {"hello", ""}, "hello"),
-            (new[] {"hello", "hello"}, "hellohello"),
-            (new[] {"abc", "defg"}, "abcdefg"),
-            (new[] {"he", "\u0301llo"}, "he\u0301llo"),
-            (new[] {"\ud854", "\udd43"}, "\ud854\udd43"),
-            (new[] {"abcd\0", "defg"}, "abcd\0defg"),
+            (new StringWrapper[] {null, null}, "nullnull"),
+            (new StringWrapper[] {"", null}, "null"),
+            (new StringWrapper[] {null, ""}, "null"),
+            (new StringWrapper[] {"hello", null}, "hellonull"),
+            (new StringWrapper[] {null, "hello"}, "nullhello"),
+            (new StringWrapper[] {"", ""}, ""),
+            (new StringWrapper[] {"", "hello"}, "hello"),
+            (new StringWrapper[] {"hello", ""}, "hello"),
+            (new StringWrapper[] {"hello", "hello"}, "hellohello"),
+            (new StringWrapper[] {"abc", "defg"}, "abcdefg"),
+            (new StringWrapper[] {"he", "\u0301llo"}, "he\u0301llo"),
+            (new StringWrapper[] {"\ud854", "\udd43"}, "\ud854\udd43"),
+            (new StringWrapper[] {"abcd\0", "defg"}, "abcd\0defg"),
 
-            (new string[] {null, null, null}, "nullnullnull"),
-            (new[] {null, null, ""}, "nullnull"),
-            (new[] {null, "", null}, "nullnull"),
-            (new[] {null, "", ""}, "null"),
-            (new[] {null, null, "hello"}, "nullnullhello"),
-            (new[] {"abc", null, "def"}, "abcnulldef"),
-            (new[] {null, "", "abc"}, "nullabc"),
+            (new StringWrapper[] {null, null, null}, "nullnullnull"),
+            (new StringWrapper[] {null, null, ""}, "nullnull"),
+            (new StringWrapper[] {null, "", null}, "nullnull"),
+            (new StringWrapper[] {null, "", ""}, "null"),
+            (new StringWrapper[] {null, null, "hello"}, "nullnullhello"),
+            (new StringWrapper[] {"abc", null, "def"}, "abcnulldef"),
+            (new StringWrapper[] {null, "", "abc"}, "nullabc"),
 
-            (new[] {"", "", ""}, ""),
-            (new[] {"", "a", ""}, "a"),
-            (new[] {"a", "", "b"}, "ab"),
-            (new[] {"abc", "def", ""}, "abcdef"),
-            (new[] {"", "abc", "def"}, "abcdef"),
-            (new[] {"abc", "", "def"}, "abcdef"),
-            (new[] {"abc", "de", "fghi"}, "abcdefghi"),
-            (new[] {"abc", "de\0d", "fghi"}, "abcde\0dfghi"),
+            (new StringWrapper[] {"", "", ""}, ""),
+            (new StringWrapper[] {"", "a", ""}, "a"),
+            (new StringWrapper[] {"a", "", "b"}, "ab"),
+            (new StringWrapper[] {"abc", "def", ""}, "abcdef"),
+            (new StringWrapper[] {"", "abc", "def"}, "abcdef"),
+            (new StringWrapper[] {"abc", "", "def"}, "abcdef"),
+            (new StringWrapper[] {"abc", "de", "fghi"}, "abcdefghi"),
+            (new StringWrapper[] {"abc", "de\0d", "fghi"}, "abcde\0dfghi"),
 
-            (new string[] {null, null, null, null}, "nullnullnullnull"),
-            (new[] {null, "abc", "", null}, "nullabcnull"),
-            (new[] {"a", null, null, "b"}, "anullnullb"),
-            (new[] {null, null, "", null}, "nullnullnull"),
-            (new[] {"a", null, "b", null}, "anullbnull"),
-            (new[] {"abc", null, "de", ""}, "abcnullde"),
-            (new[] {"", "", "", ""}, ""),
-            (new[] {"", "abc", "", "def"}, "abcdef"),
-            (new[] {"ab", "", "", ""}, "ab"),
-            (new[] {"abcd", "", "", "1234"}, "abcd1234"),
-            (new[] {"", "12", "34", ""}, "1234"),
-            (new[] {"ab", "cd", "ef", "ghi"}, "abcdefghi"),
-            (new[] {"ab", "ab", "ab", "ab"}, "abababab"),
-            (new[] {"ab", "cd\0", "ef", "ghi"}, "abcd\0efghi"),
-            (new[] {"ab", "cd", "ef", "ghi\0"}, "abcdefghi\0"),
+            (new StringWrapper[] {null, null, null, null}, "nullnullnullnull"),
+            (new StringWrapper[] {null, "abc", "", null}, "nullabcnull"),
+            (new StringWrapper[] {"a", null, null, "b"}, "anullnullb"),
+            (new StringWrapper[] {null, null, "", null}, "nullnullnull"),
+            (new StringWrapper[] {"a", null, "b", null}, "anullbnull"),
+            (new StringWrapper[] {"abc", null, "de", ""}, "abcnullde"),
+            (new StringWrapper[] {"", "", "", ""}, ""),
+            (new StringWrapper[] {"", "abc", "", "def"}, "abcdef"),
+            (new StringWrapper[] {"ab", "", "", ""}, "ab"),
+            (new StringWrapper[] {"abcd", "", "", "1234"}, "abcd1234"),
+            (new StringWrapper[] {"", "12", "34", ""}, "1234"),
+            (new StringWrapper[] {"ab", "cd", "ef", "ghi"}, "abcdefghi"),
+            (new StringWrapper[] {"ab", "ab", "ab", "ab"}, "abababab"),
+            (new StringWrapper[] {"ab", "cd\0", "ef", "ghi"}, "abcd\0efghi"),
+            (new StringWrapper[] {"ab", "cd", "ef", "ghi\0"}, "abcdefghi\0"),
 
-            (new string[] {null, null, null, null, null, null}, "nullnullnullnullnullnull"),
-            (new[] {"ab", null, "", null, "cd", "", "", "EF", null, "gHI", "12", ""}, "abnullnullcdEFnullgHI12"),
-            (new[] {"ab", "Cd", "132", "gJr", "12*&5d", "", "ghTRz", "(89"}, "abCd132gJr12*&5dghTRz(89"),
-            (new[] {"\ud800\udfff\ud800", "", "\udfee\udc87", "\ud894\ud76a\ud803", "\udd66"}, "\ud800\udfff\ud800\udfee\udc87\ud894\ud76a\ud803\udd66")
+            (new StringWrapper[] {null, null, null, null, null, null}, "nullnullnullnullnullnull"),
+            (new StringWrapper[] {"ab", null, "", null, "cd", "", "", "EF", null, "gHI", "12", ""}, "abnullnullcdEFnullgHI12"),
+            (new StringWrapper[] {"ab", "Cd", "132", "gJr", "12*&5d", "", "ghTRz", "(89"}, "abCd132gJr12*&5dghTRz(89"),
+            (new StringWrapper[] {"\ud800\udfff\ud800", "", "\udfee\udc87", "\ud894\ud76a\ud803", "\udd66"}, "\ud800\udfff\ud800\udfee\udc87\ud894\ud76a\ud803\udd66")
         );
 
         [Theory]
         [MemberData(nameof(stringAddTest_data))]
-        public void stringAddTest(string[] args, string expected) {
-            Assert.Equal(expected, ASString.AS_add(args));
+        public void stringAddTest(StringWrapper[] args, StringWrapper expected) {
+            string[] argStrings = args.Select(x => x.value).ToArray();
 
-            if (args.Length == 2)
-                Assert.Equal(expected, ASString.AS_add(args[0], args[1]));
+            Assert.Equal(expected.value, ASString.AS_add(argStrings));
+
+            if (argStrings.Length == 2)
+                Assert.Equal(expected.value, ASString.AS_add(argStrings[0], argStrings[1]));
             else if (args.Length == 3)
-                Assert.Equal(expected, ASString.AS_add(args[0], args[1], args[2]));
+                Assert.Equal(expected.value, ASString.AS_add(argStrings[0], argStrings[1], argStrings[2]));
             else if (args.Length == 4)
-                Assert.Equal(expected, ASString.AS_add(args[0], args[1], args[2], args[3]));
+                Assert.Equal(expected.value, ASString.AS_add(argStrings[0], argStrings[1], argStrings[2], argStrings[3]));
         }
 
-        public static IEnumerable<object[]> stringCompareOpsTest_data = TupleHelper.toArrays<string, string, CompareOpResult>(
+        public static IEnumerable<object[]> stringCompareOpsTest_data = TupleHelper.toArrays<StringWrapper, StringWrapper, CompareOpResult>(
             #pragma warning disable 8123
 
             (x: "", y: "", result: CompareOpResult.EQUAL),
@@ -2155,7 +2169,7 @@ namespace Mariana.AVM2.Tests {
 
         [Theory]
         [MemberData(nameof(stringCompareOpsTest_data))]
-        public void stringCompareOpsTest(string x, string y, CompareOpResult expectedResult) {
+        public void stringCompareOpsTest(StringWrapper x, StringWrapper y, CompareOpResult expectedResult) {
             bool isLess = false, isLessEq = false, isGreater = false, isGreaterEq = false;
 
             if (expectedResult != CompareOpResult.NAN) {
@@ -2165,14 +2179,14 @@ namespace Mariana.AVM2.Tests {
                 isGreaterEq = !isLess;
             }
 
-            Assert.Equal(isLess, ASString.AS_lessThan(x, y));
-            Assert.Equal(isLess, ASString.AS_greaterThan(y, x));
-            Assert.Equal(isLessEq, ASString.AS_lessEq(x, y));
-            Assert.Equal(isLessEq, ASString.AS_greaterEq(y, x));
-            Assert.Equal(isGreater, ASString.AS_greaterThan(x, y));
-            Assert.Equal(isGreater, ASString.AS_lessThan(y, x));
-            Assert.Equal(isGreaterEq, ASString.AS_greaterEq(x, y));
-            Assert.Equal(isGreaterEq, ASString.AS_lessEq(y, x));
+            Assert.Equal(isLess, ASString.AS_lessThan(x.value, y.value));
+            Assert.Equal(isLess, ASString.AS_greaterThan(y.value, x.value));
+            Assert.Equal(isLessEq, ASString.AS_lessEq(x.value, y.value));
+            Assert.Equal(isLessEq, ASString.AS_greaterEq(y.value, x.value));
+            Assert.Equal(isGreater, ASString.AS_greaterThan(x.value, y.value));
+            Assert.Equal(isGreater, ASString.AS_lessThan(y.value, x.value));
+            Assert.Equal(isGreaterEq, ASString.AS_greaterEq(x.value, y.value));
+            Assert.Equal(isGreaterEq, ASString.AS_lessEq(y.value, x.value));
         }
 
         public static IEnumerable<object[]> typeofTest_data() => TupleHelper.toArrays(
@@ -2180,7 +2194,7 @@ namespace Mariana.AVM2.Tests {
 
             (NULL, "object"),
             (new ASObject(), "object"),
-            (new OperatorsTest_CA(), "object"),
+            (new MockClassInstance(mockClassA), "object"),
             (new ASArray(), "object"),
 
             (0, "number"),
@@ -2215,8 +2229,8 @@ namespace Mariana.AVM2.Tests {
             (xmlList(), "xml"),
 
             (ASFunction.createEmpty(), "function"),
-            (Class.fromType(typeof(OperatorsTest_CA)).getMethod("foo").createMethodClosure(uniqueObjectClassA), "function"),
-            (Class.fromType(typeof(OperatorsTest_CA)).getMethod("foo").createFunctionClosure(), "function")
+            (mockClassA.getMethod("foo").createMethodClosure(uniqueObjectClassA), "function"),
+            (mockClassA.getMethod("foo").createFunctionClosure(), "function")
         );
 
         [Theory]
@@ -2241,7 +2255,7 @@ namespace Mariana.AVM2.Tests {
             (true, false),
 
             (new ASObject(), false),
-            (new OperatorsTest_CA(), false),
+            (new MockClassInstance(mockClassA), false),
 
             (xmlText(""), true),
             (xmlText("hello"), true),
@@ -2285,12 +2299,12 @@ namespace Mariana.AVM2.Tests {
 
             addVectorInstTestCase(typeof(ASAny));
             addVectorInstTestCase(typeof(ASObject));
+            addVectorInstTestCase(typeof(ASArray));
             addVectorInstTestCase(typeof(int));
             addVectorInstTestCase(typeof(uint));
             addVectorInstTestCase(typeof(double));
             addVectorInstTestCase(typeof(string));
             addVectorInstTestCase(typeof(bool));
-            addVectorInstTestCase(typeof(OperatorsTest_CA));
             addVectorInstTestCase(typeof(OperatorsTest_IA));
 
             return testcases.Select(x => TupleHelper.toArray(x));
@@ -2427,82 +2441,87 @@ namespace Mariana.AVM2.Tests {
             var testcases = new List<(ASObject, ASObject, bool)>();
 
             var objectClass = Class.fromType(typeof(ASObject)).classObject;
-            var interfaceClass = Class.fromType(typeof(OperatorsTest_IA)).classObject;
+            var intClass = Class.fromType(typeof(int)).classObject;
+            var uintClass = Class.fromType(typeof(uint)).classObject;
+            var numberClass = Class.fromType(typeof(double)).classObject;
+            var boolClass = Class.fromType(typeof(bool)).classObject;
+            var stringClass = Class.fromType(typeof(string)).classObject;
+            var arrayClass = Class.fromType(typeof(ASArray)).classObject;
+            var classClass = Class.fromType(typeof(ASObject)).classObject;
+            var xmlClass = Class.fromType(typeof(ASXML)).classObject;
+            var xmlListClass = Class.fromType(typeof(ASXMLList)).classObject;
 
-            void addTestCaseWithClass(ASObject obj, Type type, bool result) =>
-                testcases.Add((obj, Class.fromType(type).classObject, result));
+            testcases.Add((null, objectClass, false));
+            testcases.Add((null, arrayClass, false));
+            testcases.Add((null, intClass, false));
+            testcases.Add((null, mockClassA.classObject, false));
+            testcases.Add((null, mockInterfaceA.classObject, false));
 
-            addTestCaseWithClass(null, typeof(ASObject), false);
-            addTestCaseWithClass(null, typeof(ASArray), false);
-            addTestCaseWithClass(null, typeof(int), false);
-            addTestCaseWithClass(null, typeof(OperatorsTest_CA), false);
-            addTestCaseWithClass(null, typeof(OperatorsTest_IA), false);
+            testcases.Add((new ASObject(), objectClass, true));
+            testcases.Add((new ASObject(), mockClassA.classObject, false));
+            testcases.Add((new ASObject(), mockInterfaceA.classObject, false));
 
-            addTestCaseWithClass(new ASObject(), typeof(ASObject), true);
-            addTestCaseWithClass(new ASObject(), typeof(OperatorsTest_CA), false);
-            addTestCaseWithClass(new ASObject(), typeof(OperatorsTest_IA), false);
+            testcases.Add((new ASArray(), arrayClass, true));
+            testcases.Add((new ASArray(), objectClass, true));
+            testcases.Add((new ASArray(), mockClassA.classObject, false));
 
-            addTestCaseWithClass(new ASArray(), typeof(ASArray), true);
-            addTestCaseWithClass(new ASArray(), typeof(ASObject), true);
-            addTestCaseWithClass(new ASArray(), typeof(OperatorsTest_CA), false);
-
-            addTestCaseWithClass(new OperatorsTest_CA(), typeof(ASObject), true);
-            addTestCaseWithClass(new OperatorsTest_CA(), typeof(OperatorsTest_CA), true);
-            addTestCaseWithClass(new OperatorsTest_CA(), typeof(OperatorsTest_CB), false);
-            addTestCaseWithClass(new OperatorsTest_CB(), typeof(ASArray), false);
-            addTestCaseWithClass(new OperatorsTest_CB(), typeof(ASObject), true);
-            addTestCaseWithClass(new OperatorsTest_CB(), typeof(OperatorsTest_CB), true);
-            addTestCaseWithClass(new OperatorsTest_CB(), typeof(OperatorsTest_CA), true);
-            addTestCaseWithClass(new OperatorsTest_CB(), typeof(ASArray), false);
+            testcases.Add((new MockClassInstance(mockClassA), objectClass, true));
+            testcases.Add((new MockClassInstance(mockClassB), arrayClass, false));
+            testcases.Add((new MockClassInstance(mockClassA), mockClassA.classObject, true));
+            testcases.Add((new MockClassInstance(mockClassA), mockClassB.classObject, false));
+            testcases.Add((new MockClassInstance(mockClassB), objectClass, true));
+            testcases.Add((new MockClassInstance(mockClassB), arrayClass, false));
+            testcases.Add((new MockClassInstance(mockClassB), mockClassA.classObject, true));
+            testcases.Add((new MockClassInstance(mockClassB), mockClassB.classObject, true));
 
             // instanceof should return false for interfaces
-            addTestCaseWithClass(new OperatorsTest_CA(), typeof(OperatorsTest_IA), false);
-            addTestCaseWithClass(new OperatorsTest_CB(), typeof(OperatorsTest_IA), false);
+            testcases.Add((new MockClassInstance(mockClassA), mockInterfaceA.classObject, false));
+            testcases.Add((new MockClassInstance(mockClassB), mockInterfaceA.classObject, false));
 
             // int and uint use Number's prototype, so instanceof returns true if the class is Number.
-            addTestCaseWithClass(1, typeof(int), false);
-            addTestCaseWithClass(1, typeof(uint), false);
-            addTestCaseWithClass(1, typeof(double), true);
-            addTestCaseWithClass(1, typeof(ASObject), true);
-            addTestCaseWithClass(1, typeof(OperatorsTest_IA), false);
-            addTestCaseWithClass(1u, typeof(int), false);
-            addTestCaseWithClass(1u, typeof(uint), false);
-            addTestCaseWithClass(1u, typeof(double), true);
-            addTestCaseWithClass(1u, typeof(ASObject), true);
-            addTestCaseWithClass(1u, typeof(OperatorsTest_IA), false);
-            addTestCaseWithClass(1.5, typeof(int), false);
-            addTestCaseWithClass(1.5, typeof(uint), false);
-            addTestCaseWithClass(1.5, typeof(double), true);
-            addTestCaseWithClass(1.5, typeof(ASObject), true);
-            addTestCaseWithClass(1.5, typeof(OperatorsTest_IA), false);
+            testcases.Add((1, intClass, false));
+            testcases.Add((1, uintClass, false));
+            testcases.Add((1, numberClass, true));
+            testcases.Add((1, objectClass, true));
+            testcases.Add((1, mockInterfaceA.classObject, false));
+            testcases.Add((1u, intClass, false));
+            testcases.Add((1u, uintClass, false));
+            testcases.Add((1u, numberClass, true));
+            testcases.Add((1u, objectClass, true));
+            testcases.Add((1u, mockInterfaceA.classObject, false));
+            testcases.Add((1.5, intClass, false));
+            testcases.Add((1.5, uintClass, false));
+            testcases.Add((1.5, numberClass, true));
+            testcases.Add((1.5, objectClass, true));
+            testcases.Add((1.5, mockInterfaceA.classObject, false));
 
-            addTestCaseWithClass(false, typeof(bool), true);
-            addTestCaseWithClass(false, typeof(int), false);
-            addTestCaseWithClass(false, typeof(double), false);
-            addTestCaseWithClass(false, typeof(string), false);
-            addTestCaseWithClass(false, typeof(ASObject), true);
-            addTestCaseWithClass(false, typeof(OperatorsTest_IA), false);
+            testcases.Add((false, boolClass, true));
+            testcases.Add((false, intClass, false));
+            testcases.Add((false, numberClass, false));
+            testcases.Add((false, stringClass, false));
+            testcases.Add((false, objectClass, true));
+            testcases.Add((false, mockInterfaceA.classObject, false));
 
-            addTestCaseWithClass("hello", typeof(bool), false);
-            addTestCaseWithClass("hello", typeof(int), false);
-            addTestCaseWithClass("hello", typeof(double), false);
-            addTestCaseWithClass("hello", typeof(string), true);
-            addTestCaseWithClass("hello", typeof(ASObject), true);
-            addTestCaseWithClass("hello", typeof(OperatorsTest_IA), false);
+            testcases.Add(("hello", boolClass, false));
+            testcases.Add(("hello", intClass, false));
+            testcases.Add(("hello", numberClass, false));
+            testcases.Add(("hello", stringClass, true));
+            testcases.Add(("hello", objectClass, true));
+            testcases.Add(("hello", mockInterfaceA.classObject, false));
 
-            addTestCaseWithClass(ASXML.createNode(XMLNodeType.TEXT), typeof(ASXML), true);
-            addTestCaseWithClass(ASXML.createNode(XMLNodeType.TEXT), typeof(ASXMLList), false);
-            addTestCaseWithClass(new ASXMLList(new[] {ASXML.createNode(XMLNodeType.TEXT)}), typeof(ASXML), false);
-            addTestCaseWithClass(new ASXMLList(new[] {ASXML.createNode(XMLNodeType.TEXT)}), typeof(ASXMLList), true);
+            testcases.Add((ASXML.createNode(XMLNodeType.TEXT), xmlClass, true));
+            testcases.Add((ASXML.createNode(XMLNodeType.TEXT), xmlListClass, false));
+            testcases.Add((new ASXMLList(new[] {ASXML.createNode(XMLNodeType.TEXT)}), xmlClass, false));
+            testcases.Add((new ASXMLList(new[] {ASXML.createNode(XMLNodeType.TEXT)}), xmlListClass, true));
 
-            addTestCaseWithClass(Class.fromType(typeof(OperatorsTest_CB)).prototypeObject, typeof(ASObject), true);
-            addTestCaseWithClass(Class.fromType(typeof(OperatorsTest_CB)).prototypeObject, typeof(OperatorsTest_CA), true);
-            addTestCaseWithClass(Class.fromType(typeof(OperatorsTest_CB)).prototypeObject, typeof(OperatorsTest_CB), false);
+            testcases.Add((mockClassB.prototypeObject, objectClass, true));
+            testcases.Add((mockClassB.prototypeObject, mockClassA.classObject, true));
+            testcases.Add((mockClassB.prototypeObject, mockClassB.classObject, false));
 
-            addTestCaseWithClass(Class.fromType(typeof(OperatorsTest_CB)).classObject, typeof(ASObject), true);
-            addTestCaseWithClass(Class.fromType(typeof(OperatorsTest_CB)).classObject, typeof(ASClass), true);
-            addTestCaseWithClass(Class.fromType(typeof(OperatorsTest_CB)).classObject, typeof(OperatorsTest_CA), false);
-            addTestCaseWithClass(Class.fromType(typeof(OperatorsTest_CB)).classObject, typeof(OperatorsTest_CB), false);
+            testcases.Add((mockClassB.classObject, objectClass, true));
+            testcases.Add((mockClassB.classObject, classClass, true));
+            testcases.Add((mockClassB.classObject, mockClassA.classObject, false));
+            testcases.Add((mockClassB.classObject, mockClassB.classObject, false));
 
             var func1 = ASFunction.createEmpty();
             var func2 = ASFunction.createEmpty();
@@ -2523,28 +2542,28 @@ namespace Mariana.AVM2.Tests {
             testcases.Add((constructedObj1, func3, false));
             testcases.Add((constructedObj1, func4, false));
             testcases.Add((constructedObj1, objectClass, true));
-            testcases.Add((constructedObj1, interfaceClass, false));
+            testcases.Add((constructedObj1, mockInterfaceA.classObject, false));
 
             testcases.Add((constructedObj2, func1, true));
             testcases.Add((constructedObj2, func2, true));
             testcases.Add((constructedObj2, func3, false));
             testcases.Add((constructedObj2, func4, false));
             testcases.Add((constructedObj2, objectClass, true));
-            testcases.Add((constructedObj2, interfaceClass, false));
+            testcases.Add((constructedObj2, mockInterfaceA.classObject, false));
 
             testcases.Add((constructedObj3, func1, true));
             testcases.Add((constructedObj3, func2, true));
             testcases.Add((constructedObj3, func3, true));
             testcases.Add((constructedObj3, func4, false));
             testcases.Add((constructedObj3, objectClass, true));
-            testcases.Add((constructedObj4, interfaceClass, false));
+            testcases.Add((constructedObj4, mockInterfaceA.classObject, false));
 
             testcases.Add((constructedObj4, func1, true));
             testcases.Add((constructedObj4, func2, false));
             testcases.Add((constructedObj4, func3, false));
             testcases.Add((constructedObj4, func4, true));
             testcases.Add((constructedObj4, objectClass, true));
-            testcases.Add((constructedObj4, interfaceClass, false));
+            testcases.Add((constructedObj4, mockInterfaceA.classObject, false));
 
             testcases.Add((func1, func1, false));
             testcases.Add((func2, func2, false));
@@ -2567,7 +2586,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(expectedResult, ASObject.AS_instanceof(obj, type));
         }
 
-        public static IEnumerable<object[]> instanceOfTest_typeArgNotClassOrFunction_data = TupleHelper.toArrays<ASObject, ASObject>(
+        public static IEnumerable<object[]> instanceOfTest_typeArgNotClassOrFunction_data() => TupleHelper.toArrays<ASObject, ASObject>(
             (null, null),
             (new ASObject(), null),
             (null, 1),
@@ -2576,7 +2595,7 @@ namespace Mariana.AVM2.Tests {
             (new ASArray(), "Array"),
             (123, true),
             (new ASObject(), new ASObject()),
-            (new OperatorsTest_CA(), new OperatorsTest_CA())
+            (new MockClassInstance(mockClassA), new MockClassInstance(mockClassA))
         );
 
         [Theory]

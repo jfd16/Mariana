@@ -20,7 +20,7 @@ namespace Mariana.AVM2.Core {
         private static Dictionary<ErrorCode, _ErrInfo> _loadErrorData() {
             Dictionary<ErrorCode, _ErrInfo> errInfoDict = new Dictionary<ErrorCode, _ErrInfo>();
 
-            Dictionary<string, Type> typeNameDict = new Dictionary<string, Type> {
+            var typeNameDict = new Dictionary<string, Type>(StringComparer.Ordinal) {
                 ["Error"] = typeof(ASError),
                 ["ArgumentError"] = typeof(ASArgumentError),
                 ["DefinitionError"] = typeof(ASDefinitionError),

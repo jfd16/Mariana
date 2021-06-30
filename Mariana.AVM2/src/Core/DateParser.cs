@@ -326,7 +326,6 @@ namespace Mariana.AVM2.Core {
             int len = str.Length;
 
             while (m_strpos < len && m_isValid) {
-
                 char c = str[m_strpos];
 
                 if (c == ' ' || (c <= 13 && c >= 9)) {

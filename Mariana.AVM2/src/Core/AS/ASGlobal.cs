@@ -1,6 +1,4 @@
 using System;
-using System.Runtime.CompilerServices;
-using Mariana.AVM2.Core;
 using Mariana.AVM2.Native;
 using Mariana.Common;
 

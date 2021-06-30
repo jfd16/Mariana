@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Text;
 using Mariana.AVM2.Core;
 using Mariana.AVM2.Tests.Helpers;
 using Xunit;
@@ -13,36 +12,6 @@ namespace Mariana.AVM2.Tests {
 
         private const int MAXINT = Int32.MaxValue;
         private const double INFINITY = Double.PositiveInfinity;
-
-        /// <summary>
-        /// This is used to prevent test runner errors that happen when inputs contain certain Unicode characters.
-        /// </summary>
-        public readonly struct StringWrapper {
-            public readonly string instance;
-            public StringWrapper(string str) => instance = str;
-            public static implicit operator StringWrapper(string str) => new StringWrapper(str);
-
-            public override string ToString() {
-                var sb = new StringBuilder();
-                sb.Append('"');
-
-                for (int i = 0; i < instance.Length; i++) {
-                    char ch = instance[i];
-                    if (ch == '"' || ch == '\\') {
-                        sb.Append('\\').Append(ch);
-                    }
-                    else if (ch <= 0x7F && !Char.IsControl(ch)) {
-                        sb.Append(ch);
-                    }
-                    else {
-                        sb.AppendFormat("\\u{0:X4}", (int)ch);
-                    }
-                }
-
-                sb.Append('"');
-                return sb.ToString();
-            }
-        }
 
         private static void assertThrowsNullReferenceError(Func<object> testCode) {
             Exception caughtException = null;
@@ -142,24 +111,24 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(toString_valueOf_testData))]
         public void toStringMethodTest(StringWrapper value) {
-            if (value.instance == null) {
-                assertThrowsNullReferenceError(() => ASString.toString(value.instance));
+            if (value.value == null) {
+                assertThrowsNullReferenceError(() => ASString.toString(value.value));
             }
             else {
-                Assert.Equal(value, ASString.toString(value.instance));
-                Assert.Equal(value, ((ASString)(ASObject)value.instance).AS_toString());
+                Assert.Equal(value, ASString.toString(value.value));
+                Assert.Equal(value, ((ASString)(ASObject)value.value).AS_toString());
             }
         }
 
         [Theory]
         [MemberData(nameof(toString_valueOf_testData))]
         public void valueOfMethodTest(StringWrapper value) {
-            if (value.instance == null) {
-                assertThrowsNullReferenceError(() => ASString.valueOf(value.instance));
+            if (value.value == null) {
+                assertThrowsNullReferenceError(() => ASString.valueOf(value.value));
             }
             else {
-                Assert.Equal(value, ASString.valueOf(value.instance));
-                Assert.Equal(value, ((ASString)(ASObject)value.instance).valueOf());
+                Assert.Equal(value, ASString.valueOf(value.value));
+                Assert.Equal(value, ((ASString)(ASObject)value.value).valueOf());
             }
         }
 
@@ -174,7 +143,7 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(lengthPropertyTest_data))]
         public void lengthPropertyTest(StringWrapper value, int expectedLength) {
-            Assert.Equal(expectedLength, ((ASString)(ASObject)value.instance).length);
+            Assert.Equal(expectedLength, ((ASString)(ASObject)value.value).length);
         }
 
         public static IEnumerable<object[]> fromCharCodeMethodTest_data = TupleHelper.toArrays<ASAny[], StringWrapper>(
@@ -193,7 +162,7 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(fromCharCodeMethodTest_data))]
         public void fromCharCodeMethodTest(ASAny[] args, StringWrapper expected) {
-            Assert.Equal(expected.instance, ASString.fromCharCode(new RestParam(args)));
+            Assert.Equal(expected.value, ASString.fromCharCode(new RestParam(args)));
         }
 
         public static IEnumerable<object[]> charAt_charCodeAt_testData = TupleHelper.toArrays<StringWrapper, int[]>(
@@ -221,20 +190,20 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(charAt_charCodeAt_testData))]
         public void charAtMethodTest(StringWrapper str, int[] indices) {
-            ASString boxedStr = (ASString)(ASObject)str.instance;
-            int length = (str.instance != null) ? str.instance.Length : MAXINT;
+            ASString boxedStr = (ASString)(ASObject)str.value;
+            int length = (str.value != null) ? str.value.Length : MAXINT;
 
             for (int i = 0; i < indices.Length; i++) {
                 int index = indices[i];
                 string expected =
-                    (str.instance == null || index == -1 || index == str.instance.Length) ? "" : str.instance[index].ToString();
+                    (str.value == null || index == -1 || index == str.value.Length) ? "" : str.value[index].ToString();
 
                 foreach (double dIndex in generateEquivalentIndices(index, length)) {
-                    if (str.instance == null) {
-                        assertThrowsNullReferenceError(() => ASString.charAt(str.instance, dIndex));
+                    if (str.value == null) {
+                        assertThrowsNullReferenceError(() => ASString.charAt(str.value, dIndex));
                     }
                     else {
-                        Assert.Equal(expected, ASString.charAt(str.instance, dIndex));
+                        Assert.Equal(expected, ASString.charAt(str.value, dIndex));
                         Assert.Equal(expected, boxedStr.charAt(dIndex));
                     }
                 }
@@ -244,40 +213,40 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(charAt_charCodeAt_integerIndex_testData))]
         public void charAtMethodTest_integerIndex(StringWrapper str) {
-            if (str.instance == null) {
+            if (str.value == null) {
                 int[] indices = {0, 1, -1, Int32.MinValue, MAXINT};
                 for (int i = 0; i < indices.Length; i++)
-                    assertThrowsNullReferenceError(() => ASString.charAt(str.instance, indices[i]));
+                    assertThrowsNullReferenceError(() => ASString.charAt(str.value, indices[i]));
             }
             else {
-                Assert.Equal("", ASString.charAt(str.instance, -1));
-                Assert.Equal("", ASString.charAt(str.instance, str.instance.Length));
-                Assert.Equal("", ASString.charAt(str.instance, Int32.MinValue));
-                Assert.Equal("", ASString.charAt(str.instance, MAXINT));
+                Assert.Equal("", ASString.charAt(str.value, -1));
+                Assert.Equal("", ASString.charAt(str.value, str.value.Length));
+                Assert.Equal("", ASString.charAt(str.value, Int32.MinValue));
+                Assert.Equal("", ASString.charAt(str.value, MAXINT));
 
-                for (int i = 0; i < str.instance.Length; i++)
-                    Assert.Equal(str.instance[i].ToString(), ASString.charAt(str.instance, i));
+                for (int i = 0; i < str.value.Length; i++)
+                    Assert.Equal(str.value[i].ToString(), ASString.charAt(str.value, i));
             }
         }
 
         [Theory]
         [MemberData(nameof(charAt_charCodeAt_testData))]
         public void charCodeAtMethodTest(StringWrapper str, int[] indices) {
-            ASString boxedStr = (ASString)(ASObject)str.instance;
-            int length = (str.instance != null) ? str.instance.Length : MAXINT;
+            ASString boxedStr = (ASString)(ASObject)str.value;
+            int length = (str.value != null) ? str.value.Length : MAXINT;
 
             for (int i = 0; i < indices.Length; i++) {
                 int index = indices[i];
-                double expected = (str.instance == null || index == -1 || index == str.instance.Length)
+                double expected = (str.value == null || index == -1 || index == str.value.Length)
                     ? Double.NaN
-                    : (double)str.instance[index];
+                    : (double)str.value[index];
 
                 foreach (double dIndex in generateEquivalentIndices(index, length)) {
-                    if (str.instance == null) {
-                        assertThrowsNullReferenceError(() => ASString.charAt(str.instance, dIndex));
+                    if (str.value == null) {
+                        assertThrowsNullReferenceError(() => ASString.charAt(str.value, dIndex));
                     }
                     else {
-                        AssertHelper.floatIdentical(expected, ASString.charCodeAt(str.instance, dIndex));
+                        AssertHelper.floatIdentical(expected, ASString.charCodeAt(str.value, dIndex));
                         AssertHelper.floatIdentical(expected, boxedStr.charCodeAt(dIndex));
                     }
                 }
@@ -287,19 +256,19 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(charAt_charCodeAt_integerIndex_testData))]
         public void charCodeAtMethodTest_integerIndex(StringWrapper str) {
-            if (str.instance == null) {
+            if (str.value == null) {
                 int[] indices = {0, 1, -1, Int32.MinValue, MAXINT};
                 for (int i = 0; i < indices.Length; i++)
-                    assertThrowsNullReferenceError(() => ASString.charAt(str.instance, indices[i]));
+                    assertThrowsNullReferenceError(() => ASString.charAt(str.value, indices[i]));
             }
             else {
-                AssertHelper.floatIdentical(Double.NaN, ASString.charCodeAt(str.instance, -1));
-                AssertHelper.floatIdentical(Double.NaN, ASString.charCodeAt(str.instance, str.instance.Length));
-                AssertHelper.floatIdentical(Double.NaN, ASString.charCodeAt(str.instance, Int32.MinValue));
-                AssertHelper.floatIdentical(Double.NaN, ASString.charCodeAt(str.instance, MAXINT));
+                AssertHelper.floatIdentical(Double.NaN, ASString.charCodeAt(str.value, -1));
+                AssertHelper.floatIdentical(Double.NaN, ASString.charCodeAt(str.value, str.value.Length));
+                AssertHelper.floatIdentical(Double.NaN, ASString.charCodeAt(str.value, Int32.MinValue));
+                AssertHelper.floatIdentical(Double.NaN, ASString.charCodeAt(str.value, MAXINT));
 
-                for (int i = 0; i < str.instance.Length; i++)
-                    AssertHelper.floatIdentical(str.instance[i], ASString.charCodeAt(str.instance, i));
+                for (int i = 0; i < str.value.Length; i++)
+                    AssertHelper.floatIdentical(str.value[i], ASString.charCodeAt(str.value, i));
             }
         }
 
@@ -333,14 +302,14 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(concatMethodTest_data))]
         public void concatMethodTest(StringWrapper str, ASAny[] args, StringWrapper expectedResult) {
-            if (str.instance == null) {
-                assertThrowsNullReferenceError(() => ASString.concat(str.instance, new RestParam(args)));
+            if (str.value == null) {
+                assertThrowsNullReferenceError(() => ASString.concat(str.value, new RestParam(args)));
                 return;
             }
 
-            ASString boxedStr = (ASString)(ASObject)str.instance;
+            ASString boxedStr = (ASString)(ASObject)str.value;
 
-            Assert.Equal(expectedResult, ASString.concat(str.instance, new RestParam(args)));
+            Assert.Equal(expectedResult, ASString.concat(str.value, new RestParam(args)));
             Assert.Equal(expectedResult, boxedStr.concat(new RestParam(args)));
         }
 
@@ -396,19 +365,19 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(indexOfMethodTest_data))]
         public void indexOfMethodTest(StringWrapper str, StringWrapper searchStr, (int start, int result)[] queries) {
-            ASString boxedStr = (ASString)(ASObject)str.instance;
-            int length = (str.instance != null) ? str.instance.Length : MAXINT;
+            ASString boxedStr = (ASString)(ASObject)str.value;
+            int length = (str.value != null) ? str.value.Length : MAXINT;
 
             for (int i = 0; i < queries.Length; i++) {
                 var (startIndex, result) = queries[i];
 
                 foreach (double dStartIndex in generateEquivalentIndices(startIndex, length, negativeIsZero: true)) {
-                    if (str.instance == null) {
-                        assertThrowsNullReferenceError(() => ASString.indexOf(str.instance, searchStr.instance, dStartIndex));
+                    if (str.value == null) {
+                        assertThrowsNullReferenceError(() => ASString.indexOf(str.value, searchStr.value, dStartIndex));
                     }
                     else {
-                        Assert.Equal(result, ASString.indexOf(str.instance, searchStr.instance, dStartIndex));
-                        Assert.Equal(result, boxedStr.indexOf(searchStr.instance, dStartIndex));
+                        Assert.Equal(result, ASString.indexOf(str.value, searchStr.value, dStartIndex));
+                        Assert.Equal(result, boxedStr.indexOf(searchStr.value, dStartIndex));
                     }
                 }
             }
@@ -466,19 +435,19 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(lastIndexOfMethodTest_data))]
         public void lastIndexOfMethodTest(StringWrapper str, StringWrapper searchStr, (int start, int result)[] queries) {
-            ASString boxedStr = (ASString)(ASObject)str.instance;
-            int length = (str.instance != null) ? str.instance.Length : MAXINT;
+            ASString boxedStr = (ASString)(ASObject)str.value;
+            int length = (str.value != null) ? str.value.Length : MAXINT;
 
             for (int i = 0; i < queries.Length; i++) {
                 var (startIndex, result) = queries[i];
 
                 foreach (double dStartIndex in generateEquivalentIndices(startIndex, length, nanIsInfinity: true)) {
-                    if (str.instance == null) {
-                        assertThrowsNullReferenceError(() => ASString.lastIndexOf(str.instance, searchStr.instance, dStartIndex));
+                    if (str.value == null) {
+                        assertThrowsNullReferenceError(() => ASString.lastIndexOf(str.value, searchStr.value, dStartIndex));
                     }
                     else {
-                        Assert.Equal(result, ASString.lastIndexOf(str.instance, searchStr.instance, dStartIndex));
-                        Assert.Equal(result, boxedStr.lastIndexOf(searchStr.instance, dStartIndex));
+                        Assert.Equal(result, ASString.lastIndexOf(str.value, searchStr.value, dStartIndex));
+                        Assert.Equal(result, boxedStr.lastIndexOf(searchStr.value, dStartIndex));
                     }
                 }
             }
@@ -520,19 +489,19 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(substr_substring_slice_testData))]
         public void substrMethodTest(StringWrapper str, (int start, int length)[] ranges) {
-            ASString boxedStr = (ASString)(ASObject)str.instance;
-            int strLength = (str.instance != null) ? str.instance.Length : MAXINT;
+            ASString boxedStr = (ASString)(ASObject)str.value;
+            int strLength = (str.value != null) ? str.value.Length : MAXINT;
 
             for (int i = 0; i < ranges.Length; i++) {
                 var (startIndex, subLength) = ranges[i];
-                string expectedResult = (str.instance == null) ? null : str.instance.Substring(startIndex, subLength);
+                string expectedResult = (str.value == null) ? null : str.value.Substring(startIndex, subLength);
 
                 foreach (var (dStartIndex, dSubLength) in generateRanges(startIndex, subLength)) {
-                    if (str.instance == null) {
-                        assertThrowsNullReferenceError(() => ASString.substr(str.instance, dStartIndex, dSubLength));
+                    if (str.value == null) {
+                        assertThrowsNullReferenceError(() => ASString.substr(str.value, dStartIndex, dSubLength));
                     }
                     else {
-                        Assert.Equal(expectedResult, ASString.substr(str.instance, dStartIndex, dSubLength));
+                        Assert.Equal(expectedResult, ASString.substr(str.value, dStartIndex, dSubLength));
                         Assert.Equal(expectedResult, boxedStr.substr(dStartIndex, dSubLength));
                     }
                 }
@@ -603,19 +572,19 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(substr_substring_slice_testData))]
         public void substringMethodTest(StringWrapper str, (int start, int length)[] ranges) {
-            ASString boxedStr = (ASString)(ASObject)str.instance;
-            int strLength = (str.instance != null) ? str.instance.Length : MAXINT;
+            ASString boxedStr = (ASString)(ASObject)str.value;
+            int strLength = (str.value != null) ? str.value.Length : MAXINT;
 
             for (int i = 0; i < ranges.Length; i++) {
                 var (startIndex, subLength) = ranges[i];
-                string expectedResult = (str.instance == null) ? null : str.instance.Substring(startIndex, subLength);
+                string expectedResult = (str.value == null) ? null : str.value.Substring(startIndex, subLength);
 
                 foreach (var (dStartIndex, dEndIndex) in generateRanges(startIndex, startIndex + subLength)) {
-                    if (str.instance == null) {
-                        assertThrowsNullReferenceError(() => ASString.substring(str.instance, dStartIndex, dEndIndex));
+                    if (str.value == null) {
+                        assertThrowsNullReferenceError(() => ASString.substring(str.value, dStartIndex, dEndIndex));
                     }
                     else {
-                        Assert.Equal(expectedResult, ASString.substring(str.instance, dStartIndex, dEndIndex));
+                        Assert.Equal(expectedResult, ASString.substring(str.value, dStartIndex, dEndIndex));
                         Assert.Equal(expectedResult, boxedStr.substring(dStartIndex, dEndIndex));
                     }
                 }
@@ -689,19 +658,19 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(substr_substring_slice_testData))]
         public void sliceMethodTest(StringWrapper str, (int start, int length)[] ranges) {
-            ASString boxedStr = (ASString)(ASObject)str.instance;
-            int strLength = (str.instance != null) ? str.instance.Length : MAXINT;
+            ASString boxedStr = (ASString)(ASObject)str.value;
+            int strLength = (str.value != null) ? str.value.Length : MAXINT;
 
             for (int i = 0; i < ranges.Length; i++) {
                 var (startIndex, subLength) = ranges[i];
-                string expectedResult = (str.instance == null) ? null : str.instance.Substring(startIndex, subLength);
+                string expectedResult = (str.value == null) ? null : str.value.Substring(startIndex, subLength);
 
                 foreach (var (dStartIndex, dEndIndex) in generateRanges(startIndex, startIndex + subLength)) {
-                    if (str.instance == null) {
-                        assertThrowsNullReferenceError(() => ASString.slice(str.instance, dStartIndex, dEndIndex));
+                    if (str.value == null) {
+                        assertThrowsNullReferenceError(() => ASString.slice(str.value, dStartIndex, dEndIndex));
                     }
                     else {
-                        Assert.Equal(expectedResult, ASString.slice(str.instance, dStartIndex, dEndIndex));
+                        Assert.Equal(expectedResult, ASString.slice(str.value, dStartIndex, dEndIndex));
                         Assert.Equal(expectedResult, boxedStr.slice(dStartIndex, dEndIndex));
                     }
                 }
@@ -849,12 +818,12 @@ namespace Mariana.AVM2.Tests {
             CultureInfo.CurrentCulture = new CultureInfo("en-US", false);
 
             try {
-                if (str.instance == null) {
-                    assertThrowsNullReferenceError(() => ASString.localeCompare(str.instance, arg));
+                if (str.value == null) {
+                    assertThrowsNullReferenceError(() => ASString.localeCompare(str.value, arg));
                 }
                 else {
-                    ASString boxedStr = (ASString)(ASObject)str.instance;
-                    Assert.Equal(expectedResultSign, Math.Sign(ASString.localeCompare(str.instance, arg)));
+                    ASString boxedStr = (ASString)(ASObject)str.value;
+                    Assert.Equal(expectedResultSign, Math.Sign(ASString.localeCompare(str.value, arg)));
                     Assert.Equal(expectedResultSign, Math.Sign(boxedStr.localeCompare(arg)));
                 }
             }
@@ -920,15 +889,15 @@ namespace Mariana.AVM2.Tests {
             if (limits == null)
                 limits = new[] {0, 1, MAXINT};
 
-            ASString boxedStr = (ASString)(ASObject)str.instance;
+            ASString boxedStr = (ASString)(ASObject)str.value;
 
             for (int i = 0; i < limits.Length; i++) {
                 foreach (var limitArg in generateLimits(limits[i])) {
-                    if (str.instance == null) {
-                        assertThrowsNullReferenceError(() => ASString.split(str.instance, separator, limitArg));
+                    if (str.value == null) {
+                        assertThrowsNullReferenceError(() => ASString.split(str.value, separator, limitArg));
                     }
                     else {
-                        checkResult(ASString.split(str.instance, separator, limitArg), limits[i]);
+                        checkResult(ASString.split(str.value, separator, limitArg), limits[i]);
                         checkResult(boxedStr.split(separator, limitArg), limits[i]);
                     }
                 }
@@ -938,7 +907,7 @@ namespace Mariana.AVM2.Tests {
                 Assert.Equal((uint)Math.Min(limit, expected.Length), result.length);
 
                 for (uint i = 0; i < result.length; i++)
-                    AssertHelper.valueIdentical(expected[(int)i].instance, result.AS_getElement(i));
+                    AssertHelper.valueIdentical(expected[(int)i].value, result.AS_getElement(i));
             }
 
             IEnumerable<ASAny> generateLimits(int limit) {
@@ -980,13 +949,13 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(toLowerCaseMethodTest_data))]
         public void toLowerCaseMethodTest(StringWrapper str, StringWrapper expected) {
-            if (str.instance == null) {
-                assertThrowsNullReferenceError(() => ASString.toLowerCase(str.instance));
+            if (str.value == null) {
+                assertThrowsNullReferenceError(() => ASString.toLowerCase(str.value));
             }
             else {
-                ASString boxedStr = (ASString)(ASObject)str.instance;
-                Assert.Equal(expected.instance, ASString.toLowerCase(str.instance));
-                Assert.Equal(expected.instance, boxedStr.toLowerCase());
+                ASString boxedStr = (ASString)(ASObject)str.value;
+                Assert.Equal(expected.value, ASString.toLowerCase(str.value));
+                Assert.Equal(expected.value, boxedStr.toLowerCase());
             }
         }
 
@@ -1007,13 +976,13 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(toUpperCaseMethodTest_data))]
         public void toUpperCaseMethodTest(StringWrapper str, StringWrapper expected) {
-            if (str.instance == null) {
-                assertThrowsNullReferenceError(() => ASString.toUpperCase(str.instance));
+            if (str.value == null) {
+                assertThrowsNullReferenceError(() => ASString.toUpperCase(str.value));
             }
             else {
-                ASString boxedStr = (ASString)(ASObject)str.instance;
-                Assert.Equal(expected.instance, ASString.toUpperCase(str.instance));
-                Assert.Equal(expected.instance, boxedStr.toUpperCase());
+                ASString boxedStr = (ASString)(ASObject)str.value;
+                Assert.Equal(expected.value, ASString.toUpperCase(str.value));
+                Assert.Equal(expected.value, boxedStr.toUpperCase());
             }
         }
 
@@ -1040,13 +1009,13 @@ namespace Mariana.AVM2.Tests {
             CultureInfo.CurrentCulture = new CultureInfo(culture, false);
 
             try {
-                if (str.instance == null) {
-                    assertThrowsNullReferenceError(() => ASString.toLocaleLowerCase(str.instance));
+                if (str.value == null) {
+                    assertThrowsNullReferenceError(() => ASString.toLocaleLowerCase(str.value));
                 }
                 else {
-                    ASString boxedStr = (ASString)(ASObject)str.instance;
-                    Assert.Equal(expected.instance, ASString.toLocaleLowerCase(str.instance));
-                    Assert.Equal(expected.instance, boxedStr.toLocaleLowerCase());
+                    ASString boxedStr = (ASString)(ASObject)str.value;
+                    Assert.Equal(expected.value, ASString.toLocaleLowerCase(str.value));
+                    Assert.Equal(expected.value, boxedStr.toLocaleLowerCase());
                 }
             }
             finally {
@@ -1077,13 +1046,13 @@ namespace Mariana.AVM2.Tests {
             CultureInfo.CurrentCulture = new CultureInfo(culture, false);
 
             try {
-                if (str.instance == null) {
-                    assertThrowsNullReferenceError(() => ASString.toLocaleUpperCase(str.instance));
+                if (str.value == null) {
+                    assertThrowsNullReferenceError(() => ASString.toLocaleUpperCase(str.value));
                 }
                 else {
-                    ASString boxedStr = (ASString)(ASObject)str.instance;
-                    Assert.Equal(expected.instance, ASString.toLocaleUpperCase(str.instance));
-                    Assert.Equal(expected.instance, boxedStr.toLocaleUpperCase());
+                    ASString boxedStr = (ASString)(ASObject)str.value;
+                    Assert.Equal(expected.value, ASString.toLocaleUpperCase(str.value));
+                    Assert.Equal(expected.value, boxedStr.toLocaleUpperCase());
                 }
             }
             finally {
@@ -1172,15 +1141,15 @@ namespace Mariana.AVM2.Tests {
         public void replaceMethodTest_noRegExp(
             StringWrapper str, ASAny searchStr, ASAny replaceStr, StringWrapper expectedResult)
         {
-            if (str.instance == null) {
-                assertThrowsNullReferenceError(() => ASString.replace(str.instance, searchStr, replaceStr));
+            if (str.value == null) {
+                assertThrowsNullReferenceError(() => ASString.replace(str.value, searchStr, replaceStr));
                 return;
             }
 
-            ASString boxedStr = (ASString)(ASObject)str.instance;
-            string result = ASString.replace(str.instance, searchStr, replaceStr);
+            ASString boxedStr = (ASString)(ASObject)str.value;
+            string result = ASString.replace(str.value, searchStr, replaceStr);
 
-            Assert.Equal(expectedResult.instance, result);
+            Assert.Equal(expectedResult.value, result);
         }
 
         [Theory]
@@ -1188,19 +1157,19 @@ namespace Mariana.AVM2.Tests {
         public void replaceMethodTest_noRegExp_withCallback(
             StringWrapper str, ASAny searchStr, ASAny replaceStr, StringWrapper expectedResult)
         {
-            var callback = new SpyFunctionObject((r, args) => replaceStr);
+            var callback = new MockFunctionObject((r, args) => replaceStr);
 
-            if (str.instance == null) {
-                assertThrowsNullReferenceError(() => ASString.replace(str.instance, searchStr, callback));
+            if (str.value == null) {
+                assertThrowsNullReferenceError(() => ASString.replace(str.value, searchStr, callback));
                 return;
             }
 
-            ASString boxedStr = (ASString)(ASObject)str.instance;
-            string result = ASString.replace(str.instance, searchStr, callback);
+            ASString boxedStr = (ASString)(ASObject)str.value;
+            string result = ASString.replace(str.value, searchStr, callback);
 
-            Assert.Equal(expectedResult.instance, result);
+            Assert.Equal(expectedResult.value, result);
 
-            var callRecords = callback.getCallRecords();
+            var callRecords = callback.getCallHistory();
 
             if (callRecords.Length == 0) {
                 Assert.Equal(str, result);
@@ -1212,10 +1181,10 @@ namespace Mariana.AVM2.Tests {
                 var args = callRecords[0].getArguments();
                 Assert.Equal(3, args.Length);
                 AssertHelper.valueIdentical(ASAny.AS_convertString(searchStr), args[0]);
-                AssertHelper.valueIdentical(str.instance, args[2]);
+                AssertHelper.valueIdentical(str.value, args[2]);
 
                 AssertHelper.valueIdentical(
-                    str.instance.IndexOf(ASAny.AS_convertString(searchStr), StringComparison.Ordinal),
+                    str.value.IndexOf(ASAny.AS_convertString(searchStr), StringComparison.Ordinal),
                     args[1]
                 );
             }

@@ -535,7 +535,7 @@ namespace Mariana.AVM2.Core {
                         + transitionTime.TimeOfDay.Millisecond;
 
                     if (transitionTime.IsFixedDateRule) {
-                        int offsetDay = getMonthStartDayOfYear(transitionTime.Month - 1, false) + transitionTime.Day - 1;
+                        int offsetDay = getMonthStartDayOfYear(transitionTime.Month - 1, isLeapYear: false) + transitionTime.Day - 1;
                         return DSTTransition.createAbsolute((long)offsetDay * MS_PER_DAY + timeOfDay);
                     }
                     else {

@@ -20,15 +20,10 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(constructEmptyArrayTest_data))]
         public void constructEmptyArrayTest(IndexDict prototype) {
-            setPrototypeProperties(prototype);
-            setRandomSeed(67003741);
-
-            try {
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(67003741);
                 verifyArrayMatchesImage(new ASArray(), makeEmptyImage());
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         public static IEnumerable<object[]> constructEmptyArrayWithLengthTest_data = TupleHelper.toArrays<uint, IndexDict>(
@@ -54,17 +49,12 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(constructEmptyArrayWithLengthTest_data))]
         public void constructEmptyArrayWithLengthTest(uint length, IndexDict prototype) {
-            setPrototypeProperties(prototype);
-            setRandomSeed(84711489);
-
-            try {
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(84711489);
                 verifyArrayMatchesImage(new ASArray(length), makeEmptyImage(length));
                 if (length <= (uint)Int32.MaxValue)
                     verifyArrayMatchesImage(new ASArray((int)length), makeEmptyImage(length));
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         [Theory]
@@ -111,15 +101,10 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(constructArrayWithElementsTest_data))]
         public void constructArrayWithElementsTest(ASAny[] elements, IndexDict prototype) {
-            setPrototypeProperties(prototype);
-            setRandomSeed(3647110);
-
-            try {
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(3647110);
                 verifyArrayMatchesImage(new ASArray(elements), makeImageWithValues(elements));
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         public static IEnumerable<object[]> constructArrayWithConstructorTest_data() {
@@ -204,16 +189,11 @@ namespace Mariana.AVM2.Tests {
         [MemberData(nameof(constructArrayWithConstructorTest_data))]
         public void constructArrayWithConstructorTest(ASAny[] args, IndexDict prototype, object imageOrError) {
             if (imageOrError is Image image) {
-                setPrototypeProperties(prototype);
-                setRandomSeed(3647110);
-
-                try {
+                runInZoneWithArrayPrototype(prototype, () => {
+                    setRandomSeed(392144);
                     verifyArrayMatchesImage(new ASArray(new RestParam(args)), image);
                     verifyArrayMatchesImage((ASArray)Class.fromType(typeof(ASArray)).invoke(args), image);
-                }
-                finally {
-                    resetPrototypeProperties();
-                }
+                });
             }
             else {
                 AssertHelper.throwsErrorWithCode((ErrorCode)imageOrError, () => new ASArray(new RestParam(args)));
@@ -484,20 +464,16 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(accessTestWithSetMutations_data))]
         public void accessTestWithSetMutations(ArrayWrapper array, Image image, IEnumerable<Mutation> mutations, IndexDict prototype) {
-            setPrototypeProperties(prototype);
-            setRandomSeed(9877146);
-            try {
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(9877146);
                 verifyArrayMatchesImage(array.instance, image);
                 foreach (var mut in mutations)
                     applyMutationAndVerify(array.instance, ref image, mut);
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         public static IEnumerable<object[]> accessTestWithSetAndDeleteMutations_data() {
-            setRandomSeed(85710039);
+            setRandomSeed(82716443);
 
             const int numValues = 50;
             const uint maxLength = UInt32.MaxValue;
@@ -824,16 +800,12 @@ namespace Mariana.AVM2.Tests {
         public void accessTestWithSetAndDeleteMutations(
             ArrayWrapper array, Image image, IEnumerable<Mutation> mutations, IndexDict prototype)
         {
-            setPrototypeProperties(prototype);
-            setRandomSeed(307114);
-            try {
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(307114);
                 verifyArrayMatchesImage(array.instance, image);
                 foreach (var mut in mutations)
                     applyMutationAndVerify(array.instance, ref image, mut);
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         public static IEnumerable<object[]> accessTestWithSetDeleteAndLengthChange_data() {
@@ -1086,16 +1058,12 @@ namespace Mariana.AVM2.Tests {
         public void accessTestWithSetDeleteAndLengthChange(
             ArrayWrapper array, Image image, IEnumerable<Mutation> mutations, IndexDict prototype)
         {
-            setPrototypeProperties(prototype);
-            setRandomSeed(541169);
-            try {
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(541169);
                 verifyArrayMatchesImage(array.instance, image);
                 foreach (var mut in mutations)
                     applyMutationAndVerify(array.instance, ref image, mut);
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         public static IEnumerable<object[]> accessTestWithPushAndPop_data() {
@@ -1358,22 +1326,18 @@ namespace Mariana.AVM2.Tests {
         public void accessTestWithPushAndPop(
             ArrayWrapper array, Image image, IEnumerable<Mutation> mutations, IndexDict prototype)
         {
-            setPrototypeProperties(prototype);
-            setRandomSeed(7013492);
-            try {
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(7013492);
                 verifyArrayMatchesImage(array.instance, image);
                 foreach (var mut in mutations) {
                     applyMutationAndVerify(array.instance, ref image, mut);
                     Assert.False(array.instance.AS_hasElement(UInt32.MaxValue));
                 }
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         public static IEnumerable<object[]> accessTestWithShiftAndUnshift_data() {
-            setRandomSeed(570016);
+            setRandomSeed(63729);
 
             const int numValues = 50;
             const uint maxLength = UInt32.MaxValue;
@@ -1624,18 +1588,15 @@ namespace Mariana.AVM2.Tests {
         public void accessTestWithShiftAndUnshift(
             ArrayWrapper array, Image image, IEnumerable<Mutation> mutations, IndexDict prototype)
         {
-            setPrototypeProperties(prototype);
-            setRandomSeed(7013492);
-            try {
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(372104);
                 verifyArrayMatchesImage(array.instance, image);
+
                 foreach (var mut in mutations) {
                     applyMutationAndVerify(array.instance, ref image, mut);
                     Assert.False(array.instance.AS_hasElement(UInt32.MaxValue));
                 }
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         [Fact]
@@ -1643,35 +1604,30 @@ namespace Mariana.AVM2.Tests {
             ASArray array = new ASArray();
             Image image = makeEmptyImage();
 
-            setPrototypeProperties(makeIndexDict(1, 5, 10, 12));
             setRandomSeed(58912);
 
-            try {
+            runInZoneWithArrayPrototype(makeIndexDict(1, 5, 10, 12), () => {
                 verifyArrayMatchesImage(array, image);
-
                 applyMutationAndVerify(array, ref image, mutSetUint(4, new ASObject()));
                 applyMutationAndVerify(array, ref image, mutSetUint(7, new ASObject()));
                 applyMutationAndVerify(array, ref image, mutSetUint(11, new ASObject()));
+            });
 
-                setPrototypeProperties(makeIndexDict(3, 4, 9, 11, 12));
+            runInZoneWithArrayPrototype(makeIndexDict(3, 4, 9, 11, 12), () => {
                 verifyArrayMatchesImage(array, image);
-
                 applyMutationAndVerify(array, ref image, mutDelUint(7));
+            });
 
-                setPrototypeProperties(makeIndexDict(4, 7, 11, 12, 13));
+            runInZoneWithArrayPrototype(makeIndexDict(4, 7, 11, 12, 13), () => {
                 verifyArrayMatchesImage(array, image);
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         [Fact]
         public void accessTestWithInvalidIndices() {
             var values = makeUniqueValues(20);
-            setPrototypeProperties(null);
 
-            try {
+            runInZoneWithArrayPrototype(null, () => {
                 var array = new ASArray();
                 var arrayProto = Class.fromType(typeof(ASArray)).prototypeObject.AS_dynamicProps;
 
@@ -1850,19 +1806,7 @@ namespace Mariana.AVM2.Tests {
                 AssertHelper.identical(values[19], array.AS_getElement(1E+148));
                 AssertHelper.identical(values[10], array.AS_getElement(Double.PositiveInfinity));
                 AssertHelper.identical(values[8], array.AS_getElement(Double.NaN));
-
-                arrayProto.delete("0.5");
-                arrayProto.delete("1.5");
-                arrayProto.delete("5.5");
-                arrayProto.delete("-1.5");
-                arrayProto.delete("-5.5");
-                arrayProto.delete("-16");
-                arrayProto.delete("4294967295");
-                arrayProto.delete("NaN");
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         public static IEnumerable<object[]> cloneTest_data() {
@@ -1941,10 +1885,9 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(cloneTest_data))]
         public void cloneTest(ArrayWrapper array, Image image, IndexDict prototype) {
-            setRandomSeed(74009);
-            setPrototypeProperties(prototype);
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(74009);
 
-            try {
                 ASArray clone = array.instance.clone();
                 verifyArrayMatchesImage(clone, image);
 
@@ -1966,10 +1909,7 @@ namespace Mariana.AVM2.Tests {
                     array.instance.push(new ASObject());
 
                 verifyArrayMatchesImage(clone, image);
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
     }

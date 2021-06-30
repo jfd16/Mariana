@@ -69,7 +69,7 @@ namespace Mariana.AVM2.Compiler {
             bool parentHasSlot =
                 !trait.isStatic
                 && parent is ScriptClass parentScriptClass
-                && parentScriptClass.m_slotMap.getSlot(slotid, false) != null;
+                && parentScriptClass.m_slotMap.getSlot(slotid, isStatic: false) != null;
 
             if (parentHasSlot || !m_slotMap.tryAddSlot(slotid, trait))
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_SLOT_ID_ALREADY_TAKEN, slotid, name.ToString());

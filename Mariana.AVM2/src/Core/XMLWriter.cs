@@ -88,7 +88,7 @@ namespace Mariana.AVM2.Core {
         }
 
         private void _writeNode(ASXML node) {
-            m_iterator = node.getDescendantEnumerator(true);
+            m_iterator = node.getDescendantEnumerator(includeThis: true);
 
             while (m_iterator.MoveNext()) {
                 while (m_tagStack.length != m_iterator.currentDepth)
@@ -157,7 +157,7 @@ namespace Mariana.AVM2.Core {
             }
 
             if (length != 0)
-                m_parts.add(XMLHelper.escape(text, start, length, ref m_escBuffer, false));
+                m_parts.add(XMLHelper.escape(text, start, length, ref m_escBuffer, isAttr: false));
         }
 
         /// <summary>
@@ -210,7 +210,7 @@ namespace Mariana.AVM2.Core {
             elem.internalGetNamespaceDecls(ref m_nsInScope);
 
             stackItem.localName = elemName.localName;
-            stackItem.prefix = _getPrefix(elemName, false);
+            stackItem.prefix = _getPrefix(elemName, isAttr: false);
 
             m_parts.add("<");
             _writeName(stackItem.prefix, stackItem.localName);
@@ -220,9 +220,9 @@ namespace Mariana.AVM2.Core {
                 string attrValue = attr.nodeText;
 
                 m_parts.add(" ");
-                _writeName(_getPrefix(attrName, true), attrName.localName);
+                _writeName(_getPrefix(attrName, isAttr: true), attrName.localName);
                 m_parts.add("=\"");
-                m_parts.add(XMLHelper.escape(attrValue, 0, attrValue.Length, ref m_escBuffer, true));
+                m_parts.add(XMLHelper.escape(attrValue, 0, attrValue.Length, ref m_escBuffer, isAttr: true));
                 m_parts.add("\"");
             }
 
@@ -240,7 +240,7 @@ namespace Mariana.AVM2.Core {
                     m_parts.add(" xmlns=\"");
                 }
 
-                m_parts.add(XMLHelper.escape(nsdecl.uri, 0, nsdecl.uri.Length, ref m_escBuffer, true));
+                m_parts.add(XMLHelper.escape(nsdecl.uri, 0, nsdecl.uri.Length, ref m_escBuffer, isAttr: true));
                 m_parts.add("\"");
             }
 

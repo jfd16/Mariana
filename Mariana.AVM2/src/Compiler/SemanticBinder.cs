@@ -1562,7 +1562,7 @@ namespace Mariana.AVM2.Compiler {
             }
             else {
                 ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[stackPopIds.Length - 1]);
-                _resolveSetProperty(ref resolvedProp, ref valueNode, false);
+                _resolveSetProperty(ref resolvedProp, ref valueNode, isInit: false);
             }
         }
 
@@ -1593,7 +1593,7 @@ namespace Mariana.AVM2.Compiler {
             }
             else {
                 ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[stackPopIds.Length - 1]);
-                _resolveSetProperty(ref resolvedProp, ref valueNode, false);
+                _resolveSetProperty(ref resolvedProp, ref valueNode, isInit: false);
             }
         }
 
@@ -1656,7 +1656,7 @@ namespace Mariana.AVM2.Compiler {
             MethodTrait method;
 
             if (instr.opcode == ABCOp.callmethod) {
-                (Class klass, bool isStatic) = (objectNode.dataType == DataNodeType.CLASS)
+                var (klass, isStatic) = (objectNode.dataType == DataNodeType.CLASS)
                     ? (objectNode.constant.classValue, true)
                     : (m_compilation.getDataNodeClass(objectNode), false);
 
@@ -2160,8 +2160,8 @@ namespace Mariana.AVM2.Compiler {
                     Trait staticTrait;
 
                     BindStatus status = (nsSet != null)
-                        ? resolvedProp.objectClass.lookupTrait(localName, nsSet.GetValueOrDefault(), true, out staticTrait)
-                        : resolvedProp.objectClass.lookupTrait(new QName(ns.GetValueOrDefault(), localName), true, out staticTrait);
+                        ? resolvedProp.objectClass.lookupTrait(localName, nsSet.GetValueOrDefault(), isStatic: true, out staticTrait)
+                        : resolvedProp.objectClass.lookupTrait(new QName(ns.GetValueOrDefault(), localName), isStatic: true, out staticTrait);
 
                     if (status == BindStatus.SUCCESS)
                         trait = staticTrait;
@@ -2175,8 +2175,8 @@ namespace Mariana.AVM2.Compiler {
                     Trait instanceTrait;
 
                     BindStatus status = (nsSet != null)
-                        ? klass.lookupTrait(localName, nsSet.GetValueOrDefault(), false, out instanceTrait)
-                        : klass.lookupTrait(new QName(ns.GetValueOrDefault(), localName), false, out instanceTrait);
+                        ? klass.lookupTrait(localName, nsSet.GetValueOrDefault(), isStatic: false, out instanceTrait)
+                        : klass.lookupTrait(new QName(ns.GetValueOrDefault(), localName), isStatic: false, out instanceTrait);
 
                     if (status == BindStatus.SUCCESS)
                         trait = instanceTrait;
@@ -2229,8 +2229,8 @@ namespace Mariana.AVM2.Compiler {
                 Trait instanceTrait;
 
                 BindStatus status = (nsSet != null)
-                    ? klass.lookupTrait(localName, nsSet.GetValueOrDefault(), false, out instanceTrait)
-                    : klass.lookupTrait(new QName(ns.GetValueOrDefault(), localName), false, out instanceTrait);
+                    ? klass.lookupTrait(localName, nsSet.GetValueOrDefault(), isStatic: false, out instanceTrait)
+                    : klass.lookupTrait(new QName(ns.GetValueOrDefault(), localName), isStatic: false, out instanceTrait);
 
                 if (status == BindStatus.SUCCESS) {
                     resolvedProp.propKind = ResolvedPropertyKind.TRAIT;
@@ -2275,7 +2275,7 @@ namespace Mariana.AVM2.Compiler {
                 }
             }
             else {
-                (Class klass, bool isStatic) = (objectNode.dataType == DataNodeType.CLASS)
+                var (klass, isStatic) = (objectNode.dataType == DataNodeType.CLASS)
                     ? (objectNode.constant.classValue, true)
                     : (m_compilation.getDataNodeClass(objectNode), false);
 
@@ -2411,8 +2411,8 @@ namespace Mariana.AVM2.Compiler {
                         Trait staticTrait;
 
                         BindStatus status = (_nsSet != null)
-                            ? _resolvedProp.objectClass.lookupTrait(_localName, _nsSet.GetValueOrDefault(), true, out staticTrait)
-                            : _resolvedProp.objectClass.lookupTrait(new QName(_ns.GetValueOrDefault(), _localName), true, out staticTrait);
+                            ? _resolvedProp.objectClass.lookupTrait(_localName, _nsSet.GetValueOrDefault(), isStatic: true, out staticTrait)
+                            : _resolvedProp.objectClass.lookupTrait(new QName(_ns.GetValueOrDefault(), _localName), isStatic: true, out staticTrait);
 
                         if (status == BindStatus.SUCCESS)
                             trait = staticTrait;
@@ -2425,8 +2425,8 @@ namespace Mariana.AVM2.Compiler {
                         Trait instanceTrait;
 
                         BindStatus status = (_nsSet != null)
-                            ? nodeClass.lookupTrait(_localName, _nsSet.GetValueOrDefault(), false, out instanceTrait)
-                            : nodeClass.lookupTrait(new QName(_ns.GetValueOrDefault(), _localName), false, out instanceTrait);
+                            ? nodeClass.lookupTrait(_localName, _nsSet.GetValueOrDefault(), isStatic: false, out instanceTrait)
+                            : nodeClass.lookupTrait(new QName(_ns.GetValueOrDefault(), _localName), isStatic: false, out instanceTrait);
 
                         if (status == BindStatus.SUCCESS)
                             trait = instanceTrait;
@@ -4646,7 +4646,7 @@ namespace Mariana.AVM2.Compiler {
             ref var nodeSet = ref m_tempIntArray;
             nodeSet.clear();
 
-            if (!walk(ref node, true, ref nodeSet))
+            if (!walk(ref node, isTopLevel: true, ref nodeSet))
                 return false;
 
             for (int i = 0; i < nodeSet.length; i++) {
@@ -4734,8 +4734,11 @@ namespace Mariana.AVM2.Compiler {
                                 return false;
                         }
 
-                        if (!walk(ref left, false, ref _nodeSet) || (!isRightDupOfLeft && !walk(ref right, false, ref _nodeSet)))
+                        if (!walk(ref left, isTopLevel: false, ref _nodeSet)
+                            || (!isRightDupOfLeft && !walk(ref right, isTopLevel: false, ref _nodeSet)))
+                        {
                             return false;
+                        }
 
                         if (isRightDupOfLeft)
                             _nodeSet.add(right.id);
@@ -4753,7 +4756,7 @@ namespace Mariana.AVM2.Compiler {
                         if (!isInteger(input.dataType) && m_compilation.getDataNodeUseCount(ref input) > 1)
                             return false;
 
-                        if (!walk(ref input, false, ref _nodeSet))
+                        if (!walk(ref input, isTopLevel: false, ref _nodeSet))
                             return false;
 
                         _nodeSet.add(_node.id);

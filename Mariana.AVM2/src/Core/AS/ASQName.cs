@@ -147,7 +147,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="localName">The local name.</param>
         /// <returns>The created <see cref="ASQName"/> instance.</returns>
         internal static ASQName unsafeCreate(string prefix, string uri, string localName) =>
-            new ASQName(prefix, uri, localName, true);
+            new ASQName(prefix, uri, localName, _unsafeMarker: true);
 
         /// <summary>
         /// Returns a string representation of the object.

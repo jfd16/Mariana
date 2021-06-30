@@ -135,7 +135,7 @@ namespace Mariana.AVM2.Tests {
             foreach (var (k, v) in nonNullKeyPairs)
                 Assert.True(metadataTag.hasValue(k));
 
-            HashSet<string> seenKeys = new HashSet<string>();
+            var seenKeys = new HashSet<string>(StringComparer.Ordinal);
             foreach (var (k, v) in nonNullKeyPairs.Reverse()) {
                 if (seenKeys.Add(k))
                     Assert.Equal(v, metadataTag[k]);

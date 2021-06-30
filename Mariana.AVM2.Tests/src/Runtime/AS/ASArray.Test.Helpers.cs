@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using Mariana.AVM2.Core;
 using Mariana.AVM2.Tests.Helpers;
+using Mariana.Common;
 using Xunit;
 
 using static System.Buffers.Binary.BinaryPrimitives;
@@ -14,7 +15,7 @@ namespace Mariana.AVM2.Tests {
     public partial class ASArrayTest {
 
         [ThreadStatic]
-        private static Random s_currentRandom;
+        private static Random s_currentRandom = new Random();
 
         /// <summary>
         /// Sets the seed value for the random number generator. Call this before the start of each test.
@@ -136,11 +137,10 @@ namespace Mariana.AVM2.Tests {
             return dict;
         }
 
-        private static ASObject s_arrayClassPrototype = Class.fromType(typeof(ASArray)).prototypeObject;
+        private static Class s_arrayClass = Class.fromType(typeof(ASArray));
 
-        private static Dictionary<uint, ASAny> s_currentProtoProperties;
-
-        private static object s_protoGlobalLock = new object();
+        private static ZoneStaticData<Dictionary<uint, ASAny>> s_currentProtoProperties =
+            new ZoneStaticData<Dictionary<uint, ASAny>>(() => new Dictionary<uint, ASAny>());
 
         /// <summary>
         /// Creates a string representation of an array index.
@@ -148,49 +148,24 @@ namespace Mariana.AVM2.Tests {
         private static string indexToString(uint index) => index.ToString(CultureInfo.InvariantCulture);
 
         /// <summary>
-        /// Sets the properties on the prototype of the Array class.
+        ///
         /// </summary>
         ///
         /// <param name="propDict">A dictionary containing the properties to be set to the Array
         /// prototype.</param>
-        ///
-        /// <remarks>
-        /// Calling this method will acquire a global lock to ensure that tests that depend on the
-        /// state of the global Array prototype are not run concurrently. Call
-        /// <see cref="resetPrototypeProperties"/> at the end of the test to release the lock.
-        /// </remarks>
-        private static void setPrototypeProperties(Dictionary<uint, ASAny> propDict) {
-            if (!Monitor.IsEntered(s_protoGlobalLock))
-                Monitor.Enter(s_protoGlobalLock);
+        private static void runInZoneWithArrayPrototype(Dictionary<uint, ASAny> propDict, Action func) {
+            propDict = propDict ?? new Dictionary<uint, ASAny>();
 
-            if (s_currentProtoProperties != null) {
-                foreach (var key in s_currentProtoProperties.Keys)
-                    s_arrayClassPrototype.AS_deleteProperty(indexToString(key));
+            using (StaticZone zone = new StaticZone()) {
+                zone.enterAndRun(() => {
+                    ASObject proto = s_arrayClass.prototypeObject;
+                    foreach (var (key, val) in propDict)
+                        proto.AS_setProperty(indexToString(key), val);
+
+                    s_currentProtoProperties.value = propDict;
+                    func();
+                });
             }
-
-            if (propDict != null) {
-                foreach (var (key, val) in propDict)
-                    s_arrayClassPrototype.AS_setProperty(indexToString(key), val);
-            }
-
-            s_currentProtoProperties = propDict;
-        }
-
-        /// <summary>
-        /// Removes all properties that were set on the Array prototype using the
-        /// <see cref="setPrototypeProperties"/> method. Call this at the end of a test that
-        /// involves modifying the Array class prototype.
-        /// </summary>
-        private static void resetPrototypeProperties() {
-            if (s_currentProtoProperties != null) {
-                foreach (var key in s_currentProtoProperties.Keys)
-                    s_arrayClassPrototype.AS_deleteProperty(indexToString(key));
-
-                s_currentProtoProperties = null;
-            }
-
-            if (Monitor.IsEntered(s_protoGlobalLock))
-                Monitor.Exit(s_protoGlobalLock);
         }
 
         public enum MutationKind {
@@ -528,6 +503,8 @@ namespace Mariana.AVM2.Tests {
         private static void verifyArrayMatchesImage(
             ASArray array, Image image, bool primitiveValueEqual = false, bool dontSampleOutsideArrayLength = false)
         {
+            var currentProto = s_currentProtoProperties.value;
+
             void assertEqual(ASAny expected, ASAny actual) {
                 if (primitiveValueEqual)
                     AssertHelper.valueIdentical(expected, actual);
@@ -543,11 +520,9 @@ namespace Mariana.AVM2.Tests {
                 checkIndexHasValue(imageKey, imageVal);
 
             // Properties on the Array prototype with index-like keys
-            if (s_currentProtoProperties != null) {
-                foreach (var (protoKey, protoVal) in s_currentProtoProperties) {
-                    if (!image.elements.ContainsKey(protoKey))
-                        checkIndexHasValue(protoKey, protoVal, true);
-                }
+            foreach (var (protoKey, protoVal) in currentProto) {
+                if (!image.elements.ContainsKey(protoKey))
+                    checkIndexHasValue(protoKey, protoVal, true);
             }
 
             const uint smallArrayLength = 500;
@@ -624,7 +599,7 @@ namespace Mariana.AVM2.Tests {
             }
 
             bool isIndexInImageOrPrototype(uint index) =>
-                image.elements.ContainsKey(index) || (s_currentProtoProperties != null && s_currentProtoProperties.ContainsKey(index));
+                image.elements.ContainsKey(index) || currentProto.ContainsKey(index);
         }
 
         /// <summary>
@@ -670,11 +645,11 @@ namespace Mariana.AVM2.Tests {
             uint length = Math.Min(image.length, (uint)Int32.MaxValue);
             ASAny[] arr = new ASAny[(int)length];
 
-            if (s_currentProtoProperties != null) {
-                foreach (var (k, v) in s_currentProtoProperties) {
-                    if (k < length)
-                        arr[(int)k] = v;
-                }
+            var currentProto = s_currentProtoProperties.value;
+
+            foreach (var (k, v) in currentProto) {
+                if (k < length)
+                    arr[(int)k] = v;
             }
 
             foreach (var (k, v) in image.elements) {

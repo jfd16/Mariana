@@ -397,10 +397,12 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         private void _expandTable() {
             int newSize = DataStructureUtil.nextPrime(checked(m_count * 2));
+
             Trait[] newSlots = new Trait[newSize];
             (new ReadOnlySpan<Trait>(m_slots, 0, m_count)).CopyTo(newSlots);
+
             m_slots = newSlots;
-            _resetLinks(false);
+            _resetLinks(recalculateHashes: false);
         }
 
         /// <summary>
@@ -497,7 +499,7 @@ namespace Mariana.AVM2.Core {
                 if (tryAddTrait(parentTrait, allowMergeProperties: true))
                     continue;
 
-                tryGetTrait(parentTrait.name, false, out Trait conflictingTrait);
+                tryGetTrait(parentTrait.name, isStatic: false, out Trait conflictingTrait);
 
                 if (allowHiding) {
                     if (conflictingTrait.traitType != parentTrait.traitType
@@ -518,10 +520,13 @@ namespace Mariana.AVM2.Core {
                     if (!mustCreateNewProp)
                         continue;
 
-                    PropertyTrait newProp = new PropertyTrait(
-                        conflictProp.name, m_class, m_class.applicationDomain, false,
+                    var newProp = new PropertyTrait(
+                        conflictProp.name, m_class,
+                        m_class.applicationDomain,
+                        isStatic: false,
                         conflictProp.getter ?? parentProp.getter,
-                        conflictProp.setter ?? parentProp.setter);
+                        conflictProp.setter ?? parentProp.setter
+                    );
 
                     _swapTraits(conflictProp, newProp);
                     continue;
@@ -587,7 +592,6 @@ namespace Mariana.AVM2.Core {
             // Since parent interfaces are flattened, we only need to consider the
             // declared traits of each of them.
             for (int i = parentTraitTable.m_count - 1; i >= 0; i--) {
-
                 Trait parentTrait = parentTraits[i];
 
                 if (parentTrait.declaringClass != parentTraitTable.m_class)
@@ -603,10 +607,11 @@ namespace Mariana.AVM2.Core {
                 if (tryAddTrait(parentTrait, allowMergeProperties: true))
                     continue;
 
-                tryGetTrait(parentTrait.name, false, out Trait conflictingTrait);
+                tryGetTrait(parentTrait.name, isStatic: false, out Trait conflictingTrait);
 
                 if (!_canMergeConflictingInterfaceTraits(parentTrait, conflictingTrait)) {
                     m_isCorrupted = true;
+
                     throw ErrorHelper.createError(
                         ErrorCode.MARIANA__INTERFACE_COMMON_TRAIT_SIG_MISMATCH,
                         conflictingTrait.name.ToString(),
@@ -729,7 +734,7 @@ namespace Mariana.AVM2.Core {
 
             m_slots = newTraitList.toArray();
 
-            _resetLinks(true);
+            _resetLinks(recalculateHashes: true);
             m_isSealed = true;
         }
 

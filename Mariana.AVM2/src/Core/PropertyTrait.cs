@@ -25,7 +25,7 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <inheritdoc/>
-        public override TraitType traitType => TraitType.PROPERTY;
+        public sealed override TraitType traitType => TraitType.PROPERTY;
 
         /// <summary>
         /// The getter method of the property. For write-only properties, this value is null.

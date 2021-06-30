@@ -17,7 +17,7 @@ namespace Mariana.AVM2.Tests {
         public static IEnumerable<object[]> everySomeMethodTest_data() {
             setRandomSeed(669194);
 
-            var testcases = new List<(ArrayWrapper, Image, IndexDict, SpyFunctionObject)>();
+            var testcases = new List<(ArrayWrapper, Image, IndexDict, MockFunctionObject)>();
 
             void addTestCase(
                 (ASArray arr, Image img)[] testInstances,
@@ -28,10 +28,10 @@ namespace Mariana.AVM2.Tests {
                     Image curImg = img;
 
                     foreach (var (func, argCount) in functions) {
-                        SpyFunctionObject spyFunction = null;
+                        MockFunctionObject spyFunction = null;
                         if (func != null) {
                             var closedReceiver = (randomIndex(4) == 0) ? new ASObject() : null;
-                            spyFunction = new SpyFunctionObject((r, args) => func(args), closedReceiver, argCount);
+                            spyFunction = new MockFunctionObject((r, args) => func(args), closedReceiver, argCount);
                         }
                         testcases.Add((new ArrayWrapper(curArr), curImg, prototype, spyFunction));
                     }
@@ -233,16 +233,15 @@ namespace Mariana.AVM2.Tests {
 
         [Theory]
         [MemberData(nameof(everySomeMethodTest_data))]
-        public void everyMethodTest(ArrayWrapper array, Image image, SpyFunctionObject function, ASObject thisObj, IndexDict prototype) {
-            setRandomSeed(199328);
-            setPrototypeProperties(prototype);
+        public void everyMethodTest(ArrayWrapper array, Image image, MockFunctionObject function, ASObject thisObj, IndexDict prototype) {
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(199328);
 
-            try {
                 if (function != null && function.isMethodClosure && thisObj != null) {
                     AssertHelper.throwsErrorWithCode(
                         ErrorCode.CALLBACK_METHOD_THIS_NOT_NULL, () => array.instance.every(function, thisObj));
 
-                    Assert.Equal(0, function.getCallRecords().Length);
+                    Assert.Equal(0, function.getCallHistory().Length);
                     verifyArrayMatchesImage(array.instance, image);
                     return;
                 }
@@ -257,7 +256,7 @@ namespace Mariana.AVM2.Tests {
                     return;
                 }
 
-                var callRecords = function.getCallRecords();
+                var callRecords = function.getCallHistory();
 
                 var arrayElements = getArrayElementsFromImage(image);
                 Assert.True(callRecords.Length <= arrayElements.Length);
@@ -286,24 +285,20 @@ namespace Mariana.AVM2.Tests {
                 }
 
                 Assert.True(result);
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         [Theory]
         [MemberData(nameof(everySomeMethodTest_data))]
-        public void someMethodTest(ArrayWrapper array, Image image, SpyFunctionObject function, ASObject thisObj, IndexDict prototype) {
-            setRandomSeed(25419);
-            setPrototypeProperties(prototype);
+        public void someMethodTest(ArrayWrapper array, Image image, MockFunctionObject function, ASObject thisObj, IndexDict prototype) {
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(25419);
 
-            try {
                 if (function != null && function.isMethodClosure && thisObj != null) {
                     AssertHelper.throwsErrorWithCode(
                         ErrorCode.CALLBACK_METHOD_THIS_NOT_NULL, () => array.instance.some(function, thisObj));
 
-                    Assert.Equal(0, function.getCallRecords().Length);
+                    Assert.Equal(0, function.getCallHistory().Length);
                     verifyArrayMatchesImage(array.instance, image);
                     return;
                 }
@@ -318,7 +313,7 @@ namespace Mariana.AVM2.Tests {
                     return;
                 }
 
-                var callRecords = function.getCallRecords();
+                var callRecords = function.getCallHistory();
 
                 var arrayElements = getArrayElementsFromImage(image);
                 Assert.True(callRecords.Length <= arrayElements.Length);
@@ -347,10 +342,7 @@ namespace Mariana.AVM2.Tests {
                 }
 
                 Assert.False(result);
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         public static IEnumerable<object[]> forEachMethodTest_data() {
@@ -363,7 +355,7 @@ namespace Mariana.AVM2.Tests {
             valueDomain[32] = ASAny.@null;
             valueDomain[41] = ASAny.@null;
 
-            var testcases = new List<(ArrayWrapper, Image, IndexDict, SpyFunctionObject)>();
+            var testcases = new List<(ArrayWrapper, Image, IndexDict, MockFunctionObject)>();
 
             void addTestCase(
                 (ASArray arr, Image img)[] initialStates,
@@ -378,10 +370,10 @@ namespace Mariana.AVM2.Tests {
                     applyMutations(ref curImg, mutations);
 
                     foreach (var (func, argCount) in functions) {
-                        SpyFunctionObject spyFunction = null;
+                        MockFunctionObject spyFunction = null;
                         if (func != null) {
                             var closedReceiver = (randomIndex(4) == 0) ? new ASObject() : null;
-                            spyFunction = new SpyFunctionObject((r, args) => func(args), closedReceiver, argCount);
+                            spyFunction = new MockFunctionObject((r, args) => func(args), closedReceiver, argCount);
                         }
                         testcases.Add((new ArrayWrapper(curArr), curImg, prototype, spyFunction));
                     }
@@ -470,16 +462,15 @@ namespace Mariana.AVM2.Tests {
 
         [Theory]
         [MemberData(nameof(forEachMethodTest_data))]
-        public void forEachMethodTest(ArrayWrapper array, Image image, SpyFunctionObject function, ASObject thisObj, IndexDict prototype) {
-            setRandomSeed(247388);
-            setPrototypeProperties(prototype);
+        public void forEachMethodTest(ArrayWrapper array, Image image, MockFunctionObject function, ASObject thisObj, IndexDict prototype) {
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(247388);
 
-            try {
                 if (function != null && function.isMethodClosure && thisObj != null) {
                     AssertHelper.throwsErrorWithCode(
                         ErrorCode.CALLBACK_METHOD_THIS_NOT_NULL, () => array.instance.forEach(function, thisObj));
 
-                    Assert.Equal(0, function.getCallRecords().Length);
+                    Assert.Equal(0, function.getCallHistory().Length);
                     verifyArrayMatchesImage(array.instance, image);
                     return;
                 }
@@ -492,7 +483,7 @@ namespace Mariana.AVM2.Tests {
                 if (function == null)
                     return;
 
-                var callRecords = function.getCallRecords();
+                var callRecords = function.getCallHistory();
 
                 var arrayElements = getArrayElementsFromImage(image);
                 Assert.True(callRecords.Length == arrayElements.Length);
@@ -513,16 +504,13 @@ namespace Mariana.AVM2.Tests {
                     if (args.Length >= 3)
                         AssertHelper.identical(array.instance, args[2]);
                 }
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         public static IEnumerable<object[]> filterMethodTest_data() {
             setRandomSeed(71192);
 
-            var testcases = new List<(ArrayWrapper, Image, IndexDict, SpyFunctionObject)>();
+            var testcases = new List<(ArrayWrapper, Image, IndexDict, MockFunctionObject)>();
 
             void addTestCase(
                 (ASArray arr, Image img)[] initialStates,
@@ -537,10 +525,10 @@ namespace Mariana.AVM2.Tests {
                     applyMutations(ref curImg, mutations);
 
                     foreach (var (func, argCount) in functions) {
-                        SpyFunctionObject spyFunction = null;
+                        MockFunctionObject spyFunction = null;
                         if (func != null) {
                             var closedReceiver = (randomIndex(4) == 0) ? new ASObject() : null;
-                            spyFunction = new SpyFunctionObject((r, args) => func(args), closedReceiver, argCount);
+                            spyFunction = new MockFunctionObject((r, args) => func(args), closedReceiver, argCount);
                         }
                         testcases.Add((new ArrayWrapper(curArr), curImg, prototype, spyFunction));
                     }
@@ -750,16 +738,15 @@ namespace Mariana.AVM2.Tests {
 
         [Theory]
         [MemberData(nameof(filterMethodTest_data))]
-        public void filterMethodTest(ArrayWrapper array, Image image, SpyFunctionObject function, ASObject thisObj, IndexDict prototype) {
-            setRandomSeed(301609);
-            setPrototypeProperties(prototype);
+        public void filterMethodTest(ArrayWrapper array, Image image, MockFunctionObject function, ASObject thisObj, IndexDict prototype) {
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(301609);
 
-            try {
                 if (function != null && function.isMethodClosure && thisObj != null) {
                     AssertHelper.throwsErrorWithCode(
                         ErrorCode.CALLBACK_METHOD_THIS_NOT_NULL, () => array.instance.filter(function, thisObj));
 
-                    Assert.Equal(0, function.getCallRecords().Length);
+                    Assert.Equal(0, function.getCallHistory().Length);
                     verifyArrayMatchesImage(array.instance, image);
                     return;
                 }
@@ -772,56 +759,51 @@ namespace Mariana.AVM2.Tests {
                     return;
                 }
 
-                var arrayElements = getArrayElementsFromImage(image);
-                var callRecords = function.getCallRecords();
-
-                Assert.True(callRecords.Length <= arrayElements.Length);
-                Assert.True(result.length <= (uint)arrayElements.Length);
-
                 // Ensure that the array is not mutated
                 verifyArrayMatchesImage(array.instance, image);
 
-                // Fill up the prototype with a dummy object to detect holes in the returned array.
-                ASAny hole = new ASObject();
-                setPrototypeProperties(new IndexDict(rangeSelect(1, result.length, i => KeyValuePair.Create(i, hole))));
+                var arrayElements = getArrayElementsFromImage(image);
+                Assert.True(result.length <= (uint)arrayElements.Length);
 
-                uint resultIndex = 0;
+                runInZoneWithArrayPrototype(null, () => {
+                    var callRecords = function.getCallHistory();
+                    Assert.True(callRecords.Length <= arrayElements.Length);
 
-                for (int i = 0; i < arrayElements.Length; i++) {
-                    ref readonly var call = ref callRecords[i];
+                    uint resultIndex = 0;
 
-                    Assert.Same(function.isMethodClosure ? function.storedReceiver : thisObj, call.receiver);
-                    Assert.False(call.isConstruct);
+                    for (int i = 0; i < arrayElements.Length; i++) {
+                        ref readonly var call = ref callRecords[i];
 
-                    var args = call.getArguments();
-                    Assert.Equal(Math.Min(function.length, 3), args.Length);
+                        Assert.Same(function.isMethodClosure ? function.storedReceiver : thisObj, call.receiver);
+                        Assert.False(call.isConstruct);
 
-                    if (args.Length >= 1)
-                        AssertHelper.identical(arrayElements[i], args[0]);
-                    if (args.Length >= 2)
-                        AssertHelper.valueIdentical(i, args[1]);
-                    if (args.Length >= 3)
-                        AssertHelper.identical(array.instance, args[2]);
+                        var args = call.getArguments();
+                        Assert.Equal(Math.Min(function.length, 3), args.Length);
 
-                    if (call.returnValue.value is ASBoolean && (bool)call.returnValue) {
-                        Assert.True(resultIndex < result.length);
-                        Assert.True(result.AS_hasElement(resultIndex));
-                        AssertHelper.identical(result.AS_getElement(resultIndex), arrayElements[i]);
-                        resultIndex++;
+                        if (args.Length >= 1)
+                            AssertHelper.identical(arrayElements[i], args[0]);
+                        if (args.Length >= 2)
+                            AssertHelper.valueIdentical(i, args[1]);
+                        if (args.Length >= 3)
+                            AssertHelper.identical(array.instance, args[2]);
+
+                        if (call.returnValue.value is ASBoolean && (bool)call.returnValue) {
+                            Assert.True(resultIndex < result.length);
+                            Assert.True(result.AS_hasElement(resultIndex));
+                            AssertHelper.identical(result.AS_getElement(resultIndex), arrayElements[i]);
+                            resultIndex++;
+                        }
                     }
-                }
 
-                Assert.Equal(resultIndex, result.length);
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+                    Assert.Equal(resultIndex, result.length);
+                });
+            });
         }
 
         public static IEnumerable<object[]> mapMethodTest_data() {
             setRandomSeed(54831900);
 
-            var testcases = new List<(ArrayWrapper, Image, IndexDict, SpyFunctionObject)>();
+            var testcases = new List<(ArrayWrapper, Image, IndexDict, MockFunctionObject)>();
 
             void addTestCase(
                 (ASArray arr, Image img)[] initialStates,
@@ -836,10 +818,10 @@ namespace Mariana.AVM2.Tests {
                     applyMutations(ref curImg, mutations);
 
                     foreach (var (func, argCount) in functions) {
-                        SpyFunctionObject spyFunction = null;
+                        MockFunctionObject spyFunction = null;
                         if (func != null) {
                             var closedReceiver = (randomIndex(4) == 0) ? new ASObject() : null;
-                            spyFunction = new SpyFunctionObject((r, args) => func(args), closedReceiver, argCount);
+                            spyFunction = new MockFunctionObject((r, args) => func(args), closedReceiver, argCount);
                         }
                         testcases.Add((new ArrayWrapper(curArr), curImg, prototype, spyFunction));
                     }
@@ -1005,16 +987,15 @@ namespace Mariana.AVM2.Tests {
 
         [Theory]
         [MemberData(nameof(mapMethodTest_data))]
-        public void mapMethodTest(ArrayWrapper array, Image image, SpyFunctionObject function, ASObject thisObj, IndexDict prototype) {
-            setRandomSeed(644397);
-            setPrototypeProperties(prototype);
+        public void mapMethodTest(ArrayWrapper array, Image image, MockFunctionObject function, ASObject thisObj, IndexDict prototype) {
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(644397);
 
-            try {
                 if (function != null && function.isMethodClosure && thisObj != null) {
                     AssertHelper.throwsErrorWithCode(
                         ErrorCode.CALLBACK_METHOD_THIS_NOT_NULL, () => array.instance.map(function, thisObj));
 
-                    Assert.Equal(0, function.getCallRecords().Length);
+                    Assert.Equal(0, function.getCallHistory().Length);
                     verifyArrayMatchesImage(array.instance, image);
                     return;
                 }
@@ -1027,42 +1008,38 @@ namespace Mariana.AVM2.Tests {
                     return;
                 }
 
-                var arrayElements = getArrayElementsFromImage(image);
-                var callRecords = function.getCallRecords();
-
-                Assert.True(callRecords.Length == arrayElements.Length);
-                Assert.Equal(result.length, (uint)arrayElements.Length);
-
                 // Ensure that the array is not mutated
                 verifyArrayMatchesImage(array.instance, image);
 
-                // Fill up the prototype with a dummy object to detect holes in the returned array.
-                ASAny hole = new ASObject();
-                setPrototypeProperties(new IndexDict(rangeSelect(1, result.length, i => KeyValuePair.Create(i, hole))));
+                var arrayElements = getArrayElementsFromImage(image);
 
-                for (int i = 0; i < arrayElements.Length; i++) {
-                    ref readonly var call = ref callRecords[i];
+                runInZoneWithArrayPrototype(null, () => {
+                    var callRecords = function.getCallHistory();
 
-                    Assert.Same(function.isMethodClosure ? function.storedReceiver : thisObj, call.receiver);
-                    Assert.False(call.isConstruct);
+                    Assert.True(callRecords.Length == arrayElements.Length);
+                    Assert.Equal(result.length, (uint)arrayElements.Length);
 
-                    var args = call.getArguments();
-                    Assert.Equal(Math.Min(function.length, 3), args.Length);
+                    for (int i = 0; i < arrayElements.Length; i++) {
+                        ref readonly var call = ref callRecords[i];
 
-                    if (args.Length >= 1)
-                        AssertHelper.identical(arrayElements[i], args[0]);
-                    if (args.Length >= 2)
-                        AssertHelper.valueIdentical(i, args[1]);
-                    if (args.Length >= 3)
-                        AssertHelper.identical(array.instance, args[2]);
+                        Assert.Same(function.isMethodClosure ? function.storedReceiver : thisObj, call.receiver);
+                        Assert.False(call.isConstruct);
 
-                    Assert.True(result.AS_hasElement(i));
-                    AssertHelper.identical(result.AS_getElement(i), call.returnValue);
-                }
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+                        var args = call.getArguments();
+                        Assert.Equal(Math.Min(function.length, 3), args.Length);
+
+                        if (args.Length >= 1)
+                            AssertHelper.identical(arrayElements[i], args[0]);
+                        if (args.Length >= 2)
+                            AssertHelper.valueIdentical(i, args[1]);
+                        if (args.Length >= 3)
+                            AssertHelper.identical(array.instance, args[2]);
+
+                        Assert.True(result.AS_hasElement(i));
+                        AssertHelper.identical(result.AS_getElement(i), call.returnValue);
+                    }
+                });
+            });
         }
 
         private static void verifySlice(ASArray slice, Image originalImage, uint startIndex, uint endIndex) {
@@ -1072,20 +1049,19 @@ namespace Mariana.AVM2.Tests {
             }
 
             Assert.Equal(endIndex - startIndex, slice.length);
+            var currentProto = s_currentProtoProperties.value;
 
-            for (uint i = startIndex; i < endIndex; i++) {
-                Assert.True(slice.AS_hasElement(i - startIndex));
-                ASAny expectedValue;
+            runInZoneWithArrayPrototype(null, () => {
+                for (uint i = startIndex; i < endIndex; i++) {
+                    Assert.True(slice.AS_hasElement(i - startIndex));
+                    ASAny expectedValue;
 
-                if (originalImage.elements.TryGetValue(i, out expectedValue)
-                    || (s_currentProtoProperties != null && s_currentProtoProperties.TryGetValue(i, out expectedValue)))
-                {
-                    AssertHelper.identical(expectedValue, slice.AS_getElement(i - startIndex));
+                    if (originalImage.elements.TryGetValue(i, out expectedValue) || currentProto.TryGetValue(i, out expectedValue))
+                        AssertHelper.identical(expectedValue, slice.AS_getElement(i - startIndex));
+                    else
+                        AssertHelper.identical(ASAny.undefined, slice.AS_getElement(i - startIndex));
                 }
-                else {
-                    AssertHelper.identical(ASAny.undefined, slice.AS_getElement(i - startIndex));
-                }
-            }
+            });
         }
 
         public static IEnumerable<object[]> sliceMethodTest_data() {
@@ -1288,10 +1264,9 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(sliceMethodTest_data))]
         public void sliceMethodTest(ArrayWrapper array, Image image, (uint, uint)[] ranges, IndexDict prototype) {
-            setRandomSeed(4758118);
-            setPrototypeProperties(prototype);
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(4758118);
 
-            try {
                 foreach (var (start, end) in ranges) {
                     foreach (var (s, e) in generateEquivalentStartEndRanges(start, end, array.instance.length)) {
                         ASArray slice = array.instance.slice(s, e);
@@ -1299,10 +1274,7 @@ namespace Mariana.AVM2.Tests {
                     }
                 }
                 verifyArrayMatchesImage(array.instance, image);
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         public static IEnumerable<object[]> indexOf_lastIndexOf_testData() {
@@ -1684,10 +1656,10 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(indexOf_lastIndexOf_testData))]
         public void indexOfMethodTest(ArrayWrapper array, Image image, (ASAny, uint)[] queries, IndexDict prototype) {
-            setRandomSeed(47633019);
-            setPrototypeProperties(prototype);
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(47633019);
+                var currentProto = s_currentProtoProperties.value;
 
-            try {
                 foreach (var (target, startIndex) in queries) {
                     double expectedIndex = -1;
 
@@ -1695,15 +1667,10 @@ namespace Mariana.AVM2.Tests {
                         ASAny elementValue;
                         bool matches = false;
 
-                        if (image.elements.TryGetValue(i, out elementValue)
-                            || (s_currentProtoProperties != null && s_currentProtoProperties.TryGetValue(i, out elementValue)))
-                        {
-
+                        if (image.elements.TryGetValue(i, out elementValue) || currentProto.TryGetValue(i, out elementValue))
                             matches = ASAny.AS_strictEq(elementValue, target);
-                        }
-                        else {
+                        else
                             matches = target.isUndefined;
-                        }
 
                         if (matches) {
                             expectedIndex = i;
@@ -1716,19 +1683,16 @@ namespace Mariana.AVM2.Tests {
                 }
 
                 verifyArrayMatchesImage(array.instance, image);
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         [Theory]
         [MemberData(nameof(indexOf_lastIndexOf_testData))]
         public void lastIndexOfMethodTest(ArrayWrapper array, Image image, (ASAny, uint)[] queries, IndexDict prototype) {
-            setRandomSeed(47633023);
-            setPrototypeProperties(prototype);
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(47633023);
+                var currentProto = s_currentProtoProperties.value;
 
-            try {
                 foreach (var (target, startIndex) in queries) {
                     double expectedIndex = -1;
 
@@ -1740,7 +1704,7 @@ namespace Mariana.AVM2.Tests {
                             bool matches = false;
 
                             if (image.elements.TryGetValue(curIndex, out elementValue)
-                                || (s_currentProtoProperties != null && s_currentProtoProperties.TryGetValue(curIndex, out elementValue)))
+                                || currentProto.TryGetValue(curIndex, out elementValue))
                             {
                                 matches = ASAny.AS_strictEq(elementValue, target);
                             }
@@ -1765,10 +1729,7 @@ namespace Mariana.AVM2.Tests {
                 }
 
                 verifyArrayMatchesImage(array.instance, image);
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         public static IEnumerable<object[]> join_toString_testData() {
@@ -1901,10 +1862,9 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(join_toString_testData))]
         public void join_toString_methodTest(ArrayWrapper array, Image image, IndexDict prototype) {
-            setRandomSeed(4635521);
-            setPrototypeProperties(prototype);
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(4635521);
 
-            try {
                 ASAny[] elements = getArrayElementsFromImage(image);
 
                 Assert.Equal(buildString(elements, ","), array.instance.join());
@@ -1915,10 +1875,7 @@ namespace Mariana.AVM2.Tests {
                 Assert.Equal(buildString(elements, "     "), array.instance.join(new ConvertibleMockObject(stringValue: "     ")));
 
                 verifyArrayMatchesImage(array.instance, image);
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
 
             string buildString(ASAny[] elements, string separator) {
                 var sb = new StringBuilder();
@@ -1978,7 +1935,7 @@ namespace Mariana.AVM2.Tests {
 
             ASObject createObject(string returnStr) {
                 var obj = new ASObject();
-                obj.AS_setProperty("toLocaleString", SpyFunctionObject.withReturn(returnStr));
+                obj.AS_setProperty("toLocaleString", MockFunctionObject.withReturn(returnStr));
                 return obj;
             }
 
@@ -2007,9 +1964,7 @@ namespace Mariana.AVM2.Tests {
                     expectedString.Append(prototypeStrings[i]);
             }
 
-            setPrototypeProperties(prototype);
-
-            try {
+            runInZoneWithArrayPrototype(prototype, () => {
                 var oldCulture = CultureInfo.CurrentCulture;
                 CultureInfo.CurrentCulture = new CultureInfo("en-US");
                 try {
@@ -2019,10 +1974,7 @@ namespace Mariana.AVM2.Tests {
                 finally {
                     CultureInfo.CurrentCulture = oldCulture;
                 }
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         public static IEnumerable<object[]> hasOwnProperty_propertyIsEnumerable_testData() {
@@ -2102,7 +2054,7 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(hasOwnProperty_propertyIsEnumerable_testData))]
         public void hasOwnProperty_propertyIsEnumerable_methodTest(ArrayWrapper array, Image image, IndexDict prototype) {
-            var prototypeDPs = new Dictionary<string, (ASAny, bool isEnum)> {
+            var prototypeDPs = new Dictionary<string, (ASAny, bool isEnum)>(StringComparer.Ordinal) {
                 ["+9"] = (new ASObject(), isEnum: true),
                 ["6.0"] = (new ASObject(), isEnum: true),
                 [" 8 "] = (new ASObject(), isEnum: false),
@@ -2112,7 +2064,7 @@ namespace Mariana.AVM2.Tests {
                 ["ghi"] = (new ASObject(), isEnum: false),
             };
 
-            var arrayDPs = new Dictionary<string, (ASAny, bool isEnum)> {
+            var arrayDPs = new Dictionary<string, (ASAny, bool isEnum)>(StringComparer.Ordinal) {
                 ["+5"] = (new ASObject(), isEnum: true),
                 [" 8"] = (new ASObject(), isEnum: false),
                 [" 8 "] = (new ASObject(), isEnum: true),
@@ -2134,10 +2086,9 @@ namespace Mariana.AVM2.Tests {
                 ["def"] = (new ASObject(), isEnum: true),
             };
 
-            setPrototypeProperties(prototype);
-            var arrayProto = s_arrayClassPrototype;
+            runInZoneWithArrayPrototype(prototype, () => {
+                var arrayProto = s_arrayClass.prototypeObject;
 
-            try {
                 foreach (var (key, (val, isEnum)) in arrayDPs)
                     array.instance.AS_dynamicProps.setValue(key, val, isEnum);
 
@@ -2167,7 +2118,7 @@ namespace Mariana.AVM2.Tests {
                     }
                 }
 
-                IEnumerable<string> strKeys = arrayDPs.Keys.Union(prototypeDPs.Keys).Concat(new[] {"", "wxyz"});
+                IEnumerable<string> strKeys = arrayDPs.Keys.Union(prototypeDPs.Keys).Concat(new[] { "", "wxyz" });
 
                 foreach (string key in strKeys) {
                     bool hasOwnProp = arrayDPs.ContainsKey(key);
@@ -2178,13 +2129,7 @@ namespace Mariana.AVM2.Tests {
                     Assert.Equal(isEnumerable, array.instance.propertyIsEnumerable(key));
                     Assert.Equal(isEnumerable, array.instance.propertyIsEnumerable(new ASQName("", key)));
                 }
-            }
-            finally {
-                foreach (string key in prototypeDPs.Keys)
-                    arrayProto.AS_dynamicProps.delete(key);
-
-                resetPrototypeProperties();
-            }
+            });
         }
 
         public readonly struct ConcatTest_Arg {
@@ -2520,10 +2465,9 @@ namespace Mariana.AVM2.Tests {
                 }
             }
 
-            setRandomSeed(614398);
-            setPrototypeProperties(prototype);
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(614398);
 
-            try {
                 // Verify result
                 // Use primitiveValueEqual because of boxing when copying from primitive-typed vectors.
                 verifyArrayMatchesImage(result, resultImage, primitiveValueEqual: true);
@@ -2547,10 +2491,7 @@ namespace Mariana.AVM2.Tests {
                             AssertHelper.valueIdentical(argImage.elements[(uint)j], argVector.AS_getElement(j));
                     }
                 }
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         private class ReverseMutation {}
@@ -2734,10 +2675,9 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(reverseMethodTest_data))]
         public void reverseMethodTest(ArrayWrapper array, Image image, IEnumerable<object> mutations, IndexDict prototype) {
-            setRandomSeed(51469);
-            setPrototypeProperties(prototype);
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(51469);
 
-            try {
                 foreach (object mutOrReverse in mutations) {
                     if (mutOrReverse is Mutation) {
                         var m = (Mutation)mutOrReverse;
@@ -2761,10 +2701,7 @@ namespace Mariana.AVM2.Tests {
 
                     verifyArrayMatchesImage(array.instance, image);
                 }
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         private class SpliceMutation {
@@ -2957,10 +2894,9 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(spliceMethodTest_data))]
         public void spliceMethodTest(ArrayWrapper array, Image image, IEnumerable<object> mutations, IndexDict prototype) {
-            setRandomSeed(6033972);
-            setPrototypeProperties(prototype);
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(6033972);
 
-            try {
                 foreach (object mutOrSplice in mutations) {
                     if (mutOrSplice is Mutation) {
                         var m = (Mutation)mutOrSplice;
@@ -2977,10 +2913,7 @@ namespace Mariana.AVM2.Tests {
                         applySpliceMutationAndVerify(array.instance, ref image, spliceMutation);
                     }
                 }
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         private void applySpliceMutationAndVerify(ASArray array, ref Image image, SpliceMutation mutation) {

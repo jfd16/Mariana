@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Mariana.AVM2.Native;
 using Mariana.Common;
 
@@ -12,14 +13,7 @@ namespace Mariana.AVM2.Core {
     [AVM2ExportClass(name = "JSON")]
     public sealed class ASJSON : ASObject {
 
-        /// <exclude/>
-        /// <summary>
-        /// This constructor throws an exception to ensure that the class cannot be instantiated.
-        /// </summary>
-        [AVM2ExportTrait]
-        public ASJSON(RestParam rest = default) {
-            throw ErrorHelper.createError(ErrorCode.CLASS_CANNOT_BE_INSTANTIATED, "JSON");
-        }
+        private ASJSON() { }
 
         /// <summary>
         /// Parses a JSON string and returns an ActionScript 3 object.
@@ -87,12 +81,18 @@ namespace Mariana.AVM2.Core {
         [AVM2ExportTrait]
         public static string stringify(ASObject obj, ASObject replacer = null, ASObject space = null) {
             bool prettyPrint = false;
-            string[] nameFilter = null;
+            HashSet<string> nameFilter = null;
             ASFunction replacerFunc = null;
             string spaceString = null;
 
             if (replacer is ASArray replacerArr) {
-                nameFilter = replacerArr.toTypedArray<string>();
+                nameFilter = new HashSet<string>(StringComparer.Ordinal);
+
+                for (uint i = 0; i < replacerArr.length; i++) {
+                    ASObject prop = replacerArr[i].value;
+                    if (prop is ASString || ASObject.AS_isNumeric(prop))
+                        nameFilter.Add((string)prop);
+                }
             }
             else {
                 replacerFunc = replacer as ASFunction;
@@ -101,19 +101,17 @@ namespace Mariana.AVM2.Core {
             }
 
             if (ASObject.AS_isNumeric(space)) {
-                int numSpaces = (int)space;
-                if (numSpaces > 0) {
+                double numSpaces = Math.Min((double)space, 10.0);
+                if (numSpaces >= 1.0) {
                     prettyPrint = true;
-                    spaceString = new string(' ', Math.Min(numSpaces, 10));
+                    spaceString = new string(' ', (int)numSpaces);
                 }
             }
-            else {
+            else if (space is ASString) {
                 spaceString = (string)space;
-                if (spaceString != null) {
-                    if (spaceString.Length > 10)
-                        spaceString = spaceString.Substring(0, 10);
-                    prettyPrint = spaceString.Length != 0;
-                }
+                if (spaceString.Length > 10)
+                    spaceString = spaceString.Substring(0, 10);
+                prettyPrint = spaceString.Length != 0;
             }
 
             var stringifier = new Stringifier(prettyPrint, spaceString, nameFilter, replacerFunc);
@@ -187,9 +185,14 @@ namespace Mariana.AVM2.Core {
             }
 
             private struct _StackItem {
-                public ASObject obj;
                 public string propName;
-                public int arrBufMark;
+                public bool isArray;
+                public int stackBaseIndex;
+            }
+
+            private struct _Property {
+                public string name;
+                public ASObject value;
             }
 
             private string m_str;
@@ -210,11 +213,11 @@ namespace Mariana.AVM2.Core {
 
             private string m_curPropName;
 
-            private bool m_curLevelIsArray;
-
             private DynamicArray<_StackItem> m_stack;
 
-            private DynamicArray<ASObject> m_arrBuffer;
+            private DynamicArray<ASObject> m_arrayStack;
+
+            private DynamicArray<_Property> m_propertyStack;
 
             private _State m_curState;
 
@@ -226,15 +229,13 @@ namespace Mariana.AVM2.Core {
             }
 
             internal ASObject parseString(string str) {
+                if (str == null)
+                    throw _error(_Error.EOS_NOT_EXPECTED);
+
                 m_str = str;
                 m_pos = 0;
                 m_curLine = 1;
                 m_curPropName = null;
-                m_curLevelIsArray = false;
-
-                if (str == null || str.Length == 0 || !_goToNextNonSpace())
-                    // Null, empty or whitespace-only string.
-                    return null;
 
                 m_curState = _State.OBJECT;
 
@@ -264,9 +265,17 @@ namespace Mariana.AVM2.Core {
                     }
                 }
 
-                if (_goToNextNonSpace())
+                if (_goToNextNonSpace()) {
                     // Junk after root object.
                     throw _error(_Error.EOS_EXPECTED);
+                }
+
+                if (m_reviver != null) {
+                    // Pass the root through the reviver
+                    ASObject reviverThis = new ASObject();
+                    reviverThis.AS_dynamicProps.setValue("", m_rootObject);
+                    m_rootObject = _callReviver(reviverThis, "", m_rootObject).value;
+                }
 
                 return m_rootObject;
             }
@@ -275,14 +284,12 @@ namespace Mariana.AVM2.Core {
                 char ch = m_str[m_pos];
 
                 if (ch == '{') {
-                    m_stack.add(new _StackItem {obj = new ASObject(), propName = m_curPropName, arrBufMark = -1});
-                    m_curLevelIsArray = false;
+                    m_stack.add(new _StackItem {propName = m_curPropName, isArray = false, stackBaseIndex = m_propertyStack.length});
                     m_curState = _State.FIRST_PROP_OR_END;
                     m_pos++;
                 }
                 else if (ch == '[') {
-                    m_stack.add(new _StackItem {obj = null, propName = m_curPropName, arrBufMark = m_arrBuffer.length});
-                    m_curLevelIsArray = true;
+                    m_stack.add(new _StackItem {propName = m_curPropName, isArray = true, stackBaseIndex = m_arrayStack.length});
                     m_curState = _State.FIRST_ARRAY_ELEM_OR_END;
                     m_pos++;
                 }
@@ -420,76 +427,99 @@ namespace Mariana.AVM2.Core {
             }
 
             private void _acceptObject(ASObject obj) {
-                bool discard = false;
-
-                if (m_reviver != null) {
-                    // Pass the object through the reviver.
-
-                    string reviverKey;
-                    if (m_stack.length == 0) {
-                        // Root object
-                        reviverKey = "";
-                    }
-                    else if (m_curLevelIsArray) {
-                        int index = m_arrBuffer.length - m_stack[m_stack.length - 1].arrBufMark;
-                        reviverKey = ASint.AS_convertString(index);
-                    }
-                    else {
-                        reviverKey = m_curPropName;
-                    }
-
-                    m_reviverArgs[0] = reviverKey;
-                    m_reviverArgs[1] = obj;
-                    ASAny reviverReturn = m_reviver.AS_invoke(ASAny.@null, m_reviverArgs);
-
-                    if (reviverReturn.isUndefined && !m_curLevelIsArray)
-                        discard = true;
-
-                    obj = reviverReturn.value;
-                }
-
                 if (m_stack.length == 0) {
-                    if (!discard)
-                        m_rootObject = obj;
+                    m_rootObject = obj;
                     m_curState = _State.END_OF_STRING;
                 }
-                else if (m_curLevelIsArray) {
-                    // Array elements are never discarded.
-                    m_arrBuffer.add(obj);
+                else if (m_stack[m_stack.length - 1].isArray) {
+                    m_arrayStack.add(obj);
                     m_curState = _State.NEXT_ARRAY_ELEM_OR_END;
                 }
                 else {
-                    if (!discard)
-                        m_stack[m_stack.length - 1].obj.AS_dynamicProps[m_curPropName] = obj;
+                    m_propertyStack.add(new _Property {name = m_curPropName, value = obj});
                     m_curState = _State.NEXT_PROP_OR_END;
                 }
             }
 
+            private ASAny _callReviver(ASObject obj, string key, ASObject value) {
+                m_reviverArgs[0] = key;
+                m_reviverArgs[1] = value;
+                return m_reviver.AS_invoke(obj, m_reviverArgs);
+            }
+
             private void _endCurrentObject() {
-                _StackItem stackItem = m_stack[m_stack.length - 1];
-                m_stack.removeLast();
+                ref _StackItem topOfStack = ref m_stack[m_stack.length - 1];
 
                 ASObject obj;
 
-                if (stackItem.arrBufMark != -1) {
-                    // Current object is an array.
-                    int arrLen = m_arrBuffer.length - stackItem.arrBufMark;
-                    if (arrLen != 0) {
-                        obj = ASArray.fromObjectSpan(m_arrBuffer.asSpan(stackItem.arrBufMark, arrLen));
-                        m_arrBuffer.removeRange(stackItem.arrBufMark, arrLen);
+                if (topOfStack.isArray) {
+                    int arrayLength = m_arrayStack.length - topOfStack.stackBaseIndex;
+                    var arrayElements = m_arrayStack.asSpan(topOfStack.stackBaseIndex, arrayLength);
+                    var array = ASArray.fromObjectSpan(arrayElements);
+
+                    if (m_reviver != null) {
+                        for (int i = 0; i < arrayLength; i++)
+                            array[i] = _callReviver(array, ASint.AS_convertString(i), arrayElements[i]).value;
                     }
-                    else {
-                        obj = new ASArray();
-                    }
+
+                    obj = array;
+                    m_arrayStack.removeRange(topOfStack.stackBaseIndex, arrayLength);
                 }
                 else {
-                    // Object.
-                    obj = stackItem.obj;
+                    int propCount = m_propertyStack.length - topOfStack.stackBaseIndex;
+                    var properties = m_propertyStack.asSpan(topOfStack.stackBaseIndex, propCount);
+
+                    obj = new ASObject();
+                    DynamicPropertyCollection objProps = obj.AS_dynamicProps;
+
+                    for (int i = 0; i < properties.Length; i++)
+                        objProps.setValue(properties[i].name, properties[i].value);
+
+                    if (m_reviver != null) {
+                        // We need to pass the object properties through the reviver, and delete the properties
+                        // from the object for which the reviver returns undefined.
+
+                        // To avoid any problems that may arise from deleting properties from the object
+                        // while iterating over it, this is done in two passes: First, we overwrite
+                        // the segment of the property buffer that held the parsed key-value pairs with those
+                        // that are actually on the object (this excludes any properties that were not written
+                        // because of repeated keys), and then we iterate over the properties in the buffer and
+                        // mutate the object with the reviver results.
+
+                        int curIndex = objProps.getNextIndex(-1);
+                        int effectivePropCount = 0;
+
+                        while (curIndex != -1) {
+                            properties[effectivePropCount] = new _Property {
+                                name = objProps.getNameFromIndex(curIndex),
+                                value = objProps.getValueFromIndex(curIndex).value
+                            };
+                            effectivePropCount++;
+                            curIndex = objProps.getNextIndex(curIndex);
+                        }
+
+                        properties = properties.Slice(0, effectivePropCount);
+
+                        for (int i = 0; i < properties.Length; i++) {
+                            _Property prop = properties[i];
+                            ASAny reviverResult = _callReviver(obj, prop.name, prop.value);
+
+                            if (reviverResult.isUndefined) {
+                                objProps.delete(prop.name);
+                            }
+                            else if (reviverResult.value != prop.value) {
+                                // Skip redundant writes when the reviver returns the same value.
+                                objProps.setValue(prop.name, reviverResult.value);
+                            }
+                        }
+                    }
+
+                    m_propertyStack.removeRange(topOfStack.stackBaseIndex, propCount);
                 }
 
-                m_curPropName = stackItem.propName;
-                m_curLevelIsArray = m_stack.length != 0 && m_stack[m_stack.length - 1].arrBufMark != -1;
+                m_curPropName = topOfStack.propName;
 
+                m_stack.removeLast();
                 _acceptObject(obj);
             }
 
@@ -549,7 +579,7 @@ namespace Mariana.AVM2.Core {
                 int totalCharsRead = 1;
 
                 while (true) {
-                    if ((uint)span.Length <= 0)
+                    if (span.IsEmpty)
                         throw _error(_Error.EOS_NOT_EXPECTED);
 
                     char ch = span[0];
@@ -612,8 +642,10 @@ namespace Mariana.AVM2.Core {
                     }
                     else if (ch == '"') {
                         // String terminates
+
                         m_stringBuffer = buffer;
-                        m_pos += totalCharsRead;
+                        m_pos += totalCharsRead + 1;   // +1 for closing quote
+
                         return new string(buffer, 0, bufpos);
                     }
 
@@ -639,6 +671,7 @@ namespace Mariana.AVM2.Core {
 
                 ReadOnlySpan<char> span = m_str.AsSpan(m_pos);
                 int i;
+
                 for (i = 0; i < span.Length; i++) {
                     int c = span[i] - offset;
                     if ((uint)c > max || ((1 << c) & mask) == 0)
@@ -646,6 +679,7 @@ namespace Mariana.AVM2.Core {
                     if (c == '\n' - offset)
                         m_curLine++;
                 }
+
                 m_pos += i;
                 return i < span.Length;
             }
@@ -660,12 +694,6 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         private struct Stringifier {
 
-            private enum _ObjType {
-                OBJECT,
-                ARRAY,
-                VECTOR,
-            }
-
             private enum _State {
                 VISIT,
                 ENTER,
@@ -675,14 +703,81 @@ namespace Mariana.AVM2.Core {
             }
 
             private struct _StackItem {
-                public ASObject obj;
-                public _ObjType objType;
-                public int nPropsWritten;
-                public ReadOnlyArrayView<Trait> traits;
-                public DynamicPropertyCollection dynamicProps;
-                public int arrayLength;
+
+                public readonly ASObject obj;
+                public readonly ASArray array;
+                public readonly ASVectorAny vector;
+
+                public readonly ReadOnlyArrayView<Trait> traits;
+                public readonly ReadOnlyArrayView<Trait> staticTraits;
+                public readonly DynamicPropertyCollection dynamicProps;
+
+                public readonly int arrayLength;
+
+                public int propWrittenCount;
                 public int curTraitIndex;
-                public int curDynPropIndex;   // Array index if obj is an array/vector.
+                public int curArrayOrDynPropIndex;
+
+                public bool isArrayOrVector => arrayLength != -1;
+                public int traitCount => traits.length + staticTraits.length;
+
+                public _StackItem(ASObject obj) : this() {
+                    this.obj = obj;
+                    this.arrayLength = -1;
+                    this.curTraitIndex = -1;
+                    this.curArrayOrDynPropIndex = -1;
+
+                    this.dynamicProps = obj.AS_dynamicProps;
+                    this.traits = obj.AS_class.getTraits(TraitType.ALL, TraitScope.INSTANCE);
+
+                    if (obj is ASClass classObj)
+                        this.staticTraits = classObj.internalClass.getTraits(TraitType.ALL, TraitScope.STATIC);
+                    else if (obj is ASGlobalObject globalObj)
+                        this.staticTraits = globalObj.applicationDomain.getGlobalTraits(TraitType.ALL, noInherited: true);
+                }
+
+                public _StackItem(ASArray array) : this() {
+                    this.obj = array;
+                    this.array = array;
+                    this.arrayLength = (int)Math.Min(array.length, (uint)Int32.MaxValue);
+                    this.curTraitIndex = -1;
+                    this.curArrayOrDynPropIndex = -1;
+                }
+
+                public _StackItem(ASVectorAny vector) : this() {
+                    this.obj = vector;
+                    this.vector = vector;
+                    this.arrayLength = vector.length;
+                    this.curTraitIndex = -1;
+                    this.curArrayOrDynPropIndex = -1;
+                }
+
+                public Trait nextWritableTrait() {
+                    int traitCount = this.traitCount;
+
+                    int curIndex;
+                    Trait curTrait = null;
+
+                    for (curIndex = curTraitIndex + 1; curIndex < traitCount; curIndex++) {
+                        Trait trait = (curIndex >= traits.length)
+                            ? staticTraits[curIndex - traits.length]
+                            : traits[curIndex];
+
+                        if (!trait.name.ns.isPublic)
+                            continue;
+
+                        if ((trait.traitType & (TraitType.FIELD | TraitType.CONSTANT | TraitType.CLASS)) != 0
+                            || (trait is PropertyTrait prop && prop.getter != null))
+                        {
+                            curTrait = trait;
+                            break;
+                        }
+                    }
+
+                    curTraitIndex = curIndex;
+                    return curTrait;
+                }
+
             }
 
             // The toJSON method name.
@@ -694,7 +789,7 @@ namespace Mariana.AVM2.Core {
 
             private DynamicArray<string> m_parts;
 
-            private string[] m_nameFilter;
+            private HashSet<string> m_nameFilter;
 
             private ASFunction m_replacer;
 
@@ -706,6 +801,8 @@ namespace Mariana.AVM2.Core {
 
             private DynamicArray<_StackItem> m_stack;
 
+            private ReferenceSet<ASObject> m_currentPathSet;
+
             private _State m_curState;
 
             private string m_curPropName;
@@ -714,11 +811,13 @@ namespace Mariana.AVM2.Core {
 
             private ASObject[] m_primitveToJSONFuncs;
 
-            internal Stringifier(bool prettyPrint, string indent, string[] nameFilter, ASFunction replacer) : this() {
+            internal Stringifier(bool prettyPrint, string indent, HashSet<string> nameFilter, ASFunction replacer) : this() {
                 m_prettyPrint = prettyPrint;
+
                 m_indentString1 = indent;
                 m_indentString2 = indent + indent;
                 m_indentString4 = m_indentString2 + m_indentString2;
+
                 m_nameFilter = nameFilter;
                 m_replacer = replacer;
                 m_toJSONArgs = new ASAny[1];
@@ -728,10 +827,12 @@ namespace Mariana.AVM2.Core {
                 // toJSON methods for int and uint are not stored here because int
                 // and uint use Number's prototype.
                 m_primitveToJSONFuncs = new ASObject[] {
-                    Class.fromType<double>().prototypeObject.AS_getProperty(s_toJSONMethodName).value,
-                    Class.fromType<string>().prototypeObject.AS_getProperty(s_toJSONMethodName).value,
-                    Class.fromType<bool>().prototypeObject.AS_getProperty(s_toJSONMethodName).value,
+                    Class.fromType(typeof(double)).prototypeObject.AS_getProperty(s_toJSONMethodName).value,
+                    Class.fromType(typeof(string)).prototypeObject.AS_getProperty(s_toJSONMethodName).value,
+                    Class.fromType(typeof(bool)).prototypeObject.AS_getProperty(s_toJSONMethodName).value,
                 };
+
+                m_currentPathSet = new ReferenceSet<ASObject>();
             }
 
             internal string makeJSONString(ASObject obj) {
@@ -760,93 +861,45 @@ namespace Mariana.AVM2.Core {
             }
 
             private string _getCurrentKeyString() {
-                if (m_stack.length != 0 && m_stack[m_stack.length - 1].objType != _ObjType.OBJECT)
-                    return ASint.AS_convertString(m_stack[m_stack.length - 1].curDynPropIndex);
+                if (m_stack.length == 0)
+                    return "";
+
+                if (m_stack[m_stack.length - 1].isArrayOrVector)
+                    return ASint.AS_convertString(m_stack[m_stack.length - 1].curArrayOrDynPropIndex);
+
                 return m_curPropName;
             }
 
-            private void _checkCyclicStructure() {
-                for (int i = 0, n = m_stack.length; i < n; i++) {
-                    if (m_curObject.value == m_stack[i].obj)
-                        throw ErrorHelper.createError(ErrorCode.JSON_CYCLIC_STRUCTURE);
-                }
-            }
-
-            private bool _isNameInFilter(string name) {
-                var filter = m_nameFilter;
-                for (int i = 0; i < filter.Length; i++) {
-                    if (name == filter[i])
-                        return true;
-                }
-                return false;
-            }
-
-            private Trait _moveNextJSONWritableTrait(ref _StackItem stackItem) {
-                int traitCount = stackItem.traits.length;
-                int curIndex;
-
-                for (curIndex = stackItem.curTraitIndex + 1; curIndex < traitCount; curIndex++) {
-                    Trait trait = stackItem.traits[curIndex];
-                    if (!trait.name.ns.isPublic)
-                        continue;
-
-                    TraitType type = trait.traitType;
-
-                    if ((type & (TraitType.FIELD | TraitType.CONSTANT)) != 0) {
-                        stackItem.curTraitIndex = curIndex;
-                        return trait;
-                    }
-
-                    if (type == TraitType.PROPERTY) {
-                        PropertyTrait prop = (PropertyTrait)trait;
-                        if (prop.getter != null) {
-                            stackItem.curTraitIndex = curIndex;
-                            return trait;
-                        }
-                    }
-                }
-
-                stackItem.curTraitIndex = curIndex;
-                return null;
-            }
-
             private void _state_visit() {
-                bool parentIsArray = m_stack.length != 0 && m_stack[m_stack.length - 1].objType != _ObjType.OBJECT;
+                bool parentIsArray = m_stack.length != 0 && m_stack[m_stack.length - 1].isArrayOrVector;
 
                 // If a replacer is given, pass the current key-value pair through it.
                 if (m_replacer != null) {
                     m_replacerArgs[0] = _getCurrentKeyString();
                     m_replacerArgs[1] = m_curObject;
 
-                    ASObject parentObj = (m_stack.length == 0) ? null : m_stack[m_stack.length - 1].obj;
-                    ASAny replaced = m_replacer.AS_invoke(parentObj, m_replacerArgs);
-
-                    if (replaced.isUndefined && !parentIsArray) {
-                        // Skip properties that return undefined from the replacer.
-                        // Except when the parent is an array/vector, in which case null is written.
-                        m_curState = _State.NEXT;
-                        return;
+                    ASObject parentObj;
+                    if (m_stack.length != 0) {
+                        parentObj = m_stack[m_stack.length - 1].obj;
+                    }
+                    else {
+                        parentObj = new ASObject();
+                        parentObj.AS_dynamicProps.setValue("", m_curObject);
                     }
 
-                    m_curObject = replaced;
+                    m_curObject = m_replacer.AS_invoke(parentObj, m_replacerArgs);
                 }
 
-                if (m_curObject.value != null) {
-                    // Attempt to call toJSON.
-                    if (_tryCallToJSON(out ASAny result)) {
-                        if (result.isUndefined && !parentIsArray) {
-                            m_curState = _State.NEXT;
-                            return;
-                        }
-                        m_curObject = result;
-                    }
-                }
+                // Attempt to call toJSON.
+                if (!m_curObject.isUndefinedOrNull && _tryCallToJSONOnCurrentObject(out ASAny toJSONResult))
+                    m_curObject = toJSONResult;
 
                 ASObject curObj = m_curObject.value;
 
-                if (curObj is ASFunction) {
-                    // Functions must be excluded.
-                    if (!parentIsArray) {
+                if (m_curObject.isUndefined || curObj is ASFunction) {
+                    // If the current object is undefined or a function, skip it if it is an object property.
+                    // If it is an array element, write null instead.
+                    if (m_stack.length != 0 && !parentIsArray) {
                         m_curState = _State.NEXT;
                         return;
                     }
@@ -854,9 +907,10 @@ namespace Mariana.AVM2.Core {
                 }
 
                 if (m_stack.length != 0) {
-                    if (m_stack[m_stack.length - 1].nPropsWritten != 0)
+                    if (m_stack[m_stack.length - 1].propWrittenCount != 0)
                         m_parts.add(",");
-                    m_stack[m_stack.length - 1].nPropsWritten++;
+
+                    m_stack[m_stack.length - 1].propWrittenCount++;
                 }
 
                 _writeIndent();
@@ -905,7 +959,7 @@ namespace Mariana.AVM2.Core {
                 m_curState = _State.ENTER;
             }
 
-            private bool _tryCallToJSON(out ASAny result) {
+            private bool _tryCallToJSONOnCurrentObject(out ASAny result) {
                 ClassTag tag = m_curObject.AS_class.tag;
                 ASObject func = null;
 
@@ -934,98 +988,25 @@ namespace Mariana.AVM2.Core {
             }
 
             private void _state_enter() {
-                _StackItem stackItem;
+                if (!m_currentPathSet.add(m_curObject.value))
+                    throw ErrorHelper.createError(ErrorCode.JSON_CYCLIC_STRUCTURE);
+
                 ASObject curObj = m_curObject.value;
 
                 if (curObj is ASArray curObjAsArray) {
-                    if (curObjAsArray.length == 0) {
-                        // Empty array.
-                        m_parts.add("[]");
-                    }
-                    else {
-                        _checkCyclicStructure();
-                        int arrlen = (int)Math.Min(curObjAsArray.length, (uint)Int32.MaxValue);
-                        stackItem = _createStackItemForArray(curObjAsArray, _ObjType.ARRAY, arrlen);
-                        m_stack.add(stackItem);
-                        m_parts.add("[");
-                    }
-                    m_curState = _State.NEXT;
-                    return;
+                    m_stack.add(new _StackItem(curObjAsArray));
+                    m_parts.add("[");
                 }
-
-                if (curObj is ASVectorAny curObjAsVec) {
-                    if (curObjAsVec.length == 0) {
-                        // Empty vector.
-                        m_parts.add("[]");
-                    }
-                    else {
-                        _checkCyclicStructure();
-                        stackItem = _createStackItemForArray(curObjAsVec, _ObjType.VECTOR, curObjAsVec.length);
-                        m_stack.add(stackItem);
-                        m_parts.add("[");
-                    }
-                    m_curState = _State.NEXT;
-                    return;
-                }
-
-                stackItem = _createStackItemForObject(curObj);
-
-                // Need to check whether the object is empty.
-                bool isEmptyObject = true;
-                if (curObj.AS_dynamicProps != null && curObj.AS_dynamicProps.count != 0) {
-                    isEmptyObject = false;
+                else if (curObj is ASVectorAny curObjAsVec) {
+                    m_stack.add(new _StackItem(curObjAsVec));
+                    m_parts.add("[");
                 }
                 else {
-                    _moveNextJSONWritableTrait(ref stackItem);
-                    if (stackItem.curTraitIndex < stackItem.traits.length) {
-                        isEmptyObject = false;
-                        // NEXT state handler will increment curTraitIndex, so decrement it here.
-                        stackItem.curTraitIndex--;
-                    }
-                }
-
-                if (isEmptyObject) {
-                    m_parts.add("{}");
-                }
-                else {
-                    _checkCyclicStructure();
-                    m_stack.add(stackItem);
+                    m_stack.add(new _StackItem(curObj));
                     m_parts.add("{");
                 }
 
                 m_curState = _State.NEXT;
-            }
-
-            private _StackItem _createStackItemForArray(ASObject arrOrVec, _ObjType objType, int length) {
-                _StackItem stackItem;
-                stackItem.obj = arrOrVec;
-                stackItem.objType = objType;
-                stackItem.traits = ReadOnlyArrayView<Trait>.empty;
-                stackItem.curTraitIndex = -1;
-                stackItem.dynamicProps = null;
-                stackItem.arrayLength = length;
-                stackItem.curDynPropIndex = -1;
-                stackItem.nPropsWritten = 0;
-                return stackItem;
-            }
-
-            private _StackItem _createStackItemForObject(ASObject obj) {
-                _StackItem stackItem;
-                stackItem.objType = _ObjType.OBJECT;
-                stackItem.obj = obj;
-                stackItem.nPropsWritten = 0;
-                stackItem.dynamicProps = obj.AS_dynamicProps;
-
-                if (obj is ASClass objAsClass)
-                    stackItem.traits = objAsClass.internalClass.getTraits(TraitType.ALL, TraitScope.STATIC);
-                else
-                    stackItem.traits = obj.AS_class.getTraits(TraitType.ALL, TraitScope.INSTANCE);
-
-                stackItem.curTraitIndex = -1;
-                stackItem.curDynPropIndex = -1;
-                stackItem.arrayLength = -1;
-
-                return stackItem;
             }
 
             private void _state_next() {
@@ -1035,78 +1016,89 @@ namespace Mariana.AVM2.Core {
                 }
 
                 ref _StackItem topOfStack = ref m_stack[m_stack.length - 1];
-                _ObjType objType = topOfStack.objType;
 
-                if (objType != _ObjType.OBJECT) {
-                    int nextIndex = topOfStack.curDynPropIndex + 1;
+                if (topOfStack.isArrayOrVector) {
+                    // The current object is an array or vector. Move to the next element, or
+                    // leave if there are no more elements.
 
-                    if (nextIndex >= topOfStack.arrayLength) {
+                    int nextIndex = topOfStack.curArrayOrDynPropIndex + 1;
+
+                    if ((uint)nextIndex >= (uint)topOfStack.arrayLength) {
                         m_curState = _State.LEAVE;
                     }
                     else {
-                        topOfStack.curDynPropIndex = nextIndex;
+                        topOfStack.curArrayOrDynPropIndex = nextIndex;
                         m_curState = _State.VISIT;
 
-                        m_curObject = (objType == _ObjType.VECTOR)
-                            ? ((ASVectorAny)topOfStack.obj).AS_getElement(nextIndex)
-                            : ((ASArray)topOfStack.obj).AS_getElement((uint)nextIndex);
+                        m_curObject = (topOfStack.vector != null)
+                            ? topOfStack.vector.AS_getElement(nextIndex)
+                            : topOfStack.array.AS_getElement((uint)nextIndex);
                     }
                     return;
                 }
 
                 ASObject obj = topOfStack.obj;
-                int traitCount = topOfStack.traits.length;
 
-                if (topOfStack.curTraitIndex < traitCount) {
-                    Trait trait = _moveNextJSONWritableTrait(ref topOfStack);
+                if (topOfStack.curTraitIndex < topOfStack.traitCount) {
+                    // Check if there are any traits from the object's class that can be written.
+                    Trait trait = topOfStack.nextWritableTrait();
+
                     if (trait != null) {
                         m_curPropName = trait.name.localName;
-                        if (m_nameFilter != null && !_isNameInFilter(m_curPropName)) {
+
+                        if (m_nameFilter != null && !m_nameFilter.Contains(m_curPropName)) {
                             m_curState = _State.NEXT;
                         }
                         else {
-                            m_curObject = trait.getValue(obj);
+                            m_curObject = trait.getValue(trait.isStatic ? ASAny.undefined : obj);
                             m_curState = _State.VISIT;
                         }
                         return;
                     }
                 }
 
+                // No more traits, so move on to the object's dynamic properties.
+
                 DynamicPropertyCollection dynProps = topOfStack.dynamicProps;
-                if (dynProps == null) {
+                int nextDynPropIndex = (dynProps != null) ? dynProps.getNextIndex(topOfStack.curArrayOrDynPropIndex) : -1;
+
+                if (nextDynPropIndex == -1) {
+                    // No more dynamic properties, so leave the current object.
                     m_curState = _State.LEAVE;
                     return;
                 }
 
-                int nextDynIndex = dynProps.getNextIndex(topOfStack.curDynPropIndex);
-                if (nextDynIndex == -1) {
-                    m_curState = _State.LEAVE;
-                    return;
-                }
+                topOfStack.curArrayOrDynPropIndex = nextDynPropIndex;
+                m_curPropName = dynProps.getNameFromIndex(nextDynPropIndex);
 
-                topOfStack.curDynPropIndex = nextDynIndex;
-                m_curPropName = dynProps.getNameFromIndex(nextDynIndex);
-                if (m_nameFilter != null && !_isNameInFilter(m_curPropName)) {
+                if (m_nameFilter != null && !m_nameFilter.Contains(m_curPropName)) {
                     m_curState = _State.NEXT;
                 }
                 else {
-                    m_curObject = dynProps.getValueFromIndex(nextDynIndex);
+                    m_curObject = dynProps.getValueFromIndex(nextDynPropIndex);
                     m_curState = _State.VISIT;
                 }
             }
 
             private void _state_leave() {
-                bool isArray = m_stack[m_stack.length - 1].objType != _ObjType.OBJECT;
+                ref _StackItem topOfStack = ref m_stack[m_stack.length - 1];
 
-                m_stack.removeLast();  // Pop the last item off the stack.
+                bool isArray = topOfStack.isArrayOrVector;
+                bool isEmpty = topOfStack.propWrittenCount == 0;
 
-                if (m_stack.length != 0)
-                    _writeIndent();
-                else if (m_prettyPrint)
-                    m_parts.add("\n");
+                // Pop the current item off the stack.
+                m_currentPathSet.delete(topOfStack.obj);
+                m_stack.removeLast();
+
+                // Only write newline and indentation if the object written is not empty.
+                if (!isEmpty) {
+                    if (m_stack.length != 0)
+                        _writeIndent();
+                    else if (m_prettyPrint)
+                        m_parts.add("\n");
+                }
 
                 m_parts.add(isArray ? "]" : "}");
-
                 m_curState = _State.NEXT;
             }
 
@@ -1114,19 +1106,17 @@ namespace Mariana.AVM2.Core {
             /// Inserts indentation, if pretty printing is enabled.
             /// </summary>
             private void _writeIndent() {
-                int level = m_stack.length;
-                if (level == 0 || !m_prettyPrint)
+                int depth = m_stack.length;
+                if (depth == 0 || !m_prettyPrint)
                     return;
 
                 m_parts.add("\n");
-                if (m_indentString1 == null)
-                    return;
 
-                while (level >= 4) {
+                while (depth >= 4) {
                     m_parts.add(m_indentString4);
-                    level -= 4;
+                    depth -= 4;
                 }
-                switch (level) {
+                switch (depth) {
                     case 1:
                         m_parts.add(m_indentString1);
                         break;
@@ -1152,7 +1142,7 @@ namespace Mariana.AVM2.Core {
 
                 for (int i = 0; i < str.Length; i++) {
                     char c = str[i];
-                    if (c < 0x20 || c == '"' || c == '\\' || c == '/') {
+                    if (c < 0x20 || c == '"' || c == '\\') {
                         // Start writing the string into the temporary string buffer as soon as the first
                         // character that requires escaping is found. This ensures that if no character is to
                         // be escaped, the original string can be used and no memory needs to be allocated for
@@ -1162,6 +1152,7 @@ namespace Mariana.AVM2.Core {
                             m_stringBuffer = new char[64];
                             buffer = m_stringBuffer;
                         }
+
                         bufSize = m_stringBuffer.Length;
                         str.CopyTo(0, buffer, 0, i);
                         bufPos = i;
@@ -1178,58 +1169,58 @@ namespace Mariana.AVM2.Core {
                 }
 
                 for (int i = bufPos; i < str.Length; i++) {
-                    char c = str[i];
-                    bool isControl = c < 0x20;
+                    char ch = str[i];
+                    bool isControl = ch < 0x20;
+                    bool isEscaped = isControl || ch == '"' || ch == '\\';
 
-                    if (isControl || c == '"' || c == '\\') {
-                        // Characters that must be escaped.
-                        int maxEscapedSize = isControl ? 6 : 2;
-                        if (bufSize - bufPos < maxEscapedSize) {
-                            DataStructureUtil.expandArray(ref buffer, maxEscapedSize);
-                            bufSize = buffer.Length;
-                        }
+                    int escapedCount = 1;
+                    if (isEscaped)
+                        escapedCount = isControl ? 6 : 2;
 
-                        buffer[bufPos++] = '\\';
-                        switch (c) {
-                            case '\n':
-                                buffer[bufPos++] = 'n';
-                                break;
-                            case '\r':
-                                buffer[bufPos++] = 'r';
-                                break;
-                            case '\b':
-                                buffer[bufPos++] = 'b';
-                                break;
-                            case '\t':
-                                buffer[bufPos++] = 't';
-                                break;
-                            case '\f':
-                                buffer[bufPos++] = 'f';
-                                break;
-                            default:
-                                if (isControl) {
-                                    // JSON has special escape sequences for only a few control characters,
-                                    // but well-formed JSON must not have any (unescaped) control characters
-                                    // in strings, so use Unicode escape sequences for these.
-                                    buffer[bufPos] = 'u';
-                                    buffer[bufPos + 1] = '0';
-                                    buffer[bufPos + 2] = '0';
-                                    buffer[bufPos + 3] = (char)((c >> 4) + '0');
-                                    buffer[bufPos + 4] = (char)(((c & 15) < 10) ? (c & 15) + '0' : (c & 15) - 10 + 'a');
-                                    bufPos += 5;
-                                }
-                                else {
-                                    buffer[bufPos++] = c;
-                                }
-                                break;
-                        }
+                    if (bufSize - bufPos < escapedCount) {
+                        DataStructureUtil.expandArray(ref buffer, escapedCount);
+                        bufSize = buffer.Length;
                     }
-                    else {
-                        if (bufPos == bufSize) {
-                            DataStructureUtil.expandArray(ref buffer);
-                            bufSize = buffer.Length;
-                        }
-                        buffer[bufPos++] = c;
+
+                    if (!isEscaped) {
+                        buffer[bufPos++] = ch;
+                        continue;
+                    }
+
+                    buffer[bufPos++] = '\\';
+
+                    switch (ch) {
+                        case '\n':
+                            buffer[bufPos++] = 'n';
+                            break;
+                        case '\r':
+                            buffer[bufPos++] = 'r';
+                            break;
+                        case '\b':
+                            buffer[bufPos++] = 'b';
+                            break;
+                        case '\t':
+                            buffer[bufPos++] = 't';
+                            break;
+                        case '\f':
+                            buffer[bufPos++] = 'f';
+                            break;
+                        default:
+                            if (isControl) {
+                                // JSON has special escape sequences for only a few control characters,
+                                // but well-formed JSON must not have any (unescaped) control characters
+                                // in strings, so use Unicode escape sequences for these.
+                                buffer[bufPos] = 'u';
+                                buffer[bufPos + 1] = '0';
+                                buffer[bufPos + 2] = '0';
+                                buffer[bufPos + 3] = (char)((ch >> 4) + '0');
+                                buffer[bufPos + 4] = (char)(((ch & 15) < 10) ? (ch & 15) + '0' : (ch & 15) - 10 + 'a');
+                                bufPos += 5;
+                            }
+                            else {
+                                buffer[bufPos++] = ch;
+                            }
+                            break;
                     }
                 }
 

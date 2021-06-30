@@ -21,9 +21,9 @@ namespace Mariana.AVM2.Core {
 
         private LazyInitObject<bool> m_lazyClassInit;
 
-        private ASClass m_classObject;
+        private ZoneStaticData<ASClass> m_classObject;
 
-        private ASObject m_prototypeObject;
+        private ZoneStaticData<ASObject> m_prototypeObject;
 
         private ClassSpecials m_specials;
 
@@ -32,7 +32,7 @@ namespace Mariana.AVM2.Core {
         private ClassConstructor m_constructor;
 
         internal ClassImpl(in QName name, ApplicationDomain appDomain, ClassTag tag = ClassTag.OBJECT)
-            : base(name, null, appDomain, tag)
+            : base(name, declClass: null, appDomain, tag)
         {
             m_interfaces = Array.Empty<ClassImpl>();
 
@@ -43,6 +43,15 @@ namespace Mariana.AVM2.Core {
                 },
                 recursionHandling: LazyInitRecursionHandling.RETURN_DEFAULT
             );
+
+            m_classObject = new ZoneStaticData<ASClass>(() => new ASClass(this));
+
+            m_prototypeObject = new ZoneStaticData<ASObject>(() => {
+                var prototype = ASObject.AS_createWithPrototype(this.parent?.prototypeObject);
+                prototype.AS_dynamicProps.setValue("constructor", this.classObject, isEnum: false);
+                initPrototype(prototype);
+                return prototype;
+            });
         }
 
         public sealed override Type underlyingType => m_underlyingType;
@@ -61,12 +70,13 @@ namespace Mariana.AVM2.Core {
             Type vecType = typeof(ASVector<>).MakeGenericType(getUnderlyingOrPrimitiveType(this));
             Class klass = ClassTypeMap.getClass(vecType);
 
-            if (klass == null)
+            if (klass == null) {
                 // This will add the created class to ClassTypeMap, but we don't have to
                 // protect against race conditions as this method is always called from a
                 // lazy initializer (which is thread safe), and there are no other code paths
                 // that call NativeClass.createClass with an ASVector<T> instantiation.
                 klass = NativeClass.createClass(vecType, ApplicationDomain.systemDomain);
+            }
 
             return klass;
         }
@@ -88,14 +98,14 @@ namespace Mariana.AVM2.Core {
         public sealed override ASObject prototypeObject {
             get {
                 _ = m_lazyClassInit.value;
-                return m_prototypeObject;
+                return m_prototypeObject.value;
             }
         }
 
         public sealed override ASClass classObject {
             get {
                 _ = m_lazyClassInit.value;
-                return m_classObject;
+                return m_classObject.value;
             }
         }
 
@@ -103,11 +113,11 @@ namespace Mariana.AVM2.Core {
             if (klass == null || klass == this)
                 return true;
 
-            Type underlyingType = this.underlyingType;
-            Type otherUnderlyingType = klass.underlyingType;
+            Type fromUnderlyingType = this.underlyingType;
+            Type toUnderlyingType = klass.underlyingType;
 
-            if (underlyingType != null && otherUnderlyingType != null)
-                return otherUnderlyingType.IsAssignableFrom(underlyingType);
+            if (fromUnderlyingType != null && toUnderlyingType != null)
+                return toUnderlyingType.IsAssignableFrom(fromUnderlyingType);
 
             if (klass.isInterface) {
                 ReadOnlySpan<Class> ifaces = getImplementedInterfaces().asSpan();
@@ -189,14 +199,6 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Sets the prototype object of this class.
-        /// </summary>
-        /// <param name="prototype">The prototype object of this class.</param>
-        protected private void setPrototype(ASObject prototype) {
-            m_prototypeObject = prototype;
-        }
-
-        /// <summary>
         /// Sets the <see cref="ClassSpecials"/> instance containing any special methods defined
         /// by this class.
         /// </summary>
@@ -227,11 +229,28 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         ///
         /// <remarks>
-        /// Overriders of this method should not be concerned about synchronization or thread safety,
-        /// or the initialization of the class's parent or interfaces. All of this is handled by the
-        /// initialization code that calls this method.
+        /// The runtime guarantees that this method is called at most once even when there are
+        /// multiple threads running concurrently, and that it is called on the parent of this
+        /// class and any interfaces it implements before calling it on this class.
         /// </remarks>
         protected private abstract void initClass();
+
+        /// <summary>
+        /// A method that is called when a prototype object is created for this class. Derived
+        /// classes can override this method to initialize the prototype.
+        /// </summary>
+        /// <param name="prototypeObject">The prototype object to be initialized.</param>
+        ///
+        /// <remarks>
+        /// The runtime ensures that this method is called at most once for each prototype
+        /// object created for this class (there may be multiple prototypes because the prototype
+        /// is zone-local) and never more than once with the same object as the
+        /// <see cref="prototypeObject"/> argument, even when there are multiple threads
+        /// running concurrently. In addition, it ensures that the <see cref="initClass"/> method
+        /// was called and sets the "constructor" property on <see cref="prototypeObject"/> with
+        /// the value as the class object before calling this method.
+        /// </remarks>
+        protected private virtual void initPrototype(ASObject prototypeObject) { }
 
         /// <summary>
         /// Adds a declared trait to this class definition.
@@ -245,6 +264,7 @@ namespace Mariana.AVM2.Core {
         protected private bool tryDefineTrait(Trait trait) {
             if (m_traitTable == null)
                 m_traitTable = new ClassTraitTable(this);
+
             return m_traitTable.tryAddTrait(trait, allowMergeProperties: false);
         }
 
@@ -274,17 +294,8 @@ namespace Mariana.AVM2.Core {
             for (int i = 0; i < interfaces.Length; i++)
                 _ = ((ClassImpl)interfaces[i]).m_lazyClassInit.value;
 
-            // Create the class object and prototype object, if it has not been created already.
-            if (m_classObject == null)
-                m_classObject = new ASClass(this);
-
-            if (m_prototypeObject == null) {
-                m_prototypeObject = ASObject.AS_createWithPrototype(parent?.prototypeObject);
-                m_prototypeObject.AS_dynamicProps.setValue("constructor", m_classObject, isEnum: false);
-            }
-
             if (m_traitTable == null)
-                m_traitTable = new ClassTraitTable(this, false);
+                m_traitTable = new ClassTraitTable(this, staticOnly: false);
 
             initClass();
 
@@ -307,12 +318,11 @@ namespace Mariana.AVM2.Core {
         public sealed override Trait getTrait(in QName name) {
             _ = m_lazyClassInit.value;
 
-            BindStatus bindStatus = m_traitTable.tryGetTrait(name, false, out Trait trait);
+            BindStatus bindStatus = m_traitTable.tryGetTrait(name, isStatic: false, out Trait trait);
 
             if (bindStatus == BindStatus.NOT_FOUND)
-                bindStatus = m_traitTable.tryGetTrait(name, true, out trait);
-            if (trait == null)
-                return null;
+                bindStatus = m_traitTable.tryGetTrait(name, isStatic: true, out trait);
+
             if (bindStatus == BindStatus.AMBIGUOUS)
                 throw ErrorHelper.createBindingError(this.name, name, bindStatus);
 
@@ -326,22 +336,23 @@ namespace Mariana.AVM2.Core {
             BindStatus bindStatus = BindStatus.NOT_FOUND;
 
             if ((scopes & TraitScope.INSTANCE) != 0)
-                bindStatus = m_traitTable.tryGetTrait(name, false, out value);
+                bindStatus = m_traitTable.tryGetTrait(name, isStatic: false, out value);
 
             if ((scopes & TraitScope.STATIC) != 0 && bindStatus == BindStatus.NOT_FOUND)
-                bindStatus = m_traitTable.tryGetTrait(name, true, out value);
-
-            if (value == null)
-                return null;
+                bindStatus = m_traitTable.tryGetTrait(name, isStatic: true, out value);
 
             if (bindStatus == BindStatus.AMBIGUOUS)
                 throw ErrorHelper.createBindingError(this.name, name, bindStatus);
+
+            if (value == null)
+                return null;
 
             if ((value.traitType & kinds) == 0
                 || ((scopes & TraitScope.INSTANCE_INHERITED) == 0 && value.declaringClass != this))
             {
                 return null;
             }
+
             return value;
         }
 
@@ -352,7 +363,7 @@ namespace Mariana.AVM2.Core {
             BindStatus bindStatus = BindStatus.NOT_FOUND;
 
             if ((scopes & TraitScope.INSTANCE) != 0)
-                bindStatus = m_traitTable.tryGetTrait(name, false, out trait);
+                bindStatus = m_traitTable.tryGetTrait(name, isStatic: false, out trait);
 
             if (bindStatus == BindStatus.SUCCESS
                 && ((scopes & TraitScope.INSTANCE_INHERITED) != 0 || trait.declaringClass == this))
@@ -361,7 +372,7 @@ namespace Mariana.AVM2.Core {
             }
 
             if (bindStatus == BindStatus.NOT_FOUND && (scopes & TraitScope.STATIC) != 0)
-                bindStatus = m_traitTable.tryGetTrait(name, true, out _);
+                bindStatus = m_traitTable.tryGetTrait(name, isStatic: true, out _);
 
             return bindStatus == BindStatus.SUCCESS;
         }
@@ -389,37 +400,46 @@ namespace Mariana.AVM2.Core {
                 return m_traitTable.getTraits(scopes);
             }
 
-            DynamicArray<Trait> traitList = new DynamicArray<Trait>();
+            var traitList = new DynamicArray<Trait>();
             m_traitTable.getTraits(types, scopes, ref traitList);
-            return new ReadOnlyArrayView<Trait>(traitList.toArray());
+
+            return traitList.asReadOnlyArrayView();
         }
 
         public sealed override ReadOnlyArrayView<FieldTrait> getFields(TraitScope scopes) {
             _ = m_lazyClassInit.value;
-            DynamicArray<FieldTrait> traitList = new DynamicArray<FieldTrait>();
+
+            var traitList = new DynamicArray<FieldTrait>();
             m_traitTable.getTraits(TraitType.FIELD, scopes, ref traitList);
-            return new ReadOnlyArrayView<FieldTrait>(traitList.toArray());
+
+            return traitList.asReadOnlyArrayView();
         }
 
         public sealed override ReadOnlyArrayView<MethodTrait> getMethods(TraitScope scopes) {
             _ = m_lazyClassInit.value;
-            DynamicArray<MethodTrait> traitList = new DynamicArray<MethodTrait>();
+
+            var traitList = new DynamicArray<MethodTrait>();
             m_traitTable.getTraits(TraitType.METHOD, scopes, ref traitList);
-            return new ReadOnlyArrayView<MethodTrait>(traitList.toArray());
+
+            return traitList.asReadOnlyArrayView();
         }
 
         public sealed override ReadOnlyArrayView<PropertyTrait> getProperties(TraitScope scopes) {
             _ = m_lazyClassInit.value;
-            DynamicArray<PropertyTrait> traitList = new DynamicArray<PropertyTrait>();
+
+            var traitList = new DynamicArray<PropertyTrait>();
             m_traitTable.getTraits(TraitType.PROPERTY, scopes, ref traitList);
-            return new ReadOnlyArrayView<PropertyTrait>(traitList.toArray());
+
+            return traitList.asReadOnlyArrayView();
         }
 
         public sealed override ReadOnlyArrayView<ConstantTrait> getConstants() {
             _ = m_lazyClassInit.value;
-            DynamicArray<ConstantTrait> traitList = new DynamicArray<ConstantTrait>();
+
+            var traitList = new DynamicArray<ConstantTrait>();
             m_traitTable.getTraits(TraitType.CONSTANT, TraitScope.STATIC, ref traitList);
-            return new ReadOnlyArrayView<ConstantTrait>(traitList.toArray());
+
+            return traitList.asReadOnlyArrayView();
         }
 
         public sealed override BindStatus lookupTrait(in QName name, bool isStatic, out Trait trait) {
@@ -437,9 +457,11 @@ namespace Mariana.AVM2.Core {
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(filter));
 
             _ = m_lazyClassInit.value;
-            DynamicArray<Trait> filteredList = new DynamicArray<Trait>();
+
+            var filteredList = new DynamicArray<Trait>();
             m_traitTable.getTraitsByFilter(filter, ref filteredList);
-            return new ReadOnlyArrayView<Trait>(filteredList.toArray());
+
+            return filteredList.asReadOnlyArrayView();
         }
 
         public sealed override BindStatus tryInvoke(ASAny target, ASAny receiver, ReadOnlySpan<ASAny> args, out ASAny result) {
@@ -453,10 +475,20 @@ namespace Mariana.AVM2.Core {
                 throw ErrorHelper.createError(ErrorCode.CLASS_COERCE_ARG_COUNT_MISMATCH, args.Length);
 
             ASAny obj = args[0];
-            if (obj.isDefined && (obj.value == null || underlyingType.IsInstanceOfType(obj.value))) {
-                result = obj;
+            bool isInstanceOfClass;
+
+            if (obj.isUndefinedOrNull)
+                isInstanceOfClass = true;
+            else if (m_underlyingType != null)
+                isInstanceOfClass = m_underlyingType.IsInstanceOfType(obj.value);
+            else
+                isInstanceOfClass = obj.AS_class.canAssignTo(this);
+
+            if (isInstanceOfClass) {
+                result = obj.isUndefined ? ASAny.@null : obj;
                 return BindStatus.SUCCESS;
             }
+
             throw ErrorHelper.createCastError(obj, this);
         }
 

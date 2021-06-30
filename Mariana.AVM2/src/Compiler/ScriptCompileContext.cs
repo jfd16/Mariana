@@ -101,7 +101,7 @@ namespace Mariana.AVM2.Compiler {
 
         private ABCFile m_abcFile;
 
-        private ClassTraitTable m_stagedGlobalTraits = new ClassTraitTable(null, staticOnly: true);
+        private ClassTraitTable m_stagedGlobalTraits = new ClassTraitTable(klass: null, staticOnly: true);
 
         private ClassTraitTable m_unexportedClassTraits;
 
@@ -1097,7 +1097,7 @@ namespace Mariana.AVM2.Compiler {
             if (hasScopedReceiver) {
                 // Add the implicit ScopedClosureReceiver argument for functions created with newfunction.
                 paramsSpan[0] = new MethodTraitParameter(
-                    "$recv", Class.fromType(typeof(ScopedClosureReceiver)), false, false, default);
+                    "$recv", Class.fromType(typeof(ScopedClosureReceiver)), isOptional: false, hasDefault: false, defaultValue: default);
 
                 paramsSpan = paramsSpan.Slice(1);
             }
@@ -1340,7 +1340,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="implByClass">The class that implements the interface that declares
         /// <paramref name="ifaceMethod"/> and declares or inherits <paramref name="implMethod"/>.</param>
         private void _addInterfaceMethodImpl(MethodTrait implMethod, MethodTrait ifaceMethod, ScriptClass implByClass) {
-            ref MethodTraitData methodData = ref m_methodTraitData.getValueRef(implMethod, true);
+            ref MethodTraitData methodData = ref m_methodTraitData.getValueRef(implMethod, createIfNotExists: true);
             if (methodData == null)
                 methodData = new MethodTraitData();
 
@@ -1450,7 +1450,7 @@ namespace Mariana.AVM2.Compiler {
         /// definition.</param>
         private void _emitTraitIntoTypeBuilder(Trait trait, ScriptClass declClass, TypeBuilder typeBuilder) {
             if (trait is ScriptField field) {
-                _emitFieldBuilder(field, typeBuilder, true);
+                _emitFieldBuilder(field, typeBuilder, mangleName: true);
             }
             else if (trait is ScriptMethod method) {
                 _emitMethodBuilder(method, typeBuilder, method.name, MethodNameMangleMode.METHOD);
@@ -1968,7 +1968,7 @@ namespace Mariana.AVM2.Compiler {
                     status = m_stagedGlobalTraits.tryGetTrait(qname, isStatic: true, out trait);
 
                     if (status == BindStatus.NOT_FOUND)
-                        status = m_domain.lookupGlobalTrait(qname, false, out trait);
+                        status = m_domain.lookupGlobalTrait(qname, noInherited: false, out trait);
                 }
                 else {
                     // The only possible name kind at this point is Multiname.
@@ -2021,7 +2021,7 @@ namespace Mariana.AVM2.Compiler {
             status = m_stagedGlobalTraits.tryGetTrait(qname, isStatic: true, out trait);
 
             if (status == BindStatus.NOT_FOUND)
-                status = m_domain.lookupGlobalTrait(qname, false, out trait);
+                status = m_domain.lookupGlobalTrait(qname, noInherited: false, out trait);
 
             if (status == BindStatus.NOT_FOUND)
                 return null;
@@ -2113,11 +2113,11 @@ namespace Mariana.AVM2.Compiler {
                     if (qname.ns.kind == NamespaceKind.ANY)
                         status = BindStatus.NOT_FOUND;
                     else
-                        status = m_unexportedClassTraits.tryGetTrait(qname, true, out trait);
+                        status = m_unexportedClassTraits.tryGetTrait(qname, isStatic: true, out trait);
                 }
                 else if (mn.kind == ABCConstKind.Multiname) {
                     NamespaceSet nsSet = m_abcFile.resolveNamespaceSet(mn.namespaceIndex);
-                    status = m_unexportedClassTraits.tryGetTrait(localName, nsSet, true, out trait);
+                    status = m_unexportedClassTraits.tryGetTrait(localName, nsSet, isStatic: true, out trait);
                 }
 
                 if (status == BindStatus.NOT_FOUND)
@@ -2178,7 +2178,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="index">The slot index for which to obtain the trait. This must be greater than zero.</param>
         public Trait getScriptTraitSlot(ABCScriptInfo scriptInfo, int index) {
             ScriptData scriptData = m_abcScriptDataByIndex[scriptInfo.abcIndex];
-            return scriptData.slotMap.getSlot(index, true);
+            return scriptData.slotMap.getSlot(index, isStatic: true);
         }
 
         /// <summary>
@@ -2602,7 +2602,7 @@ namespace Mariana.AVM2.Compiler {
 
             // Define the catch slot if a variable name is specified.
             if (!noVarNameSpecified) {
-                var field = new ScriptField(propName, klass, m_domain, false, catchType, false);
+                var field = new ScriptField(propName, klass, m_domain, isStatic: false, catchType, isReadOnly: false);
                 klass.tryDefineTrait(field);
                 klass.defineTraitSlot(field, 1);
 
@@ -2663,7 +2663,7 @@ namespace Mariana.AVM2.Compiler {
 
                 // Activation fields shouldn't be readonly.
                 Class fieldType = getClassByMultiname(traitInfo.fieldTypeName, allowAny: true);
-                var field = new ScriptField(traitInfo.name, klass, m_domain, false, fieldType, false);
+                var field = new ScriptField(traitInfo.name, klass, m_domain, isStatic: false, fieldType, isReadOnly: false);
 
                 if (!klass.tryDefineTrait(field))
                     throw ErrorHelper.createError(ErrorCode.ALREADY_DEFINED, _createErrMsgTraitName(field));
@@ -2806,8 +2806,14 @@ namespace Mariana.AVM2.Compiler {
             string mangledName = m_nameMangler.createAnonFunctionName(m_newFunctionCounter.atomicNext());
 
             ScriptMethod funcMethod = new ScriptMethod(
-                methodInfo, QName.publicName(mangledName), null, m_domain,
-                isStatic: true, isFinal: true, isOverride: false, MetadataTagCollection.empty
+                methodInfo,
+                QName.publicName(mangledName),
+                declClass: null,
+                m_domain,
+                isStatic: true,
+                isFinal: true,
+                isOverride: false,
+                MetadataTagCollection.empty
             );
 
             methodInfoData.methodOrCtor = funcMethod;
@@ -2817,7 +2823,7 @@ namespace Mariana.AVM2.Compiler {
             m_methodTraitData[funcMethod] = methodTraitData;
             methodTraitData.isFunction = true;
 
-            _createMethodTraitSig(funcMethod, true);
+            _createMethodTraitSig(funcMethod, hasScopedReceiver: true);
 
             if (m_anonFuncContainer == null) {
                 m_anonFuncContainer = m_assemblyBuilder.defineType(

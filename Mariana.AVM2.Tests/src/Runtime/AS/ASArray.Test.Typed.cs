@@ -384,9 +384,7 @@ namespace Mariana.AVM2.Tests {
             Action<ASAny, T> assertion,
             bool mustThrowCastError = false
         ) {
-            setPrototypeProperties(prototypeProperties);
-
-            try {
+            runInZoneWithArrayPrototype(prototypeProperties, () => {
                 uint arrayLength = array.length;
                 T[] typedArray = new T[length];
 
@@ -407,18 +405,13 @@ namespace Mariana.AVM2.Tests {
                     for (int i = 0; i < length; i++)
                         assertion(array.AS_getElement(startIndex + (uint)i), typedArray[i]);
                 }
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         private static void toTypedArrayTestHelper<T>(
             ASArray array, IndexDict prototypeProperties, Action<ASAny, T> assertion, bool mustThrowCastError = false)
         {
-            setPrototypeProperties(prototypeProperties);
-
-            try {
+            runInZoneWithArrayPrototype(prototypeProperties, () => {
                 if (mustThrowCastError) {
                     AssertHelper.throwsErrorWithCode(
                         ErrorCode.TYPE_COERCION_FAILED,
@@ -432,40 +425,34 @@ namespace Mariana.AVM2.Tests {
                     for (int i = 0; i < typedArray.Length; i++)
                         assertion(array.AS_getElement(i), typedArray[i]);
                 }
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         private static void asEnumerableTestHelper<T>(
             ASArray array, IndexDict prototypeProperties, Action<ASAny, T> assertion, bool mustThrowCastError = false)
         {
-            setPrototypeProperties(prototypeProperties);
+            runInZoneWithArrayPrototype(prototypeProperties, () => {
+                bool castErrorThrown = false;
 
-            bool castErrorThrown = false;
-
-            try {
-                uint curIndex = 0;
-                foreach (T value in array.asEnumerable<T>()) {
-                    assertion(array.AS_getElement(curIndex), value);
-                    curIndex++;
+                try {
+                    uint curIndex = 0;
+                    foreach (T value in array.asEnumerable<T>()) {
+                        assertion(array.AS_getElement(curIndex), value);
+                        curIndex++;
+                    }
+                    Assert.Equal(array.length, curIndex);
                 }
-                Assert.Equal(array.length, curIndex);
-            }
-            catch (AVM2Exception e)
-                when (mustThrowCastError
-                    && e.thrownValue.value is ASError error
-                    && error.errorID == (int)ErrorCode.TYPE_COERCION_FAILED)
-            {
-                castErrorThrown = true;
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+                catch (AVM2Exception e)
+                    when (mustThrowCastError
+                        && e.thrownValue.value is ASError error
+                        && error.errorID == (int)ErrorCode.TYPE_COERCION_FAILED)
+                {
+                    castErrorThrown = true;
+                }
 
-            if (mustThrowCastError)
-                Assert.True(castErrorThrown, "Expected a type coercion failure.");
+                if (mustThrowCastError)
+                    Assert.True(castErrorThrown, "Expected a type coercion failure.");
+            });
         }
 
         public static IEnumerable<object[]> copyToSpanTest_data() {

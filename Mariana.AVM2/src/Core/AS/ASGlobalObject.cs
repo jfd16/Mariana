@@ -19,6 +19,12 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
+        /// Returns the <see cref="ApplicationDomain"/> instance representing the application
+        /// domain to which this global object belongs.
+        /// </summary>
+        public ApplicationDomain applicationDomain => m_domain;
+
+        /// <summary>
         /// Performs a trait lookup on the object.
         /// </summary>
         /// <param name="name">The name of the trait to find.</param>
@@ -26,10 +32,11 @@ namespace Mariana.AVM2.Core {
         /// exists.</param>
         /// <returns>A <see cref="BindStatus"/> indicating the result of the lookup.</returns>
         internal override BindStatus AS_lookupTrait(in QName name, out Trait trait) {
-            BindStatus bindStatus = m_domain.lookupGlobalTrait(name, false, out trait);
+            BindStatus bindStatus = m_domain.lookupGlobalTrait(name, noInherited: false, out trait);
             if (bindStatus != BindStatus.NOT_FOUND)
                 return bindStatus;
-            return AS_class.lookupTrait(name, false, out trait);
+
+            return AS_class.lookupTrait(name, isStatic: false, out trait);
         }
 
         /// <summary>
@@ -41,10 +48,11 @@ namespace Mariana.AVM2.Core {
         /// <paramref name="nsSet"/>, if one exists.</param>
         /// <returns>A <see cref="BindStatus"/> indicating the result of the lookup.</returns>
         internal override BindStatus AS_lookupTrait(string name, in NamespaceSet nsSet, out Trait trait) {
-            BindStatus bindStatus = m_domain.lookupGlobalTrait(name, nsSet, false, out trait);
+            BindStatus bindStatus = m_domain.lookupGlobalTrait(name, nsSet, noInherited: false, out trait);
             if (bindStatus != BindStatus.NOT_FOUND)
                 return bindStatus;
-            return AS_class.lookupTrait(name, nsSet, false, out trait);
+
+            return AS_class.lookupTrait(name, nsSet, isStatic: false, out trait);
         }
 
     }

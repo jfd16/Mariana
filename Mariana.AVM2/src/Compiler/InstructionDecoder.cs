@@ -67,7 +67,7 @@ namespace Mariana.AVM2.Compiler {
                 return bytesRead;
 
             if (opcode == ABCOp.pushshort) {
-                bytesRead += _readU30(span, 1, false, out instr.data.pushShort.value);
+                bytesRead += _readU30(span, 1, validate: false, out instr.data.pushShort.value);
                 return bytesRead;
             }
 
@@ -81,12 +81,12 @@ namespace Mariana.AVM2.Compiler {
                     break;
 
                 case ABCOpInfo.ImmediateType.U30:
-                    bytesRead += _readU30(span, 1, true, out instr.data.raw.op1);
+                    bytesRead += _readU30(span, 1, validate: true, out instr.data.raw.op1);
                     break;
 
                 case ABCOpInfo.ImmediateType.U30_U30:
-                    bytesRead += _readU30(span, 1, true, out instr.data.raw.op1);
-                    bytesRead += _readU30(span, bytesRead, true, out instr.data.raw.op2);
+                    bytesRead += _readU30(span, 1, validate: true, out instr.data.raw.op1);
+                    bytesRead += _readU30(span, bytesRead, validate: true, out instr.data.raw.op2);
                     break;
 
                 case ABCOpInfo.ImmediateType.S24:
@@ -179,12 +179,12 @@ namespace Mariana.AVM2.Compiler {
             _readSignedByte(span, index);
             index++;
 
-            index += _readU30(span, index, false, out _);
+            index += _readU30(span, index, validate: false, out _);
 
             _readSignedByte(span, index);
             index++;
 
-            index += _readU30(span, index, false, out _);
+            index += _readU30(span, index, validate: false, out _);
 
             return index - startIndex;
         }
@@ -203,7 +203,7 @@ namespace Mariana.AVM2.Compiler {
             int defaultCase = _readS24(span, index);
             index += 3;
 
-            index += _readU30(span, index, true, out int caseCount);
+            index += _readU30(span, index, validate: true, out int caseCount);
             caseCount++;
 
             instr.data.@switch.caseCount = caseCount;

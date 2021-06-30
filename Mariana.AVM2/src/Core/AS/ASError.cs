@@ -72,7 +72,7 @@ namespace Mariana.AVM2.Core {
             this.m_errorID = id;
             this.message = message;
             this.name = "Error";
-            this.m_stackTrace = new StackTrace(1, false);
+            this.m_stackTrace = new StackTrace(1, fNeedFileInfo: false);
             this.m_lazyStackTraceString = new LazyInitObject<string>(_initStackTrace);
         }
 

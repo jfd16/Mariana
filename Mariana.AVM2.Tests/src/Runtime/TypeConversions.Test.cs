@@ -18,34 +18,21 @@ namespace Mariana.AVM2.Tests {
     [AVM2ExportClass]
     public interface TypeConversionsTest_IC : TypeConversionsTest_IA { }
 
-    [AVM2ExportClass(hasPrototypeMethods = true)]
-    public class TypeConversionsTest_CA : ASObject {
-        [AVM2ExportPrototypeMethod(name = "toString")]
-        public new string AS_toString() => "Hello CA";
-
-        [AVM2ExportPrototypeMethod]
-        public new int valueOf() => 0;
-    }
+    [AVM2ExportClass]
+    public class TypeConversionsTest_CA : ASObject { }
 
     [AVM2ExportClass]
-    public class TypeConversionsTest_CB : TypeConversionsTest_CA, TypeConversionsTest_IB {
-        [AVM2ExportTrait(name = "toString")]
-        public new string AS_toString() => "Hello CB";
-    }
+    public class TypeConversionsTest_CB : TypeConversionsTest_CA, TypeConversionsTest_IB { }
 
     [AVM2ExportClass]
-    public sealed class TypeConversionsTest_CC : TypeConversionsTest_CA, TypeConversionsTest_IC {
-        [AVM2ExportTrait]
-        public new double valueOf() => 9999.36;
-    }
+    public sealed class TypeConversionsTest_CC : TypeConversionsTest_CA, TypeConversionsTest_IC { }
 
     [AVM2ExportClass]
-    public sealed class TypeConversionsTest_CD : ASObject {
-        [AVM2ExportTrait(name = "toString")]
-        public new ASAny AS_toString() => new ASArray();
-    }
+    public sealed class TypeConversionsTest_CD : ASObject { }
 
     public class TypeConversionsTest {
+
+        private static readonly MockClass mockClassA, mockClassB, mockClassC, mockClassD;
 
         static TypeConversionsTest() {
             TestAppDomain.ensureClassesLoaded(
@@ -53,6 +40,24 @@ namespace Mariana.AVM2.Tests {
                 typeof(TypeConversionsTest_CB),
                 typeof(TypeConversionsTest_CC),
                 typeof(TypeConversionsTest_CD)
+            );
+
+            mockClassA = new MockClass();
+            mockClassA.prototypeObject.AS_setProperty("toString", MockFunctionObject.withReturn("Hello CA"));
+            mockClassA.prototypeObject.AS_setProperty("valueOf", MockFunctionObject.withReturn(0));
+
+            mockClassB = new MockClass(
+                parent: mockClassA,
+                methods: new[] {new MockMethodTrait("toString", invokeFunc: (obj, args) => "Hello CB")}
+            );
+
+            mockClassC = new MockClass(
+                parent: mockClassA,
+                methods: new[] {new MockMethodTrait("valueOf", invokeFunc: (obj, args) => 9999.36)}
+            );
+
+            mockClassD = new MockClass(
+                methods: new[] {new MockMethodTrait("toString", invokeFunc: (obj, args) => new ASArray())}
             );
         }
 
@@ -73,7 +78,7 @@ namespace Mariana.AVM2.Tests {
             var obj = new ASObject();
 
             for (int i = 0; i < methods.Length; i++)
-                obj.AS_setProperty(methods[i].name, SpyFunctionObject.withReturn(methods[i].returnVal));
+                obj.AS_setProperty(methods[i].name, MockFunctionObject.withReturn(methods[i].returnVal));
 
             return obj;
         }
@@ -263,7 +268,7 @@ namespace Mariana.AVM2.Tests {
             assertObjIsString(expected, ASAny.AS_coerceType(ASAny.AS_fromInt(value), s_stringClass));
         }
 
-        public static IEnumerable<object[]> objectAnyToIntConvertTest_data = TupleHelper.toArrays<ASAny, int>(
+        public static IEnumerable<object[]> objectAnyToIntConvertTest_data() => TupleHelper.toArrays<ASAny, int>(
             (new ConvertibleMockObject(intValue: 1244), 1244),
             (ASAny.@null, 0),
             (ASAny.undefined, 0),
@@ -290,9 +295,9 @@ namespace Mariana.AVM2.Tests {
             (objWithMethods(("valueOf", ASAny.undefined), ("toString", "999")), 0),
             (objWithMethods(("valueOf", new ASObject()), ("toString", "999")), 999),
 
-            (new TypeConversionsTest_CA(), 0),
-            (new TypeConversionsTest_CB(), 0),
-            (new TypeConversionsTest_CC(), 9999)
+            (new MockClassInstance(mockClassA), 0),
+            (new MockClassInstance(mockClassB), 0),
+            (new MockClassInstance(mockClassC), 9999)
         );
 
         [Theory]
@@ -420,7 +425,7 @@ namespace Mariana.AVM2.Tests {
             assertObjIsString(expected, ASAny.AS_coerceType(ASObject.AS_fromUint(value), s_stringClass));
         }
 
-        public static IEnumerable<object[]> objectAnyToUintConvertTest_data = TupleHelper.toArrays<ASAny, uint>(
+        public static IEnumerable<object[]> objectAnyToUintConvertTest_data() => TupleHelper.toArrays<ASAny, uint>(
             (new ConvertibleMockObject(uintValue: 1244), 1244u),
             (ASAny.@null, 0u),
             (ASAny.undefined, 0u),
@@ -447,9 +452,9 @@ namespace Mariana.AVM2.Tests {
             (objWithMethods(("valueOf", ASAny.undefined), ("toString", "999")), 0),
             (objWithMethods(("valueOf", new ASObject()), ("toString", "999")), 999),
 
-            (new TypeConversionsTest_CA(), 0),
-            (new TypeConversionsTest_CB(), 0),
-            (new TypeConversionsTest_CC(), 9999)
+            (new MockClassInstance(mockClassA), 0),
+            (new MockClassInstance(mockClassB), 0),
+            (new MockClassInstance(mockClassC), 9999)
         );
 
         [Theory]
@@ -707,7 +712,7 @@ namespace Mariana.AVM2.Tests {
             assertObjIsString(expected, ASAny.AS_coerceType(ASObject.AS_fromNumber(value), s_stringClass));
         }
 
-        public static IEnumerable<object[]> objectAnyToNumberConvertTest_data = TupleHelper.toArrays<ASAny, double>(
+        public static IEnumerable<object[]> objectAnyToNumberConvertTest_data() => TupleHelper.toArrays<ASAny, double>(
             (ASAny.@null, 0.0),
             (ASAny.undefined, Double.NaN),
 
@@ -741,9 +746,9 @@ namespace Mariana.AVM2.Tests {
             (objWithMethods(("valueOf", ASAny.undefined), ("toString", "999")), Double.NaN),
             (objWithMethods(("valueOf", new ASObject()), ("toString", "999")), 999),
 
-            (new TypeConversionsTest_CA(), 0),
-            (new TypeConversionsTest_CB(), 0),
-            (new TypeConversionsTest_CC(), 9999.36)
+            (new MockClassInstance(mockClassA), 0),
+            (new MockClassInstance(mockClassB), 0),
+            (new MockClassInstance(mockClassC), 9999.36)
         );
 
         [Theory]
@@ -1002,7 +1007,7 @@ namespace Mariana.AVM2.Tests {
             assertObjIsNumber(expected, ASAny.AS_coerceType((ASAny)value, s_numberClass));
         }
 
-        public static IEnumerable<object[]> objectAnyToStringConvertTest_data = TupleHelper.toArrays<ASAny, string, string>(
+        public static IEnumerable<object[]> objectAnyToStringConvertTest_data() => TupleHelper.toArrays<ASAny, string, string>(
             (ASAny.@null, null, "null"),
             (ASAny.undefined, null, "undefined"),
 
@@ -1022,9 +1027,9 @@ namespace Mariana.AVM2.Tests {
             (objWithMethods(("toString", new ASObject()), ("valueOf", ASAny.@null)), "null", "null"),
             (objWithMethods(("toString", new ASObject()), ("valueOf", ASAny.undefined)), "undefined", "undefined"),
 
-            (new TypeConversionsTest_CA(), "Hello CA", "Hello CA"),
-            (new TypeConversionsTest_CB(), "Hello CB", "Hello CB"),
-            (new TypeConversionsTest_CC(), "Hello CA", "Hello CA")
+            (new MockClassInstance(mockClassA), "Hello CA", "Hello CA"),
+            (new MockClassInstance(mockClassB), "Hello CB", "Hello CB"),
+            (new MockClassInstance(mockClassC), "Hello CA", "Hello CA")
         );
 
         [Theory]
@@ -1124,7 +1129,7 @@ namespace Mariana.AVM2.Tests {
             assertObjIsString(expected, ASAny.AS_coerceType((ASAny)value, s_stringClass));
         }
 
-        public static IEnumerable<object[]> objectAnyToBoolConvertTest_data = TupleHelper.toArrays<ASAny, bool>(
+        public static IEnumerable<object[]> objectAnyToBoolConvertTest_data() => TupleHelper.toArrays<ASAny, bool>(
             (ASAny.@null, false),
             (ASAny.undefined, false),
 
@@ -1489,10 +1494,10 @@ namespace Mariana.AVM2.Tests {
                 AssertHelper.throwsErrorWithCode(ErrorCode.TYPE_COERCION_FAILED, testCode);
         }
 
-        public static IEnumerable<object[]> objectToPrimitiveConvertTest_shouldThrowError_data = TupleHelper.toArrays<ASObject>(
+        public static IEnumerable<object[]> objectToPrimitiveConvertTest_shouldThrowError_data() => TupleHelper.toArrays<ASObject>(
             objWithMethods(("toString", new ASObject())),
             objWithMethods(("valueOf", new ASObject()), ("toString", new ASObject())),
-            new TypeConversionsTest_CD()
+            new MockClassInstance(mockClassD)
         );
 
         [Theory]
@@ -1523,8 +1528,7 @@ namespace Mariana.AVM2.Tests {
 
         [Fact]
         public void objectToPrimitive_shouldUseNumberHintForNonDate() {
-            var obj = new TypeConversionsTest_CC();
-            AssertHelper.valueIdentical(obj.valueOf(), ASObject.AS_toPrimitive(new TypeConversionsTest_CC()));
+            AssertHelper.valueIdentical(9999.36, ASObject.AS_toPrimitive(new MockClassInstance(mockClassC)));
         }
 
         public static IEnumerable<object[]> isAsTypeTest_typeArgIsNotClass_data() {

@@ -40,7 +40,7 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <inheritdoc/>
-        public override TraitType traitType => TraitType.METHOD;
+        public sealed override TraitType traitType => TraitType.METHOD;
 
         /// <summary>
         /// Gets the underlying <see cref="MethodInfo"/> of this method trait.
@@ -267,7 +267,7 @@ namespace Mariana.AVM2.Core {
                 if (scope == null)
                     throw ErrorHelper.createError(ErrorCode.MARIANA__METHOD_SCOPE_ARG_REQUIRED, name.ToString());
 
-                receiver = new ScopedClosureReceiver(receiver, scope, null);
+                receiver = new ScopedClosureReceiver(receiver, scope, callee: null);
             }
 
             if (!isStatic && receiver == null)

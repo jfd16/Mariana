@@ -35,7 +35,7 @@ namespace Mariana.AVM2.Tests {
 
         private static string[] makeKeys(int seed, int domainSize) {
             var random = new Random(seed);
-            var stringSet = new HashSet<string>();
+            var stringSet = new HashSet<string>(StringComparer.Ordinal);
 
             while (stringSet.Count < domainSize)
                 stringSet.Add(RandomHelper.randomString(random, 0, 60, ' ', 'z'));

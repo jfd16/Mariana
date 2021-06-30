@@ -2108,7 +2108,7 @@ namespace Mariana.AVM2.Compiler {
                 }
             }
 
-            void emitNumericCompareOp(ABCOp opcode, bool isUnsigned, bool isFloat) {
+            void emitNumericCompareOp(ABCOp opcode, bool isUnsigned = false, bool isFloat = false) {
                 switch (opcode) {
                     case ABCOp.lessthan:
                         m_ilBuilder.emit(isUnsigned ? ILOp.clt_un : ILOp.clt);
@@ -2138,17 +2138,17 @@ namespace Mariana.AVM2.Compiler {
                 switch (compareType) {
                     case ComparisonType.INT:
                         _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.INT, DataNodeType.INT);
-                        emitNumericCompareOp(_instr.opcode, false, false);
+                        emitNumericCompareOp(_instr.opcode);
                         break;
 
                     case ComparisonType.UINT:
                         _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.INT, DataNodeType.INT);
-                        emitNumericCompareOp(_instr.opcode, true, false);
+                        emitNumericCompareOp(_instr.opcode, isUnsigned: true);
                         break;
 
                     case ComparisonType.NUMBER:
                         _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.NUMBER, DataNodeType.NUMBER);
-                        emitNumericCompareOp(_instr.opcode, false, true);
+                        emitNumericCompareOp(_instr.opcode, isFloat: true);
                         break;
 
                     case ComparisonType.STRING: {
@@ -2601,7 +2601,7 @@ namespace Mariana.AVM2.Compiler {
                 m_ilBuilder.emit(ILOp.stloc, valueLocal);
 
                 _emitPrepareRuntimeBinding(
-                    multiname, rtNsNodeId, rtNameNodeId, _getPushedClassOfNode(obj), false, out var bindingKind);
+                    multiname, rtNsNodeId, rtNameNodeId, _getPushedClassOfNode(obj), isOnRuntimeScopeStack: false, out var bindingKind);
 
                 m_ilBuilder.emit(ILOp.ldloc, valueLocal);
                 m_ilBuilder.releaseTempLocal(valueLocal);
@@ -2655,7 +2655,7 @@ namespace Mariana.AVM2.Compiler {
                 Debug.Assert(!obj.isNotPushed);
 
                 _emitPrepareRuntimeBinding(
-                    multiname, rtNsNodeId, rtNameNodeId, _getPushedClassOfNode(obj), false, out var bindingKind);
+                    multiname, rtNsNodeId, rtNameNodeId, _getPushedClassOfNode(obj), isOnRuntimeScopeStack: false, out var bindingKind);
 
                 MethodInfo method = null;
                 bool isObjAny = isAnyOrUndefined(obj.dataType);
@@ -2692,7 +2692,7 @@ namespace Mariana.AVM2.Compiler {
                 _emitPushConstantNode(ref result);
             }
             else {
-                _emitGetPropertyTrait((Trait)resolvedProp.propInfo, ref obj, false);
+                _emitGetPropertyTrait((Trait)resolvedProp.propInfo, ref obj, isSuper: false);
             }
         }
 
@@ -2704,7 +2704,7 @@ namespace Mariana.AVM2.Compiler {
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.getSetSlot.resolvedPropId);
             bool isRtInvoke = resolvedProp.propKind == ResolvedPropertyKind.TRAIT_RT_INVOKE;
 
-            _emitSetPropertyTrait((Trait)resolvedProp.propInfo, ref obj, ref value, false, isRtInvoke);
+            _emitSetPropertyTrait((Trait)resolvedProp.propInfo, ref obj, ref value, isSuper: false, isRtInvoke);
         }
 
         private void _visitGetGlobalScope(ref Instruction instr) {
@@ -2731,7 +2731,7 @@ namespace Mariana.AVM2.Compiler {
             dummyObject.dataType = DataNodeType.GLOBAL;
             dummyObject.flags = DataNodeFlags.CONSTANT | DataNodeFlags.NO_PUSH;
 
-            _emitGetPropertyTrait(trait, ref dummyObject, false);
+            _emitGetPropertyTrait(trait, ref dummyObject, isSuper: false);
         }
 
         private void _visitSetGlobalSlot(ref Instruction instr) {
@@ -2748,7 +2748,7 @@ namespace Mariana.AVM2.Compiler {
             dummyObject.dataType = DataNodeType.GLOBAL;
             dummyObject.flags = DataNodeFlags.CONSTANT | DataNodeFlags.NO_PUSH;
 
-            _emitSetPropertyTrait(trait, ref dummyObject, ref value, false, isRtInvoke);
+            _emitSetPropertyTrait(trait, ref dummyObject, ref value, isSuper: false, isRtInvoke);
         }
 
         private void _visitCallOrConstructProp(ref Instruction instr) {
@@ -2815,7 +2815,7 @@ namespace Mariana.AVM2.Compiler {
                     argsLocal = _emitCollectStackArgsIntoArray(argIds);
 
                 _emitPrepareRuntimeBinding(
-                    multiname, rtNsNodeId, rtNameNodeId, _getPushedClassOfNode(obj), false, out var bindingKind);
+                    multiname, rtNsNodeId, rtNameNodeId, _getPushedClassOfNode(obj), isOnRuntimeScopeStack: false, out var bindingKind);
 
                 bool isObjAny = isAnyOrUndefined(obj.dataType);
                 MethodInfo method = getRuntimeBindMethod(bindingKind, isObjAny, isConstruct);
@@ -2939,10 +2939,13 @@ namespace Mariana.AVM2.Compiler {
             {
                 var trait = (Trait)resolvedProp.propInfo;
 
-                if (resolvedProp.propKind == ResolvedPropertyKind.TRAIT)
-                    _emitCallOrConstructTrait(trait, receiverId, argIds, isConstruct, false, resultId);
-                else
-                    _emitCallOrConstructTraitAtRuntime(trait, receiverId, argIds, isConstruct, false, resultId == -1);
+                if (resolvedProp.propKind == ResolvedPropertyKind.TRAIT) {
+                    _emitCallOrConstructTrait(trait, receiverId, argIds, isConstruct, isSuper: false, resultId);
+                }
+                else {
+                    _emitCallOrConstructTraitAtRuntime(
+                        trait, receiverId, argIds, isConstruct, nullReceiver: false, noReturn: resultId == -1);
+                }
             }
             else if (resolvedProp.propKind == ResolvedPropertyKind.INTRINSIC) {
                 var intrinsic = (Intrinsic)resolvedProp.propInfo;
@@ -2973,10 +2976,13 @@ namespace Mariana.AVM2.Compiler {
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.callOrConstruct.resolvedPropId);
             var trait = (Trait)resolvedProp.propInfo;
 
-            if (resolvedProp.propKind == ResolvedPropertyKind.TRAIT)
-                _emitCallOrConstructTrait(trait, receiverId, argIds, false, false, resultId);
-            else if (resolvedProp.propKind == ResolvedPropertyKind.TRAIT_RT_INVOKE)
-                _emitCallOrConstructTraitAtRuntime(trait, receiverId, argIds, false, false, resultId == -1);
+            if (resolvedProp.propKind == ResolvedPropertyKind.TRAIT) {
+                _emitCallOrConstructTrait(trait, receiverId, argIds, isConstruct: false, isSuper: false, resultId);
+            }
+            else if (resolvedProp.propKind == ResolvedPropertyKind.TRAIT_RT_INVOKE) {
+                _emitCallOrConstructTraitAtRuntime(
+                    trait, receiverId, argIds, isConstruct: false, nullReceiver: false, noReturn: resultId == -1);
+            }
         }
 
         private void _visitConstructSuper(ref Instruction instr) {
@@ -3036,7 +3042,7 @@ namespace Mariana.AVM2.Compiler {
             _getRuntimeMultinameArgIds(stackPopIds.Slice(1), multiname, out int rtNsNodeId, out int rtNameNodeId);
 
             _emitPrepareRuntimeBinding(
-                multiname, rtNsNodeId, rtNameNodeId, _getPushedClassOfNode(obj), false, out var bindingKind);
+                multiname, rtNsNodeId, rtNameNodeId, _getPushedClassOfNode(obj), isOnRuntimeScopeStack: false, out var bindingKind);
 
             MethodInfo method = null;
             bool isObjAny = isAnyOrUndefined(obj.dataType);
@@ -3075,7 +3081,7 @@ namespace Mariana.AVM2.Compiler {
                 Debug.Assert(m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_RUNTIME_SCOPE_STACK));
 
                 _emitPrepareRuntimeBinding(
-                    multiname, rtNsNodeId, rtNameNodeId, null, true, out var bindingKind);
+                    multiname, rtNsNodeId, rtNameNodeId, null, isOnRuntimeScopeStack: true, out var bindingKind);
 
                 MethodInfo method = null;
                 switch (bindingKind) {
@@ -3125,7 +3131,9 @@ namespace Mariana.AVM2.Compiler {
 
             if (scopeRef.isNull) {
                 Debug.Assert(m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_RUNTIME_SCOPE_STACK));
-                _emitPrepareRuntimeBinding(multiname, -1, -1, null, true, out var bindingKind);
+
+                _emitPrepareRuntimeBinding(
+                    multiname, rtNsNodeId: -1, rtNameNodeId: -1, objectType: null, isOnRuntimeScopeStack: true, out var bindingKind);
 
                 MethodInfo method = null;
                 switch (bindingKind) {
@@ -3198,7 +3206,7 @@ namespace Mariana.AVM2.Compiler {
                 }
 
                 if (trait != null) {
-                    _emitGetPropertyTrait(trait, ref dummyNode, false);
+                    _emitGetPropertyTrait(trait, ref dummyNode, isSuper: false);
                 }
                 else {
                     Debug.Assert(resolvedProp.propKind == ResolvedPropertyKind.RUNTIME);
@@ -3306,12 +3314,12 @@ namespace Mariana.AVM2.Compiler {
             switch (cmpType) {
                 case ComparisonType.INT:
                     _emitTypeCoerceForStackTop2(ref left, ref right, DataNodeType.INT, DataNodeType.INT);
-                    getILOpForIntCompare(instr.opcode, false, out ilOp, out invIlOp);
+                    getILOpForIntCompare(instr.opcode, isUnsigned: false, out ilOp, out invIlOp);
                     break;
 
                 case ComparisonType.UINT:
                     _emitTypeCoerceForStackTop2(ref left, ref right, DataNodeType.UINT, DataNodeType.UINT);
-                    getILOpForIntCompare(instr.opcode, true, out ilOp, out invIlOp);
+                    getILOpForIntCompare(instr.opcode, isUnsigned: true, out ilOp, out invIlOp);
                     break;
 
                 case ComparisonType.NUMBER:
@@ -5054,7 +5062,7 @@ namespace Mariana.AVM2.Compiler {
         /// if no runtime name argument is present.</param>
         private void _emitGetPropertyRuntime(ref DataNode obj, in ABCMultiname multiname, int rtNsNodeId, int rtNameNodeId) {
             _emitPrepareRuntimeBinding(
-                multiname, rtNsNodeId, rtNameNodeId, _getPushedClassOfNode(obj), false, out var bindingKind);
+                multiname, rtNsNodeId, rtNameNodeId, _getPushedClassOfNode(obj), isOnRuntimeScopeStack: false, out var bindingKind);
 
             MethodInfo method = null;
             bool isObjAny = isAnyOrUndefined(obj.dataType);
@@ -6334,7 +6342,13 @@ namespace Mariana.AVM2.Compiler {
                 }
 
                 case IntrinsicName.DATE_NEW_7:
-                    _emitPrepareMethodCallArguments(s_dateCtorComponentsParams, false, argsOnStack, null, null);
+                    _emitPrepareMethodCallArguments(
+                        s_dateCtorComponentsParams,
+                        hasRest: false,
+                        argsOnStack,
+                        receiverType: null,
+                        receiverExpectedType: null
+                    );
                     m_ilBuilder.emit(ILOp.ldc_i4_0);    // isUTC = false
                     m_ilBuilder.emit(ILOp.newobj, KnownMembers.dateCtorFromComponents, -7);
                     break;
@@ -6462,7 +6476,7 @@ namespace Mariana.AVM2.Compiler {
         /// holding the created container instance for <paramref name="capturedScope"/>. This must be
         /// released with <see cref="ILBuilder.releaseTempLocal"/> after use.</returns>
         private ILBuilder.Local _emitCaptureCurrentScope(CapturedScope capturedScope, ReadOnlySpan<int> localScopeNodeIds) {
-            var captureItems = capturedScope.getItems(true).asSpan();
+            var captureItems = capturedScope.getItems(isStatic: true).asSpan();
             var captureContainer = capturedScope.container;
 
             int heightOfFirstLocalItem = m_compilation.getCapturedScopeItems().length;

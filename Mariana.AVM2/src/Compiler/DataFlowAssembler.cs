@@ -428,7 +428,7 @@ namespace Mariana.AVM2.Compiler {
                     Span<int> stackAtEntry = staticIntArrayPool.getSpan(block.stackAtEntry);
 
                     if (stackIndex < stackAtEntry.Length) {
-                        stackAtEntry[stackIndex] = _createDataNode(DataNodeSlotKind.STACK, stackIndex, true);
+                        stackAtEntry[stackIndex] = _createDataNode(DataNodeSlotKind.STACK, stackIndex, isPhi: true);
                         block.flags |= BasicBlockFlags.DEFINES_PHI_NODES;
                     }
                 }
@@ -449,7 +449,7 @@ namespace Mariana.AVM2.Compiler {
                     Span<int> scopeAtEntry = staticIntArrayPool.getSpan(block.scopeStackAtEntry);
 
                     if (scopeIndex < scopeAtEntry.Length) {
-                        scopeAtEntry[scopeIndex] = _createDataNode(DataNodeSlotKind.SCOPE, scopeIndex, true);
+                        scopeAtEntry[scopeIndex] = _createDataNode(DataNodeSlotKind.SCOPE, scopeIndex, isPhi: true);
                         block.flags |= BasicBlockFlags.DEFINES_PHI_NODES;
                     }
                 }
@@ -469,7 +469,7 @@ namespace Mariana.AVM2.Compiler {
                     ref BasicBlock block = ref blocks[blockId];
                     Span<int> localsAtEntry = staticIntArrayPool.getSpan(blocks[blockId].localsAtEntry);
 
-                    localsAtEntry[localIndex] = _createDataNode(DataNodeSlotKind.LOCAL, localIndex, true);
+                    localsAtEntry[localIndex] = _createDataNode(DataNodeSlotKind.LOCAL, localIndex, isPhi: true);
                     block.flags |= BasicBlockFlags.DEFINES_PHI_NODES;
                 }
             }
@@ -573,7 +573,7 @@ namespace Mariana.AVM2.Compiler {
                         Span<int> stackAtEntry = staticIntArrayPool.getSpan(block.stackAtEntry);
 
                         if (stackIndex < stackAtEntry.Length) {
-                            stackAtEntry[stackIndex] = _createDataNode(DataNodeSlotKind.STACK, stackIndex, true);
+                            stackAtEntry[stackIndex] = _createDataNode(DataNodeSlotKind.STACK, stackIndex, isPhi: true);
                             block.flags |= BasicBlockFlags.DEFINES_PHI_NODES;
                         }
                     }
@@ -591,7 +591,7 @@ namespace Mariana.AVM2.Compiler {
                         Span<int> scopeAtEntry = staticIntArrayPool.getSpan(block.scopeStackAtEntry);
 
                         if (scopeIndex < scopeAtEntry.Length) {
-                            scopeAtEntry[scopeIndex] = _createDataNode(DataNodeSlotKind.SCOPE, scopeIndex, true);
+                            scopeAtEntry[scopeIndex] = _createDataNode(DataNodeSlotKind.SCOPE, scopeIndex, isPhi: true);
                             block.flags |= BasicBlockFlags.DEFINES_PHI_NODES;
                         }
                     }
@@ -608,7 +608,7 @@ namespace Mariana.AVM2.Compiler {
                         ref BasicBlock block = ref blocks[blockIds[i]];
                         Span<int> localsAtEntry = staticIntArrayPool.getSpan(block.localsAtEntry);
 
-                        localsAtEntry[localIndex] = _createDataNode(DataNodeSlotKind.LOCAL, localIndex, true);
+                        localsAtEntry[localIndex] = _createDataNode(DataNodeSlotKind.LOCAL, localIndex, isPhi: true);
                         block.flags |= BasicBlockFlags.DEFINES_PHI_NODES;
                     }
                 }
@@ -773,7 +773,7 @@ namespace Mariana.AVM2.Compiler {
                 var targetEntryLocals = m_compilation.staticIntArrayPool.getSpan(targetBlock.localsAtEntry);
                 for (int j = 0; j < targetEntryLocals.Length; j++) {
                     if (targetEntryLocals[j] == -1)
-                        targetEntryLocals[j] = _createDataNode(DataNodeSlotKind.LOCAL, j, true);
+                        targetEntryLocals[j] = _createDataNode(DataNodeSlotKind.LOCAL, j, isPhi: true);
                 }
 
                 if (targetEntryLocals.Length > 0)
@@ -818,7 +818,7 @@ namespace Mariana.AVM2.Compiler {
 
                 if (instr.opcode == ABCOp.dup) {
                     ref DataNode inputNode = ref m_compilation.getDataNode(curStackNodeIds[curStackSize - 1]);
-                    int dupNodeId = _createDataNode(DataNodeSlotKind.STACK, curStackSize, false);
+                    int dupNodeId = _createDataNode(DataNodeSlotKind.STACK, curStackSize, isPhi: false);
 
                     instr.data.dupOrSwap.nodeId1 = inputNode.id;
                     instr.data.dupOrSwap.nodeId2 = dupNodeId;
@@ -872,7 +872,7 @@ namespace Mariana.AVM2.Compiler {
 
                 // Push to stack.
                 if (opInfo.stackPushCount == 1) {
-                    int pushedStackNodeId = _createDataNode(DataNodeSlotKind.STACK, curStackSize, false);
+                    int pushedStackNodeId = _createDataNode(DataNodeSlotKind.STACK, curStackSize, isPhi: false);
 
                     instr.stackPushedNodeId = pushedStackNodeId;
                     m_compilation.addDataNodeDef(pushedStackNodeId, instrDataFlowNodeRef);
@@ -893,7 +893,7 @@ namespace Mariana.AVM2.Compiler {
 
                 // Update scope stack.
                 if (opInfo.pushesToScopeStack) {
-                    int pushedScopeNodeId = _createDataNode(DataNodeSlotKind.SCOPE, curScopeSize, false);
+                    int pushedScopeNodeId = _createDataNode(DataNodeSlotKind.SCOPE, curScopeSize, isPhi: false);
 
                     instr.data.pushScope.pushedNodeId = pushedScopeNodeId;
                     m_compilation.addDataNodeDef(pushedScopeNodeId, instrDataFlowNodeRef);
@@ -923,8 +923,8 @@ namespace Mariana.AVM2.Compiler {
 
                     int oldNodeId1 = curLocalNodeIds[instrData.localId1];
                     int oldNodeId2 = curLocalNodeIds[instrData.localId2];
-                    int newNodeId1 = _createDataNode(DataNodeSlotKind.LOCAL, instrData.localId1, false);
-                    int newNodeId2 = _createDataNode(DataNodeSlotKind.LOCAL, instrData.localId2, false);
+                    int newNodeId1 = _createDataNode(DataNodeSlotKind.LOCAL, instrData.localId1, isPhi: false);
+                    int newNodeId2 = _createDataNode(DataNodeSlotKind.LOCAL, instrData.localId2, isPhi: false);
 
                     m_compilation.addDataNodeUse(oldNodeId1, instrDataFlowNodeRef);
                     m_compilation.addDataNodeUse(oldNodeId2, instrDataFlowNodeRef);
@@ -957,7 +957,7 @@ namespace Mariana.AVM2.Compiler {
 
                     if (opInfo.writesLocal) {
                         int localId = instr.data.getSetLocal.localId;
-                        int newLocalNodeId = _createDataNode(DataNodeSlotKind.LOCAL, localId, false);
+                        int newLocalNodeId = _createDataNode(DataNodeSlotKind.LOCAL, localId, isPhi: false);
 
                         instr.data.getSetLocal.nodeId = curLocalNodeIds[localId];
                         instr.data.getSetLocal.newNodeId = newLocalNodeId;

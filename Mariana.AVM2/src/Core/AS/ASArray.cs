@@ -412,7 +412,7 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         public static ASArray fromSpan<T>(ReadOnlySpan<T> span) {
             ASArray array = new ASArray();
-            array.m_values = new Value[span.Length];
+            array.m_values = span.IsEmpty ? Array.Empty<Value>() : new Value[span.Length];
 
             Span<Value> values = array.m_values.AsSpan(0, span.Length);
             var converter = GenericTypeConverter<T, ASAny>.instance;
@@ -443,7 +443,7 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         public static ASArray fromObjectSpan<T>(ReadOnlySpan<T> span) where T : ASObject {
             ASArray array = new ASArray();
-            array.m_values = new Value[span.Length];
+            array.m_values = span.IsEmpty ? Array.Empty<Value>() : new Value[span.Length];
 
             Span<Value> values = array.m_values;
 
@@ -881,7 +881,7 @@ namespace Mariana.AVM2.Core {
 
                 m_length = newlen;
                 m_totalCount = (int)newlen;
-                _updateArrayStorage(true);
+                _updateArrayStorage(isDelete: true);
             }
 
             // For hash table storage.
@@ -919,7 +919,7 @@ namespace Mariana.AVM2.Core {
                 }
 
                 m_length = newLength;
-                _updateArrayStorage(true);
+                _updateArrayStorage(isDelete: true);
             }
         }
 
@@ -1171,7 +1171,7 @@ namespace Mariana.AVM2.Core {
                     return false;
             }
 
-            _updateArrayStorage(true);
+            _updateArrayStorage(isDelete: true);
             return true;
         }
 
@@ -2544,14 +2544,14 @@ namespace Mariana.AVM2.Core {
 
                 _setDenseArrayTotalCount(newTotalCount);
                 m_length--;
-                _updateArrayStorage(true);
+                _updateArrayStorage(isDelete: true);
 
                 return popped.toAny();
             }
             else {
                 Value popped = _hashDeleteAndGet(m_length - 1);
                 m_length--;
-                _updateArrayStorage(true);
+                _updateArrayStorage(isDelete: true);
                 return popped.toAny();
             }
 
@@ -2696,7 +2696,7 @@ namespace Mariana.AVM2.Core {
                     m_nonEmptyCount--;
 
                 m_totalCount = (m_nonEmptyCount == 0) ? 0 : m_totalCount - 1;
-                _updateArrayStorage(true);
+                _updateArrayStorage(isDelete: true);
             }
             else {
                 removed = _hashDeleteAndGet(0);
@@ -2714,7 +2714,7 @@ namespace Mariana.AVM2.Core {
                 // Since conversion of a hash table to dense array storage does not depend
                 // on chain correctness, check whether the conversion can be done first and
                 // rebuild the chains only if no conversion to a dense array was done.
-                _updateArrayStorage(true);
+                _updateArrayStorage(isDelete: true);
 
                 if (!_isDenseArray())
                     _resetHashTableChains();

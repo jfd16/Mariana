@@ -47,7 +47,7 @@ namespace Mariana.AVM2.Core {
         /// Creates a new XMLList and initializes it with the given items.
         /// </summary>
         /// <param name="items">A span containing the XML nodes to add to the created list.</param>
-        public ASXMLList(ReadOnlySpan<ASXML> items) => _initItems(items.ToArray(), items.Length, true);
+        public ASXMLList(ReadOnlySpan<ASXML> items) => _initItems(items.ToArray(), items.Length, noCopy: true);
 
         /// <summary>
         /// Creates a new XMLList instance.
@@ -66,7 +66,7 @@ namespace Mariana.AVM2.Core {
             _initItems(items, length, noCopy);
 
             if (targetObject != null)
-                m_link = new LinkInfo(targetObject, null, null, targetNameIsAttr);
+                m_link = new LinkInfo(targetObject, uri: null, localName: null, targetNameIsAttr);
         }
 
         /// <summary>
@@ -105,10 +105,12 @@ namespace Mariana.AVM2.Core {
                 return;
             }
 
-            m_items = new DynamicArray<ASXML>(items.Length, true);
+            m_items = new DynamicArray<ASXML>(items.Length, fillWithDefault: true);
+
             for (int i = 0; i < items.Length; i++) {
                 if (items[i] == null)
                     throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, $"{nameof(items)}[{i}]");
+
                 m_items[i] = items[i];
             }
         }

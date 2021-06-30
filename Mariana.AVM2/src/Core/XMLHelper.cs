@@ -495,7 +495,7 @@ namespace Mariana.AVM2.Core {
             ASXML xml1 = o1 as ASXML, xml2 = o2 as ASXML;
 
             if (xml1 != null && xml2 != null)
-                return new ASXMLList(new ASXML[] {xml1, xml2}, 2, true);
+                return new ASXMLList(new ASXML[] {xml1, xml2}, 2, noCopy: true);
 
             ASXMLList xmlList1 = o1 as ASXMLList, xmlList2 = o2 as ASXMLList;
 

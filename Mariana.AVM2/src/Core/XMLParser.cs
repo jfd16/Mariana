@@ -82,7 +82,7 @@ namespace Mariana.AVM2.Core {
                     list.add(node);
             }
 
-            return new ASXMLList(list.getUnderlyingArray(), list.length, true);
+            return new ASXMLList(list.getUnderlyingArray(), list.length, noCopy: true);
         }
 
         /// <summary>
@@ -134,11 +134,13 @@ namespace Mariana.AVM2.Core {
             m_defaultNS = ASNamespace.getDefault();
             m_parserFlags = 0;
 
-            if (ASXML.ignoreComments)
+            var xmlSettings = ASXML.internalSettings;
+
+            if (xmlSettings.ignoreComments)
                 m_parserFlags |= FLAG_IGNORE_COMMENTS;
-            if (ASXML.ignoreProcessingInstructions)
+            if (xmlSettings.ignoreProcessingInstructions)
                 m_parserFlags |= FLAG_IGNORE_PI;
-            if (ASXML.ignoreWhitespace)
+            if (xmlSettings.ignoreWhitespace)
                 m_parserFlags |= FLAG_IGNORE_SPACE;
 
             m_nsInScope.clear();
@@ -159,7 +161,6 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <returns>The created node as an XML object.</returns>
         private ASXML _readSingleNode() {
-
             m_parserFlags &= ~(FLAG_USES_XML_NS | FLAG_USES_DEFAULT_NS);
 
             while (true) {
@@ -220,7 +221,6 @@ namespace Mariana.AVM2.Core {
                     _readStartTag();
                 }
             }
-
         }
 
         /// <summary>

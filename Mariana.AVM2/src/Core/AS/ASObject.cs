@@ -10,15 +10,17 @@ namespace Mariana.AVM2.Core {
     [AVM2ExportClass(name = "Object", isDynamic = true, hasPrototypeMethods = true)]
     public class ASObject : IEquatable<ASObject> {
 
+        private const int INTERNAL_FIELD_INIT_LOCK_COUNT = 13;
+
         /// <summary>
         /// These objects are used to synchronize lazy initialization of the <see cref="m_class"/>,
         /// <see cref="m_proto"/> and <see cref="m_dynProps"/> fields of objects. An object will
         /// take one of these locks for initializing these fields based on its reference hash code.
         /// </summary>
-        private static object[] s_internalFieldInitLocks = _createInternalFieldInitLocks();
+        private static readonly object[] s_internalFieldInitLocks = _createInternalFieldInitLocks();
 
         private static object[] _createInternalFieldInitLocks() {
-            object[] locks = new object[13];
+            object[] locks = new object[INTERNAL_FIELD_INIT_LOCK_COUNT];
             for (int i = 0; i < locks.Length; i++)
                 locks[i] = new object();
             return locks;
@@ -80,7 +82,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         public Class AS_class {
             get {
-                Class klass = m_class;
+                Class klass = m_class;  // Volatile read
                 if (klass == null) {
                     _initInternalFields();
                     klass = m_class;
@@ -119,15 +121,6 @@ namespace Mariana.AVM2.Core {
         }
 
         private void _initInternalFields() {
-            // To initialize these fields in a thread-safe way, we could create a
-            // lock for each individual object (which would increase the memory footprint
-            // of ALL AS3 objects), lock on "this" itself (which could result in inadvertent
-            // deadlocks if outside code uses the objects as locks), or use a single global
-            // lock (which would lead to threads waiting for what is not really a
-            // shared resource). This hashcode based approach allows thread-safe initialization
-            // without an added object memory footprint while allowing a reasonable amount of
-            // concurrency (which depends on the number of locks used).
-
             Class klass = null;
             Type objType = GetType();
 
@@ -140,8 +133,20 @@ namespace Mariana.AVM2.Core {
                 objType = objType.BaseType;
             } while (objType != null);
 
-            if (klass == null)
+            if (klass == null) {
+                // Should not be hit, as we will eventually reach ASObject which is always
+                // associated with the Object class.
                 return;
+            }
+
+            // To initialize these fields in a thread-safe way, we could create a
+            // lock for each individual object (which would increase the memory footprint
+            // of ALL AS3 objects), lock on "this" itself (which could result in inadvertent
+            // deadlocks if outside code uses the objects as locks), or use a single global
+            // lock (which would lead to threads waiting for what is not really a
+            // shared resource). This hashcode based approach allows thread-safe initialization
+            // without an added object memory footprint while allowing a reasonable amount of
+            // concurrency (which depends on the number of locks used).
 
             int lockIndex = RuntimeHelpers.GetHashCode(this) % s_internalFieldInitLocks.Length;
 
@@ -165,7 +170,7 @@ namespace Mariana.AVM2.Core {
         /// exists.</param>
         /// <returns>A <see cref="BindStatus"/> indicating the result of the lookup.</returns>
         internal virtual BindStatus AS_lookupTrait(in QName name, out Trait trait) =>
-            AS_class.lookupTrait(name, false, out trait);
+            AS_class.lookupTrait(name, isStatic: false, out trait);
 
         /// <summary>
         /// Performs a trait lookup on the object.
@@ -176,7 +181,7 @@ namespace Mariana.AVM2.Core {
         /// <paramref name="nsSet"/>, if one exists.</param>
         /// <returns>A <see cref="BindStatus"/> indicating the result of the lookup.</returns>
         internal virtual BindStatus AS_lookupTrait(string name, in NamespaceSet nsSet, out Trait trait) =>
-            AS_class.lookupTrait(name, nsSet, false, out trait);
+            AS_class.lookupTrait(name, nsSet, isStatic: false, out trait);
 
         /// <summary>
         /// Returns true if a property with the given name exists.
@@ -261,7 +266,6 @@ namespace Mariana.AVM2.Core {
             in QName name, out ASAny value,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-
             if (name.ns.kind == NamespaceKind.ANY || (options & BindOptions.ATTRIBUTE) != 0) {
                 value = default(ASAny);
                 return BindStatus.NOT_FOUND;
@@ -302,7 +306,6 @@ namespace Mariana.AVM2.Core {
 
             value = default(ASAny);
             return BindStatus.NOT_FOUND;
-
         }
 
         /// <summary>
@@ -2644,7 +2647,7 @@ namespace Mariana.AVM2.Core {
         /// </list>
         /// </exception>
         public static bool AS_isType(ASObject obj, ASObject typeObj) {
-            if(!(typeObj is ASClass klass))
+            if (!(typeObj is ASClass klass))
                 throw ErrorHelper.createError(ErrorCode.IS_AS_NOT_CLASS);
 
             // The is and as operators are special-cased for numeric types: The is
@@ -2658,9 +2661,16 @@ namespace Mariana.AVM2.Core {
                     return AS_isUint(obj);
                 case ClassTag.NUMBER:
                     return AS_isNumeric(obj);
-                default:
-                    return obj != null && klass.internalClass.underlyingType.IsInstanceOfType(obj);
             }
+
+            if (obj == null)
+                return false;
+
+            Type klassUnderlyingType = klass.internalClass.underlyingType;
+            if (klassUnderlyingType != null)
+                return klassUnderlyingType.IsInstanceOfType(obj);
+
+            return obj.AS_class.canAssignTo(klass.internalClass);
         }
 
         /// <summary>

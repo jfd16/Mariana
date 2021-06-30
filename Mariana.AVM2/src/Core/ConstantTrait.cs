@@ -22,10 +22,10 @@ namespace Mariana.AVM2.Core {
         public ASAny constantValue => m_val;
 
         /// <inheritdoc/>
-        public override TraitType traitType => TraitType.CONSTANT;
+        public sealed override TraitType traitType => TraitType.CONSTANT;
 
         internal ConstantTrait(in QName name, Class declaringClass, ApplicationDomain appDomain, ASAny value)
-            : base(name, declaringClass, appDomain, true)
+            : base(name, declaringClass, appDomain, isStatic: true)
         {
             m_val = value;
         }

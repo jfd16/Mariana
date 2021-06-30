@@ -83,28 +83,28 @@ namespace Mariana.AVM2.Tests {
             ASAny valueOnPrototype = default,
             BindOptions additionalBindOpts = 0
         ) {
-            void success(BindOptions bindOpts, SpyFunctionObject spyFuncObj) {
+            void success(BindOptions bindOpts, MockFunctionObject spyFuncObj) {
                 BindStatus status;
                 ASAny retval;
 
                 ASObject actualReceiver = spyFuncObj.isMethodClosure ? spyFuncObj.storedReceiver : receiver;
-                int callCount = spyFuncObj.getCallRecords().Length;
+                int callCount = spyFuncObj.getCallHistory().Length;
 
                 (status, retval) = callPropFunc(bindOpts | additionalBindOpts, callArgs);
 
                 Assert.Equal(BindStatus.SUCCESS, status);
-                Assert.True(spyFuncObj.lastCall.isEqualTo(new SpyFunctionObject.CallRecord(actualReceiver, callArgs, retval, false)));
+                Assert.True(spyFuncObj.lastCall.isEqualTo(new MockCallRecord(actualReceiver, callArgs, retval, false)));
 
                 (status, retval) = constructPropFunc(bindOpts | additionalBindOpts, callArgs);
 
                 if (spyFuncObj.isMethodClosure) {
                     Assert.Equal(BindStatus.FAILED_NOTCONSTRUCTOR, status);
-                    Assert.Equal(callCount + 1, spyFuncObj.getCallRecords().Length);
+                    Assert.Equal(callCount + 1, spyFuncObj.getCallHistory().Length);
                 }
                 else {
                     Assert.Equal(BindStatus.SUCCESS, status);
-                    Assert.Equal(callCount + 2, spyFuncObj.getCallRecords().Length);
-                    Assert.True(spyFuncObj.lastCall.isEqualTo(new SpyFunctionObject.CallRecord(null, callArgs, retval, true)));
+                    Assert.Equal(callCount + 2, spyFuncObj.getCallHistory().Length);
+                    Assert.True(spyFuncObj.lastCall.isEqualTo(new MockCallRecord(null, callArgs, retval, true)));
                 }
             }
 
@@ -121,8 +121,8 @@ namespace Mariana.AVM2.Tests {
                 AssertHelper.identical(ASAny.undefined, retval);
             }
 
-            var funcOnObject = valueOnObject.value as SpyFunctionObject;
-            var funcOnPrototype = valueOnPrototype.value as SpyFunctionObject;
+            var funcOnObject = valueOnObject.value as MockFunctionObject;
+            var funcOnPrototype = valueOnPrototype.value as MockFunctionObject;
 
             BindStatus callStatusOnObject = BindStatus.SUCCESS;
             BindStatus constructStatusOnObject = BindStatus.SUCCESS;
@@ -202,6 +202,7 @@ namespace Mariana.AVM2.Tests {
             const int moreThanLengthSampleCount = 500;
 
             var sampledIndices = new HashSet<uint>();
+            var currentProto = s_currentProtoProperties.value;
 
             if (image.length <= smallArrayLength) {
                 // If the length of the array is small then do an exhaustive check.
@@ -210,24 +211,16 @@ namespace Mariana.AVM2.Tests {
             }
             else {
                 // For large arrays, check all nonempty indices and a random sample of empty indices.
-                var nonEmptyIndices = new HashSet<uint>();
-
-                nonEmptyIndices.UnionWith(image.elements.Keys);
-                if (s_currentProtoProperties != null)
-                    nonEmptyIndices.UnionWith(s_currentProtoProperties.Keys);
+                var nonEmptyIndices = new HashSet<uint>(image.elements.Keys);
+                nonEmptyIndices.UnionWith(currentProto.Keys);
 
                 foreach (var index in nonEmptyIndices)
                     testIndex(index);
 
                 for (int i = 0; i < lessThanLengthSampleCount; i++) {
                     uint index = randomIndex(image.length);
-
-                    if (sampledIndices.Add(index)
-                        && !image.elements.ContainsKey(index)
-                        && !(s_currentProtoProperties != null && s_currentProtoProperties.ContainsKey(index)))
-                    {
+                    if (sampledIndices.Add(index) && !image.elements.ContainsKey(index) && !currentProto.ContainsKey(index))
                         testIndex(index);
-                    }
                 }
             }
 
@@ -248,7 +241,7 @@ namespace Mariana.AVM2.Tests {
                 if (!image.elements.TryGetValue(index, out ASAny valueOnObject))
                     statusOnObject = BindStatus.SOFT_SUCCESS;
 
-                if (s_currentProtoProperties == null || !s_currentProtoProperties.TryGetValue(index, out ASAny valueOnPrototype))
+                if (!currentProto.TryGetValue(index, out ASAny valueOnPrototype))
                     statusOnPrototype = BindStatus.NOT_FOUND;
 
                 string indexStr = indexToString(index);
@@ -459,14 +452,10 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(propertyBindingAccessAndIteration_testData))]
         public void propertyBindingAccessTest(ArrayWrapper array, Image image, IndexDict prototype) {
-            setRandomSeed(748661);
-            setPrototypeProperties(prototype);
-            try {
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(748661);
                 verifyArrayPropBindingMatchesImage(array.instance, image);
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         public static IEnumerable<object[]> propertyBindingIteration_testData_withStringProps() {
@@ -515,12 +504,11 @@ namespace Mariana.AVM2.Tests {
         [MemberData(nameof(propertyBindingAccessAndIteration_testData))]
         [MemberData(nameof(propertyBindingIteration_testData_withStringProps))]
         public void propertyBindingIterationTest(ArrayWrapper array, Image image, IndexDict prototype) {
-            setRandomSeed(748661);
-            setPrototypeProperties(prototype);
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(748661);
 
-            try {
                 var indices = new HashSet<uint>();
-                var stringProperties = new Dictionary<string, ASAny>();
+                var stringProperties = new Dictionary<string, ASAny>(StringComparer.Ordinal);
 
                 int curPropIndex = array.instance.AS_nextIndex(0);
                 while (curPropIndex != 0) {
@@ -554,10 +542,7 @@ namespace Mariana.AVM2.Tests {
 
                 Assert.Empty(stringProperties);
                 Assert.Equal((image.elements == null) ? 0 : image.elements.Count, indices.Count);
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
         }
 
         public static IEnumerable<object[]> propertyBindingMutationTest_data() {
@@ -702,10 +687,9 @@ namespace Mariana.AVM2.Tests {
                 BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.ATTRIBUTE,
             };
 
-            setRandomSeed(8512199);
-            setPrototypeProperties(prototype);
+            runInZoneWithArrayPrototype(prototype, () => {
+                setRandomSeed(8512199);
 
-            try {
                 foreach (Mutation mut in mutations) {
                     if (mut.kind != MutationKind.SET && mut.kind != MutationKind.DELETE) {
                         applyMutation(currentArray, mut);
@@ -728,10 +712,7 @@ namespace Mariana.AVM2.Tests {
                 }
 
                 verifyArrayPropBindingMatchesImage(currentArray, currentImage);
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
 
             void checkSetMutation(uint index, ASAny value, Image expectedImage) {
                 void check(Func<ASArray, BindStatus> func, bool isSuccess) {
@@ -855,7 +836,7 @@ namespace Mariana.AVM2.Tests {
             var nsSet2 = new NamespaceSet(new Namespace("a"), Namespace.@public, new Namespace(NamespaceKind.PROTECTED, "b"));
             var nsSet3 = new NamespaceSet(new Namespace("a"), new Namespace(NamespaceKind.PROTECTED, "b"));
 
-            var prototypeDPs = new Dictionary<string, ASAny> {
+            var prototypeDPs = new Dictionary<string, ASAny>(StringComparer.Ordinal) {
                 ["+9"] = new ASObject(),
                 ["6.0"] = new ASObject(),
                 [" 8 "] = new ASObject(),
@@ -865,7 +846,7 @@ namespace Mariana.AVM2.Tests {
                 ["ghi"] = new ASObject(),
             };
 
-            var arrayDPs = new Dictionary<string, ASAny> {
+            var arrayDPs = new Dictionary<string, ASAny>(StringComparer.Ordinal) {
                 ["+5"] = new ASObject(),
                 [" 8"] = new ASObject(),
                 [" 8 "] = new ASObject(),
@@ -919,11 +900,9 @@ namespace Mariana.AVM2.Tests {
                 Double.PositiveInfinity, Double.NegativeInfinity, Double.NaN
             };
 
-            setPrototypeProperties(null); // Take prototype lock
-            ASObject arrayProto = null;
+            runInZoneWithArrayPrototype(null, () => {
+                ASObject arrayProto = s_arrayClass.prototypeObject;
 
-            try {
-                arrayProto = s_arrayClassPrototype;
                 foreach (var (k, v) in prototypeDPs)
                     arrayProto.AS_dynamicProps.setValue(k, v);
 
@@ -946,13 +925,7 @@ namespace Mariana.AVM2.Tests {
                 for (int i = 0; i < nonIndexObjectKeys.Length; i++) {
                     testObjectKey(nonIndexObjectKeys[i], false);
                 }
-            }
-            finally {
-                foreach (var (k, _) in prototypeDPs)
-                    arrayProto.AS_dynamicProps.delete(k);
-
-                resetPrototypeProperties();     // Release lock
-            }
+            });
 
             void testStringKey(string key, bool isIndex) {
                 if (!isIndex) {
@@ -1199,8 +1172,6 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(propertyBindingMutationTest_nonIndexNames_data))]
         public void propertyBindingMutationTest_nonIndexNames(ArrayWrapper array, Image image) {
-            setRandomSeed(478911);
-
             var nsSet1 = new NamespaceSet(Namespace.@public);
             var nsSet2 = new NamespaceSet(new Namespace("a"), Namespace.@public, new Namespace(NamespaceKind.PROTECTED, "b"));
             var nsSet3 = new NamespaceSet(new Namespace("a"), new Namespace(NamespaceKind.PROTECTED, "b"));
@@ -1239,9 +1210,9 @@ namespace Mariana.AVM2.Tests {
 
             ASAny[] valueDomain = makeUniqueValues(50);
 
-            setPrototypeProperties(null); // Take prototype lock
+            runInZoneWithArrayPrototype(null, () => {
+                setRandomSeed(478911);
 
-            try {
                 testMutationsWithBindOpts(BindOptions.SEARCH_DYNAMIC);
                 testMutationsWithBindOpts(BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_TRAITS);
                 testMutationsWithBindOpts(BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE);
@@ -1264,10 +1235,7 @@ namespace Mariana.AVM2.Tests {
 
                 for (int i = 0; i < nonIndexObjectKeys.Length; i++)
                     testFailedMutationsWithObjectKey(nonIndexObjectKeys[i]);
-            }
-            finally {
-                resetPrototypeProperties();     // Release lock
-            }
+            });
 
             void checkArrayStateNoChange() {
                 Assert.Equal(image.length, array.instance.length);
@@ -1584,10 +1552,10 @@ namespace Mariana.AVM2.Tests {
                 valueDomain[i] = new ASObject();
 
             for (int i = 20; i < 40; i++)
-                valueDomain[i] = new SpyFunctionObject((recv, args) => new ASObject());
+                valueDomain[i] = new MockFunctionObject((recv, args) => new ASObject());
 
             for (int i = 40; i < 50; i++)
-                valueDomain[i] = new SpyFunctionObject((recv, args) => new ASObject(), new ASObject());
+                valueDomain[i] = new MockFunctionObject((recv, args) => new ASObject(), new ASObject());
 
             var testcases = new List<(ArrayWrapper, Image, IndexDict)>();
 
@@ -1679,15 +1647,15 @@ namespace Mariana.AVM2.Tests {
                     [0] = ASAny.@null,
                     [5] = ASAny.undefined,
                     [14] = new ASObject(),
-                    [34] = new SpyFunctionObject(),
-                    [45] = new SpyFunctionObject(),
+                    [34] = new MockFunctionObject(),
+                    [45] = new MockFunctionObject(),
                     [52] = new ASObject(),
                     [59] = ASAny.undefined,
-                    [68] = new SpyFunctionObject(),
-                    [70] = new SpyFunctionObject(),
+                    [68] = new MockFunctionObject(),
+                    [70] = new MockFunctionObject(),
                     [74] = ASAny.@null,
                     [79] = new ASObject(),
-                    [10000] = new SpyFunctionObject()
+                    [10000] = new MockFunctionObject()
                 }
             );
 
@@ -1695,16 +1663,16 @@ namespace Mariana.AVM2.Tests {
                 initialState: makeEmptyArrayAndImage(100),
                 mutations: rangeSelect(0, 19, i => mutSetUint(randomIndex(100), randomSample(valueDomain))),
                 prototype: new IndexDict(
-                    rangeSelect(0, 99, i => new KeyValuePair<uint, ASAny>(i, (i % 5 == 0) ? new ASObject() : new SpyFunctionObject()))
+                    rangeSelect(0, 99, i => new KeyValuePair<uint, ASAny>(i, (i % 5 == 0) ? new ASObject() : new MockFunctionObject()))
                 )
             );
 
             addTestCase(
                 initialState: makeEmptyArrayAndImage(maxLength),
                 prototype: new IndexDict {
-                    [0] = new SpyFunctionObject(),
-                    [(uint)Int32.MaxValue] = new SpyFunctionObject(),
-                    [maxIndex] = new SpyFunctionObject()
+                    [0] = new MockFunctionObject(),
+                    [(uint)Int32.MaxValue] = new MockFunctionObject(),
+                    [maxIndex] = new MockFunctionObject()
                 }
             );
 
@@ -1714,6 +1682,8 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(propertyBindingCallAndConstructTest_data))]
         public void propertyBindingCallAndConstructTest(ArrayWrapper array, Image image, IndexDict prototype) {
+            setRandomSeed(10455);
+
             var nsSet1 = new NamespaceSet(Namespace.@public);
             var nsSet2 = new NamespaceSet(new Namespace("a"), Namespace.@public, new Namespace(NamespaceKind.PROTECTED, "b"));
             var nsSet3 = new NamespaceSet(new Namespace("a"), new Namespace(NamespaceKind.PROTECTED, "b"));
@@ -1728,11 +1698,9 @@ namespace Mariana.AVM2.Tests {
                     argArrays[i][j] = randomSample(argValueDomain);
             }
 
-            setRandomSeed(10455);
-            setPrototypeProperties(prototype);
-
-            try {
+            runInZoneWithArrayPrototype(prototype, () => {
                 var sampledIndices = new HashSet<uint>();
+                var currentProto = s_currentProtoProperties.value;
 
                 const uint smallArrayLength = 500;
                 const int lessThanLengthSampleCount = 500;
@@ -1745,11 +1713,8 @@ namespace Mariana.AVM2.Tests {
                 }
                 else {
                     // For large arrays, check all nonempty indices and a random sample of empty indices.
-                    var nonEmptyIndices = new HashSet<uint>();
-
-                    nonEmptyIndices.UnionWith(image.elements.Keys);
-                    if (s_currentProtoProperties != null)
-                        nonEmptyIndices.UnionWith(s_currentProtoProperties.Keys);
+                    var nonEmptyIndices = new HashSet<uint>(image.elements.Keys);
+                    nonEmptyIndices.UnionWith(currentProto.Keys);
 
                     foreach (var index in nonEmptyIndices)
                         testIndex(index);
@@ -1757,12 +1722,8 @@ namespace Mariana.AVM2.Tests {
                     for (int i = 0; i < lessThanLengthSampleCount; i++) {
                         uint index = randomIndex(image.length);
 
-                        if (sampledIndices.Add(index)
-                            && !image.elements.ContainsKey(index)
-                            && !(s_currentProtoProperties != null && s_currentProtoProperties.ContainsKey(index)))
-                        {
+                        if (sampledIndices.Add(index) && !image.elements.ContainsKey(index) && !currentProto.ContainsKey(index))
                             testIndex(index);
-                        }
                     }
                 }
 
@@ -1775,18 +1736,13 @@ namespace Mariana.AVM2.Tests {
                             testIndex(index);
                     }
                 }
-            }
-            finally {
-                resetPrototypeProperties();
-            }
+            });
 
             void testIndex(uint index) {
                 ASAny valueOnObject = default, valueOnPrototype = default;
 
                 bool valueExistsOnObject = image.elements.TryGetValue(index, out valueOnObject);
-
-                bool valueExistsOnProto = s_currentProtoProperties != null
-                    && s_currentProtoProperties.TryGetValue(index, out valueOnPrototype);
+                bool valueExistsOnProto = s_currentProtoProperties.value.TryGetValue(index, out valueOnPrototype);
 
                 string indexStr = indexToString(index);
                 ASAny tmp;
@@ -1914,36 +1870,36 @@ namespace Mariana.AVM2.Tests {
             var nsSet2 = new NamespaceSet(new Namespace("a"), Namespace.@public, new Namespace(NamespaceKind.PROTECTED, "b"));
             var nsSet3 = new NamespaceSet(new Namespace("a"), new Namespace(NamespaceKind.PROTECTED, "b"));
 
-            var prototypeDPs = new Dictionary<string, ASAny> {
-                ["+9"] = new SpyFunctionObject((obj, args) => new ASObject()),
+            var prototypeDPs = new Dictionary<string, ASAny>(StringComparer.Ordinal) {
+                ["+9"] = new MockFunctionObject((obj, args) => new ASObject()),
                 ["6.0"] = new ASObject(),
                 [" 8 "] = ASAny.@null,
-                ["4294967295"] = new SpyFunctionObject((obj, args) => ASAny.undefined, new ASObject()),
-                ["NaN"] = new SpyFunctionObject(),
-                ["def"] = new SpyFunctionObject(),
+                ["4294967295"] = new MockFunctionObject((obj, args) => ASAny.undefined, new ASObject()),
+                ["NaN"] = new MockFunctionObject(),
+                ["def"] = new MockFunctionObject(),
                 ["ghi"] = new ASObject(),
             };
 
-            var arrayDPs = new Dictionary<string, ASAny> {
-                ["+5"] = new SpyFunctionObject((obj, args) => new ASObject()),
-                [" 8"] = new SpyFunctionObject(),
-                [" 8 "] = new SpyFunctionObject(),
+            var arrayDPs = new Dictionary<string, ASAny>(StringComparer.Ordinal) {
+                ["+5"] = new MockFunctionObject((obj, args) => new ASObject()),
+                [" 8"] = new MockFunctionObject(),
+                [" 8 "] = new MockFunctionObject(),
                 ["-1"] = new ASObject(),
-                ["-001"] = new SpyFunctionObject(),
+                ["-001"] = new MockFunctionObject(),
                 ["-10000"] = default,
-                ["010"] = new SpyFunctionObject((obj, args) => new ASObject()),
+                ["010"] = new MockFunctionObject((obj, args) => new ASObject()),
                 ["+0010"] = new ASObject(),
                 ["4."] = new ASObject(),
                 ["4.0"] = default,
-                ["4.3"] = new SpyFunctionObject(),
+                ["4.3"] = new MockFunctionObject(),
                 ["6.0"] = ASAny.@null,
                 ["1e+1"] = new ASObject(),
-                ["4294967295"] = new SpyFunctionObject((obj, args) => new ASObject()),
+                ["4294967295"] = new MockFunctionObject((obj, args) => new ASObject()),
                 ["6781000394"] = ASAny.undefined,
-                ["Infinity"] = new SpyFunctionObject(),
+                ["Infinity"] = new MockFunctionObject(),
                 ["-Infinity"] = ASAny.@null,
-                ["NaN"] = new SpyFunctionObject((obj, args) => ASAny.undefined, new ASObject()),
-                ["abc"] = new SpyFunctionObject(),
+                ["NaN"] = new MockFunctionObject((obj, args) => ASAny.undefined, new ASObject()),
+                ["abc"] = new MockFunctionObject(),
                 ["def"] = new ASObject(),
             };
 
@@ -1989,11 +1945,9 @@ namespace Mariana.AVM2.Tests {
                     argArrays[i][j] = randomSample(argValueDomain);
             }
 
-            setPrototypeProperties(null); // Take prototype lock
-            ASObject arrayProto = null;
+            runInZoneWithArrayPrototype(null, () => {
+                ASObject arrayProto = s_arrayClass.prototypeObject;
 
-            try {
-                arrayProto = s_arrayClassPrototype;
                 foreach (var (k, v) in prototypeDPs)
                     arrayProto.AS_dynamicProps.setValue(k, v);
 
@@ -2016,13 +1970,7 @@ namespace Mariana.AVM2.Tests {
                 for (int i = 0; i < nonIndexObjectKeys.Length; i++) {
                     testObjectKey(nonIndexObjectKeys[i], false);
                 }
-            }
-            finally {
-                foreach (var (k, _) in prototypeDPs)
-                    arrayProto.AS_dynamicProps.delete(k);
-
-                resetPrototypeProperties();     // Release lock
-            }
+            });
 
             void testStringKey(string key, bool isIndex) {
                 ASAny ret;

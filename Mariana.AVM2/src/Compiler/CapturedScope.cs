@@ -44,7 +44,8 @@ namespace Mariana.AVM2.Compiler {
             else {
                 var newItems = new CapturedScopeItem[items.length + 1];
                 items.asSpan().CopyTo(newItems.AsSpan(0, items.length));
-                newItems[items.length] = new CapturedScopeItem(DataNodeType.CLASS, klass, false, false);
+                newItems[items.length] = new CapturedScopeItem(DataNodeType.CLASS, klass);
+
                 m_hasClass = true;
                 m_items = new CapturedScopeItems(newItems);
             }
@@ -118,7 +119,7 @@ namespace Mariana.AVM2.Compiler {
         /// stack as a "with" scope.</param>
         /// <param name="lateMultinameBinding">True if multiname-based property binding on the captured
         /// scope object must always be done at runtime.</param>
-        public CapturedScopeItem(DataNodeType dataType, Class objClass, bool isWithScope, bool lateMultinameBinding) {
+        public CapturedScopeItem(DataNodeType dataType, Class objClass, bool isWithScope = false, bool lateMultinameBinding = false) {
             this.dataType = dataType;
             this.isWithScope = isWithScope;
             this.objClass = objClass;
@@ -246,7 +247,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="capturesDxns">True if the captured scope contains a default XML namespace.</param>
         /// <returns>A <see cref="CapturedScope"/> representing the captured scope created.</returns>
         public CapturedScope getCapturedScopeForFunction(in CapturedScopeItems scopeItems, bool capturesDxns) =>
-            new CapturedScope(scopeItems, null, _getContainer(new _Key {items = scopeItems, hasDxns = capturesDxns}));
+            new CapturedScope(scopeItems, klass: null, _getContainer(new _Key {items = scopeItems, hasDxns = capturesDxns}));
 
         /// <summary>
         /// Creates a container type for a captured scope given the types of its values,

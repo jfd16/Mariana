@@ -236,7 +236,7 @@ namespace Mariana.AVM2.Core {
             m_transpiledRegex = null;
 
             if (m_groupNameIndexMap == null)
-                m_groupNameIndexMap = new Dictionary<string, int>();
+                m_groupNameIndexMap = new Dictionary<string, int>(StringComparer.Ordinal);
 
             m_groupNameIndexMap.Clear();
 

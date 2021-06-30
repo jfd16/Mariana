@@ -28,7 +28,7 @@ namespace Mariana.AVM2.Core {
         private const string FALSE_STRING = "false";
 
         // The boxed instances of true and false
-        internal static LazyInitObject<(ASBoolean, ASBoolean)> s_boxedValues =
+        internal static LazyInitObject<(ASBoolean falseVal, ASBoolean trueVal)> s_boxedValues =
             new LazyInitObject<(ASBoolean, ASBoolean)>(() => (new ASBoolean(false), new ASBoolean(true)));
 
         private static LazyInitObject<Class> s_lazyClass = new LazyInitObject<Class>(
@@ -115,7 +115,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="value">The value from which to create a boxed object.</param>
         /// <returns>The boxed <see cref="ASObject"/> instance representing the given Boolean value.</returns>
-        internal static ASObject box(bool value) => value ? s_boxedValues.value.Item2 : s_boxedValues.value.Item1;
+        internal static ASObject box(bool value) => value ? s_boxedValues.value.trueVal : s_boxedValues.value.falseVal;
 
         /// <exclude/>
         /// <summary>

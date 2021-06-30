@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using Mariana.Common;
 using Mariana.AVM2.Native;
+using Mariana.Common;
 
 namespace Mariana.AVM2.Core {
 
@@ -249,6 +249,28 @@ namespace Mariana.AVM2.Core {
         /// <param name="index">The index of the element to delete.</param>
         /// <returns>True if the property was deleted, otherwise false.</returns>
         public bool AS_deleteElement(double index) => _VA_deleteElement(index);
+
+        /// <summary>
+        /// Gets or sets the value of the element at the given index.
+        /// </summary>
+        /// <param name="index">The index.</param>
+        ///
+        /// <exception cref="AVM2Exception">
+        /// <list type="bullet">
+        /// <item>
+        /// <description>RangeError #1125: <paramref name="index"/> is negative or greater than the length of the
+        /// Vector.</description>
+        /// </item>
+        /// <item>
+        /// <description>RangeError #1126 (setter only): <paramref name="index"/> is equal to the length of the
+        /// vector, and this is a fixed-length vector.</description>
+        /// </item>
+        /// </list>
+        /// </exception>
+        public ASObject this[int index] {
+            get => _VA_getElement(index);
+            set => _VA_setElement(index, value);
+        }
 
         protected private virtual bool _VA_hasElement(int index) => throw new NotImplementedException();
         protected private virtual bool _VA_hasElement(uint index) => throw new NotImplementedException();

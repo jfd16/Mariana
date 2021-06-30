@@ -13,7 +13,7 @@ namespace Mariana.AVM2.Core {
         private LazyInitObject<Class> m_lazyVectorClass;
 
         internal Class(in QName name, Class declClass, ApplicationDomain appDomain, ClassTag tag = ClassTag.OBJECT)
-            : base(name, declClass, appDomain, true)
+            : base(name, declClass, appDomain, isStatic: true)
         {
             m_tag = tag;
             m_lazyVectorClass = new LazyInitObject<Class>(createVectorClass);
@@ -188,11 +188,23 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Gets the prototype object for this class.
         /// </summary>
+        /// <remarks>
+        /// The prototype object for a class in the AVM2 is zone-local, so a class has one prototype
+        /// object for each <see cref="StaticZone"/> created (this property returns the object associated
+        /// with the current zone), in addition to a global prototype object that is returned by this
+        /// property when not executing inside a <see cref="StaticZone"/>.
+        /// </remarks>
         public virtual ASObject prototypeObject => getClassImpl().prototypeObject;
 
         /// <summary>
         /// Gets the ActionScript 3 <c>Class</c> object for this class.
         /// </summary>
+        /// <remarks>
+        /// The class object for a class in the AVM2 is zone-local, so a class has one class
+        /// object for each <see cref="StaticZone"/> created (this property returns the object associated
+        /// with the current zone), in addition to a global class object that is returned by this property
+        /// when not executing inside a <see cref="StaticZone"/>.
+        /// </remarks>
         public virtual ASClass classObject => getClassImpl().classObject;
 
         /// <summary>

@@ -15,6 +15,7 @@ namespace Mariana.AVM2.Native {
         private bool m_containsIndexMethods;
         private Class m_vectorElementType;
         private NativeClass m_classForInstProto;
+        private DynamicArray<(string name, MethodTrait method)> m_prototypeMethods;
 
         private NativeClass(
             QName name,
@@ -37,6 +38,7 @@ namespace Mariana.AVM2.Native {
             if (!underlyingType.IsGenericTypeDefinition) {
                 setIsDynamic(classAttr.isDynamic);
                 setIsHidingAllowed(canHideInheritedTraits);
+
                 m_containsProtoMethods = classAttr.hasPrototypeMethods;
                 m_containsIndexMethods = classAttr.hasIndexLookupMethods;
                 m_vectorElementType = vecElementType;
@@ -214,8 +216,13 @@ namespace Mariana.AVM2.Native {
                 throw ErrorHelper.createError(ErrorCode.MARIANA__NATIVE_CLASS_LOAD_GENERIC, underlyingType);
             }
 
-            if (isInterface && attr.hasPrototypeMethods)
-                throw ErrorHelper.createError(ErrorCode.MARIANA__NATIVE_CLASS_LOAD_INTERFACE_PROTOTYPE, underlyingType);
+            if (isInterface) {
+                if (attr.hasPrototypeMethods)
+                    throw ErrorHelper.createError(ErrorCode.MARIANA__NATIVE_CLASS_LOAD_INTERFACE_PROTOTYPE, underlyingType);
+
+                if (attr.isDynamic)
+                    throw ErrorHelper.createError(ErrorCode.MARIANA__NATIVE_CLASS_LOAD_INTERFACE_DYNAMIC, underlyingType);
+            }
         }
 
         private Class[] _makeInterfacesArray(Type underlyingType, ApplicationDomain domain) {
@@ -361,7 +368,7 @@ namespace Mariana.AVM2.Native {
             var exportedMethodSet = new ReferenceSet<MethodInfo>();
 
             for (int i = 0; i < members.Length; i++) {
-                object[] memberAttrs = members[i].GetCustomAttributes(false);
+                object[] memberAttrs = members[i].GetCustomAttributes(inherit: false);
 
                 var traitAttr = memberAttrs.OfType<AVM2ExportTraitAttribute>().FirstOrDefault();
                 var metadataAttrs = memberAttrs.OfType<TraitMetadataAttribute>();
@@ -424,12 +431,10 @@ namespace Mariana.AVM2.Native {
                         // If this method is exported only as a prototype method, create a new MethodTrait using
                         // the prototype export name. If it is also exported as a trait, a MethodTrait has already
                         // been created and we can use the same one to create the prototype function closure.
-                        if (methodTrait == null) {
-                            methodTrait = _makeMethodTrait(
-                                methodInfo, QName.publicName(protoMethodName), this, applicationDomain, null);
-                        }
+                        if (methodTrait == null)
+                            methodTrait = _makeMethodTrait(methodInfo, QName.publicName(protoMethodName), this, applicationDomain);
 
-                        prototypeObject.AS_dynamicProps.setValue(protoMethodName, methodTrait.createFunctionClosure(), isEnum: false);
+                        m_prototypeMethods.add((protoMethodName, methodTrait));
                     }
                 }
                 else if (memberType == MemberTypes.Constructor) {
@@ -496,6 +501,17 @@ namespace Mariana.AVM2.Native {
                         }
                     }
                 }
+            }
+        }
+
+        private protected override void initPrototype(ASObject prototypeObject) {
+            if (!m_containsProtoMethods)
+                return;
+
+            var protoMethods = m_prototypeMethods.asSpan();
+            for (int i = 0; i < protoMethods.Length; i++) {
+                prototypeObject.AS_dynamicProps.setValue(
+                    protoMethods[i].name, protoMethods[i].method.createFunctionClosure(), isEnum: false);
             }
         }
 
@@ -588,7 +604,7 @@ namespace Mariana.AVM2.Native {
             QName traitName,
             NativeClass declClass,
             ApplicationDomain domain,
-            IEnumerable<TraitMetadataAttribute> metadataAttrs,
+            IEnumerable<TraitMetadataAttribute> metadataAttrs = null,
             bool isStandalone = false
          ) {
             if (methodInfo.ContainsGenericParameters || (!isStandalone && methodInfo.IsGenericMethod)) {
@@ -894,19 +910,19 @@ namespace Mariana.AVM2.Native {
             MethodInfo hasMethod = underlyingType.GetMethod("AS_hasElement", new[] {indexType});
             MethodInfo deleteMethod = underlyingType.GetMethod("AS_deleteElement", new[] {indexType});
 
-            MethodTrait getMethodTrait = _makeMethodTrait(getMethod, QName.publicName(getMethod.Name), this, applicationDomain, null);
+            MethodTrait getMethodTrait = _makeMethodTrait(getMethod, QName.publicName(getMethod.Name), this, applicationDomain);
 
             MethodTrait setMethodTrait = null;
             if (setMethod != null)
-                setMethodTrait = _makeMethodTrait(setMethod, QName.publicName(setMethod.Name), this, applicationDomain, null);
+                setMethodTrait = _makeMethodTrait(setMethod, QName.publicName(setMethod.Name), this, applicationDomain);
 
             MethodTrait hasMethodTrait = null;
             if (hasMethod != null)
-                hasMethodTrait = _makeMethodTrait(hasMethod, QName.publicName(hasMethod.Name), this, applicationDomain, null);
+                hasMethodTrait = _makeMethodTrait(hasMethod, QName.publicName(hasMethod.Name), this, applicationDomain);
 
             MethodTrait deleteMethodTrait = null;
             if (deleteMethod != null)
-                deleteMethodTrait = _makeMethodTrait(deleteMethod, QName.publicName(deleteMethod.Name), this, applicationDomain, null);
+                deleteMethodTrait = _makeMethodTrait(deleteMethod, QName.publicName(deleteMethod.Name), this, applicationDomain);
 
             return new IndexProperty(
                 _getDependentClass(getMethodReturnType, applicationDomain),
@@ -949,24 +965,26 @@ namespace Mariana.AVM2.Native {
 
             for (int i = 0; i < members.Length; i++) {
                 MemberTypes memberType = members[i].MemberType;
+
                 var traitAttr = members[i].GetCustomAttribute<AVM2ExportTraitAttribute>();
+                var metadataAttrs = members[i].GetCustomAttributes<TraitMetadataAttribute>();
 
                 if (memberType == MemberTypes.Field) {
                     FieldInfo fldInfo = (FieldInfo)members[i];
 
                     Trait fieldTrait = fldInfo.IsLiteral
-                        ? _makeConstantTrait(fldInfo, traitAttr, null, domain, null)
-                        : (Trait)_makeFieldTrait(fldInfo, traitAttr, null, domain, null);
+                        ? _makeConstantTrait(fldInfo, traitAttr, declClass: null, domain, metadataAttrs)
+                        : (Trait)_makeFieldTrait(fldInfo, traitAttr, declClass: null, domain, metadataAttrs);
 
                     moduleTraits.add(fieldTrait);
                 }
                 else if (memberType == MemberTypes.Property) {
                     PropertyInfo propInfo = (PropertyInfo)members[i];
-                    moduleTraits.add(_makePropertyTrait(propInfo, traitAttr, null, domain, null));
+                    moduleTraits.add(_makePropertyTrait(propInfo, traitAttr, declClass: null, domain, metadataAttrs));
                 }
                 else if (memberType == MemberTypes.Method) {
                     MethodInfo methodInfo = (MethodInfo)members[i];
-                    moduleTraits.add(_makeMethodTrait(methodInfo, traitAttr, null, domain, null));
+                    moduleTraits.add(_makeMethodTrait(methodInfo, traitAttr, declClass: null, domain, metadataAttrs));
                 }
             }
 
@@ -1042,7 +1060,6 @@ namespace Mariana.AVM2.Native {
             private char[] m_strBuffer;
 
             internal MetadataTag createTag(string data) {
-
                 if (m_strBuffer == null)
                     m_strBuffer = new char[16];
 

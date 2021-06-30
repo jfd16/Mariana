@@ -317,7 +317,6 @@ namespace Mariana.AVM2.ABC {
         }
 
         private static ABCOpInfo[] _initOpInfoTable() {
-
             ABCOpInfo[] info = new ABCOpInfo[256];
 
             info[(int)ABCOp.add] =
@@ -825,7 +824,6 @@ namespace Mariana.AVM2.ABC {
                 new ABCOpInfo(stackPopCount: 1, stackPushCount: 1);
 
             return info;
-
         }
 
         private static string[] _initNameTable() {

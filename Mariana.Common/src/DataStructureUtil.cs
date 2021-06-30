@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace Mariana.Common {
 
@@ -126,7 +127,10 @@ namespace Mariana.Common {
             if (currentArray == null)
                 throw new ArgumentNullException(nameof(array));
 
-            if ((uint)length > (uint)currentArray.Length || newLength < 0)
+            if ((uint)length > (uint)currentArray.Length)
+                throw new ArgumentOutOfRangeException(nameof(length));
+
+            if (newLength < 0)
                 throw new ArgumentOutOfRangeException(nameof(length));
 
             if (newLength <= currentArray.Length) {
@@ -148,7 +152,7 @@ namespace Mariana.Common {
         /// of <paramref name="array"/> to it.
         /// </summary>
         ///
-        /// <param name="array">The array to expand. The newly allocated array, will be written
+        /// <param name="array">The array to expand. The newly allocated array will be written
         /// to this argument.</param>
         /// <param name="minExpandSize">The minimum number of elements that must be available in
         /// the expanded array after the existing elements of <paramref name="array"/>.</param>
@@ -182,6 +186,60 @@ namespace Mariana.Common {
             (new ReadOnlySpan<T>(currentArray)).CopyTo(newArray);
 
             array = newArray;
+        }
+
+        /// <summary>
+        /// Ensures that the length of the array at the given location it at least <paramref name="minLength"/>.
+        /// If the array length is less than <paramref name="minLength"/>, a new array of length
+        /// <paramref name="minLength"/> is allocated, all elements in the existing array copied to
+        /// it, and the reference is updated to the new array.
+        /// </summary>
+        ///
+        /// <param name="array">A reference to an array. If a new array is allocated, it will be
+        /// written to this reference. If the array at this reference is null, it is considered
+        /// to be equivalent to an array of length zero (that is, a new array is allocated if
+        /// <paramref name="minLength"/> is not zero).</param>
+        /// <param name="minLength">The minimum length of the array at the reference
+        /// <paramref name="array"/> so that no expansion is needed. This must be a non-negative
+        /// integer</param>
+        ///
+        /// <returns>If a new array was allocated, returns that array; otherwise, returns the
+        /// existing array in the <paramref name="array"/> reference.</returns>
+        ///
+        /// <typeparam name="T">The type of the array.</typeparam>
+        ///
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="minLength"/> is negative.</exception>
+        ///
+        /// <remarks>
+        /// <para>
+        /// If a new array is allocated, the elements of the array at indices greater than
+        /// or equal to the length of the existing array are guaranteed to be initialized
+        /// to the default value of <typeparamref name="T"/>.
+        /// </para>
+        /// <para>
+        /// If a new array is allocated, it is guaranteed that a thread that reads from the
+        /// reference <paramref name="array"/> concurrently while this method is executing
+        /// will observe either the old array, or the new array with all existing elements
+        /// from the old array copied. In particular, it will never observe the new array
+        /// before all the elements from the old array have been copied to it.
+        /// </para>
+        /// </remarks>
+        public static T[] volatileEnsureArraySize<T>(ref T[] array, int minLength) {
+            if (minLength < 0)
+                throw new ArgumentOutOfRangeException(nameof(minLength));
+
+            T[] currentArray = Volatile.Read(ref array);
+
+            int currentArrayLength = (currentArray == null) ? 0 : currentArray.Length;
+            if (currentArrayLength >= minLength)
+                return currentArray;
+
+            int newArrayLength = getNextArraySize(currentArrayLength, minLength);
+            T[] newArray = new T[newArrayLength];
+            (new ReadOnlySpan<T>(currentArray)).CopyTo(newArray);
+
+            Volatile.Write(ref array, newArray);
+            return newArray;
         }
 
         /// <summary>

@@ -128,10 +128,6 @@
 10045   TypeError           The getValue, setValue, invoke and construct methods of Trait objects that do not take a target argument can be used only on static traits.
 10049   TypeError           GenericComparer<T> does not support type '$1'.
 
-10051   TypeError           Invalid typed key lookup for class '$1'.
-
-10056   TypeError           The boxed form of a primitive type cannot be used directly as a type argument for Vector. Use the associated non-boxed primitive type, or the Object type for indirect boxing.
-10057   TypeError           '$1' cannot be used as a type argument.
 10058   TypeError           ASObject.AS_fromBoxed(): The argument is not an Object or a valid primitive type.
 
 10060   ArgumentError       Argument '$1' cannot be null.
@@ -157,21 +153,22 @@
 10116   NativeClassLoadError    Vector cannot be instantiated with the uninstantiated Vector type.
 10117   NativeClassLoadError    Cannot load an instantiation of Vector using ApplicationDomain.loadNativeClass().
 10118   NativeClassLoadError    Cannot load type '$1': Module is already loaded.
+10119   NativeClassLoadError    Cannot load type '$1': Interfaces cannot be dynamic.
 
-10120   NativeClassLoadError    Class '$1' cannot export more than one constructor.
-10121   NativeClassLoadError    Invalid trait '$1' in class '$2': Unsupported constant type.
-10122   NativeClassLoadError    Invalid trait '$1' in class '$2': The boxed form of a primitive type cannot be used as a field type or in a method signature.
-10123   NativeClassLoadError    Invalid trait '$1' in class '$2': Generic methods cannot be exported.
-10124   NativeClassLoadError    Invalid trait '$1' in class '$2': Invalid signature for property getter/setter method.
-10126   NativeClassLoadError    Invalid trait '$1' in class '$2': Method optional parameters must not be followed by required parameters.
-10127   NativeClassLoadError    Invalid trait '$1' in class '$2': Rest parameter must be the last parameter of a method.
-10128   NativeClassLoadError    Invalid trait '$1' in class '$2': Default parameter value cannot be coerced to the parameter type.
-10129   NativeClassLoadError    Interface '$1' contains unexported method '$2'.
-10130   NativeClassLoadError    Invalid trait name in class '$1': Namespace kind cannot be ANY or PRIVATE.
-10131   NativeClassLoadError    Vector instantiation contains a trait with an invalid dependent type in the signature.
-10132   NativeClassLoadError    Interface '$1' extends unexported interface '$2'.
-10133   NativeClassLoadError    Class '$1' implements method '$2' of interface '$3' with unexported method.
-10140   NativeClassLoadError    Standalone method must be static and not contain generic parameters.
+10150   NativeClassLoadError    Class '$1' cannot export more than one constructor.
+10151   NativeClassLoadError    Invalid trait '$1' in class '$2': Unsupported constant type.
+10152   NativeClassLoadError    Invalid trait '$1' in class '$2': The boxed form of a primitive type cannot be used as a field type or in a method signature.
+10153   NativeClassLoadError    Invalid trait '$1' in class '$2': Generic methods cannot be exported.
+10154   NativeClassLoadError    Invalid trait '$1' in class '$2': Invalid signature for property getter/setter method.
+10155   NativeClassLoadError    Invalid trait '$1' in class '$2': Method optional parameters must not be followed by required parameters.
+10156   NativeClassLoadError    Invalid trait '$1' in class '$2': Rest parameter must be the last parameter of a method.
+10157   NativeClassLoadError    Invalid trait '$1' in class '$2': Default parameter value cannot be coerced to the parameter type.
+10158   NativeClassLoadError    Interface '$1' contains unexported method '$2'.
+10159   NativeClassLoadError    Invalid trait name in class '$1': Namespace kind cannot be ANY or PRIVATE.
+10160   NativeClassLoadError    Vector instantiation contains a trait with an invalid dependent type in the signature.
+10161   NativeClassLoadError    Interface '$1' extends unexported interface '$2'.
+10162   NativeClassLoadError    Class '$1' implements method '$2' of interface '$3' with unexported method.
+10163   NativeClassLoadError    Standalone method must be static and not contain generic parameters.
 
 10201   TypeError               createChildNode() can only be used on element nodes.
 10202   TypeError               Assigning to the nodeText property is not supported on element nodes.
