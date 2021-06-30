@@ -221,11 +221,13 @@ namespace Mariana.AVM2.Core {
         internal virtual ClassSpecials classSpecials => getClassImpl().classSpecials;
 
         /// <summary>
-        /// Gets an array containing the interfaces implemented by this class (and all its ancestor
-        /// classes).
+        /// Gets an array containing the interfaces implemented by a class or extended by an
+        /// interface.
         /// </summary>
         /// <returns>A <see cref="ReadOnlyArrayView{Class}"/> containing the interfaces implemented by
-        /// this class.</returns>
+        /// this class, including interfaces transitively implemented or implemented by a base class. If this
+        /// class is an interface, returns the interfaces that this interface extends, including those
+        /// extended transitively.</returns>
         public virtual ReadOnlyArrayView<Class> getImplementedInterfaces() => getClassImpl().getImplementedInterfaces();
 
         /// <summary>

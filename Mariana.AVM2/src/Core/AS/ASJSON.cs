@@ -127,6 +127,7 @@ namespace Mariana.AVM2.Core {
             /// The parser error codes.
             /// </summary>
             private enum _Error {
+                NULL_INPUT,
                 EOS_EXPECTED,
                 EOS_NOT_EXPECTED,
                 WRONG_BRACE_ARRAY,
@@ -145,7 +146,9 @@ namespace Mariana.AVM2.Core {
             /// <summary>
             /// The error messages thrown by the _error() method.
             /// </summary>
-            private static readonly DynamicArray<string> s_errorMessages = new DynamicArray<string>(15, true) {
+            private static readonly DynamicArray<string> s_errorMessages = new DynamicArray<string>(16, true) {
+                [(int)_Error.NULL_INPUT] =
+                    "Input string is null.",
                 [(int)_Error.EOS_EXPECTED] =
                     "End of string expected.",
                 [(int)_Error.EOS_NOT_EXPECTED] =
@@ -230,7 +233,7 @@ namespace Mariana.AVM2.Core {
 
             internal ASObject parseString(string str) {
                 if (str == null)
-                    throw _error(_Error.EOS_NOT_EXPECTED);
+                    throw _error(_Error.NULL_INPUT);
 
                 m_str = str;
                 m_pos = 0;
@@ -873,6 +876,10 @@ namespace Mariana.AVM2.Core {
             private void _state_visit() {
                 bool parentIsArray = m_stack.length != 0 && m_stack[m_stack.length - 1].isArrayOrVector;
 
+                // Attempt to call toJSON.
+                if (_tryCallToJSONOnCurrentObject(out ASAny toJSONResult))
+                    m_curObject = toJSONResult;
+
                 // If a replacer is given, pass the current key-value pair through it.
                 if (m_replacer != null) {
                     m_replacerArgs[0] = _getCurrentKeyString();
@@ -889,10 +896,6 @@ namespace Mariana.AVM2.Core {
 
                     m_curObject = m_replacer.AS_invoke(parentObj, m_replacerArgs);
                 }
-
-                // Attempt to call toJSON.
-                if (!m_curObject.isUndefinedOrNull && _tryCallToJSONOnCurrentObject(out ASAny toJSONResult))
-                    m_curObject = toJSONResult;
 
                 ASObject curObj = m_curObject.value;
 
@@ -960,6 +963,11 @@ namespace Mariana.AVM2.Core {
             }
 
             private bool _tryCallToJSONOnCurrentObject(out ASAny result) {
+                if (m_curObject.isUndefinedOrNull) {
+                    result = default;
+                    return false;
+                }
+
                 ClassTag tag = m_curObject.AS_class.tag;
                 ASObject func = null;
 

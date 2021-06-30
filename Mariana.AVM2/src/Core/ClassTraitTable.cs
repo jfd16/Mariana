@@ -18,6 +18,9 @@ namespace Mariana.AVM2.Core {
 
         private const int INITIAL_SIZE = 7;
 
+        private const int END_OF_CHAIN = -1;
+        private const int HASH_CODE_MASK = 0x7FFFFFFF;
+
         private Class m_class;
         private Trait[] m_slots;
         private int m_count;
@@ -44,20 +47,21 @@ namespace Mariana.AVM2.Core {
             m_class = klass;
             m_slots = new Trait[INITIAL_SIZE];
 
+            Link defaultLink = new Link {chainHead = END_OF_CHAIN};
+
             m_linksForStaticQualified = new Link[INITIAL_SIZE];
             m_linksForStaticUnqalified = new Link[INITIAL_SIZE];
-            for (int i = 0; i < INITIAL_SIZE; i++)
-                m_linksForStaticQualified[i].chainHead = m_linksForStaticUnqalified[i].chainHead = -1;
+
+            m_linksForStaticQualified.AsSpan().Fill(defaultLink);
+            m_linksForStaticUnqalified.AsSpan().Fill(defaultLink);
 
             if (!staticOnly) {
                 m_linksForInstQualified = new Link[INITIAL_SIZE];
                 m_linksForInstUnqualified = new Link[INITIAL_SIZE];
-                for (int i = 0; i < INITIAL_SIZE; i++)
-                    m_linksForInstQualified[i].chainHead = m_linksForInstUnqualified[i].chainHead = -1;
-            }
 
-            m_staticTraitsBeginIndex = -1;
-            m_declaredInstanceTraitsBeginIndex = -1;
+                m_linksForInstQualified.AsSpan().Fill(defaultLink);
+                m_linksForInstUnqualified.AsSpan().Fill(defaultLink);
+            }
         }
 
         /// <summary>
@@ -82,9 +86,6 @@ namespace Mariana.AVM2.Core {
                 throw ErrorHelper.createError(ErrorCode.MARIANA__CLASS_TRAIT_TABLE_CORRUPTED);
 
             Trait[] slots = m_slots;
-            Link[] links;
-            int hash;
-            int curIndex;
 
             if (m_count == 0 || name.localName == null || (!isStatic && m_linksForInstQualified == null)) {
                 trait = null;
@@ -95,21 +96,22 @@ namespace Mariana.AVM2.Core {
                 // Optimized case for public namespace, since it is so commonly used.
 
                 string localName = name.localName;
-                links = isStatic ? m_linksForStaticUnqalified : m_linksForInstUnqualified;
+                Link[] links = isStatic ? m_linksForStaticUnqalified : m_linksForInstUnqualified;
 
-                hash = localName.GetHashCode() & 0x7FFFFFFF;
+                int hash = localName.GetHashCode() & HASH_CODE_MASK;
                 trait = null;
 
-                curIndex = links[hash % links.Length].chainHead;
-                while (curIndex != -1) {
+                int curIndex = links[hash % links.Length].chainHead;
+
+                while (curIndex != END_OF_CHAIN) {
                     ref Link link = ref links[curIndex];
 
                     if (link.hash == hash) {
-                        Trait slot = slots[curIndex];
-                        ref readonly QName slotName = ref slot.name;
+                        Trait currentTrait = slots[curIndex];
+                        ref readonly QName currentTraitName = ref currentTrait.name;
 
-                        if (slotName.ns.isPublic && slotName.localName == localName) {
-                            trait = slot;
+                        if (currentTraitName.ns.isPublic && currentTraitName.localName == localName) {
+                            trait = currentTrait;
                             return BindStatus.SUCCESS;
                         }
                     }
@@ -119,72 +121,90 @@ namespace Mariana.AVM2.Core {
 
                 return BindStatus.NOT_FOUND;
             }
-
-            if (name.ns.kind == NamespaceKind.ANY) {
+            else if (name.ns.kind == NamespaceKind.ANY) {
                 // If the namespace of the target name is the any namespace, only local names must
                 // match and namespaces are to be ignored. For this, the unqualified name links
                 // are used for lookup, and an ambiguous match is returned if there are two
                 // traits with the same name but different namespaces declared on the same class.
+
                 string localName = name.localName;
                 bool found = false;
 
-                links = isStatic ? m_linksForStaticUnqalified : m_linksForInstUnqualified;
-                hash = localName.GetHashCode() & 0x7FFFFFFF;
+                Link[] links = isStatic ? m_linksForStaticUnqalified : m_linksForInstUnqualified;
+                int hash = localName.GetHashCode() & HASH_CODE_MASK;
                 trait = null;
 
-                curIndex = links[hash % links.Length].chainHead;
-                while (curIndex != -1) {
+                int curIndex = links[hash % links.Length].chainHead;
+
+                while (curIndex != END_OF_CHAIN) {
                     ref Link link = ref links[curIndex];
                     if (link.hash != hash) {
                         curIndex = link.next;
                         continue;
                     }
 
-                    Trait slot = slots[curIndex];
-                    if (slot.name.localName != localName) {
+                    Trait currentTrait = slots[curIndex];
+                    if (currentTrait.name.localName != localName) {
                         curIndex = link.next;
                         continue;
                     }
 
                     if (found) {
-                        if (slot.declaringClass == trait.declaringClass)
+                        // If an ambiguous match is found, it is considered ambiguous only if
+                        // both the traits in the ambiguous match are declared on the same class.
+                        // If one of the traits is declared on a class and the other is inherited
+                        // from an ancestor class, the declared trait must be returned.
+                        if (currentTrait.declaringClass == trait.declaringClass)
                             return BindStatus.AMBIGUOUS;
-                        break;
+
+                        // If this is a sealed table then we can stop when we reach inherited traits
+                        // because of the way a sealed table's traits are ordered.
+                        if (m_isSealed)
+                            break;
+
+                        // If the current trait is from a more derived class, prefer it over the already chosen trait.
+                        // We don't have to check if declaringClass is null because we don't mix global and non-global traits.
+                        if (currentTrait.declaringClass.canAssignTo(trait.declaringClass))
+                            trait = currentTrait;
+                    }
+                    else {
+                        trait = currentTrait;
+                        found = true;
                     }
 
-                    trait = slot;
-                    found = true;
                     curIndex = link.next;
                 }
 
                 return found ? BindStatus.SUCCESS : BindStatus.NOT_FOUND;
             }
+            else {
+                // For namespaces other than the any and public namespaces, use the qualified name
+                // links for lookup and compare namespaces directly.
 
-            // For namespaces other than the any and public namespaces, use the qualified name
-            // links for lookup and compare namespaces directly.
+                Link[] links = isStatic ? m_linksForStaticQualified : m_linksForInstQualified;
+                int hash = name.GetHashCode() & HASH_CODE_MASK;
 
-            links = isStatic ? m_linksForStaticQualified : m_linksForInstQualified;
-            hash = name.GetHashCode() & 0x7FFFFFFF;
+                int curIndex = links[hash % links.Length].chainHead;
 
-            curIndex = links[hash % links.Length].chainHead;
-            while (curIndex != -1) {
-                ref Link link = ref links[curIndex];
+                while (curIndex != END_OF_CHAIN) {
+                    ref Link link = ref links[curIndex];
 
-                if (links[curIndex].hash == hash) {
-                    Trait slot = slots[curIndex];
-                    ref readonly QName slotName = ref slot.name;
+                    if (link.hash == hash) {
+                        Trait currentTrait = slots[curIndex];
+                        ref readonly QName currentTraitName = ref currentTrait.name;
 
-                    if (slotName.localName == name.localName && slotName.ns == name.ns) {
-                        trait = slot;
-                        return BindStatus.SUCCESS;
+                        if (currentTraitName.localName == name.localName && currentTraitName.ns == name.ns) {
+                            trait = currentTrait;
+                            return BindStatus.SUCCESS;
+                        }
                     }
+
+                    curIndex = link.next;
                 }
 
-                curIndex = link.next;
+                trait = null;
+                return BindStatus.NOT_FOUND;
             }
-
-            trait = null;
-            return BindStatus.NOT_FOUND;
         }
 
         /// <summary>
@@ -227,23 +247,24 @@ namespace Mariana.AVM2.Core {
             bool found = false;
             trait = null;
 
-            int hash = localName.GetHashCode() & 0x7FFFFFFF;
+            int hash = localName.GetHashCode() & HASH_CODE_MASK;
             Trait[] slots = m_slots;
             Link[] links = isStatic ? m_linksForStaticUnqalified : m_linksForInstUnqualified;
 
             int curIndex = links[hash % links.Length].chainHead;
 
-            while (curIndex != -1) {
+            while (curIndex != END_OF_CHAIN) {
                 ref Link link = ref links[curIndex];
+
                 if (link.hash != hash) {
                     curIndex = link.next;
                     continue;
                 }
 
-                Trait slot = slots[curIndex];
-                ref readonly QName slotName = ref slot.name;
+                Trait currentTrait = slots[curIndex];
+                ref readonly QName currentTraitName = ref currentTrait.name;
 
-                if (slotName.localName != localName || !nsSet.contains(slotName.ns)) {
+                if (currentTraitName.localName != localName || !nsSet.contains(currentTraitName.ns)) {
                     curIndex = link.next;
                     continue;
                 }
@@ -253,13 +274,24 @@ namespace Mariana.AVM2.Core {
                     // both the traits in the ambiguous match are declared on the same class.
                     // If one of the traits is declared on a class and the other is inherited
                     // from an ancestor class, the declared trait must be returned.
-                    if (trait.declaringClass == slot.declaringClass)
+                    if (trait.declaringClass == currentTrait.declaringClass)
                         return BindStatus.AMBIGUOUS;
-                    break;
+
+                    // If this is a sealed table then we can stop when we reach inherited traits
+                    // because of the way a sealed table's traits are ordered.
+                    if (m_isSealed)
+                        break;
+
+                    // If the current trait is from a more derived class, prefer it over the already chosen trait.
+                    // We don't have to check if declaringClass is null because we don't mix global and non-global traits.
+                    if (currentTrait.declaringClass.canAssignTo(trait.declaringClass))
+                        trait = currentTrait;
+                }
+                else {
+                    trait = currentTrait;
+                    found = true;
                 }
 
-                trait = slot;
-                found = true;
                 curIndex = link.next;
             }
 
@@ -283,7 +315,7 @@ namespace Mariana.AVM2.Core {
                 return false;
 
             ref readonly QName name = ref trait.name;
-            int hash = name.GetHashCode() & 0x7FFFFFFF;
+            int hash = name.GetHashCode() & HASH_CODE_MASK;
             bool isStatic = trait.isStatic;
 
             Link[] links = isStatic ? m_linksForStaticQualified : m_linksForInstQualified;
@@ -293,7 +325,7 @@ namespace Mariana.AVM2.Core {
             int chain = hash % links.Length;
             int curIndex = links[chain].chainHead;
 
-            while (curIndex != -1) {
+            while (curIndex != END_OF_CHAIN) {
                 ref Link link = ref links[curIndex];
 
                 if (link.hash != hash) {
@@ -301,15 +333,15 @@ namespace Mariana.AVM2.Core {
                     continue;
                 }
 
-                Trait slot = m_slots[curIndex];
-                if (slot.name != name) {
+                Trait currentTrait = m_slots[curIndex];
+                if (currentTrait.name != name) {
                     curIndex = links[curIndex].next;
                     continue;
                 }
 
                 if (!allowMergeProperties
                     || trait.traitType != TraitType.PROPERTY
-                    || slot.traitType != TraitType.PROPERTY)
+                    || currentTrait.traitType != TraitType.PROPERTY)
                 {
                     return false;
                 }
@@ -319,7 +351,7 @@ namespace Mariana.AVM2.Core {
                 // one accessor of a property and the other accessor is supplied by a subclass, or a derived
                 // class overrides one of the accessors of a property defined on a base class).
 
-                PropertyTrait mergedProp = PropertyTrait.tryMerge((PropertyTrait)slot, (PropertyTrait)trait, m_class);
+                PropertyTrait mergedProp = PropertyTrait.tryMerge((PropertyTrait)currentTrait, (PropertyTrait)trait, m_class);
 
                 if (mergedProp == null)
                     return false;
@@ -346,9 +378,11 @@ namespace Mariana.AVM2.Core {
             links[chain].chainHead = newIndex;
 
             // Update the links for unqualified lookup.
+
             links = isStatic ? m_linksForStaticUnqalified : m_linksForInstUnqualified;
             hash = name.localName.GetHashCode() & 0x7FFFFFFF;
             chain = hash % links.Length;
+
             links[newIndex].hash = hash;
             links[newIndex].next = links[chain].chainHead;
             links[chain].chainHead = newIndex;
@@ -367,7 +401,7 @@ namespace Mariana.AVM2.Core {
                 return;
 
             ref readonly QName name = ref oldTrait.name;
-            int hash = name.GetHashCode() & 0x7FFFFFFF;
+            int hash = name.GetHashCode() & HASH_CODE_MASK;
             bool isStatic = oldTrait.isStatic;
 
             Link[] links = isStatic ? m_linksForStaticQualified : m_linksForInstQualified;
@@ -377,13 +411,13 @@ namespace Mariana.AVM2.Core {
             int chain = hash % links.Length;
             int curIndex = links[chain].chainHead;
 
-            while (curIndex != -1) {
+            while (curIndex != END_OF_CHAIN) {
                 ref Link link = ref links[curIndex];
 
                 if (link.hash == hash) {
-                    ref Trait slot = ref m_slots[curIndex];
-                    if (slot.name == name) {
-                        slot = newTrait;
+                    ref Trait currentTrait = ref m_slots[curIndex];
+                    if (currentTrait.name == name) {
+                        currentTrait = newTrait;
                         return;
                     }
                 }
@@ -412,35 +446,35 @@ namespace Mariana.AVM2.Core {
         /// trait names, otherwise compute the chains using the existing hash codes.</param>
         private void _resetLinks(bool recalculateHashes) {
             int length = m_slots.Length;
+            Link defaultLink = new Link {chainHead = END_OF_CHAIN};
 
-            Link[] linksForStaticQualified = new Link[length],
-                   linksForStaticUnqualified = new Link[length],
-                   linksForInstQualified = null,
-                   linksForInstUnqualified = null;
+            Link[] newLinksForStaticQualified = new Link[length];
+            Link[] newLinksForStaticUnqualified = new Link[length];
+            Link[] newLinksForInstQualified = null;
+            Link[] newLinksForInstUnqualified = null;
 
-            for (int i = 0; i < length; i++) {
-                linksForStaticQualified[i].chainHead = -1;
-                linksForStaticUnqualified[i].chainHead = -1;
-            }
+            newLinksForStaticQualified.AsSpan().Fill(defaultLink);
+            newLinksForStaticUnqualified.AsSpan().Fill(defaultLink);
 
             if (m_linksForInstQualified != null) {
-                linksForInstQualified = new Link[length];
-                linksForInstUnqualified = new Link[length];
-                for (int i = 0; i < length; i++) {
-                    linksForInstQualified[i].chainHead = -1;
-                    linksForInstUnqualified[i].chainHead = -1;
-                }
+                newLinksForInstQualified = new Link[length];
+                newLinksForInstUnqualified = new Link[length];
+
+                newLinksForInstQualified.AsSpan().Fill(defaultLink);
+                newLinksForInstUnqualified.AsSpan().Fill(defaultLink);
             }
 
-            for (int i = 0, n = m_count; i < n; i++) {
-                bool traitIsStatic = m_slots[i].isStatic;
+            ReadOnlySpan<Trait> slots = m_slots.AsSpan(0, m_count);
+
+            for (int i = 0; i < slots.Length; i++) {
+                bool traitIsStatic = slots[i].isStatic;
 
                 int qualifiedHash;
                 int unqualifiedHash;
 
                 if (recalculateHashes) {
-                    qualifiedHash = m_slots[i].name.GetHashCode() & 0x7FFFFFFF;
-                    unqualifiedHash = m_slots[i].name.localName.GetHashCode() & 0x7FFFFFFF;
+                    qualifiedHash = slots[i].name.GetHashCode() & HASH_CODE_MASK;
+                    unqualifiedHash = slots[i].name.localName.GetHashCode() & HASH_CODE_MASK;
                 }
                 else if (traitIsStatic) {
                     qualifiedHash = m_linksForStaticQualified[i].hash;
@@ -455,29 +489,31 @@ namespace Mariana.AVM2.Core {
                 int unqualifiedChain = unqualifiedHash % length;
 
                 if (traitIsStatic) {
-                    linksForStaticQualified[i].hash = qualifiedHash;
-                    linksForStaticUnqualified[i].hash = unqualifiedHash;
+                    newLinksForStaticQualified[i].hash = qualifiedHash;
+                    newLinksForStaticUnqualified[i].hash = unqualifiedHash;
 
-                    linksForStaticQualified[i].next = linksForStaticQualified[qualifiedChain].chainHead;
-                    linksForStaticUnqualified[i].next = linksForStaticUnqualified[unqualifiedChain].chainHead;
-                    linksForStaticQualified[qualifiedChain].chainHead = i;
-                    linksForStaticUnqualified[unqualifiedChain].chainHead = i;
+                    newLinksForStaticQualified[i].next = newLinksForStaticQualified[qualifiedChain].chainHead;
+                    newLinksForStaticUnqualified[i].next = newLinksForStaticUnqualified[unqualifiedChain].chainHead;
+
+                    newLinksForStaticQualified[qualifiedChain].chainHead = i;
+                    newLinksForStaticUnqualified[unqualifiedChain].chainHead = i;
                 }
                 else {
-                    linksForInstQualified[i].hash = qualifiedHash;
-                    linksForInstUnqualified[i].hash = unqualifiedHash;
+                    newLinksForInstQualified[i].hash = qualifiedHash;
+                    newLinksForInstUnqualified[i].hash = unqualifiedHash;
 
-                    linksForInstQualified[i].next = linksForInstQualified[qualifiedChain].chainHead;
-                    linksForInstUnqualified[i].next = linksForInstUnqualified[unqualifiedChain].chainHead;
-                    linksForInstQualified[qualifiedChain].chainHead = i;
-                    linksForInstUnqualified[unqualifiedChain].chainHead = i;
+                    newLinksForInstQualified[i].next = newLinksForInstQualified[qualifiedChain].chainHead;
+                    newLinksForInstUnqualified[i].next = newLinksForInstUnqualified[unqualifiedChain].chainHead;
+
+                    newLinksForInstQualified[qualifiedChain].chainHead = i;
+                    newLinksForInstUnqualified[unqualifiedChain].chainHead = i;
                 }
             }
 
-            m_linksForInstQualified = linksForInstQualified;
-            m_linksForInstUnqualified = linksForInstUnqualified;
-            m_linksForStaticQualified = linksForStaticQualified;
-            m_linksForStaticUnqalified = linksForStaticUnqualified;
+            m_linksForInstQualified = newLinksForInstQualified;
+            m_linksForInstUnqualified = newLinksForInstUnqualified;
+            m_linksForStaticQualified = newLinksForStaticQualified;
+            m_linksForStaticUnqalified = newLinksForStaticUnqualified;
         }
 
         /// <summary>
@@ -493,8 +529,9 @@ namespace Mariana.AVM2.Core {
             for (int i = 0, n = parentTraitTable.m_count; i < n; i++) {
                 Trait parentTrait = parentTraits[i];
 
+                // Don't merge static traits as they are not inherited.
                 if (parentTrait.isStatic)
-                    continue;   // Don't merge static traits as they are not inherited.
+                    continue;
 
                 if (tryAddTrait(parentTrait, allowMergeProperties: true))
                     continue;
@@ -511,6 +548,7 @@ namespace Mariana.AVM2.Core {
                     PropertyTrait parentProp = (PropertyTrait)parentTrait;
                     PropertyTrait conflictProp = (PropertyTrait)conflictingTrait;
                     bool mustCreateNewProp = false;
+
                     if ((conflictProp.getter == null && parentProp.getter != null)
                         || (conflictProp.setter == null && parentProp.setter != null))
                     {
@@ -542,6 +580,7 @@ namespace Mariana.AVM2.Core {
                 }
 
                 m_isCorrupted = true;
+
                 throw ErrorHelper.createError(
                     ErrorCode.MARIANA__CLASS_TRAIT_HIDES_INHERITED,
                     conflictingTrait.name.ToString(),
@@ -560,10 +599,8 @@ namespace Mariana.AVM2.Core {
         /// <returns>True if the conflict can be ignored (declared trait stays in the table), false if
         /// this is a name conflict error.</returns>
         private bool _canMergeConflictingParentTrait(Trait parentTrait, Trait conflictingTrait) {
-            if (conflictingTrait.traitType == TraitType.METHOD) {
-                return parentTrait.traitType == TraitType.METHOD
-                    && ((MethodTrait)conflictingTrait).isOverride;
-            }
+            if (conflictingTrait.traitType == TraitType.METHOD)
+                return parentTrait.traitType == TraitType.METHOD && ((MethodTrait)conflictingTrait).isOverride;
 
             if (conflictingTrait.traitType == TraitType.PROPERTY) {
                 if (parentTrait.traitType != TraitType.PROPERTY)
@@ -572,10 +609,13 @@ namespace Mariana.AVM2.Core {
                 PropertyTrait conflictingProp = (PropertyTrait)conflictingTrait;
                 PropertyTrait parentProp = (PropertyTrait)parentTrait;
 
-                return !(parentProp.getter != null
-                        && (conflictingProp.getter == null || !conflictingProp.getter.isOverride))
-                    && !(parentProp.setter != null
-                        && (conflictingProp.setter == null || !conflictingProp.setter.isOverride));
+                if (parentProp.getter != null && (conflictingProp.getter == null || !conflictingProp.getter.isOverride))
+                    return false;
+
+                if (parentProp.setter != null && (conflictingProp.setter == null || !conflictingProp.setter.isOverride))
+                    return false;
+
+                return true;
             }
 
             return false;
@@ -591,16 +631,20 @@ namespace Mariana.AVM2.Core {
 
             // Since parent interfaces are flattened, we only need to consider the
             // declared traits of each of them.
+
             for (int i = parentTraitTable.m_count - 1; i >= 0; i--) {
                 Trait parentTrait = parentTraits[i];
 
-                if (parentTrait.declaringClass != parentTraitTable.m_class)
-                    // Since it is assumed that the interface trait tables are sealed, declared
-                    // traits will be at the end of the trait table slots array, so if the table
-                    // is iterated in reverse order, we can stop as soon as an inherited trait
-                    // is found.
-                    break;
+                if (parentTrait.declaringClass != parentTraitTable.m_class) {
+                    if (parentTraitTable.m_isSealed) {
+                        // Since we are iterating in reverse order, we can stop when we find an
+                        // inherited trait if the parent table is sealed (which is usually the case).
+                        break;
+                    }
+                    continue;
+                }
 
+                // Don't merge static traits as they are not inherited.
                 if (parentTrait.isStatic)
                     continue;
 
@@ -639,8 +683,8 @@ namespace Mariana.AVM2.Core {
                 return false;
 
             if (firstTrait.traitType == TraitType.METHOD) {
-                MethodTrait firstMethod = (MethodTrait)firstTrait,
-                            secondMethod = (MethodTrait)secondTrait;
+                MethodTrait firstMethod = (MethodTrait)firstTrait;
+                MethodTrait secondMethod = (MethodTrait)secondTrait;
 
                 if (firstMethod.hasReturn != secondMethod.hasReturn
                     || firstMethod.returnType != secondMethod.returnType
@@ -658,7 +702,7 @@ namespace Mariana.AVM2.Core {
 
                 for (int i = 0; i < paramCount; i++) {
                     MethodTraitParameter param1 = firstMethodParams[i], param2 = secondMethodParams[i];
-                    if (param1.type != param2.type || param1.hasDefault != param2.hasDefault)
+                    if (param1.type != param2.type || param1.isOptional != param2.isOptional || param1.hasDefault != param2.hasDefault)
                         return false;
                 }
                 return true;
@@ -683,108 +727,120 @@ namespace Mariana.AVM2.Core {
         public void seal() {
             int slotCount = m_count;
 
-            // Sort the table so that the traits are ordered in the following manner
-            // (in reverse): first static traits, then declared instance traits, followed
-            // by inherited instance traits from most derived to least derived class.
-            // This need not be done for static-only trait tables, since static
-            // traits are not inherited.
-
             if (m_linksForInstQualified == null) {
+                // This table does not contain any instance traits, so no need of reordering.
                 Trait[] newSlots = new Trait[m_count];
                 (new ReadOnlySpan<Trait>(m_slots, 0, m_count)).CopyTo(newSlots);
                 m_slots = newSlots;
+
                 m_staticTraitsBeginIndex = 0;
+                m_declaredInstanceTraitsBeginIndex = 0;
+
                 return;
             }
 
-            DynamicArray<Trait> newTraitList = new DynamicArray<Trait>();
-            ReferenceSet<Class> classSet = new ReferenceSet<Class>();
-            int curPosInNewList = slotCount - 1;
-            newTraitList.addDefault(slotCount);
+            // Partition the traits into instance and static traits, with the instance traits
+            // first. Then sort the instance traits so that base class traits are before derived
+            // class traits.
+
+            var newTraitList = new DynamicArray<Trait>(slotCount, true);
+            int instanceTraitsEndIndex = 0;
+            int staticTraitsBeginIndex = slotCount;
 
             for (int i = 0; i < slotCount; i++) {
                 Trait trait = m_slots[i];
                 if (trait.isStatic) {
-                    m_slots[i] = null;
-                    newTraitList[curPosInNewList] = trait;
-                    curPosInNewList--;
+                    staticTraitsBeginIndex--;
+                    newTraitList[staticTraitsBeginIndex] = trait;
                 }
                 else {
-                    classSet.add(trait.declaringClass);
+                    newTraitList[instanceTraitsEndIndex] = trait;
+                    instanceTraitsEndIndex++;
                 }
             }
 
-            if (curPosInNewList != slotCount - 1)
-                m_staticTraitsBeginIndex = curPosInNewList + 1;
+            ReferenceDictionary<Class, int> classOrderMap = _computeClassTopologicalOrdering();
 
-            foreach (Class klass in _sortClassesByInheritance(classSet.toArray())) {
-                int traitsAdded = 0;
-                for (int i = 0; i < slotCount; i++) {
-                    Trait trait = m_slots[i];
-                    if (trait == null || trait.declaringClass != klass)
-                        continue;
+            DataStructureUtil.sortSpan(
+                newTraitList.asSpan(0, instanceTraitsEndIndex),
+                (t1, t2) => classOrderMap[t1.declaringClass] - classOrderMap[t2.declaringClass]
+            );
 
-                    newTraitList[curPosInNewList] = trait;
-                    curPosInNewList--;
-                    traitsAdded++;
-                }
-                if (klass == m_class && traitsAdded != 0)
-                    m_declaredInstanceTraitsBeginIndex = curPosInNewList + 1;
+            int declInstTraitsBeginIndex = staticTraitsBeginIndex;
+            while (declInstTraitsBeginIndex > 0
+                && newTraitList[declInstTraitsBeginIndex - 1].declaringClass == m_class)
+            {
+                declInstTraitsBeginIndex--;
             }
+
+            m_staticTraitsBeginIndex = staticTraitsBeginIndex;
+            m_declaredInstanceTraitsBeginIndex = declInstTraitsBeginIndex;
 
             m_slots = newTraitList.toArray();
-
             _resetLinks(recalculateHashes: true);
+
             m_isSealed = true;
         }
 
         /// <summary>
-        /// Sorts the given array of classes in order of inheritance. The sort is such that derived
-        /// classes will be placed after their base classes in the sort order. This method returns an
-        /// iterator that iterates over the classes in sort order.
+        /// Computes the topological ordering of the inheritance dag of the class or interface
+        /// to which this <see cref="ClassTraitTable"/> belongs. This is used to order traits
+        /// when sealing the table.
         /// </summary>
-        ///
-        /// <param name="classArray">The array of classes or interfaces to sort.</param>
-        private IEnumerable<Class> _sortClassesByInheritance(Class[] classArray) {
-            int len = classArray.Length;
-            bool[] marked = new bool[len];
-            DynamicArray<int> indexStack = new DynamicArray<int>(len);
+        /// <returns>A map from classes to their order numbers. A class will have a lower order number
+        /// than any class that extends from it (directly or transitively). The order numbers are
+        /// guaranteed to be non-negative.</returns>
+        private ReferenceDictionary<Class, int> _computeClassTopologicalOrdering() {
+            var dict = new ReferenceDictionary<Class, int>();
 
-            int i = 0;
-            Class currentClass = null;
-            Class klass;
+            if (!m_class.isInterface) {
+                // If this is not an interface then the inheritance dag is a linear chain and
+                // the computation of the order numbers is trivial.
 
-            while (true) {
-                if (i == len) {
-                    if (indexStack.length == 0)
-                        yield break;
+                Class currentClass = m_class;
+                int chainDepth = 0;
 
-                    int topIndex = indexStack[indexStack.length - 1];
-                    indexStack.removeLast();
-
-                    Class popped = classArray[topIndex];
-                    marked[topIndex] = true;
-
-                    // After popping, it is sufficient to resume the search from the index
-                    // after the one that was popped, since if any class would be pushed it must
-                    // be derived from the class which is currently at the top of the stack, and
-                    // this is precisely why anything before this index wasn't pushed.
-                    i = topIndex + 1;
-
-                    currentClass = (indexStack.length == 0) ? null : classArray[indexStack[indexStack.length - 1]];
-                    yield return popped;
+                while (currentClass != null) {
+                    chainDepth++;
+                    currentClass = currentClass.parent;
                 }
-                else {
-                    if (!marked[i]) {
-                        klass = classArray[i];
-                        if (indexStack.length == 0 || klass.canAssignTo(currentClass)) {
-                            indexStack.add(i);
-                            currentClass = klass;
-                        }
-                    }
-                    i++;
+
+                currentClass = m_class;
+                int currentIndex = chainDepth - 1;
+
+                while (currentClass != null) {
+                    dict[currentClass] = currentIndex;
+                    currentIndex--;
+                    currentClass = currentClass.parent;
                 }
             }
+            else {
+                // For an interface, we need to do a DFS over the inheritance dag to compute
+                // the order numbers.
+
+                var baseInterfaces = m_class.getImplementedInterfaces();
+                int currentIndex = 0;
+
+                for (int i = 0; i < baseInterfaces.length; i++)
+                    walk(baseInterfaces[i]);
+
+                dict[m_class] = currentIndex;
+
+                void walk(Class currentInterface) {
+                    if (dict.containsKey(currentInterface))
+                        return;
+
+                    for (int i = 0; i < baseInterfaces.length; i++) {
+                        if (currentInterface != baseInterfaces[i] && currentInterface.canAssignTo(baseInterfaces[i]))
+                            walk(baseInterfaces[i]);
+                    }
+
+                    dict[currentInterface] = currentIndex;
+                    currentIndex++;
+                }
+            }
+
+            return dict;
         }
 
         /// <summary>
@@ -798,77 +854,50 @@ namespace Mariana.AVM2.Core {
 
         /// <summary>
         /// Gets the start and end indices of the range in the <see cref="m_slots"/> array where the
-        /// traits satisfying the given criteria will be found. This can only be called after calling
-        /// the <see cref="seal"/> method, which does the necessary sorting.
+        /// traits in the given scope(s) will be found.
         /// </summary>
         ///
-        /// <param name="includeStatic">Set to true to consider instance traits.</param>
-        /// <param name="includeInstance">Set to true to consider static traits.</param>
-        /// <param name="declaredOnly">Set to true to consider only declared traits. Otherwise both
-        /// declared and inherited traits will be considered.</param>
-        /// <param name="startIndex">The first index (inclusive) of the range in the
-        /// <see cref="m_slots"/> array in which the traits will be found. If the range is empty or
-        /// the <see cref="seal"/> method has not been called, this is set to -1.</param>
-        /// <param name="endIndex">The last index (inclusive) of the range in the
-        /// <see cref="m_slots"/> array in which the traits will be found. If the range is empty or
-        /// the <see cref="seal"/> method has not been called, this is set to -1.</param>
-        private void _getSlotIndexBounds(
-            bool includeStatic, bool includeInstance, bool declaredOnly, out int startIndex, out int endIndex)
-        {
-            if (!m_isSealed) {
-                startIndex = 0;
-                endIndex = m_count - 1;
-                return;
+        /// <param name="scopes">A set of bit flags from the <see cref="TraitScope"/> enumeration.</param>
+        /// <param name="startIndex">The first index (inclusive) of the range in the <see cref="m_slots"/>
+        /// array in which the traits will be found.</param>
+        /// <param name="endIndex">The last index (exclusive) of the range in the <see cref="m_slots"/>
+        /// arrayin which the traits will be found.</param>
+        /// <param name="isStrictRange">If this is true, the range defined by [startIndex, endIndex)
+        /// is guaranteed to contain only traits whose scope matches the <paramref name="scopes"/>
+        /// flags. Otherwise, the range may contain other traits and this must be checked during iteration.</param>
+        private void _getTraitSearchRange(TraitScope scopes, out int startIndex, out int endIndex, out bool isStrictRange) {
+            scopes &= TraitScope.ALL;
+
+            if (scopes == 0) {
+                // Always empty.
+                (startIndex, endIndex, isStrictRange) = (0, 0, true);
             }
-
-            startIndex = -1;
-            endIndex = -1;
-
-            bool hasStatic = m_staticTraitsBeginIndex != -1;
-            bool hasDeclaredInst = m_declaredInstanceTraitsBeginIndex != -1;
-
-            if (includeStatic && !includeInstance) {
-                // Only static traits.
-                if (hasStatic) {
-                    startIndex = m_staticTraitsBeginIndex;
-                    endIndex = m_count - 1;
-                }
-                return;
+            else if (!m_isSealed) {
+                // If this table is not sealed then we have to search the whole table (because it is not sorted).
+                (startIndex, endIndex, isStrictRange) = (0, m_count, false);
             }
-
-            if (!includeInstance)
-                return;
-
-            if (includeStatic) {
-                if (!declaredOnly) {
-                    // All traits (static+instance, declared+inherited)
-                    startIndex = 0;
-                    endIndex = m_count - 1;
-                }
-                else if (hasDeclaredInst) {
-                    // Declared-only, instance+static, has declared instance traits.
-                    startIndex = m_declaredInstanceTraitsBeginIndex;
-                    endIndex = m_count - 1;
-                }
-                else if (hasStatic) {
-                    // Declared-only, instance+static, no declared instance traits.
-                    startIndex = m_staticTraitsBeginIndex;
-                    endIndex = m_count - 1;
-                }
-                return;
+            else if ((scopes & TraitScope.INSTANCE) == 0) {
+                // Only static traits
+                (startIndex, endIndex, isStrictRange) = (m_staticTraitsBeginIndex, m_count, true);
             }
-
-            if (declaredOnly) {
-                // Instance traits only, declared only.
-                if (hasDeclaredInst) {
-                    startIndex = m_declaredInstanceTraitsBeginIndex;
-                    endIndex = hasStatic ? m_staticTraitsBeginIndex - 1 : m_count - 1;
-                }
+            else if ((scopes & TraitScope.STATIC) == 0) {
+                // Only instance traits
+                isStrictRange = true;
+                startIndex = ((scopes & TraitScope.INSTANCE_INHERITED) != 0) ? 0 : m_declaredInstanceTraitsBeginIndex;
+                endIndex = ((scopes & TraitScope.INSTANCE_DECLARED) != 0) ? m_staticTraitsBeginIndex : m_declaredInstanceTraitsBeginIndex;
             }
             else {
-                // Instance traits only, declared+inherited
-                startIndex = 0;
-                endIndex = hasStatic ? m_staticTraitsBeginIndex - 1 : m_count - 1;
+                // Static and instance traits
+                if ((scopes & TraitScope.INSTANCE) == TraitScope.INSTANCE_INHERITED) {
+                    // Since the instance-inherited and static traits are not contiguous, fall
+                    // back to a full table search.
+                    (startIndex, endIndex, isStrictRange) = (0, m_count, false);
+                }
+                else {
+                    isStrictRange = true;
+                    endIndex = m_count;
+                    startIndex = ((scopes & TraitScope.INSTANCE_INHERITED) != 0) ? 0 : m_declaredInstanceTraitsBeginIndex;
+                }
             }
         }
 
@@ -888,34 +917,33 @@ namespace Mariana.AVM2.Core {
         public void getTraits<T>(TraitType kinds, TraitScope scopes, ref DynamicArray<T> outList)
             where T : Trait
         {
-            Trait[] slots = m_slots;
-            bool searchStatic = (scopes & TraitScope.STATIC) != 0;
-            bool searchInstance = (scopes & TraitScope.INSTANCE) != 0;
-            bool declaredOnly = (scopes & TraitScope.INSTANCE_INHERITED) == 0;
+            _getTraitSearchRange(scopes, out int startIndex, out int endIndex, out bool isStrictRange);
+            var searchRange = new ReadOnlySpan<Trait>(m_slots, startIndex, endIndex - startIndex);
 
-            if (m_isSealed) {
-                _getSlotIndexBounds(searchStatic, searchInstance, declaredOnly, out int startIndex, out int endIndex);
-
-                if (startIndex == -1)
-                    return;
-
-                var span = new ReadOnlySpan<Trait>(slots, startIndex, endIndex - startIndex);
-                for (int i = 0; i < span.Length; i++) {
-                    Trait slot = span[i];
-                    if ((slot.traitType & kinds) != 0)
-                        outList.add((T)slot);
+            if (isStrictRange) {
+                for (int i = 0; i < searchRange.Length; i++) {
+                    Trait trait = searchRange[i];
+                    if ((trait.traitType & kinds) != 0)
+                        outList.add((T)trait);
                 }
             }
             else {
-                var span = new ReadOnlySpan<Trait>(slots, 0, m_count);
-                for (int i = 0; i < span.Length; i++) {
-                    Trait slot = span[i];
-                    if ((slot.declaringClass == m_class || !declaredOnly)
-                        && (slot.isStatic ? searchStatic : searchInstance)
-                        && (slot.traitType & kinds) != 0)
-                    {
-                        outList.add((T)slot);
-                    }
+                for (int i = 0; i < searchRange.Length; i++) {
+                    Trait trait = searchRange[i];
+                    if ((trait.traitType & kinds) == 0)
+                        continue;
+
+                    TraitScope traitScope;
+
+                    if (trait.isStatic)
+                        traitScope = TraitScope.STATIC;
+                    else if (trait.declaringClass == m_class)
+                        traitScope = TraitScope.INSTANCE_DECLARED;
+                    else
+                        traitScope = TraitScope.INSTANCE_INHERITED;
+
+                    if ((traitScope & scopes) != 0)
+                        outList.add((T)trait);
                 }
             }
         }
@@ -969,22 +997,18 @@ namespace Mariana.AVM2.Core {
         /// <returns>A <see cref="ReadOnlyArrayView{Trait}"/> that contains the traits
         /// in the given scopes.</returns>
         public ReadOnlyArrayView<Trait> getTraits(TraitScope scopes) {
-            if (!m_isSealed || (scopes & TraitScope.ALL) == (TraitScope.STATIC | TraitScope.INSTANCE_INHERITED)) {
-                var list = new DynamicArray<Trait>();
-                getTraits(TraitType.ALL, scopes, ref list);
-                return new ReadOnlyArrayView<Trait>(list.toArray());
+            _getTraitSearchRange(scopes, out int startIndex, out int endIndex, out bool isStrictRange);
+
+            if (isStrictRange) {
+                // We can return a read-only view over the internal slots array in this
+                // case, so we do not have to allocate a new array.
+                return new ReadOnlyArrayView<Trait>(m_slots, startIndex, endIndex - startIndex);
             }
 
-            bool searchStatic = (scopes & TraitScope.STATIC) != 0;
-            bool searchInstance = (scopes & TraitScope.INSTANCE) != 0;
-            bool declaredOnly = (scopes & TraitScope.INSTANCE_INHERITED) == 0;
+            var list = new DynamicArray<Trait>();
+            getTraits(TraitType.ALL, scopes, ref list);
 
-            _getSlotIndexBounds(searchStatic, searchInstance, declaredOnly, out int startIndex, out int endIndex);
-
-            if (startIndex == -1)
-                return ReadOnlyArrayView<Trait>.empty;
-
-            return new ReadOnlyArrayView<Trait>(m_slots, startIndex, endIndex - startIndex + 1);
+            return list.asReadOnlyArrayView();
         }
 
     }

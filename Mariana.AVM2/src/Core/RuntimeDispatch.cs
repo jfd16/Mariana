@@ -204,13 +204,13 @@ namespace Mariana.AVM2.Core {
                     continue;
                 }
 
-                var lbl1 = builder.createLabel();
-                var lbl2 = builder.createLabel();
+                var label1 = builder.createLabel();
+                var label2 = builder.createLabel();
 
-                // If i >= argsLengthLocal then goto lbl1
+                // If i >= argsLengthLocal then goto label1
                 builder.emit(ILOp.ldc_i4, i);
                 builder.emit(ILOp.ldloc, argsLengthLocal);
-                builder.emit(ILOp.bge, lbl1);
+                builder.emit(ILOp.bge, label1);
 
                 // Push argument from arguments array
                 builder.emit(ILOp.ldarga, 1);
@@ -222,45 +222,38 @@ namespace Mariana.AVM2.Core {
                 if (!p.hasDefault)
                     builder.emit(ILOp.newobj, ILEmitHelper.getOptionalParamCtor(p.type), 0);
 
-                builder.emit(ILOp.br, lbl2);
+                builder.emit(ILOp.br, label2);
 
-                builder.markLabel(lbl1);
+                builder.markLabel(label1);
 
-                // Push the default value (or OptionalParam.unspecified).
-                if (p.hasDefault) {
-                    if (p.type == null)
-                        ILEmitHelper.emitPushConstantAsAny(builder, p.defaultValue);
-                    else if (p.type.underlyingType == (object)typeof(ASObject))
-                        ILEmitHelper.emitPushConstantAsObject(builder, p.defaultValue);
-                    else
-                        ILEmitHelper.emitPushConstant(builder, p.defaultValue);
-                }
-                else {
-                    builder.emit(ILOp.ldsfld, ILEmitHelper.getOptionalParamUnspecifiedField(p.type));
-                }
+                // Push the default value (or OptionalParam.missing).
+                if (p.hasDefault)
+                    ILEmitHelper.emitPushConstantAsType(builder, p.defaultValue, p.type);
+                else
+                    builder.emit(ILOp.ldsfld, ILEmitHelper.getOptionalParamMissingField(p.type));
 
-                builder.markLabel(lbl2);
+                builder.markLabel(label2);
             }
 
             if (hasRest) {
                 // Push the rest argument.
-                var lbl1 = builder.createLabel();
-                var lbl2 = builder.createLabel();
+                var label1 = builder.createLabel();
+                var label2 = builder.createLabel();
 
                 builder.emit(ILOp.ldloc, argsLengthLocal);
                 builder.emit(ILOp.ldc_i4, paramCount);
-                builder.emit(ILOp.ble_un, lbl1);
+                builder.emit(ILOp.ble_un, label1);
 
                 builder.emit(ILOp.ldarga, 1);
                 builder.emit(ILOp.ldc_i4, paramCount);
                 builder.emit(ILOp.call, KnownMembers.roSpanOfAnySlice, -1);
                 builder.emit(ILOp.newobj, KnownMembers.restParamFromSpan, 0);
-                builder.emit(ILOp.br, lbl2);
+                builder.emit(ILOp.br, label2);
 
-                builder.markLabel(lbl1);
+                builder.markLabel(label1);
                 builder.emit(ILOp.call, KnownMembers.roSpanOfAnyEmpty);
 
-                builder.markLabel(lbl2);
+                builder.markLabel(label2);
             }
 
             // Call the method or constructor

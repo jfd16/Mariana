@@ -49,6 +49,9 @@ namespace Mariana.AVM2.Tests {
                 double dLeft = (double)left;
                 double dRight = (double)right;
 
+                if ((sortFlags & ASArray.DESCENDING) != 0)
+                    (dLeft, dRight) = (dRight, dLeft);
+
                 if (Double.IsNaN(dLeft))
                     cmpResult = Double.IsNaN(dRight) ? 0 : 1;
                 else if (Double.IsNaN(dRight))
@@ -60,14 +63,14 @@ namespace Mariana.AVM2.Tests {
                 string sLeft = ASAny.AS_convertString(left);
                 string sRight = ASAny.AS_convertString(right);
 
+                if ((sortFlags & ASArray.DESCENDING) != 0)
+                    (sLeft, sRight) = (sRight, sLeft);
+
                 if ((sortFlags & ASArray.CASEINSENSITIVE) != 0)
                     cmpResult = String.Compare(sLeft, sRight, StringComparison.OrdinalIgnoreCase);
                 else
                     cmpResult = String.Compare(sLeft, sRight, StringComparison.Ordinal);
             }
-
-            if ((sortFlags & ASArray.DESCENDING) != 0)
-                cmpResult = -cmpResult;
 
             return cmpResult;
         }
@@ -91,7 +94,7 @@ namespace Mariana.AVM2.Tests {
             for (int i = 0; i < callRecords.Length; i++) {
                 ReadOnlySpan<ASAny> callArgs = callRecords[i].getArguments();
 
-                int result = ((double)callRecords[i].returnValue).CompareTo(0.0);
+                int result = Math.Sign(((double)callRecords[i].returnValue).CompareTo(0.0));
                 compareFuncResults[(callArgs[0], callArgs[1])] = result;
                 compareFuncResults[(callArgs[1], callArgs[0])] = -result;
             }

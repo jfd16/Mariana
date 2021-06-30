@@ -151,14 +151,15 @@ namespace Mariana.AVM2.Core {
             /// <param name="x">The starting index of the first block.</param>
             /// <param name="y">The starting index of the second block.</param>
             public int Compare(int x, int y) {
-                var xSpan = m_keys.AsSpan(x, m_blockSize);
-                var ySpan = m_keys.AsSpan(y, xSpan.Length);
+                var xSpan = new ReadOnlySpan<T>(m_keys, x, m_blockSize);
+                var ySpan = new ReadOnlySpan<T>(m_keys, y, xSpan.Length);
                 int result = 0;
 
                 for (int i = 0; i < xSpan.Length && result == 0; i++) {
-                    result = m_comparers[i].Compare(xSpan[i], ySpan[i]);
-                    if (m_descendingFlags[i])
-                        result = -result;
+                    IComparer<T> comparer = m_comparers[i];
+                    T xi = xSpan[i];
+                    T yi = ySpan[i];
+                    result = m_descendingFlags[i] ? comparer.Compare(yi, xi) : comparer.Compare(xi, yi);
                 }
                 return result;
             }

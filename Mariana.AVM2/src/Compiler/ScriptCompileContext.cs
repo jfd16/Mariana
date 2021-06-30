@@ -1325,7 +1325,7 @@ namespace Mariana.AVM2.Compiler {
             for (int i = 0; i < params1.length; i++) {
                 var p1 = params1[i];
                 var p2 = params2[i];
-                if (p1.type != p2.type || p1.isOptional != p2.isOptional || p1.hasDefault != p2.hasDefault)
+                if (p1.type != p2.type || p1.isOptional != p2.isOptional)
                     return false;
             }
 
@@ -1477,12 +1477,14 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="typeBuilder">The <see cref="TypeBuilder"/> into which to emit the field.</param>
         /// <param name="mangleName">Set this to true if the field's name must be mangled.</param>
         private void _emitFieldBuilder(ScriptField field, TypeBuilder typeBuilder, bool mangleName) {
-            string fieldBldrName = mangleName ? m_nameMangler.createName(field.name) : field.name.ToString();
-            FieldAttributes fieldBldrAttrs = FieldAttributes.Public;
+            string fieldBuilderName = mangleName ? m_nameMangler.createName(field.name) : field.name.ToString();
+            FieldAttributes fieldBuilderAttrs = FieldAttributes.Public;
             if (field.isStatic)
-                fieldBldrAttrs |= FieldAttributes.Static;
+                fieldBuilderAttrs |= FieldAttributes.Static;
 
-            var fieldBuilder = typeBuilder.defineField(fieldBldrName, getTypeSignature(field.fieldType), fieldBldrAttrs);
+            var fieldBuilder = typeBuilder.defineField(
+                fieldBuilderName, getTypeSignature(field.fieldType), fieldBuilderAttrs);
+
             m_traitEntityHandles[field] = fieldBuilder.handle;
         }
 
@@ -1509,10 +1511,14 @@ namespace Mariana.AVM2.Compiler {
                 return Array.Empty<TypeSignature>();
 
             var types = new TypeSignature[paramCount];
-            var parameters = method.getParameters();
+            var parameters = method.getParameters().asSpan();
 
-            for (int i = 0; i < parameters.length; i++)
-                types[i] = getTypeSignature(parameters[i].type);
+            for (int i = 0; i < parameters.Length; i++) {
+                MethodTraitParameter param = parameters[i];
+                bool isOptionalParam = param.isOptional && !param.hasDefault;
+                types[i] = isOptionalParam ? getTypeSigForOptionalParam(param.type) : getTypeSignature(param.type);
+            }
+
             if (method.hasRest)
                 types[paramCount - 1] = m_assemblyBuilder.metadataContext.getTypeSignature(typeof(RestParam));
 
@@ -1533,53 +1539,53 @@ namespace Mariana.AVM2.Compiler {
             in QName name,
             MethodNameMangleMode nameMangleMode = MethodNameMangleMode.METHOD
         ) {
-            string methodBldrName;
+            string methodBuilderName;
             switch (nameMangleMode) {
                 case MethodNameMangleMode.METHOD:
-                    methodBldrName = m_nameMangler.createName(name);
+                    methodBuilderName = m_nameMangler.createName(name);
                     break;
                 case MethodNameMangleMode.GETTER:
-                    methodBldrName = m_nameMangler.createGetterName(name);
+                    methodBuilderName = m_nameMangler.createGetterName(name);
                     break;
                 case MethodNameMangleMode.SETTER:
-                    methodBldrName = m_nameMangler.createSetterName(name);
+                    methodBuilderName = m_nameMangler.createSetterName(name);
                     break;
                 default:
-                    methodBldrName = name.ToString();
+                    methodBuilderName = name.ToString();
                     break;
             }
 
             MethodTraitData methodData = m_methodTraitData[method];
 
-            TypeSignature methodBldrReturnType = _getReturnTypeSignature(method);
-            TypeSignature[] methodBldrParamTypes = _getParamTypeSignatures(method);
+            TypeSignature methodBuilderReturnType = _getReturnTypeSignature(method);
+            TypeSignature[] methodBuilderParamTypes = _getParamTypeSignatures(method);
 
-            MethodAttributes methodBldrAttrs = MethodAttributes.Public | MethodAttributes.HideBySig;
+            MethodAttributes methodBuilderAttrs = MethodAttributes.Public | MethodAttributes.HideBySig;
 
             if (method.isStatic) {
-                methodBldrAttrs |= MethodAttributes.Static;
+                methodBuilderAttrs |= MethodAttributes.Static;
             }
             else if (!method.isFinal
                 || method.declaringClass.isInterface
                 || methodData.overrideMethodDef != null
                 || methodData.interfaceMethodImpls.length > 0)
             {
-                methodBldrAttrs |= MethodAttributes.Virtual;
+                methodBuilderAttrs |= MethodAttributes.Virtual;
 
                 if (methodData.overrideMethodDef == null)
-                    methodBldrAttrs |= MethodAttributes.NewSlot;
+                    methodBuilderAttrs |= MethodAttributes.NewSlot;
 
                 if (method.isFinal)
-                    methodBldrAttrs |= MethodAttributes.Final;
+                    methodBuilderAttrs |= MethodAttributes.Final;
                 else if (method.declaringClass.isInterface)
-                    methodBldrAttrs |= MethodAttributes.Abstract | MethodAttributes.NewSlot;
+                    methodBuilderAttrs |= MethodAttributes.Abstract | MethodAttributes.NewSlot;
             }
 
-            MethodBuilder methodBldr = typeBuilder.defineMethod(
-                methodBldrName, methodBldrAttrs, methodBldrReturnType, methodBldrParamTypes);
+            MethodBuilder methodBuilder = typeBuilder.defineMethod(
+                methodBuilderName, methodBuilderAttrs, methodBuilderReturnType, methodBuilderParamTypes);
 
-            methodData.methodBuilder = methodBldr;
-            m_traitEntityHandles[method] = methodBldr.handle;
+            methodData.methodBuilder = methodBuilder;
+            m_traitEntityHandles[method] = methodBuilder.handle;
 
             // Emit parameter names if that option is set.
 
@@ -1591,11 +1597,11 @@ namespace Mariana.AVM2.Compiler {
                     if (paramName == null || paramName.Length == 0)
                         paramName = "param" + ASint.AS_convertString(i);
 
-                    methodBldr.defineParameter(i, paramName);
+                    methodBuilder.defineParameter(i, paramName);
                 }
 
                 if (method.hasRest)
-                    methodBldr.defineParameter(methodBldrParamTypes.Length - 1, "$rest");
+                    methodBuilder.defineParameter(methodBuilderParamTypes.Length - 1, "$rest");
             }
         }
 
@@ -1606,30 +1612,30 @@ namespace Mariana.AVM2.Compiler {
         /// constructor into the given TypeBuilder.</param>
         /// <param name="typeBuilder">The <see cref="TypeBuilder"/> into which to emit the constructor.</param>
         private void _emitConstructorBuilder(ScriptClassConstructor ctor, TypeBuilder typeBuilder) {
-            TypeSignature[] ctorBldrParams = Array.Empty<TypeSignature>();
+            TypeSignature[] ctorBuilderParams = Array.Empty<TypeSignature>();
             int paramCount = ctor.paramCount + (ctor.hasRest ? 1 : 0);
 
             if (paramCount > 0) {
-                ctorBldrParams = new TypeSignature[paramCount];
+                ctorBuilderParams = new TypeSignature[paramCount];
                 var parameters = ctor.getParameters();
                 for (int i = 0; i < parameters.length; i++)
-                    ctorBldrParams[i] = getTypeSignature(parameters[i].type);
+                    ctorBuilderParams[i] = getTypeSignature(parameters[i].type);
                 if (ctor.hasRest)
-                    ctorBldrParams[paramCount - 1] = m_assemblyBuilder.metadataContext.getTypeSignature(typeof(RestParam));
+                    ctorBuilderParams[paramCount - 1] = m_assemblyBuilder.metadataContext.getTypeSignature(typeof(RestParam));
             }
 
-            MethodAttributes ctorBldrAttrs = MethodAttributes.Public | MethodAttributes.HideBySig;
-            MethodBuilder ctorBldr = typeBuilder.defineConstructor(ctorBldrAttrs, ctorBldrParams);
+            MethodAttributes ctorBuilderAttrs = MethodAttributes.Public | MethodAttributes.HideBySig;
+            MethodBuilder ctorBuilder = typeBuilder.defineConstructor(ctorBuilderAttrs, ctorBuilderParams);
 
-            m_classData[(ScriptClass)ctor.declaringClass].ctorBuilder = ctorBldr;
+            m_classData[(ScriptClass)ctor.declaringClass].ctorBuilder = ctorBuilder;
 
             if (m_options.emitParamNames) {
                 for (int i = 0, n = ctor.paramCount; i < n; i++) {
-                    ctorBldr.defineParameter(
+                    ctorBuilder.defineParameter(
                         i, ctor.abcMethodInfo.getParamName(i) ?? "param" + ASint.AS_convertString(i));
                 }
                 if (ctor.hasRest)
-                    ctorBldr.defineParameter(paramCount - 1, "$rest");
+                    ctorBuilder.defineParameter(paramCount - 1, "$rest");
             }
         }
 
@@ -1706,14 +1712,11 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _emitMethodImplIfNeeded(MethodTrait method, MethodTrait baseMethod, ScriptClass implByClass) {
-            bool areNamesDifferent = _getUnderlyingMethodName(method) != _getUnderlyingMethodName(baseMethod);
+            string methodName = _getUnderlyingMethodName(method);
+            string baseMethodName = _getUnderlyingMethodName(baseMethod);
+            bool isStubNeeded = _isStubMethodImplRequired(method, baseMethod, implByClass);
 
-            bool isStubNeeded =
-                implByClass != method.declaringClass
-                || method.hasRest != baseMethod.hasRest
-                || (_getUnderlyingMethodAttrs(method) & MethodAttributes.Virtual) == 0;
-
-            if (!areNamesDifferent && !isStubNeeded)
+            if (methodName == baseMethodName && !isStubNeeded)
                 return;
 
             var implTypeBuilder = m_classData[implByClass].typeBuilder;
@@ -1727,22 +1730,56 @@ namespace Mariana.AVM2.Compiler {
             TypeSignature retType = _getReturnTypeSignature(baseMethod);
             TypeSignature[] paramTypes = _getParamTypeSignatures(baseMethod);
 
-            string stubMethodName = m_nameMangler.createMethodImplStubName(
-                _getUnderlyingTypeName(baseMethod.declaringClass).ToString(),
-                _getUnderlyingMethodName(baseMethod)
-            );
+            TypeName baseClassName = _getUnderlyingTypeName(baseMethod.declaringClass);
+            string stubMethodName = m_nameMangler.createMethodImplStubName(baseClassName.ToString(), baseMethodName);
 
             var stubMethodAttrs = MethodAttributes.Private | MethodAttributes.HideBySig
                 | MethodAttributes.Virtual | MethodAttributes.Final | MethodAttributes.NewSlot;
 
-            MethodBuilder stubMethodBldr = implTypeBuilder.defineMethod(stubMethodName, stubMethodAttrs, retType, paramTypes);
-            implTypeBuilder.defineMethodImpl(getEntityHandle(baseMethod), stubMethodBldr.handle);
+            MethodBuilder stubMethodBuilder = implTypeBuilder.defineMethod(stubMethodName, stubMethodAttrs, retType, paramTypes);
+            implTypeBuilder.defineMethodImpl(getEntityHandle(baseMethod), stubMethodBuilder.handle);
 
-            var ilBuilder = m_contextILBuilder;
+            ILBuilder ilBuilder = m_contextILBuilder;
 
             ilBuilder.emit(ILOp.ldarg, 0);
-            for (int j = 1; j <= baseMethod.paramCount; j++)
-                ilBuilder.emit(ILOp.ldarg, j);
+
+            var baseMethodParams = baseMethod.getParameters().asSpan();
+            var methodParams = method.getParameters().asSpan();
+
+            MetadataContext mdContext = m_assemblyBuilder.metadataContext;
+
+            for (int i = 0; i < baseMethodParams.Length; i++) {
+                if (baseMethodParams[i].isOptional && !baseMethodParams[i].hasDefault) {
+                    // If the declaration has an optional parameter as OptionalParam<T> and the
+                    // implementing method uses an optional parameter with a default value, we must
+                    // check if the argument is missing and push the default value to pass into
+                    // the implementation method.
+
+                    Debug.Assert(methodParams[i].hasDefault);
+
+                    var label1 = ilBuilder.createLabel();
+                    var label2 = ilBuilder.createLabel();
+
+                    var optParamTypeHandle = mdContext.getTypeHandle(getTypeSigForOptionalParam(baseMethodParams[i].type));
+
+                    ilBuilder.emit(ILOp.ldarga, i + 1);
+                    ilBuilder.emit(ILOp.ldfld, mdContext.getMemberHandle(KnownMembers.optionalParamIsSpecified, optParamTypeHandle));
+                    ilBuilder.emit(ILOp.brtrue, label1);
+
+                    ILEmitHelper.emitPushConstantAsType(ilBuilder, methodParams[i].defaultValue, methodParams[i].type);
+                    ilBuilder.emit(ILOp.br, label2);
+
+                    ilBuilder.markLabel(label1);
+                    ilBuilder.emit(ILOp.ldarga, i + 1);
+                    ilBuilder.emit(ILOp.ldfld, mdContext.getMemberHandle(KnownMembers.optionalParamValue, optParamTypeHandle));
+
+                    ilBuilder.markLabel(label2);
+                }
+                else {
+                    Debug.Assert(!baseMethodParams[i].isOptional || methodParams[i].hasDefault);
+                    ilBuilder.emit(ILOp.ldarg, i + 1);
+                }
+            }
 
             // hasRest may not be the same in the declaration and implementation because the
             // compiler may add a rest parameter to a method when the NEED_ARGUMENTS flag is
@@ -1764,7 +1801,39 @@ namespace Mariana.AVM2.Compiler {
             ilBuilder.emit(ILOp.callvirt, getEntityHandle(method));
             ilBuilder.emit(ILOp.ret);
 
-            stubMethodBldr.setMethodBody(m_contextILBuilder.createMethodBody());
+            stubMethodBuilder.setMethodBody(m_contextILBuilder.createMethodBody());
+        }
+
+        private bool _isStubMethodImplRequired(MethodTrait method, MethodTrait baseMethod, ScriptClass implByClass) {
+            if (implByClass != method.declaringClass) {
+                // Implementation is inherited from a base class.
+                return true;
+            }
+
+            if ((_getUnderlyingMethodAttrs(method) & MethodAttributes.Virtual) == 0) {
+                // Implementation method is not virtual.
+                return true;
+            }
+
+            if (method.hasRest != baseMethod.hasRest) {
+                // This only happens when one of the methods (base or derived) has the NEED_ARGUMENTS
+                // flag and the other does not. NEED_ARGUMENTS is not part of the signature that is
+                // matched for overriding.
+                return true;
+            }
+
+            var methodParams = method.getParameters().asSpan();
+            var baseMethodParams = baseMethod.getParameters().asSpan();
+
+            // hasDefault is not part of the override signature checks (though isOptional is)
+            // so a stub is needed if a parameter with a default value overrides one declared
+            // as OptionalParam<T>
+            for (int i = 0; i < methodParams.Length; i++) {
+                if (methodParams[i].hasDefault != baseMethodParams[i].hasDefault)
+                    return true;
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -1775,7 +1844,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="methodToCall">A <see cref="MethodTrait"/> representing the method to be called.
         /// This must not declare any non-optional parameters.</param>
         private void _emitCallToMethodWithNoArgs(MethodBuilder methodBuilder, MethodTrait methodToCall) {
-            var ilBuilder = m_contextILBuilder;
+            ILBuilder ilBuilder = m_contextILBuilder;
 
             if (methodToCall.paramCount > 0) {
                 // Class and script init methods cannot have required parameters, but may have optional parameters.
@@ -1784,13 +1853,7 @@ namespace Mariana.AVM2.Compiler {
                 for (int i = 0; i < parameters.Length; i++) {
                     MethodTraitParameter param = parameters[i];
                     Debug.Assert(param.isOptional && param.hasDefault);
-
-                    if (param.type == null)
-                        ILEmitHelper.emitPushConstantAsAny(ilBuilder, param.defaultValue);
-                    else if (param.type == s_objectClass)
-                        ILEmitHelper.emitPushConstantAsObject(ilBuilder, param.defaultValue);
-                    else
-                        ILEmitHelper.emitPushConstant(ilBuilder, param.defaultValue);
+                    ILEmitHelper.emitPushConstantAsType(ilBuilder, param.defaultValue, param.type);
                 }
             }
 
@@ -1843,7 +1906,7 @@ namespace Mariana.AVM2.Compiler {
             if (trait.underlyingMethodInfo != null)
                 return trait.underlyingMethodInfo.Name;
 
-            var methodTraitData = m_methodTraitData[trait];
+            MethodTraitData methodTraitData = m_methodTraitData[trait];
             if (methodTraitData != null && methodTraitData.methodBuilder != null)
                 return methodTraitData.methodBuilder.name;
 
@@ -1859,7 +1922,7 @@ namespace Mariana.AVM2.Compiler {
             if (trait.underlyingMethodInfo != null)
                 return trait.underlyingMethodInfo.Attributes;
 
-            var methodTraitData = m_methodTraitData[trait];
+            MethodTraitData methodTraitData = m_methodTraitData[trait];
             return (methodTraitData?.methodBuilder != null) ? methodTraitData.methodBuilder.attributes : 0;
         }
 
@@ -2682,14 +2745,7 @@ namespace Mariana.AVM2.Compiler {
                     ASAny defaultVal = _coerceDefaultValue(traitInfo.fieldDefaultValue, fieldType);
                     if (!ILEmitHelper.isImplicitDefault(defaultVal, fieldType)) {
                         ctorIlGen.emit(ILOp.ldarg_0);
-
-                        if (fieldType == null)
-                            ILEmitHelper.emitPushConstantAsAny(ctorIlGen, defaultVal);
-                        else if (fieldType == s_objectClass)
-                            ILEmitHelper.emitPushConstantAsObject(ctorIlGen, defaultVal);
-                        else
-                            ILEmitHelper.emitPushConstant(ctorIlGen, defaultVal);
-
+                        ILEmitHelper.emitPushConstantAsType(ctorIlGen, defaultVal, fieldType);
                         ctorIlGen.emit(ILOp.stfld, fieldBuilder.handle);
                     }
                 }

@@ -626,6 +626,7 @@ namespace Mariana.AVM2.Compiler {
                 for (int i = 0; i < traits.length; i++) {
                     if (!(traits[i] is ScriptField field))
                         continue;
+
                     if (m_fieldInitInstructionIds.tryGetValue(field, out int initId) && initId != -1)
                         continue;
 
@@ -636,13 +637,7 @@ namespace Mariana.AVM2.Compiler {
                         if (!field.isStatic)
                             m_ilBuilder.emit(ILOp.ldarg_0);
 
-                        if (field.fieldType == null)
-                            ILEmitHelper.emitPushConstantAsAny(m_ilBuilder, initVal);
-                        else if (field.fieldType == s_objectClass)
-                            ILEmitHelper.emitPushConstantAsObject(m_ilBuilder, initVal);
-                        else
-                            ILEmitHelper.emitPushConstant(m_ilBuilder, initVal);
-
+                        ILEmitHelper.emitPushConstantAsType(m_ilBuilder, initVal, field.fieldType);
                         m_ilBuilder.emit(field.isStatic ? ILOp.stsfld : ILOp.stfld, lockedContext.value.getEntityHandle(field));
                     }
                     else if (field.fieldType != null && field.fieldType.tag == ClassTag.NUMBER) {
@@ -1264,6 +1259,7 @@ namespace Mariana.AVM2.Compiler {
                 if (m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_RUNTIME_SCOPE_STACK)) {
                     if (popped.isNotPushed)
                         _emitPushConstantNode(ref popped, ignoreNoPush: true);
+
                     emitPushToRuntimeScope(ref popped, ref scope);
                 }
                 else {
@@ -1975,16 +1971,36 @@ namespace Mariana.AVM2.Compiler {
             _emitTypeCoerceForStackTop2(ref left, ref right, DataNodeType.INT, DataNodeType.INT);
 
             switch (instr.opcode) {
-                case ABCOp.add_i:       m_ilBuilder.emit(ILOp.add); break;
-                case ABCOp.subtract_i:  m_ilBuilder.emit(ILOp.sub); break;
-                case ABCOp.multiply_i:  m_ilBuilder.emit(ILOp.mul); break;
-                case ABCOp.bitand:      m_ilBuilder.emit(ILOp.and); break;
-                case ABCOp.bitor:       m_ilBuilder.emit(ILOp.or);  break;
-                case ABCOp.bitxor:      m_ilBuilder.emit(ILOp.xor); break;
-                case ABCOp.lshift:      m_ilBuilder.emit(ILOp.shl); break;
-                case ABCOp.rshift:      m_ilBuilder.emit(ILOp.shr); break;
-                case ABCOp.urshift:     m_ilBuilder.emit(ILOp.shr_un); break;
-                default:                Debug.Assert(false); break;
+                case ABCOp.add_i:
+                    m_ilBuilder.emit(ILOp.add);
+                    break;
+                case ABCOp.subtract_i:
+                    m_ilBuilder.emit(ILOp.sub);
+                    break;
+                case ABCOp.multiply_i:
+                    m_ilBuilder.emit(ILOp.mul);
+                    break;
+                case ABCOp.bitand:
+                    m_ilBuilder.emit(ILOp.and);
+                    break;
+                case ABCOp.bitor:
+                    m_ilBuilder.emit(ILOp.or);
+                    break;
+                case ABCOp.bitxor:
+                    m_ilBuilder.emit(ILOp.xor);
+                    break;
+                case ABCOp.lshift:
+                    m_ilBuilder.emit(ILOp.shl);
+                    break;
+                case ABCOp.rshift:
+                    m_ilBuilder.emit(ILOp.shr);
+                    break;
+                case ABCOp.urshift:
+                    m_ilBuilder.emit(ILOp.shr_un);
+                    break;
+                default:
+                    Debug.Assert(false);
+                    break;
             }
         }
 
@@ -2156,10 +2172,18 @@ namespace Mariana.AVM2.Compiler {
 
                         MethodInfo method = null;
                         switch (_instr.opcode) {
-                            case ABCOp.lessthan:        method = KnownMembers.strLt; break;
-                            case ABCOp.lessequals:      method = KnownMembers.strLeq; break;
-                            case ABCOp.greaterthan:     method = KnownMembers.strGt; break;
-                            case ABCOp.greaterequals:   method = KnownMembers.strGeq; break;
+                            case ABCOp.lessthan:
+                                method = KnownMembers.strLt;
+                                break;
+                            case ABCOp.lessequals:
+                                method = KnownMembers.strLeq;
+                                break;
+                            case ABCOp.greaterthan:
+                                method = KnownMembers.strGt;
+                                break;
+                            case ABCOp.greaterequals:
+                                method = KnownMembers.strGeq;
+                                break;
                         }
 
                         m_ilBuilder.emit(ILOp.call, method, -1);
@@ -2171,10 +2195,18 @@ namespace Mariana.AVM2.Compiler {
 
                         MethodInfo method = null;
                         switch (_instr.opcode) {
-                            case ABCOp.lessthan:        method = KnownMembers.objLt; break;
-                            case ABCOp.lessequals:      method = KnownMembers.objLeq; break;
-                            case ABCOp.greaterthan:     method = KnownMembers.objGt; break;
-                            case ABCOp.greaterequals:   method = KnownMembers.objGeq; break;
+                            case ABCOp.lessthan:
+                                method = KnownMembers.objLt;
+                                break;
+                            case ABCOp.lessequals:
+                                method = KnownMembers.objLeq;
+                                break;
+                            case ABCOp.greaterthan:
+                                method = KnownMembers.objGt;
+                                break;
+                            case ABCOp.greaterequals:
+                                method = KnownMembers.objGeq;
+                                break;
                         }
 
                         m_ilBuilder.emit(ILOp.call, method, -1);
@@ -2186,10 +2218,18 @@ namespace Mariana.AVM2.Compiler {
 
                         MethodInfo method = null;
                         switch (_instr.opcode) {
-                            case ABCOp.lessthan:        method = KnownMembers.anyLt; break;
-                            case ABCOp.lessequals:      method = KnownMembers.anyLeq; break;
-                            case ABCOp.greaterthan:     method = KnownMembers.anyGt; break;
-                            case ABCOp.greaterequals:   method = KnownMembers.anyGeq; break;
+                            case ABCOp.lessthan:
+                                method = KnownMembers.anyLt;
+                                break;
+                            case ABCOp.lessequals:
+                                method = KnownMembers.anyLeq;
+                                break;
+                            case ABCOp.greaterthan:
+                                method = KnownMembers.anyGt;
+                                break;
+                            case ABCOp.greaterequals:
+                                method = KnownMembers.anyGeq;
+                                break;
                         }
 
                         m_ilBuilder.emit(ILOp.call, method, -1);
@@ -2227,11 +2267,8 @@ namespace Mariana.AVM2.Compiler {
             using (var lockedContext = m_compilation.getContext())
                 klass = lockedContext.value.getClassByMultiname(multiname);
 
-            if (ClassTagSet.numeric.contains(klass.tag)
-                || !isObjectType(input.dataType))
-            {
+            if (ClassTagSet.numeric.contains(klass.tag) || !isObjectType(input.dataType))
                 _emitTypeCoerceForTopOfStack(ref input, DataNodeType.OBJECT);
-            }
 
             _emitIsOrAsType(klass, instr.opcode, output.id);
         }
@@ -2246,11 +2283,8 @@ namespace Mariana.AVM2.Compiler {
                 Class klass = typeNode.constant.classValue;
                 _emitDiscardTopOfStack(ref typeNode);
 
-                if (ClassTagSet.numeric.contains(klass.tag)
-                    || !isObjectType(objNode.dataType))
-                {
+                if (ClassTagSet.numeric.contains(klass.tag) || !isObjectType(objNode.dataType))
                     _emitTypeCoerceForTopOfStack(ref objNode, DataNodeType.OBJECT);
-                }
 
                 _emitIsOrAsType(klass, instr.opcode, output.id);
             }
@@ -4098,7 +4132,7 @@ namespace Mariana.AVM2.Compiler {
                     break;
 
                 case DataNodeType.NUMBER:
-                    _emitPushDoubleConstant(node.constant.doubleValue);
+                    ILEmitHelper.emitPushDoubleConstant(m_ilBuilder, node.constant.doubleValue);
                     break;
 
                 case DataNodeType.STRING:
@@ -4213,42 +4247,6 @@ namespace Mariana.AVM2.Compiler {
             }
 
             return true;
-        }
-
-        private void _emitPushDoubleConstant(double value) {
-            if (value == 0.0) {
-                if (Double.IsNegative(value)) {
-                    // Ensure that sign of zero is preserved.
-                    m_ilBuilder.emit(ILOp.ldc_r8, value);
-                }
-                else {
-                    m_ilBuilder.emit(ILOp.ldc_i4_0);
-                    m_ilBuilder.emit(ILOp.conv_r8);
-                }
-                return;
-            }
-
-            int ival = (int)value;
-            if (ival == value) {
-                m_ilBuilder.emit(ILOp.ldc_i4, ival);
-                m_ilBuilder.emit(ILOp.conv_r8);
-                return;
-            }
-
-            uint uval = (uint)value;
-            if (uval == value) {
-                m_ilBuilder.emit(ILOp.ldc_i4, uval);
-                m_ilBuilder.emit(ILOp.conv_r_un);
-                return;
-            }
-
-            if (Double.IsNaN(value) || Double.IsInfinity(value) || value == (double)(float)value) {
-                m_ilBuilder.emit(ILOp.ldc_r4, value);
-                m_ilBuilder.emit(ILOp.conv_r8);
-            }
-            else {
-                m_ilBuilder.emit(ILOp.ldc_r8, value);
-            }
         }
 
         private void _emitPushXmlNamespaceConstant(Namespace value) {
@@ -5563,12 +5561,7 @@ namespace Mariana.AVM2.Compiler {
                     Debug.Assert(param.isOptional);
 
                     if (param.hasDefault) {
-                        if (param.type == null)
-                            ILEmitHelper.emitPushConstantAsAny(m_ilBuilder, param.defaultValue);
-                        else if (param.type == s_objectClass)
-                            ILEmitHelper.emitPushConstantAsObject(m_ilBuilder, param.defaultValue);
-                        else
-                            ILEmitHelper.emitPushConstant(m_ilBuilder, param.defaultValue);
+                        ILEmitHelper.emitPushConstantAsType(m_ilBuilder, param.defaultValue, param.type);
                     }
                     else {
                         TypeSignature optParamTypeSig;

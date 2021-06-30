@@ -167,15 +167,23 @@ namespace Mariana.AVM2.Core {
             return parse(ASAny.AS_convertString(arg));
         }
 
-        internal static void __AS_CLASS_LOADED(ClassImpl klass) {
-            string[] staticMethods = new[] {nameof(settings), nameof(setSettings), nameof(defaultSettings)};
+        internal static void __AS_INIT_CLASS(ASClass classObj) {
+            Class klass = classObj.internalClass;
 
-            for (int i = 0; i < staticMethods.Length; i++) {
-                klass.classObject.AS_dynamicProps.setValue(
-                    staticMethods[i],
-                    klass.getMethod(new QName(Namespace.AS3, staticMethods[i]), TraitScope.STATIC).createMethodClosure()
-                );
-            }
+            classObj.AS_dynamicProps.setValue(
+                nameof(settings),
+                klass.getMethod(new QName(Namespace.AS3, nameof(settings)), TraitScope.STATIC).createMethodClosure()
+            );
+
+            classObj.AS_dynamicProps.setValue(
+                nameof(setSettings),
+                klass.getMethod(new QName(Namespace.AS3, nameof(setSettings)), TraitScope.STATIC).createMethodClosure()
+            );
+
+            classObj.AS_dynamicProps.setValue(
+                nameof(defaultSettings),
+                klass.getMethod(new QName(Namespace.AS3, nameof(defaultSettings)), TraitScope.STATIC).createMethodClosure()
+            );
         }
 
         /// <inheritdoc/>

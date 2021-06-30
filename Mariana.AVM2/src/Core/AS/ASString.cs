@@ -1382,10 +1382,10 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         internal static new ASAny __AS_CONSTRUCT(ReadOnlySpan<ASAny> args) => __AS_INVOKE(args);
 
-        internal static void __AS_CLASS_LOADED(ClassImpl klass) {
-            klass.classObject.AS_dynamicProps.setValue(
+        internal static void __AS_INIT_CLASS(ASClass classObj) {
+            classObj.AS_dynamicProps.setValue(
                 nameof(fromCharCode),
-                klass.getMethod(new QName(Namespace.AS3, nameof(fromCharCode)), TraitScope.STATIC).createMethodClosure()
+                classObj.internalClass.getMethod(new QName(Namespace.AS3, nameof(fromCharCode)), TraitScope.STATIC).createMethodClosure()
             );
         }
 

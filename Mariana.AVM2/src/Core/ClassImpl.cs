@@ -44,12 +44,16 @@ namespace Mariana.AVM2.Core {
                 recursionHandling: LazyInitRecursionHandling.RETURN_DEFAULT
             );
 
-            m_classObject = new ZoneStaticData<ASClass>(() => new ASClass(this));
+            m_classObject = new ZoneStaticData<ASClass>(() => {
+                var classObj = new ASClass(this);
+                initClassObject(classObj);
+                return classObj;
+            });
 
             m_prototypeObject = new ZoneStaticData<ASObject>(() => {
                 var prototype = ASObject.AS_createWithPrototype(this.parent?.prototypeObject);
                 prototype.AS_dynamicProps.setValue("constructor", this.classObject, isEnum: false);
-                initPrototype(prototype);
+                initPrototypeObject(prototype);
                 return prototype;
             });
         }
@@ -236,6 +240,22 @@ namespace Mariana.AVM2.Core {
         protected private abstract void initClass();
 
         /// <summary>
+        /// A method that is called when a class object is created for this class. Derived
+        /// classes can override this method to initialize the class object.
+        /// </summary>
+        /// <param name="classObject">The class object to be initialized.</param>
+        ///
+        /// <remarks>
+        /// The runtime ensures that this method is called at most once for each class
+        /// object created for this class (there may be multiple instances because the class
+        /// object is zone-local) and never more than once with the same object as the
+        /// <see cref="classObject"/> argument, even when there are multiple threads
+        /// running concurrently. In addition, it ensures that the <see cref="initClass"/> method
+        /// was called before calling this method.
+        /// </remarks>
+        protected private virtual void initClassObject(ASClass classObject) { }
+
+        /// <summary>
         /// A method that is called when a prototype object is created for this class. Derived
         /// classes can override this method to initialize the prototype.
         /// </summary>
@@ -250,7 +270,7 @@ namespace Mariana.AVM2.Core {
         /// was called and sets the "constructor" property on <see cref="prototypeObject"/> with
         /// the value as the class object before calling this method.
         /// </remarks>
-        protected private virtual void initPrototype(ASObject prototypeObject) { }
+        protected private virtual void initPrototypeObject(ASObject prototypeObject) { }
 
         /// <summary>
         /// Adds a declared trait to this class definition.
@@ -396,9 +416,8 @@ namespace Mariana.AVM2.Core {
 
             _ = m_lazyClassInit.value;
 
-            if ((types & TraitType.ALL) == TraitType.ALL) {
+            if ((types & TraitType.ALL) == TraitType.ALL)
                 return m_traitTable.getTraits(scopes);
-            }
 
             var traitList = new DynamicArray<Trait>();
             m_traitTable.getTraits(types, scopes, ref traitList);

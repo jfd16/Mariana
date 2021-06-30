@@ -9,6 +9,10 @@ namespace Mariana.AVM2.Native {
 
     internal sealed class NativeClass : ClassImpl {
 
+        private const string SPECIAL_INVOKE_METHOD_NAME = "__AS_INVOKE";
+        private const string SPECIAL_CONSTRUCT_METHOD_NAME = "__AS_CONSTRUCT";
+        private const string CLASS_OBJ_INIT_METHOD_NAME = "__AS_INIT_CLASS";
+
         private static Assembly s_thisAssembly = typeof(NativeClass).Assembly;
 
         private bool m_containsProtoMethods;
@@ -16,6 +20,7 @@ namespace Mariana.AVM2.Native {
         private Class m_vectorElementType;
         private NativeClass m_classForInstProto;
         private DynamicArray<(string name, MethodTrait method)> m_prototypeMethods;
+        private Action<ASClass> m_classObjectInitializer;
 
         private NativeClass(
             QName name,
@@ -323,19 +328,33 @@ namespace Mariana.AVM2.Native {
             _internalInitClassSpecials();
 
             if (underlyingType.Assembly == s_thisAssembly) {
-                // For internal types, check if a __AS_CLASS_LOADED magic method exists and invoke it.
-                MethodInfo classLoadedMethod = underlyingType.GetMethod(
-                    "__AS_CLASS_LOADED",
+                // For internal types, check if an __AS_INIT_CLASS magic method exists.
+                MethodInfo classObjInitMethod = underlyingType.GetMethod(
+                    CLASS_OBJ_INIT_METHOD_NAME,
                     BindingFlags.Static | BindingFlags.DeclaredOnly | BindingFlags.NonPublic,
-                    null,
-                    new[] {typeof(ClassImpl)},
-                    null
+                    binder: null,
+                    types: new[] {typeof(ASClass)},
+                    modifiers: null
                 );
 
-                if (classLoadedMethod != null)
-                    classLoadedMethod.Invoke(null, new[] {this});
+                if (classObjInitMethod != null)
+                    m_classObjectInitializer = (Action<ASClass>)classObjInitMethod.CreateDelegate(typeof(Action<ASClass>));
             }
         }
+
+        private protected override void initPrototypeObject(ASObject prototypeObject) {
+            if (!m_containsProtoMethods)
+                return;
+
+            var protoMethods = m_prototypeMethods.asSpan();
+            for (int i = 0; i < protoMethods.Length; i++) {
+                prototypeObject.AS_dynamicProps.setValue(
+                    protoMethods[i].name, protoMethods[i].method.createFunctionClosure(), isEnum: false);
+            }
+        }
+
+        private protected override void initClassObject(ASClass classObject) =>
+            m_classObjectInitializer?.Invoke(classObject);
 
         private void _internalInitTraits() {
             bool isInterface = this.isInterface;
@@ -501,17 +520,6 @@ namespace Mariana.AVM2.Native {
                         }
                     }
                 }
-            }
-        }
-
-        private protected override void initPrototype(ASObject prototypeObject) {
-            if (!m_containsProtoMethods)
-                return;
-
-            var protoMethods = m_prototypeMethods.asSpan();
-            for (int i = 0; i < protoMethods.Length; i++) {
-                prototypeObject.AS_dynamicProps.setValue(
-                    protoMethods[i].name, protoMethods[i].method.createFunctionClosure(), isEnum: false);
             }
         }
 
@@ -879,8 +887,11 @@ namespace Mariana.AVM2.Native {
                 const BindingFlags bindingFlags =
                     BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
 
-                specialInvoke = underlyingType.GetMethod("__AS_INVOKE", 0, bindingFlags, null, new[] {typeof(ReadOnlySpan<ASAny>)}, null);
-                specialConstruct = underlyingType.GetMethod("__AS_CONSTRUCT", 0, bindingFlags, null, new[] {typeof(ReadOnlySpan<ASAny>)}, null);
+                specialInvoke = underlyingType.GetMethod(
+                    SPECIAL_INVOKE_METHOD_NAME, 0, bindingFlags, null, new[] {typeof(ReadOnlySpan<ASAny>)}, null);
+
+                specialConstruct = underlyingType.GetMethod(
+                    SPECIAL_CONSTRUCT_METHOD_NAME, 0, bindingFlags, null, new[] {typeof(ReadOnlySpan<ASAny>)}, null);
             }
 
             IndexProperty intIndex = null, uintIndex = null, doubleIndex = null;

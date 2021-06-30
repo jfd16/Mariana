@@ -98,24 +98,26 @@ namespace Mariana.AVM2.Tests {
                 var propDict = new Dictionary<string, ASAny>(StringComparer.Ordinal);
 
                 int curIndex = expectedProps.getNextIndex(-1);
+
                 while (curIndex != -1) {
                     string propName = expectedProps.getNameFromIndex(curIndex);
                     ASAny propValue = expectedProps.getValueFromIndex(curIndex);
-
-                    if (!roundtripMode || !(propValue.isUndefined || propValue.value is ASFunction))
-                        propDict.Add(propName, propValue);
-
+                    propDict.Add(propName, propValue);
                     curIndex = expectedProps.getNextIndex(curIndex);
                 }
 
                 curIndex = actualProps.getNextIndex(-1);
+
                 while (curIndex != -1) {
                     string propName = actualProps.getNameFromIndex(curIndex);
                     Assert.Contains(propName, propDict.Keys);
 
                     ASAny propValue = actualProps.getValueFromIndex(curIndex);
+
                     if (unwrapper != null)
                         propValue = unwrapper(actualObject, propName, propValue, propDict[propName]);
+                    else if (roundtripMode)
+                        Assert.False(propDict[propName].value is ASFunction);
 
                     validateStructuralEquality(propDict[propName], propValue, roundtripMode, unwrapper);
 
@@ -123,7 +125,10 @@ namespace Mariana.AVM2.Tests {
                     curIndex = actualProps.getNextIndex(curIndex);
                 }
 
-                Assert.Empty(propDict);
+                if (roundtripMode)
+                    Assert.All(propDict.Values, v => Assert.True(v.isUndefined || v.value is ASFunction));
+                else
+                    Assert.Empty(propDict);
             }
         }
 
@@ -1681,7 +1686,10 @@ namespace Mariana.AVM2.Tests {
             makeArray(makeArray(), makeArray(1, 2), makeArray()),
             makeObject(("x", makeObject(("p1", "1"), ("p2", "2"))), ("y", makeArray(makeObject(("p1", "k")), makeObject(("p2", true))))),
 
-            makeObject(("x1", makeVector<int>(1, 2, 3, 4)), ("y1", makeVector("a", "b", "c", "d")))
+            makeObject(("x1", makeVector<int>(1, 2, 3, 4)), ("y1", makeVector("a", "b", "c", "d"))),
+
+            ASFunction.createEmpty(),
+            makeObject(("x", ASFunction.createEmpty()))
         }}};
 
         [Theory]
@@ -1693,7 +1701,8 @@ namespace Mariana.AVM2.Tests {
                 Class.fromType(typeof(ASBoolean)),
                 Class.fromType(typeof(ASObject)),
                 Class.fromType(typeof(ASArray)),
-                Class.fromType(typeof(ASVectorAny))
+                Class.fromType(typeof(ASVectorAny)),
+                Class.fromType(typeof(ASFunction))
             };
 
             using (var zone = new StaticZone())
@@ -1726,12 +1735,21 @@ namespace Mariana.AVM2.Tests {
                     if (actualRoot == null)
                         continue;
 
+                    if (objects[i] is ASFunction) {
+                        Assert.False(actualRoot.AS_hasProperty("_value"));
+                        continue;
+                    }
+
                     validateStructuralEquality(
                         objects[i],
                         actualRoot.AS_getProperty("_value"),
                         roundtripMode: true,
                         unwrapper: (obj, key, value, expectedValue) => {
                             checkType(expectedValue, value);
+                            if (expectedValue.value is ASFunction) {
+                                Assert.False(value.AS_hasProperty("_value"));
+                                return NULL;
+                            }
                             return value.AS_getProperty("_value");
                         }
                     );
@@ -1739,19 +1757,22 @@ namespace Mariana.AVM2.Tests {
             }
 
             void checkType(ASAny expectedValue, ASAny actualValue) {
-                if (expectedValue.isUndefinedOrNull || expectedValue.value is ASFunction) {
+                if (expectedValue.isUndefinedOrNull) {
                     AssertHelper.identical(NULL, actualValue);
                     return;
                 }
 
                 Assert.IsType<ASObject>(actualValue.value);
+                string type = (string)actualValue.AS_getProperty("_type");
 
                 if (expectedValue.value is ASVectorAny)
-                    AssertHelper.valueIdentical("Vector", actualValue.AS_getProperty("_type"));
+                    Assert.Equal("Vector", type);
+                else if (expectedValue.value is ASFunction)
+                    Assert.Equal("Function", type);
                 else if (ASObject.AS_isNumeric(expectedValue.value))
-                    AssertHelper.valueIdentical("Number", actualValue.AS_getProperty("_type"));
+                    Assert.Equal("Number", type);
                 else
-                    AssertHelper.valueIdentical(expectedValue.AS_class.name.localName, actualValue.AS_getProperty("_type"));
+                    Assert.Equal(expectedValue.AS_class.name.localName, type);
             }
         }
 
@@ -1974,21 +1995,15 @@ namespace Mariana.AVM2.Tests {
                     return args[1];
 
                 return new MockClassInstance(new MockClass(
-                    methods: new[] {
-                        new MockMethodTrait(name: "toJSON", invokeFunc: (_obj2, _args2) => {
-                            return new MockClassInstance(new MockClass(
-                                properties: new[] {
-                                    new MockPropertyTrait(
-                                        name: "_key",
-                                        getter: new MockMethodTrait(invokeFunc: (_obj3, _args3) => key)
-                                    ),
-                                    new MockPropertyTrait(
-                                        name: "_val",
-                                        getter: new MockMethodTrait(invokeFunc: (_obj3, _args3) => args[1])
-                                    )
-                                }
-                            ));
-                        })
+                    properties: new[] {
+                        new MockPropertyTrait(
+                            name: "_key",
+                            getter: new MockMethodTrait(invokeFunc: (_obj3, _args3) => key)
+                        ),
+                        new MockPropertyTrait(
+                            name: "_val",
+                            getter: new MockMethodTrait(invokeFunc: (_obj3, _args3) => args[1])
+                        )
                     }
                 ));
             });
@@ -2169,8 +2184,8 @@ namespace Mariana.AVM2.Tests {
                 ("toJSON", MockFunctionObject.withReturn(145))
             );
             var testCase6_replacer = new MockFunctionObject((obj, args) => {
-                AssertHelper.strictEqual(142, args[1].AS_getProperty("x"));
-                return makeObject(("toJSON", MockFunctionObject.withReturn(264)));
+                AssertHelper.strictEqual(145, args[1]);
+                return 264;
             });
 
             testCases.Add((testCase6_object, testCase6_replacer, 264));

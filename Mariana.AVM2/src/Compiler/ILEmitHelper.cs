@@ -17,7 +17,7 @@ namespace Mariana.AVM2.Compiler {
         private static readonly ConditionalWeakTable<Type, ConstructorInfo> s_optionalParamCtors =
             new ConditionalWeakTable<Type, ConstructorInfo>();
 
-        private static readonly ConditionalWeakTable<Type, FieldInfo> s_optionalParamUnspecified =
+        private static readonly ConditionalWeakTable<Type, FieldInfo> s_optionalParamMissing =
             new ConditionalWeakTable<Type, FieldInfo>();
 
         private static readonly Class s_objectClass = Class.fromType(typeof(ASObject));
@@ -420,8 +420,8 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         /// <param name="type">The type argument for <see cref="OptionalParam{T}"/>.</param>
         /// <returns>A <see cref="FieldInfo"/> representing the field.</returns>
-        public static FieldInfo getOptionalParamUnspecifiedField(Class type) {
-            return s_optionalParamUnspecified.GetValue(
+        public static FieldInfo getOptionalParamMissingField(Class type) {
+            return s_optionalParamMissing.GetValue(
                 Class.getUnderlyingOrPrimitiveType(type),
                 x => {
                     var optionalType = typeof(OptionalParam<>).MakeGenericType(x);
@@ -540,92 +540,85 @@ namespace Mariana.AVM2.Compiler {
         }
 
         /// <summary>
-        /// Emits IL instructions to push a constant value onto the stack and box it into
-        /// an instance of type <see cref="ASObject"/>.
+        /// Emits IL instructions to push a constant value onto the stack and coerce the value
+        /// to the given type.
         /// </summary>
         /// <param name="builder">The <see cref="ILBuilder"/> instance in which to emit the
         /// code.</param>
         /// <param name="value">The constant. This must be of one of the following types: int, uint,
         /// Number, String, Boolean or Namespace, or the value null or undefined.</param>
-        public static void emitPushConstantAsObject(ILBuilder builder, ASAny value) {
-            if (value.isUndefinedOrNull) {
-                builder.emit(ILOp.ldnull);
-                return;
-            }
+        /// <param name="type">The type to coerce the constant value to.</param>
+        public static void emitPushConstantAsType(ILBuilder builder, ASAny value, Class type) {
+            if (type == null) {
+                emitPushConstant(builder, value);
 
-            switch (value.AS_class.tag) {
-                case ClassTag.INT:
-                    builder.emit(ILOp.ldc_i4, (int)value);
-                    builder.emit(ILOp.call, KnownMembers.intToObject, 0);
-                    break;
-                case ClassTag.UINT:
-                    builder.emit(ILOp.ldc_i4, (int)value);
-                    builder.emit(ILOp.call, KnownMembers.uintToObject, 0);
-                    break;
-                case ClassTag.NUMBER:
-                    builder.emit(ILOp.ldc_r8, (double)value);
-                    builder.emit(ILOp.call, KnownMembers.numberToObject, 0);
-                    break;
-                case ClassTag.BOOLEAN:
-                    builder.emit(ILOp.ldc_i4, (bool)value ? 1 : 0);
-                    builder.emit(ILOp.call, KnownMembers.boolToObject, 0);
-                    break;
-                case ClassTag.STRING:
-                    builder.emit(ILOp.ldstr, (string)value);
-                    builder.emit(ILOp.call, KnownMembers.stringToObject, 0);
-                    break;
-                case ClassTag.NAMESPACE:
-                    // A Namespace is an Object, no need for any conversion.
-                    builder.emit(ILOp.ldstr, ((ASNamespace)value).uri);
-                    builder.emit(ILOp.newobj, KnownMembers.xmlNsCtorFromURI, 0);
-                    break;
-                default:
-                    throw new ArgumentException("Invalid constant type.", nameof(value));
+                if (value.isUndefined)
+                    return;
+
+                if (value.isNull || !ClassTagSet.primitive.contains(value.AS_class.tag))
+                    builder.emit(ILOp.call, KnownMembers.anyFromObject, 0);
+                else
+                    emitTypeCoerce(builder, value.AS_class, type);
+            }
+            else if (value.isUndefinedOrNull) {
+                if (!ClassTagSet.numericOrBool.contains(type.tag)) {
+                    builder.emit(ILOp.ldnull);
+                }
+                else if (type.tag == ClassTag.NUMBER) {
+                    emitPushDoubleConstant(builder, value.isUndefined ? Double.NaN : 0.0);
+                }
+                else {
+                    // Integer or boolean - default value is 0 (which is also boolean false)
+                    builder.emit(ILOp.ldc_i4_0);
+                }
+            }
+            else {
+                emitPushConstant(builder, value);
+                Class valueType = value.AS_class;
+                if (valueType != type)
+                    emitTypeCoerce(builder, valueType, type);
             }
         }
 
         /// <summary>
-        /// Emits IL instructions to push a constant value onto the stack and box it into
-        /// an instance of type <see cref="ASAny"/>.
+        /// Emits IL instructions to push a constant of type <see cref="Double"/> onto the
+        /// stack.
         /// </summary>
-        /// <param name="builder">The <see cref="ILBuilder"/> instance in which to emit the
-        /// code.</param>
-        /// <param name="value">The constant. This must be of one of the following types: int, uint,
-        /// Number, String or Boolean, or the value null or undefined.</param>
-        public static void emitPushConstantAsAny(ILBuilder builder, ASAny value) {
-            if (value.isUndefinedOrNull) {
-                builder.emit(ILOp.ldsfld, KnownMembers.undefinedField);
+        /// <param name="builder">The <see cref="ILBuilder"/> into which to emit the code.</param>
+        /// <param name="value">The value of the constant.</param>
+        public static void emitPushDoubleConstant(ILBuilder builder, double value) {
+            if (value == 0.0) {
+                if (Double.IsNegative(value)) {
+                    // Ensure that sign of zero is preserved.
+                    builder.emit(ILOp.ldc_r8, value);
+                }
+                else {
+                    builder.emit(ILOp.ldc_i4_0);
+                    builder.emit(ILOp.conv_r8);
+                }
                 return;
             }
 
-            switch (value.AS_class.tag) {
-                case ClassTag.INT:
-                    builder.emit(ILOp.ldc_i4, (int)value);
-                    builder.emit(ILOp.call, KnownMembers.intToAny, 0);
-                    break;
-                case ClassTag.UINT:
-                    builder.emit(ILOp.ldc_i4, (int)value);
-                    builder.emit(ILOp.call, KnownMembers.uintToAny, 0);
-                    break;
-                case ClassTag.NUMBER:
-                    builder.emit(ILOp.ldc_r8, (double)value);
-                    builder.emit(ILOp.call, KnownMembers.numberToAny, 0);
-                    break;
-                case ClassTag.BOOLEAN:
-                    builder.emit(ILOp.ldc_i4, (bool)value ? 1 : 0);
-                    builder.emit(ILOp.call, KnownMembers.boolToAny, 0);
-                    break;
-                case ClassTag.STRING:
-                    builder.emit(ILOp.ldstr, (string)value);
-                    builder.emit(ILOp.call, KnownMembers.stringToAny, 0);
-                    break;
-                case ClassTag.NAMESPACE:
-                    builder.emit(ILOp.ldstr, ((ASNamespace)value).uri);
-                    builder.emit(ILOp.newobj, KnownMembers.xmlNsCtorFromURI, 0);
-                    builder.emit(ILOp.call, KnownMembers.anyFromObject, 0);
-                    break;
-                default:
-                    throw new ArgumentException("Invalid constant type.", nameof(value));
+            int ival = (int)value;
+            if (ival == value) {
+                builder.emit(ILOp.ldc_i4, ival);
+                builder.emit(ILOp.conv_r8);
+                return;
+            }
+
+            uint uval = (uint)value;
+            if (uval == value) {
+                builder.emit(ILOp.ldc_i4, uval);
+                builder.emit(ILOp.conv_r_un);
+                return;
+            }
+
+            if (value == (double)(float)value) {
+                builder.emit(ILOp.ldc_r4, value);
+                builder.emit(ILOp.conv_r8);
+            }
+            else {
+                builder.emit(ILOp.ldc_r8, value);
             }
         }
 

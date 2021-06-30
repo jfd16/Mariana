@@ -798,6 +798,12 @@ namespace Mariana.AVM2.Compiler {
         public static readonly FI optionalParamMissing =
             getMemberFromExpr<Func<OptionalParam<int>>, FI>(() => OptionalParam<int>.missing, stripTypeArgs: true);
 
+        public static readonly FI optionalParamIsSpecified =
+            getMemberFromExpr<Func<OptionalParam<int>, bool>, FI>(x => x.isSpecified, stripTypeArgs: true);
+
+        public static readonly FI optionalParamValue =
+            getMemberFromExpr<Func<OptionalParam<int>, int>, FI>(x => x.value, stripTypeArgs: true);
+
         public static readonly MI emptyArrayOfAny =
             getMemberFromExpr<Func<ASAny[]>, MI>(() => Array.Empty<ASAny>());
 
