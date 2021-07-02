@@ -1098,7 +1098,7 @@ namespace Mariana.AVM2.Compiler {
             using (var lockedContext = m_compilation.getContext())
                 targetClass = lockedContext.value.getClassByMultiname(mn);
 
-            if (ClassTagSet.primitive.contains(targetClass.tag))
+            if (targetClass.isPrimitiveClass)
                 targetClass = objectClass;
 
             output.dataType = DataNodeType.OBJECT;
@@ -1245,7 +1245,7 @@ namespace Mariana.AVM2.Compiler {
 
             if (typeNode.isConstant && typeNode.dataType == DataNodeType.CLASS) {
                 targetClass = typeNode.constant.classValue;
-                if (ClassTagSet.primitive.contains(targetClass.tag))
+                if (targetClass.isPrimitiveClass)
                     targetClass = null;
             }
 
@@ -1835,7 +1835,7 @@ namespace Mariana.AVM2.Compiler {
 
                 if (node.dataType == DataNodeType.STRING
                     && method.declaringClass != null
-                    && ClassTagSet.primitive.contains(method.declaringClass.tag))
+                    && method.declaringClass.isPrimitiveClass)
                 {
                     // All methods on primitive types that return strings never return null, so
                     // we set the non-null flag so that string concatenation can be optimized.
@@ -4430,7 +4430,7 @@ namespace Mariana.AVM2.Compiler {
 
             // Constant conversions/hoisting/integer arithmetic are only considered when the target
             // type is any, Object or a primitive.
-            if (toClass != null && toClass != objectClass && !ClassTagSet.primitive.contains(toClass.tag))
+            if (toClass != null && !toClass.isObjectClass && !toClass.isPrimitiveClass)
                 return;
 
             _requireStackNodeAsType(ref node, getDataTypeOfClass(toClass), instrId);
@@ -5419,7 +5419,7 @@ namespace Mariana.AVM2.Compiler {
             if (_checkForSpecialObjectTraitAccess(ref node, trait, instrId))
                 return;
 
-            if (ClassTagSet.primitive.contains(trait.declaringClass.tag))
+            if (trait.declaringClass.isPrimitiveClass)
                 _requireStackNodeAsType(ref node, getDataTypeOfClass(trait.declaringClass), instrId);
             else
                 _requireStackNodeObjectOrInterface(ref node, instrId);

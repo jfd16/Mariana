@@ -711,7 +711,7 @@ namespace Mariana.AVM2.Compiler {
                     // allow arbitrary base classes because their constructors may read derived
                     // class fields through late binding.)
                     if (useInstr.opcode == ABCOp.constructsuper
-                        && m_compilation.declaringClass.parent == s_objectClass
+                        && m_compilation.declaringClass.parent.isObjectClass
                         && useInstr.data.constructSuper.argCount == 0)
                     {
                         continue;
@@ -1580,8 +1580,7 @@ namespace Mariana.AVM2.Compiler {
                     break;
 
                 case DataNodeType.OBJECT: {
-                    Class klass = (input.onPushCoerceType == DataNodeType.OBJECT) ? s_objectClass : input.constant.classValue;
-                    if (klass != s_objectClass) {
+                    if (!_getPushedClassOfNode(input).isObjectClass) {
                         m_ilBuilder.emit(ILOp.ldnull);
                         m_ilBuilder.emit(ILOp.ceq);
                         break;
@@ -2491,7 +2490,7 @@ namespace Mariana.AVM2.Compiler {
             ILBuilder.Local nameLocal;
             MethodInfo method;
 
-            if (objClass != null && objClass != s_objectClass && !ClassTagSet.xmlOrXmlList.contains(objClass.tag)) {
+            if (objClass != null && !objClass.isObjectClass && !ClassTagSet.xmlOrXmlList.contains(objClass.tag)) {
                 // If the object cannot be an XML or XMLList then the default XML namespace will
                 // never be used for the lookup, so we can use a public QName.
                 nameLocal = m_ilBuilder.acquireTempLocal(typeof(QName));
@@ -3027,7 +3026,7 @@ namespace Mariana.AVM2.Compiler {
             if (!checkArgCountValidAndEmitError())
                 return;
 
-            if (parentClass == s_objectClass) {
+            if (parentClass.isObjectClass) {
                 // We need to special-case Object because its constructor is intrinsic.
                 m_ilBuilder.emit(ILOp.call, KnownMembers.objectCtor);
             }
@@ -3046,10 +3045,10 @@ namespace Mariana.AVM2.Compiler {
 
             bool checkArgCountValidAndEmitError() {
                 ClassConstructor ctor = parentClass.constructor;
-                if (ctor == null && parentClass != s_objectClass)
+                if (ctor == null && !parentClass.isObjectClass)
                     return true;
 
-                var (requiredParamCount, paramCount) = (parentClass == s_objectClass)
+                var (requiredParamCount, paramCount) = parentClass.isObjectClass
                     ? (0, 0)
                     : (ctor.requiredParamCount, ctor.paramCount);
 
@@ -3302,7 +3301,7 @@ namespace Mariana.AVM2.Compiler {
 
             Class inputClass = _getPushedClassOfNode(input);
 
-            if (inputClass == null || inputClass == s_objectClass
+            if (inputClass == null || inputClass.isObjectClass
                 || inputClass.tag == ClassTag.NUMBER || inputClass.tag == ClassTag.STRING)
             {
                 _emitTypeCoerceForTopOfStack(ref input, DataNodeType.BOOL);
@@ -3877,8 +3876,9 @@ namespace Mariana.AVM2.Compiler {
                 return false;
             if (!fromClass.canAssignTo(toClass))
                 return false;
-            if (fromClass.isInterface && toClass == s_objectClass)
+            if (fromClass.isInterface && toClass.isObjectClass)
                 return false;
+
             return true;
         }
 
@@ -3892,9 +3892,10 @@ namespace Mariana.AVM2.Compiler {
         /// <returns>True if the conversion from the type of <paramref name="node"/> to
         /// <paramref name="toClass"/> is trivial, otherwise false.</returns>
         private bool _isTrivialTypeConversion(ref DataNode node, Class toClass) {
-            return (_getPushedTypeOfNode(node) == DataNodeType.NULL)
-                ? (toClass != null && !ClassTagSet.primitive.contains(toClass.tag))
-                : _isTrivialTypeConversion(_getPushedClassOfNode(node), toClass);
+            if (_getPushedTypeOfNode(node) == DataNodeType.NULL)
+                return toClass != null && !ClassTagSet.numericOrBool.contains(toClass.tag);
+
+            return _isTrivialTypeConversion(_getPushedClassOfNode(node), toClass);
         }
 
         /// <summary>
@@ -4015,7 +4016,7 @@ namespace Mariana.AVM2.Compiler {
             DataNodeType nodeType = _getPushedTypeOfNode(node);
             DataNodeType nodeTypeForClass = getDataTypeOfClass(toClass);
 
-            if (nodeTypeForClass != DataNodeType.OBJECT || toClass == s_objectClass) {
+            if (nodeTypeForClass != DataNodeType.OBJECT || toClass.isObjectClass) {
                 _emitTypeCoerceForTopOfStack(ref node, nodeTypeForClass, isForcePushed: isForcePushed);
             }
             else if (isAnyOrUndefined(nodeType)) {
@@ -4057,11 +4058,11 @@ namespace Mariana.AVM2.Compiler {
             if (fromClass == toClass)
                 return;
 
-            if (toClass == null || ClassTagSet.primitive.contains(toClass.tag)) {
+            if (toClass == null || toClass.isPrimitiveClass) {
                 ILEmitHelper.emitTypeCoerce(m_ilBuilder, fromClass, toClass, m_compilation.compileOptions.useNativeDoubleToIntegerConversions);
                 return;
             }
-            if (toClass == s_objectClass) {
+            if (toClass.isObjectClass) {
                 ILEmitHelper.emitTypeCoerceToObject(m_ilBuilder, fromClass);
                 return;
             }
@@ -4070,7 +4071,7 @@ namespace Mariana.AVM2.Compiler {
                 if (fromClass == null) {
                     m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForAnyCast(toClass), 0);
                 }
-                else if (ClassTagSet.primitive.contains(fromClass.tag) || !fromClass.canAssignTo(toClass)) {
+                else if (fromClass.isPrimitiveClass || !fromClass.canAssignTo(toClass)) {
                     ILEmitHelper.emitTypeCoerceToObject(m_ilBuilder, fromClass);
                     m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForObjectCast(toClass), 0);
                 }
@@ -4755,10 +4756,8 @@ namespace Mariana.AVM2.Compiler {
         ) {
             Debug.Assert(multiname.kind != ABCConstKind.GenericClassName);
 
-            var abc = m_compilation.abcFile;
-
-            bool needToPrepareObject =
-                isOnRuntimeScopeStack || objectType == null || ClassTagSet.primitive.contains(objectType.tag);
+            ABCFile abc = m_compilation.abcFile;
+            bool needToPrepareObject = isOnRuntimeScopeStack || objectType == null || objectType.isPrimitiveClass;
 
             bindingKind = default;
 
@@ -5392,7 +5391,7 @@ namespace Mariana.AVM2.Compiler {
                 method.declaringClass
             );
 
-            if (!method.isStatic && ClassTagSet.primitive.contains(method.declaringClass.tag)
+            if (!method.isStatic && method.declaringClass.isPrimitiveClass
                 && s_primitiveTypeMethodMap.tryGetValue(method, out MethodInfo primitiveMethod))
             {
                 ILOp callOp = primitiveMethod.IsStatic ? ILOp.call : ILOp.callvirt;
@@ -7113,7 +7112,7 @@ namespace Mariana.AVM2.Compiler {
                 if (targetStackNodeClass == null) {
                     m_ilBuilder.emit(ILOp.ldloc, m_excThrownValueLocal);
                 }
-                else if (ClassTagSet.primitive.contains(targetStackNodeClass.tag)) {
+                else if (targetStackNodeClass.isPrimitiveClass) {
                     m_ilBuilder.emit(ILOp.ldloc, m_excThrownValueLocal);
                     ILEmitHelper.emitTypeCoerce(m_ilBuilder, null, targetStackNodeClass);
                 }
@@ -7127,7 +7126,7 @@ namespace Mariana.AVM2.Compiler {
                     m_ilBuilder.emit(ILOp.ldloca, m_excThrownValueLocal);
                     m_ilBuilder.emit(ILOp.call, KnownMembers.anyGetObject, 0);
 
-                    if (targetStackNodeClass != s_objectClass) {
+                    if (!targetStackNodeClass.isObjectClass) {
                         using (var lockedContext = m_compilation.getContext())
                             m_ilBuilder.emit(ILOp.castclass, lockedContext.value.getEntityHandle(targetStackNodeClass));
                     }

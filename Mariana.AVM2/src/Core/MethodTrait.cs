@@ -19,7 +19,7 @@ namespace Mariana.AVM2.Core {
 
         private bool m_isOverride;
 
-        private bool m_hasUntypedSig;
+        private bool m_hasAllParamsUntyped;
 
         private bool m_hasScope;
 
@@ -99,9 +99,10 @@ namespace Mariana.AVM2.Core {
         public ReadOnlyArrayView<MethodTraitParameter> getParameters() => new ReadOnlyArrayView<MethodTraitParameter>(m_params);
 
         /// <summary>
-        /// Gets a Boolean value indicating whether this method's signature is untyped.
+        /// Gets a Boolean value indicating whether all of this method's formal parameters are of
+        /// the "any" type (or the method has no formal parameters).
         /// </summary>
-        internal bool hasUntypedSignature => m_hasUntypedSig;
+        internal bool hasAllParamsUntyped => m_hasAllParamsUntyped;
 
         /// <summary>
         /// Sets the underlying <see cref="MethodInfo"/> of the method trait represented by this
@@ -131,22 +132,18 @@ namespace Mariana.AVM2.Core {
             m_params = parameters;
             m_hasRest = hasRest;
 
-            bool hasUntypedSig = true;
+            bool areAllParamsUntyped = true;
             int requiredArgCount = 0;
-
-            if (!hasReturn || returnType != null) {
-                hasUntypedSig = false;
-            }
 
             for (int i = 0; i < parameters.Length; i++) {
                 var param = parameters[i];
                 if (param.type != null)
-                    hasUntypedSig = false;
+                    areAllParamsUntyped = false;
                 if (!param.isOptional)
                     requiredArgCount = i + 1;
             }
 
-            m_hasUntypedSig = hasUntypedSig;
+            m_hasAllParamsUntyped = areAllParamsUntyped;
             m_requiredArgCount = requiredArgCount;
 
             m_hasScope = isStatic && m_params.Length > 0

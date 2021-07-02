@@ -20,8 +20,6 @@ namespace Mariana.AVM2.Compiler {
         private static readonly ConditionalWeakTable<Type, FieldInfo> s_optionalParamMissing =
             new ConditionalWeakTable<Type, FieldInfo>();
 
-        private static readonly Class s_objectClass = Class.fromType(typeof(ASObject));
-
         /// <summary>
         /// Emits IL instructions to convert the value on top of the stack from one type to another.
         /// </summary>
@@ -61,7 +59,7 @@ namespace Mariana.AVM2.Compiler {
             // Target type is an object type.
 
             if (fromType == null) {
-                if (toType == s_objectClass) {
+                if (toType.isObjectClass) {
                     emitTypeCoerceToObject(builder, fromType);
                 }
                 else {
@@ -555,7 +553,7 @@ namespace Mariana.AVM2.Compiler {
                 if (value.isUndefined)
                     return;
 
-                if (value.isNull || !ClassTagSet.primitive.contains(value.AS_class.tag))
+                if (value.isNull || !value.AS_class.isPrimitiveClass)
                     builder.emit(ILOp.call, KnownMembers.anyFromObject, 0);
                 else
                     emitTypeCoerce(builder, value.AS_class, type);

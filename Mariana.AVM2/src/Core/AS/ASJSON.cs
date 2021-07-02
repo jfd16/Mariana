@@ -786,6 +786,63 @@ namespace Mariana.AVM2.Core {
             // The toJSON method name.
             private static readonly QName s_toJSONMethodName = QName.publicName("toJSON");
 
+            /// <summary>
+            /// Caches toJSON functions for common object types to improve performance.
+            /// </summary>
+            private struct _CachedToJSONFunctions {
+                private ASFunction m_objectToJSON;
+                private ASFunction m_arrayToJSON;
+                private ASFunction m_numberToJSON;
+                private ASFunction m_stringToJSON;
+                private ASFunction m_boolToJSON;
+
+                public void init() {
+                    m_objectToJSON =
+                        Class.fromType(typeof(ASObject)).prototypeObject.AS_getProperty(s_toJSONMethodName).value as ASFunction;
+
+                    m_arrayToJSON =
+                        Class.fromType(typeof(ASArray)).prototypeObject.AS_getProperty(s_toJSONMethodName).value as ASFunction;
+
+                    m_numberToJSON =
+                        Class.fromType(typeof(double)).prototypeObject.AS_getProperty(s_toJSONMethodName).value as ASFunction;
+
+                    m_stringToJSON =
+                        Class.fromType(typeof(string)).prototypeObject.AS_getProperty(s_toJSONMethodName).value as ASFunction;
+
+                    m_boolToJSON =
+                        Class.fromType(typeof(bool)).prototypeObject.AS_getProperty(s_toJSONMethodName).value as ASFunction;
+                }
+
+                public ASFunction getCachedFunc(ASObject obj) {
+                    Class klass = obj.AS_class;
+
+                    switch (klass.tag) {
+                        case ClassTag.NUMBER:
+                        case ClassTag.INT:
+                        case ClassTag.UINT:
+                            return m_numberToJSON;
+
+                        case ClassTag.STRING:
+                            return m_stringToJSON;
+
+                        case ClassTag.BOOLEAN:
+                            return m_boolToJSON;
+
+                        case ClassTag.ARRAY:
+                            // No need to check for derived classes of Array (which may define their own toJSON)
+                            // because the tag does not apply to them.
+                            return m_arrayToJSON;
+
+                        case ClassTag.OBJECT:
+                            if (klass.isObjectClass)
+                                return m_objectToJSON;
+                            break;
+                    }
+
+                    return null;
+                }
+            }
+
             private bool m_prettyPrint;
 
             private string m_indentString1, m_indentString2, m_indentString4;
@@ -812,7 +869,7 @@ namespace Mariana.AVM2.Core {
 
             private ASAny m_curObject;
 
-            private ASObject[] m_primitveToJSONFuncs;
+            private _CachedToJSONFunctions m_toJSONCache;
 
             internal Stringifier(bool prettyPrint, string indent, HashSet<string> nameFilter, ASFunction replacer) : this() {
                 m_prettyPrint = prettyPrint;
@@ -826,15 +883,7 @@ namespace Mariana.AVM2.Core {
                 m_toJSONArgs = new ASAny[1];
                 m_replacerArgs = new ASAny[2];
 
-                // These toJSON functions are cached to improve performance.
-                // toJSON methods for int and uint are not stored here because int
-                // and uint use Number's prototype.
-                m_primitveToJSONFuncs = new ASObject[] {
-                    Class.fromType(typeof(double)).prototypeObject.AS_getProperty(s_toJSONMethodName).value,
-                    Class.fromType(typeof(string)).prototypeObject.AS_getProperty(s_toJSONMethodName).value,
-                    Class.fromType(typeof(bool)).prototypeObject.AS_getProperty(s_toJSONMethodName).value,
-                };
-
+                m_toJSONCache.init();
                 m_currentPathSet = new ReferenceSet<ASObject>();
             }
 
@@ -963,34 +1012,22 @@ namespace Mariana.AVM2.Core {
             }
 
             private bool _tryCallToJSONOnCurrentObject(out ASAny result) {
-                if (m_curObject.isUndefinedOrNull) {
-                    result = default;
+                result = default(ASAny);
+
+                if (m_curObject.isUndefinedOrNull)
                     return false;
-                }
 
-                ClassTag tag = m_curObject.AS_class.tag;
-                ASObject func = null;
-
-                if (ClassTagSet.numeric.contains(tag))
-                    func = m_primitveToJSONFuncs[0];
-                else if (tag == ClassTag.STRING)
-                    func = m_primitveToJSONFuncs[1];
-                else if (tag == ClassTag.BOOLEAN)
-                    func = m_primitveToJSONFuncs[2];
-
-                if (func != null) {
+                ASFunction cachedFunc = m_toJSONCache.getCachedFunc(m_curObject.value);
+                if (cachedFunc != null) {
                     m_toJSONArgs[0] = _getCurrentKeyString();
-                    return func.AS_tryInvoke(m_curObject, m_toJSONArgs, out result);
+                    return cachedFunc.AS_tryInvoke(m_curObject, m_toJSONArgs, out result);
                 }
 
-                if (ClassTagSet.primitive.contains(tag)) {
-                    result = default(ASAny);
+                if (ASObject.AS_isPrimitive(m_curObject.value))
                     return false;
-                }
 
                 m_toJSONArgs[0] = _getCurrentKeyString();
-                BindStatus bindStatus =
-                    m_curObject.value.AS_tryCallProperty(s_toJSONMethodName, m_toJSONArgs, out result);
+                BindStatus bindStatus = m_curObject.AS_tryCallProperty(s_toJSONMethodName, m_toJSONArgs, out result);
 
                 return bindStatus == BindStatus.SUCCESS;
             }

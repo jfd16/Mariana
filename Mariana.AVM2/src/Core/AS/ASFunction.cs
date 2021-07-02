@@ -330,8 +330,16 @@ namespace Mariana.AVM2.Core {
         private ReadOnlySpan<ASAny> _prepareArguments(ASAny receiver, ReadOnlySpan<ASAny> args) {
             int argCount = args.Length;
 
-            if (m_method.hasUntypedSignature)
-                argCount = m_method.hasRest ? Math.Max(argCount, m_method.paramCount) : m_method.paramCount;
+            if (m_method.hasAllParamsUntyped) {
+                // If the method does not have typed parameters, no error should be thrown
+                // when the argument count and parameter count mismatches. Instead, excess arguments
+                // should be discarded and missing ones filled with undefined (which is ECMAScript
+                // behaviour). Do this by allocating an argument array of the right size.
+
+                argCount = Math.Max(argCount, m_method.requiredParamCount);
+                if (!m_method.hasRest)
+                    argCount = Math.Min(argCount, m_method.paramCount);
+            }
 
             if (m_method.isStatic)
                 argCount++;
@@ -351,7 +359,7 @@ namespace Mariana.AVM2.Core {
             }
 
             if (args.Length <= newArgsSpan.Length)
-                args.CopyTo(newArgsSpan.Slice(0, args.Length));
+                args.CopyTo(newArgsSpan);
             else
                 args.Slice(0, newArgsSpan.Length).CopyTo(newArgsSpan);
 

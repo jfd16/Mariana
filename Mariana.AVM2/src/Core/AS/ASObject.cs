@@ -2210,11 +2210,11 @@ namespace Mariana.AVM2.Core {
 
             ASAny result;
             result = obj.AS_callProperty(QName.publicName("toString"), Array.Empty<ASAny>());
-            if (result.isUndefinedOrNull || ClassTagSet.primitive.contains(result.AS_class.tag))
+            if (result.isUndefinedOrNull || result.AS_class.isPrimitiveClass)
                 return result;
 
             result = obj.AS_callProperty(QName.publicName("valueOf"), Array.Empty<ASAny>());
-            if (result.isUndefinedOrNull || ClassTagSet.primitive.contains(result.AS_class.tag))
+            if (result.isUndefinedOrNull || result.AS_class.isPrimitiveClass)
                 return result;
 
             throw ErrorHelper.createError(ErrorCode.CANNOT_CONVERT_OBJECT_TO_PRIMITIVE);
@@ -2249,11 +2249,11 @@ namespace Mariana.AVM2.Core {
 
             ASAny result;
             result = obj.AS_callProperty(QName.publicName("valueOf"), Array.Empty<ASAny>());
-            if (result.isUndefinedOrNull || ClassTagSet.primitive.contains(result.AS_class.tag))
+            if (result.isUndefinedOrNull || result.AS_class.isPrimitiveClass)
                 return result;
 
             result = obj.AS_callProperty(QName.publicName("toString"), Array.Empty<ASAny>());
-            if (result.isUndefinedOrNull || ClassTagSet.primitive.contains(result.AS_class.tag))
+            if (result.isUndefinedOrNull || result.AS_class.isPrimitiveClass)
                 return result;
 
             throw ErrorHelper.createError(ErrorCode.CANNOT_CONVERT_OBJECT_TO_PRIMITIVE);
@@ -2850,8 +2850,17 @@ namespace Mariana.AVM2.Core {
         /// <param name="obj">The object.</param>
         /// <returns>True, if <paramref name="obj"/> is of the Array or Vector type, false
         /// otherwise.</returns>
-        public static bool AS_isArrayLike(ASObject obj) =>
-            obj != null && ClassTagSet.arrayLike.contains(obj.AS_class.tag);
+        public static bool AS_isArrayLike(ASObject obj) {
+            if (obj == null)
+                return false;
+
+            if (ClassTagSet.arrayLike.contains(obj.AS_class.tag))
+                return true;
+
+            // The class tag check does not account for classes derived from Array, so we need
+            // to do a type check for this.
+            return obj is ASArray;
+        }
 
         #endregion
 

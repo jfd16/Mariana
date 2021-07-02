@@ -1145,7 +1145,7 @@ namespace Mariana.AVM2.Compiler {
                 return ASAny.@null;
             }
             else if (ASObject.AS_isNumeric(val.value)) {
-                if (type == null || type.underlyingType == typeof(ASObject))
+                if (type == null || type.isObjectClass)
                     return val;
 
                 switch (type.tag) {

@@ -129,10 +129,11 @@ namespace Mariana.AVM2.Core {
 
                 string localName = name.localName;
                 bool found = false;
+                bool ambiguousMatch = false;
+                trait = null;
 
                 Link[] links = isStatic ? m_linksForStaticUnqalified : m_linksForInstUnqualified;
                 int hash = localName.GetHashCode() & HASH_CODE_MASK;
-                trait = null;
 
                 int curIndex = links[hash % links.Length].chainHead;
 
@@ -150,22 +151,38 @@ namespace Mariana.AVM2.Core {
                     }
 
                     if (found) {
-                        // If an ambiguous match is found, it is considered ambiguous only if
-                        // both the traits in the ambiguous match are declared on the same class.
-                        // If one of the traits is declared on a class and the other is inherited
-                        // from an ancestor class, the declared trait must be returned.
+                        // If two conflicting traits are declared on the same class it is definitely
+                        // an ambiguous match. This is also true for global traits.
                         if (currentTrait.declaringClass == trait.declaringClass)
                             return BindStatus.AMBIGUOUS;
 
-                        // If this is a sealed table then we can stop when we reach inherited traits
-                        // because of the way a sealed table's traits are ordered.
-                        if (m_isSealed)
-                            break;
+                        if (m_isSealed) {
+                            // If this table is sealed then the traits are always ordered from
+                            // more derived to least derived class. This means that the match is definitely
+                            // ambiguous if `trait` is declared on a class that is not derived from the
+                            // declaring class of `currentTrait`. This can happen only with interfaces.
+                            // For non-interface classes, either both the traits are declared by the same
+                            // class (which was already checked) or `currentTrait` is declared on a class
+                            // that `trait` derives from, in which case we terminate the search early and
+                            // return `trait`.
 
-                        // If the current trait is from a more derived class, prefer it over the already chosen trait.
-                        // We don't have to check if declaringClass is null because we don't mix global and non-global traits.
-                        if (currentTrait.declaringClass.canAssignTo(trait.declaringClass))
-                            trait = currentTrait;
+                            if (!currentTrait.declaringClass.isInterface)
+                                break;
+
+                            if (!trait.declaringClass.canAssignTo(currentTrait.declaringClass))
+                                return BindStatus.AMBIGUOUS;
+                        }
+                        else {
+                            // For tables which are not sealed, if `currentTrait` is from a more derived
+                            // class, set the result to that trait and reset the ambiguous match flag.
+                            if (currentTrait.declaringClass.canAssignTo(trait.declaringClass)) {
+                                trait = currentTrait;
+                                ambiguousMatch = false;
+                            }
+                            else if (!trait.declaringClass.canAssignTo(currentTrait.declaringClass)) {
+                                ambiguousMatch = true;
+                            }
+                        }
                     }
                     else {
                         trait = currentTrait;
@@ -174,6 +191,9 @@ namespace Mariana.AVM2.Core {
 
                     curIndex = link.next;
                 }
+
+                if (ambiguousMatch)
+                    return BindStatus.AMBIGUOUS;
 
                 return found ? BindStatus.SUCCESS : BindStatus.NOT_FOUND;
             }
@@ -245,6 +265,7 @@ namespace Mariana.AVM2.Core {
             }
 
             bool found = false;
+            bool ambiguousMatch = false;
             trait = null;
 
             int hash = localName.GetHashCode() & HASH_CODE_MASK;
@@ -270,22 +291,38 @@ namespace Mariana.AVM2.Core {
                 }
 
                 if (found) {
-                    // If an ambiguous match is found, it is considered ambiguous only if
-                    // both the traits in the ambiguous match are declared on the same class.
-                    // If one of the traits is declared on a class and the other is inherited
-                    // from an ancestor class, the declared trait must be returned.
-                    if (trait.declaringClass == currentTrait.declaringClass)
+                    // If two conflicting traits are declared on the same class it is definitely
+                    // an ambiguous match. This is also true for global traits.
+                    if (currentTrait.declaringClass == trait.declaringClass)
                         return BindStatus.AMBIGUOUS;
 
-                    // If this is a sealed table then we can stop when we reach inherited traits
-                    // because of the way a sealed table's traits are ordered.
-                    if (m_isSealed)
-                        break;
+                    if (m_isSealed) {
+                        // If this table is sealed then the traits are always ordered from
+                        // more derived to least derived class. This means that the match is definitely
+                        // ambiguous if `trait` is declared on a class that is not derived from the
+                        // declaring class of `currentTrait`. This can happen only with interfaces.
+                        // For non-interface classes, either both the traits are declared by the same
+                        // class (which was already checked) or `currentTrait` is declared on a class
+                        // that `trait` derives from, in which case we terminate the search early and
+                        // return `trait`.
 
-                    // If the current trait is from a more derived class, prefer it over the already chosen trait.
-                    // We don't have to check if declaringClass is null because we don't mix global and non-global traits.
-                    if (currentTrait.declaringClass.canAssignTo(trait.declaringClass))
-                        trait = currentTrait;
+                        if (!currentTrait.declaringClass.isInterface)
+                            break;
+
+                        if (!trait.declaringClass.canAssignTo(currentTrait.declaringClass))
+                            return BindStatus.AMBIGUOUS;
+                    }
+                    else {
+                        // For tables which are not sealed, if `currentTrait` is from a more derived
+                        // class, set the result to that trait and reset the ambiguous match flag.
+                        if (currentTrait.declaringClass.canAssignTo(trait.declaringClass)) {
+                            trait = currentTrait;
+                            ambiguousMatch = false;
+                        }
+                        else if (!trait.declaringClass.canAssignTo(currentTrait.declaringClass)) {
+                            ambiguousMatch = true;
+                        }
+                    }
                 }
                 else {
                     trait = currentTrait;
@@ -294,6 +331,9 @@ namespace Mariana.AVM2.Core {
 
                 curIndex = link.next;
             }
+
+            if (ambiguousMatch)
+                return BindStatus.AMBIGUOUS;
 
             return found ? BindStatus.SUCCESS : BindStatus.NOT_FOUND;
         }

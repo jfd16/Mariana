@@ -1701,8 +1701,7 @@ namespace Mariana.AVM2.Tests {
                 Class.fromType(typeof(ASBoolean)),
                 Class.fromType(typeof(ASObject)),
                 Class.fromType(typeof(ASArray)),
-                Class.fromType(typeof(ASVectorAny)),
-                Class.fromType(typeof(ASFunction))
+                Class.fromType(typeof(ASVectorAny))
             };
 
             using (var zone = new StaticZone())
@@ -1768,7 +1767,7 @@ namespace Mariana.AVM2.Tests {
                 if (expectedValue.value is ASVectorAny)
                     Assert.Equal("Vector", type);
                 else if (expectedValue.value is ASFunction)
-                    Assert.Equal("Function", type);
+                    Assert.Equal("Object", type);
                 else if (ASObject.AS_isNumeric(expectedValue.value))
                     Assert.Equal("Number", type);
                 else

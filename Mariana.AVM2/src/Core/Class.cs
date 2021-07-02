@@ -168,6 +168,18 @@ namespace Mariana.AVM2.Core {
         public virtual Class parent => getClassImpl().parent;
 
         /// <summary>
+        /// Gets a value indicating whether this <see cref="Class"/> instance represents the
+        /// Object class, which is the root of the class hierarchy in the AVM2 type system.
+        /// </summary>
+        public virtual bool isObjectClass => getClassImpl().isObjectClass;
+
+        /// <summary>
+        /// Gets a value indicating whether this <see cref="Class"/> instance represents a
+        /// primitive type.
+        /// </summary>
+        public bool isPrimitiveClass => ClassTagSet.primitive.contains(tag);
+
+        /// <summary>
         /// Gets the <see cref="ClassTag"/> value for this class.
         /// </summary>
         public ClassTag tag => m_tag;

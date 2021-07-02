@@ -70,6 +70,8 @@ namespace Mariana.AVM2.Core {
 
         public override Class vectorElementType => null;
 
+        public override bool isObjectClass => m_underlyingType == typeof(ASObject);
+
         protected private override Class createVectorClass() {
             Type vecType = typeof(ASVector<>).MakeGenericType(getUnderlyingOrPrimitiveType(this));
             Class klass = ClassTypeMap.getClass(vecType);
