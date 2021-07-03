@@ -7,7 +7,7 @@ namespace Mariana.AVM2.Core {
     /// The Class class is used to represent a class in ActionScript 3. It is an object wrapper
     /// for AVM2 <see cref="Class"/> objects.
     /// </summary>
-    [AVM2ExportClass(name = "Class", isDynamic = true)]
+    [AVM2ExportClass(name = "Class", isDynamic = true, hasPrototypeMethods = true)]
     public sealed class ASClass : ASObject {
 
         /// <summary>
@@ -86,6 +86,19 @@ namespace Mariana.AVM2.Core {
         /// <returns>true, if the call was successful, otherwise false.</returns>
         public override bool AS_tryConstruct(ReadOnlySpan<ASAny> args, out ASAny result) =>
             internalClass.tryConstruct(ASAny.@null, args, out result) == BindStatus.SUCCESS;
+
+        /// <summary>
+        /// Returns a string representation of this Class object.
+        /// </summary>
+        /// <returns>A string representation of this Class object.</returns>
+        ///
+        /// <remarks>
+        /// This method is exported to the AVM2 with the name <c>toString</c>, but must be
+        /// called from .NET code with the name <c>AS_toString</c> to avoid confusion with the
+        /// <see cref="Object.ToString" qualifyHint="true"/> method.
+        /// </remarks>
+        [AVM2ExportPrototypeMethod]
+        public new string AS_toString() => "[class " + internalClass.name.localName + "]";
 
         /// <exclude/>
         /// <summary>

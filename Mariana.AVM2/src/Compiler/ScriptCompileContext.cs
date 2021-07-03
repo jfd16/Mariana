@@ -2142,14 +2142,20 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="multiname">The multiname. This must not contain runtime arguments.</param>
         /// <param name="allowAny">If this is set to true and <paramref name="multiname"/> represents
         /// the "any" name, this method returns null instead of throwing.</param>
-        public Class getClassByMultiname(in ABCMultiname multiname, bool allowAny = false) {
+        public Class getClassByMultiname(in ABCMultiname multiname, bool allowAny = false, bool allowUninstVector = false) {
             if (!m_classesByMultiname.TryGetValue(multiname, out Class c)) {
                 c = resolve(multiname);
                 m_classesByMultiname.Add(multiname, c);
             }
 
-            if (c == null && !allowAny)
-                throw ErrorHelper.createError(ErrorCode.CLASS_NOT_FOUND, m_abcFile.multinameToString(multiname));
+            if (c == null) {
+                if (!allowAny)
+                    throw ErrorHelper.createError(ErrorCode.CLASS_NOT_FOUND, m_abcFile.multinameToString(multiname));
+            }
+            else {
+                if (!allowUninstVector && c.underlyingType == typeof(ASVector<>))
+                    throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_INVALID_USE_VECTOR_NO_ARG);
+            }
 
             return c;
 

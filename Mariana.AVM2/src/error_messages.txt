@@ -200,6 +200,7 @@
 10319   VerifyError             Interface '$1' cannot declare a slot or const trait.
 10320   VerifyError             Trait '$1' cannot use method_info already assigned to '$2'.
 10321   VerifyError             method_body_info $1 has initscopedepth > maxscopedepth.
+10322   VerifyError             Invalid use of Vector without a type argument.
 
 10330   Error                   Cannot compile any more scripts in a ScriptLoader after compiled scripts have been run.
 10331   Error                   Cannot accept assembly from custom loader: Assembly name, version or MVID does not match.

@@ -2274,12 +2274,14 @@ namespace Mariana.AVM2.Compiler {
 
         private void _visitIsAsTypeLate(ref Instruction instr) {
             var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+
             ref DataNode objNode = ref m_compilation.getDataNode(stackPopIds[0]);
             ref DataNode typeNode = ref m_compilation.getDataNode(stackPopIds[1]);
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
-            if (typeNode.dataType == DataNodeType.CLASS) {
-                Class klass = typeNode.constant.classValue;
+            Class klass = (typeNode.dataType == DataNodeType.CLASS) ? typeNode.constant.classValue : null;
+
+            if (klass != null && klass.underlyingType != typeof(ASVector<>)) {
                 _emitDiscardTopOfStack(ref typeNode);
 
                 if (ClassTagSet.numeric.contains(klass.tag) || !isObjectType(objNode.dataType))

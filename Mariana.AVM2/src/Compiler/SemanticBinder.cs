@@ -1245,7 +1245,7 @@ namespace Mariana.AVM2.Compiler {
 
             if (typeNode.isConstant && typeNode.dataType == DataNodeType.CLASS) {
                 targetClass = typeNode.constant.classValue;
-                if (targetClass.isPrimitiveClass)
+                if (targetClass.isPrimitiveClass || targetClass == vectorClass)
                     targetClass = null;
             }
 
@@ -3662,6 +3662,7 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode typeNode = ref m_compilation.getDataNode(inputIds[1]);
 
             Class klass = (typeNode.dataType == DataNodeType.CLASS) ? typeNode.constant.classValue : null;
+
             if (klass == null) {
                 _requireStackNodeAsType(ref objectNode, DataNodeType.OBJECT, instr.id);
                 _requireStackNodeAsType(ref typeNode, DataNodeType.OBJECT, instr.id);
@@ -3672,7 +3673,11 @@ namespace Mariana.AVM2.Compiler {
             }
             else {
                 _requireStackNodeObjectOrInterface(ref objectNode, instr.id);
-                _markStackNodeAsNoPush(ref typeNode);
+
+                // If the class is Vector<> then we always do a runtime isType/asType call
+                // so leave the class on the stack.
+                if (klass != vectorClass)
+                    _markStackNodeAsNoPush(ref typeNode);
             }
         }
 
