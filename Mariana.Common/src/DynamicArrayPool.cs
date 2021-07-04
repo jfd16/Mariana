@@ -20,9 +20,9 @@ namespace Mariana.Common {
                 this.segmentSize = segmentSize;
             }
 
-            public Span<T> getSpan(int index, int length) => m_storage.asSpan(index, length);
+            public readonly Span<T> getSpan(int index, int length) => m_storage.asSpan(index, length);
 
-            public void setItemAt(int index, T value) => m_storage[index] = value;
+            public readonly void setItemAt(int index, T value) => m_storage[index] = value;
 
             public int allocNewSegment() {
                 int index;

@@ -258,8 +258,8 @@ namespace Mariana.Common.Tests {
         }
 
         public static IEnumerable<object[]> volatileEnsureArraySizeTest_data = new (byte[], int)[] {
-            (null, 0),
-            (Array.Empty<byte>(), 0),
+            (null, 1),
+            (Array.Empty<byte>(), 1),
             (null, 5),
             (Array.Empty<byte>(), 5),
             (new byte[4], 0),
@@ -364,10 +364,16 @@ namespace Mariana.Common.Tests {
             Assert.Throws<ArgumentOutOfRangeException>(() => DataStructureUtil.volatileEnsureArraySize(ref newArray, -1));
             Assert.Same(array, newArray);
 
+            Assert.Throws<ArgumentOutOfRangeException>(() => DataStructureUtil.volatileEnsureArraySize(ref newArray, 0));
+            Assert.Same(array, newArray);
+
             array = null;
             newArray = array;
 
             Assert.Throws<ArgumentOutOfRangeException>(() => DataStructureUtil.volatileEnsureArraySize(ref newArray, -1));
+            Assert.Same(array, newArray);
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => DataStructureUtil.volatileEnsureArraySize(ref newArray, 0));
             Assert.Same(array, newArray);
         }
 

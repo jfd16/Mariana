@@ -237,24 +237,16 @@ namespace Mariana.AVM2.Compiler {
             if (klass == null)
                 return DataNodeType.ANY;
 
-            switch (klass.tag) {
-                case ClassTag.INT:
-                    return DataNodeType.INT;
-                case ClassTag.UINT:
-                    return DataNodeType.UINT;
-                case ClassTag.NUMBER:
-                    return DataNodeType.NUMBER;
-                case ClassTag.STRING:
-                    return DataNodeType.STRING;
-                case ClassTag.BOOLEAN:
-                    return DataNodeType.BOOL;
-                case ClassTag.NAMESPACE:
-                    return DataNodeType.NAMESPACE;
-                case ClassTag.QNAME:
-                    return DataNodeType.QNAME;
-                default:
-                    return DataNodeType.OBJECT;
-            }
+            return klass.tag switch {
+                ClassTag.INT => DataNodeType.INT,
+                ClassTag.UINT => DataNodeType.UINT,
+                ClassTag.NUMBER => DataNodeType.NUMBER,
+                ClassTag.STRING => DataNodeType.STRING,
+                ClassTag.BOOLEAN => DataNodeType.BOOL,
+                ClassTag.NAMESPACE => DataNodeType.NAMESPACE,
+                ClassTag.QNAME => DataNodeType.QNAME,
+                _ => DataNodeType.OBJECT,
+            };
         }
 
     }

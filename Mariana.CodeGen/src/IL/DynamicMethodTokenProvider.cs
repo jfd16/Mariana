@@ -20,7 +20,7 @@ namespace Mariana.CodeGen.IL {
         private DynamicILInfo m_dynamicILInfo;
         private ReferenceDictionary<object, int> m_tokenCache = new ReferenceDictionary<object, int>();
         private Func<Type, EntityHandle> m_typeHandleGenerator;
-        private Dictionary<EntityHandle, MethodStackChangeInfo> m_methodStackChangeInfo;
+        private Dictionary<EntityHandle, MethodStackChangeInfo>? m_methodStackChangeInfo;
 
         /// <summary>
         /// Creates a new instance of <see cref="DynamicMethodTokenProvider"/>.
@@ -33,7 +33,9 @@ namespace Mariana.CodeGen.IL {
         /// a return value for the purpose of computing maxstack. Note that computing stack
         /// change information requires reflection calls that may have a performance cost.</param>
         public DynamicMethodTokenProvider(DynamicILInfo dynamicILInfo, bool trackMethodStackChanges = false) {
+            m_dynamicILInfo = null!;
             setDynamicILInfo(dynamicILInfo);
+
             m_typeHandleGenerator = type => getHandle(type);
 
             if (trackMethodStackChanges)
@@ -48,6 +50,7 @@ namespace Mariana.CodeGen.IL {
         public void setDynamicILInfo(DynamicILInfo dynamicILInfo) {
             if (dynamicILInfo == null)
                 throw new ArgumentNullException(nameof(dynamicILInfo));
+
             if (dynamicILInfo == m_dynamicILInfo)
                 return;
 

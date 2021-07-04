@@ -52,8 +52,8 @@ namespace Mariana.AVM2.ABC {
             if (filename == null)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(filename));
 
-            using (FileStream fs = File.Open(filename, FileMode.Open, FileAccess.Read))
-                return read(fs, parseOptions);
+            using FileStream fs = File.Open(filename, FileMode.Open, FileAccess.Read);
+            return read(fs, parseOptions);
         }
 
         /// <summary>
@@ -68,8 +68,8 @@ namespace Mariana.AVM2.ABC {
             if (data == null)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(data));
 
-            using (var stream = new MemoryStream(data))
-                return read(stream, parseOptions);
+            using var stream = new MemoryStream(data);
+            return read(stream, parseOptions);
         }
 
         /// <summary>
@@ -201,34 +201,27 @@ namespace Mariana.AVM2.ABC {
         /// <param name="index">The index of the constant in the ABC file, in the constant pool
         /// determined by <paramref name="kind"/>.</param>
         public ASAny resolveConstant(ABCConstKind kind, int index) {
-            switch (kind) {
-                case ABCConstKind.Int:
-                    return resolveInt(index);
-                case ABCConstKind.UInt:
-                    return resolveUint(index);
-                case ABCConstKind.Double:
-                    return resolveDouble(index);
-                case ABCConstKind.Utf8:
-                    return resolveString(index);
-                case ABCConstKind.True:
-                    return true;
-                case ABCConstKind.False:
-                    return false;
-                case ABCConstKind.Null:
-                    return ASAny.@null;
-                case ABCConstKind.Undefined:
-                    return ASAny.undefined;
-                case ABCConstKind.Namespace:
-                case ABCConstKind.PackageNamespace:
-                case ABCConstKind.PackageInternalNs:
-                case ABCConstKind.ProtectedNamespace:
-                case ABCConstKind.StaticProtectedNs:
-                case ABCConstKind.ExplicitNamespace:
-                case ABCConstKind.PrivateNs:
-                    return new ASNamespace(resolveNamespace(index).uri);
-                default:
-                    throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_OUT_OF_RANGE, nameof(kind));
-            }
+            return kind switch {
+                ABCConstKind.Int => resolveInt(index),
+                ABCConstKind.UInt => resolveUint(index),
+                ABCConstKind.Double => resolveDouble(index),
+                ABCConstKind.Utf8 => resolveString(index),
+                ABCConstKind.True => true,
+                ABCConstKind.False => false,
+                ABCConstKind.Null => ASAny.@null,
+                ABCConstKind.Undefined => ASAny.undefined,
+
+                ABCConstKind.Namespace
+                or ABCConstKind.PackageNamespace
+                or ABCConstKind.PackageInternalNs
+                or ABCConstKind.ProtectedNamespace
+                or ABCConstKind.StaticProtectedNs
+                or ABCConstKind.ExplicitNamespace
+                or ABCConstKind.PrivateNs =>
+                    new ASNamespace(resolveNamespace(index).uri),
+
+                _ => throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_OUT_OF_RANGE, nameof(kind)),
+            };
         }
 
         /// <summary>

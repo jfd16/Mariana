@@ -61,7 +61,7 @@ namespace Mariana.AVM2.Compiler {
         /// Using this property will get or set the <see cref="DataNodeFlags.CONSTANT"/> flag.
         /// </remarks>
         public bool isConstant {
-            get => (flags & DataNodeFlags.CONSTANT) != 0;
+            readonly get => (flags & DataNodeFlags.CONSTANT) != 0;
             set => flags = value ? flags | DataNodeFlags.CONSTANT : flags & ~DataNodeFlags.CONSTANT;
         }
 
@@ -72,7 +72,7 @@ namespace Mariana.AVM2.Compiler {
         /// Using this property will get or set the <see cref="DataNodeFlags.PHI"/> flag.
         /// </remarks>
         public bool isPhi {
-            get => (flags & DataNodeFlags.PHI) != 0;
+            readonly get => (flags & DataNodeFlags.PHI) != 0;
             set => flags = value ? flags | DataNodeFlags.PHI : flags & ~DataNodeFlags.PHI;
         }
 
@@ -84,7 +84,7 @@ namespace Mariana.AVM2.Compiler {
         /// Using this property will get or set the <see cref="DataNodeFlags.NOT_NULL"/> flag.
         /// </remarks>
         public bool isNotNull {
-            get => (flags & DataNodeFlags.NOT_NULL) != 0;
+            readonly get => (flags & DataNodeFlags.NOT_NULL) != 0;
             set => flags = value ? flags | DataNodeFlags.NOT_NULL : flags & ~DataNodeFlags.NOT_NULL;
         }
 
@@ -96,7 +96,7 @@ namespace Mariana.AVM2.Compiler {
         /// Using this property will get or set the <see cref="DataNodeFlags.WITH_SCOPE"/> flag.
         /// </remarks>
         public bool isWithScope {
-            get => (flags & DataNodeFlags.WITH_SCOPE) != 0;
+            readonly get => (flags & DataNodeFlags.WITH_SCOPE) != 0;
             set => flags = value ? flags | DataNodeFlags.WITH_SCOPE : flags & ~DataNodeFlags.WITH_SCOPE;
         }
 
@@ -107,7 +107,7 @@ namespace Mariana.AVM2.Compiler {
         /// Using this property will get or set the <see cref="DataNodeFlags.ARGUMENT"/> flag.
         /// </remarks>
         public bool isArgument {
-            get => (flags & DataNodeFlags.ARGUMENT) != 0;
+            readonly get => (flags & DataNodeFlags.ARGUMENT) != 0;
             set => flags = value ? flags | DataNodeFlags.ARGUMENT : flags & ~DataNodeFlags.ARGUMENT;
         }
 
@@ -119,7 +119,7 @@ namespace Mariana.AVM2.Compiler {
         /// Using this property will get or set the <see cref="DataNodeFlags.NO_PUSH"/> flag.
         /// </remarks>
         public bool isNotPushed {
-            get => (flags & DataNodeFlags.NO_PUSH) != 0;
+            readonly get => (flags & DataNodeFlags.NO_PUSH) != 0;
             set => flags = value ? flags | DataNodeFlags.NO_PUSH : flags & ~DataNodeFlags.NO_PUSH;
         }
 
@@ -258,11 +258,25 @@ namespace Mariana.AVM2.Compiler {
         public static ref DataNodeOrInstrRef singleDef(ref DataNodeDUInfo info) => ref info.m_defs.single;
 
         /// <summary>
+        /// Gets a reference to the single definition for the node.
+        /// Only applicable if the <see cref="DataNodeFlags.HAS_SINGLE_DEF"/> flag is set.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref readonly DataNodeOrInstrRef singleDefReadonly(in DataNodeDUInfo info) => ref info.m_defs.single;
+
+        /// <summary>
         /// Gets a reference to a pool-allocated array containing the definitions for the node. Only
         /// applicable if the <see cref="DataNodeFlags.HAS_SINGLE_DEF"/> flag is not set.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ref DynamicArrayPoolToken<DataNodeOrInstrRef> defs(ref DataNodeDUInfo info) => ref info.m_defs.array;
+
+        /// <summary>
+        /// Gets a reference to a pool-allocated array containing the definitions for the node. Only
+        /// applicable if the <see cref="DataNodeFlags.HAS_SINGLE_DEF"/> flag is not set.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref readonly DynamicArrayPoolToken<DataNodeOrInstrRef> defsReadonly(in DataNodeDUInfo info) => ref info.m_defs.array;
 
         /// <summary>
         /// Gets a reference to the single use for the node.
@@ -272,11 +286,25 @@ namespace Mariana.AVM2.Compiler {
         public static ref DataNodeOrInstrRef singleUse(ref DataNodeDUInfo info) => ref info.m_uses.single;
 
         /// <summary>
+        /// Gets a reference to the single use for the node.
+        /// Only applicable if the <see cref="DataNodeFlags.HAS_SINGLE_USE"/> flag is set.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref readonly DataNodeOrInstrRef singleUseReadonly(in DataNodeDUInfo info) => ref info.m_uses.single;
+
+        /// <summary>
         /// Gets a reference to a pool-allocated array containing the uses for the node. Only
         /// applicable if the <see cref="DataNodeFlags.HAS_SINGLE_USE"/> flag is not set.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ref DynamicArrayPoolToken<DataNodeOrInstrRef> uses(ref DataNodeDUInfo info) => ref info.m_uses.array;
+
+        /// <summary>
+        /// Gets a reference to a pool-allocated array containing the uses for the node. Only
+        /// applicable if the <see cref="DataNodeFlags.HAS_SINGLE_USE"/> flag is not set.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref readonly DynamicArrayPoolToken<DataNodeOrInstrRef> usesReadonly(in DataNodeDUInfo info) => ref info.m_uses.array;
 
     }
 

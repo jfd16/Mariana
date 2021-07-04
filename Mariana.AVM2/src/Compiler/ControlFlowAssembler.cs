@@ -21,12 +21,12 @@ namespace Mariana.AVM2.Compiler {
             private int m_excInfoIdAndFlags;
 
             public int excInfoId {
-                get => m_excInfoIdAndFlags & EXC_INFO_ID_MASK;
+                readonly get => m_excInfoIdAndFlags & EXC_INFO_ID_MASK;
                 set => m_excInfoIdAndFlags = (m_excInfoIdAndFlags & ~EXC_INFO_ID_MASK) | value;
             }
 
             public bool isReachable {
-                get => (m_excInfoIdAndFlags & REACHABLE_FLAG) != 0;
+                readonly get => (m_excInfoIdAndFlags & REACHABLE_FLAG) != 0;
                 set => m_excInfoIdAndFlags = (m_excInfoIdAndFlags & ~REACHABLE_FLAG) | (value ? REACHABLE_FLAG : 0);
             }
 
@@ -41,8 +41,7 @@ namespace Mariana.AVM2.Compiler {
                 // If the try regions are the same, sort by descending order of the exception info index
                 // in the ABC file, so that exception handlers for a common try region are processed
                 // in the same order as they are declared.
-                // Not using the excInfoId property here to avoid defensive copies.
-                return (y.m_excInfoIdAndFlags & EXC_INFO_ID_MASK) - (x.m_excInfoIdAndFlags & EXC_INFO_ID_MASK);
+                return y.excInfoId - x.excInfoId;
             }
 
         }
@@ -435,7 +434,7 @@ namespace Mariana.AVM2.Compiler {
         /// false.</returns>
         private bool _isEHRegionReachable(ref _EHRegion region) {
             Span<Instruction> instructions = m_compilation.getInstructions();
-            var regionInstructions = instructions.Slice(region.tryStartInstrId, region.tryEndInstrId - region.tryStartInstrId);
+            var regionInstructions = instructions[region.tryStartInstrId..region.tryEndInstrId];
 
             for (int i = 0; i < regionInstructions.Length; i++) {
                 if (regionInstructions[i].blockId != -1)
@@ -682,7 +681,7 @@ namespace Mariana.AVM2.Compiler {
 
             stack.add(m_compilation.getInstruction(0).blockId);
 
-            void pushChildren(ref DynamicArray<int> _stack, Span<BasicBlock> _blocks, ReadOnlySpan<int> childIds) {
+            static void pushChildren(ref DynamicArray<int> _stack, Span<BasicBlock> _blocks, ReadOnlySpan<int> childIds) {
                 for (int i = 0; i < childIds.Length; i++) {
                     ref BasicBlock nextBlock = ref _blocks[childIds[i]];
                     if (nextBlock.postorderIndex == NOT_VISITED)

@@ -10,7 +10,7 @@ namespace Mariana.Common {
     public readonly struct LockedObject<T> : IDisposable where T : class {
 
         private readonly T m_value;
-        private readonly object m_lock;
+        private readonly object? m_lock;
 
         /// <summary>
         /// Creates a new <see cref="LockedObject{T}"/> instance.
@@ -18,7 +18,7 @@ namespace Mariana.Common {
         /// <param name="value">The object to be guarded by the lock.</param>
         /// <param name="lockObj">The object on which to take a lock to guard access to
         /// <paramref name="value"/>. If this is null, no lock is taken.</param>
-        public LockedObject(T value, object lockObj) {
+        public LockedObject(T value, object? lockObj) {
             m_value = value;
             m_lock = lockObj;
 

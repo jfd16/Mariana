@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace Mariana.Common {
@@ -34,7 +33,7 @@ namespace Mariana.Common {
         public static int nextPrime(int min) {
             var primes = s_primes.AsSpan();
 
-            if (min <= primes[primes.Length - 1]) {
+            if (min <= primes[^1]) {
                 int searchIndex = primes.BinarySearch(min);
                 return (searchIndex >= 0) ? min : primes[~searchIndex];
             }
@@ -200,15 +199,16 @@ namespace Mariana.Common {
         /// to be equivalent to an array of length zero (that is, a new array is allocated if
         /// <paramref name="minLength"/> is not zero).</param>
         /// <param name="minLength">The minimum length of the array at the reference
-        /// <paramref name="array"/> so that no expansion is needed. This must be a non-negative
-        /// integer</param>
+        /// <paramref name="array"/> so that no expansion is needed. This must be greater
+        /// than zero.</param>
         ///
         /// <returns>If a new array was allocated, returns that array; otherwise, returns the
         /// existing array in the <paramref name="array"/> reference.</returns>
         ///
         /// <typeparam name="T">The type of the array.</typeparam>
         ///
-        /// <exception cref="ArgumentOutOfRangeException"><paramref name="minLength"/> is negative.</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="minLength"/> is negative
+        /// or zero.</exception>
         ///
         /// <remarks>
         /// <para>
@@ -224,15 +224,15 @@ namespace Mariana.Common {
         /// before all the elements from the old array have been copied to it.
         /// </para>
         /// </remarks>
-        public static T[] volatileEnsureArraySize<T>(ref T[] array, int minLength) {
+        public static T[] volatileEnsureArraySize<T>(ref T[]? array, int minLength) {
             if (minLength < 0)
                 throw new ArgumentOutOfRangeException(nameof(minLength));
 
-            T[] currentArray = Volatile.Read(ref array);
+            T[]? currentArray = Volatile.Read(ref array);
 
             int currentArrayLength = (currentArray == null) ? 0 : currentArray.Length;
             if (currentArrayLength >= minLength)
-                return currentArray;
+                return currentArray!;
 
             int newArrayLength = getNextArraySize(currentArrayLength, minLength);
             T[] newArray = new T[newArrayLength];
@@ -330,8 +330,8 @@ namespace Mariana.Common {
 
             worker(span, comparer, ThreadStaticRandom.instance);
 
-            void worker(Span<T> _span, Comparison<T> _comparer, Random rng) {
-                void swap(ref T x, ref T y) => (x, y) = (y, x);
+            static void worker(Span<T> _span, Comparison<T> _comparer, Random rng) {
+                static void swap(ref T x, ref T y) => (x, y) = (y, x);
 
                 if (_span.Length <= 16) {
                     // For small spans use insertion sort
@@ -350,7 +350,7 @@ namespace Mariana.Common {
                 else {
                     // Use randomized quicksort for larger spans
 
-                    ref T pivot = ref _span[_span.Length - 1];
+                    ref T pivot = ref _span[^1];
                     int pivotIndex = rng.Next(_span.Length);
 
                     if (pivotIndex != _span.Length - 1)
@@ -390,8 +390,8 @@ namespace Mariana.Common {
 
             worker(span, comparer, ThreadStaticRandom.instance);
 
-            void worker(Span<T> _span, SortComparerIn<T> _comparer, Random rng) {
-                void swap(ref T x, ref T y) => (x, y) = (y, x);
+            static void worker(Span<T> _span, SortComparerIn<T> _comparer, Random rng) {
+                static void swap(ref T x, ref T y) => (x, y) = (y, x);
 
                 if (_span.Length <= 16) {
                     // For small spans use insertion sort
@@ -410,7 +410,7 @@ namespace Mariana.Common {
                 else {
                     // Use randomized quicksort for larger spans
 
-                    ref T pivot = ref _span[_span.Length - 1];
+                    ref T pivot = ref _span[^1];
                     int pivotIndex = rng.Next(_span.Length);
 
                     if (pivotIndex != _span.Length - 1)
@@ -460,8 +460,8 @@ namespace Mariana.Common {
 
             worker(span, permutation, comparer, ThreadStaticRandom.instance);
 
-            void worker(ReadOnlySpan<T> _span, Span<int> _perm, SortComparerIn<T> _comparer, Random rng) {
-                void swap(ref int x, ref int y) => (x, y) = (y, x);
+            static void worker(ReadOnlySpan<T> _span, Span<int> _perm, SortComparerIn<T> _comparer, Random rng) {
+                static void swap(ref int x, ref int y) => (x, y) = (y, x);
 
                 if (_perm.Length <= 16) {
                     // For small spans use insertion sort
@@ -480,7 +480,7 @@ namespace Mariana.Common {
                 else {
                     // Use randomized quicksort for larger spans
 
-                    ref int pivot = ref _perm[_perm.Length - 1];
+                    ref int pivot = ref _perm[^1];
                     int pivotIndex = rng.Next(_perm.Length);
 
                     if (pivotIndex != _perm.Length - 1)

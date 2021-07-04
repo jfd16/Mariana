@@ -59,9 +59,9 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="node">A reference to a <see cref="DataNode"/> instance.</param>
         /// <returns>True if <paramref name="node"/> holds a constant zero value, otherwise
         /// false.</returns>
-        public static bool isConstantZero(ref DataNode node) {
+        public static bool isConstantZero(in DataNode node) {
             return DataNodeTypeHelper.isNumeric(node.dataType)
-                && tryGetConstant(ref node, out double nodeVal)
+                && tryGetConstant(node, out double nodeVal)
                 && nodeVal == 0.0;
         }
 
@@ -72,9 +72,9 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="node">A reference to a <see cref="DataNode"/> instance.</param>
         /// <returns>True if <paramref name="node"/> holds a constant value that can be represented
         /// as a signed integer, otherwise false.</returns>
-        public static bool isConstantInt(ref DataNode node) {
+        public static bool isConstantInt(in DataNode node) {
             return DataNodeTypeHelper.isNumeric(node.dataType)
-                && tryGetConstant(ref node, out double nodeVal)
+                && tryGetConstant(node, out double nodeVal)
                 && (double)(int)nodeVal == nodeVal;
         }
 
@@ -85,9 +85,9 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="node">A reference to a <see cref="DataNode"/> instance.</param>
         /// <returns>True if <paramref name="node"/> holds a constant value that can be represented
         /// as an unsigned integer, otherwise false.</returns>
-        public static bool isConstantUint(ref DataNode node) {
+        public static bool isConstantUint(in DataNode node) {
             return DataNodeTypeHelper.isNumeric(node.dataType)
-                && tryGetConstant(ref node, out double nodeVal)
+                && tryGetConstant(node, out double nodeVal)
                 && (double)(uint)nodeVal == nodeVal;
         }
 
@@ -151,7 +151,7 @@ namespace Mariana.AVM2.Compiler {
         /// <paramref name="node"/> will be written.</param>
         /// <returns>True if a numeric constant value could be retrieved from <paramref name="node"/>,
         /// otherwise false.</returns>
-        public static bool tryGetConstant(ref DataNode node, out double value) {
+        public static bool tryGetConstant(in DataNode node, out double value) {
             if (!node.isConstant) {
                 value = 0;
                 return false;
@@ -193,7 +193,7 @@ namespace Mariana.AVM2.Compiler {
         /// <paramref name="node"/> will be written.</param>
         /// <returns>True if a signed integer constant value could be retrieved from <paramref name="node"/>,
         /// otherwise false.</returns>
-        public static bool tryGetConstant(ref DataNode node, out int value) {
+        public static bool tryGetConstant(in DataNode node, out int value) {
             if (!node.isConstant) {
                 value = 0;
                 return false;
@@ -229,7 +229,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="output">A reference to a <see cref="DataNode"/> representing the output node.</param>
         /// <param name="opcode">The opcode for the unary operation.</param>
         /// <returns>True if the operation could be evaluated at compile time, otherwise false.</returns>
-        public static bool tryEvalConstUnaryOp(ref DataNode input, ref DataNode output, ABCOp opcode) {
+        public static bool tryEvalConstUnaryOp(in DataNode input, ref DataNode output, ABCOp opcode) {
             if (!input.isConstant)
                 return false;
 
@@ -344,19 +344,19 @@ namespace Mariana.AVM2.Compiler {
                 }
 
                 case ABCOp.bitnot: {
-                    if (tryGetConstant(ref input, out int value))
+                    if (tryGetConstant(input, out int value))
                         setToConstant(ref output, ~value);
                     break;
                 }
 
                 case ABCOp.negate: {
-                    if (tryGetConstant(ref input, out double value))
+                    if (tryGetConstant(input, out double value))
                         setToConstant(ref output, -value);
                     break;
                 }
 
                 case ABCOp.negate_i: {
-                    if (tryGetConstant(ref input, out int value))
+                    if (tryGetConstant(input, out int value))
                         setToConstant(ref output, -value);
                     break;
                 }
@@ -364,7 +364,7 @@ namespace Mariana.AVM2.Compiler {
                 case ABCOp.increment:
                 case ABCOp.inclocal:
                 {
-                    if (tryGetConstant(ref input, out double value))
+                    if (tryGetConstant(input, out double value))
                         setToConstant(ref output, value + 1.0);
                     break;
                 }
@@ -372,7 +372,7 @@ namespace Mariana.AVM2.Compiler {
                 case ABCOp.decrement:
                 case ABCOp.declocal:
                 {
-                    if (tryGetConstant(ref input, out double value))
+                    if (tryGetConstant(input, out double value))
                         setToConstant(ref output, value - 1.0);
                     break;
                 }
@@ -380,7 +380,7 @@ namespace Mariana.AVM2.Compiler {
                 case ABCOp.increment_i:
                 case ABCOp.inclocal_i:
                 {
-                    if (tryGetConstant(ref input, out int value))
+                    if (tryGetConstant(input, out int value))
                         setToConstant(ref output, value + 1);
                     break;
                 }
@@ -388,7 +388,7 @@ namespace Mariana.AVM2.Compiler {
                 case ABCOp.decrement_i:
                 case ABCOp.declocal_i:
                 {
-                    if (tryGetConstant(ref input, out int value))
+                    if (tryGetConstant(input, out int value))
                         setToConstant(ref output, value - 1);
                     break;
                 }
@@ -426,19 +426,19 @@ namespace Mariana.AVM2.Compiler {
                 }
 
                 case ABCOp.sxi1: {
-                    if (tryGetConstant(ref input, out int value))
+                    if (tryGetConstant(input, out int value))
                         setToConstant(ref output, -(value & 1));
                     break;
                 }
 
                 case ABCOp.sxi8: {
-                    if (tryGetConstant(ref input, out int value))
+                    if (tryGetConstant(input, out int value))
                         setToConstant(ref output, (int)(sbyte)value);
                     break;
                 }
 
                 case ABCOp.sxi16: {
-                    if (tryGetConstant(ref input, out int value))
+                    if (tryGetConstant(input, out int value))
                         setToConstant(ref output, (int)(short)value);
                     break;
                 }
@@ -463,7 +463,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="output">A reference to a <see cref="DataNode"/> representing the output node.</param>
         /// <param name="opcode">The opcode for the binary operation.</param>
         /// <returns>True if the operation could be evaluated at compile time, otherwise false.</returns>
-        public static bool tryEvalConstBinaryOp(ref DataNode input1, ref DataNode input2, ref DataNode output, ABCOp opcode) {
+        public static bool tryEvalConstBinaryOp(in DataNode input1, in DataNode input2, ref DataNode output, ABCOp opcode) {
             if (!input1.isConstant || !input2.isConstant)
                 return false;
 
@@ -486,74 +486,74 @@ namespace Mariana.AVM2.Compiler {
                             output.dataType = DataNodeType.NULL;
                         }
                     }
-                    else if (tryGetConstant(ref input1, out dval1) && tryGetConstant(ref input2, out dval2)) {
+                    else if (tryGetConstant(input1, out dval1) && tryGetConstant(input2, out dval2)) {
                         setToConstant(ref output, dval1 + dval2);
                     }
                     break;
                 }
 
                 case ABCOp.subtract:
-                    if (tryGetConstant(ref input1, out dval1) && tryGetConstant(ref input2, out dval2))
+                    if (tryGetConstant(input1, out dval1) && tryGetConstant(input2, out dval2))
                         setToConstant(ref output, dval1 - dval2);
                     break;
 
                 case ABCOp.multiply:
-                    if (tryGetConstant(ref input1, out dval1) && tryGetConstant(ref input2, out dval2))
+                    if (tryGetConstant(input1, out dval1) && tryGetConstant(input2, out dval2))
                         setToConstant(ref output, dval1 * dval2);
                     break;
 
                 case ABCOp.divide:
-                    if (tryGetConstant(ref input1, out dval1) && tryGetConstant(ref input2, out dval2))
+                    if (tryGetConstant(input1, out dval1) && tryGetConstant(input2, out dval2))
                         setToConstant(ref output, dval1 / dval2);
                     break;
 
                 case ABCOp.modulo:
-                    if (tryGetConstant(ref input1, out dval1) && tryGetConstant(ref input2, out dval2))
+                    if (tryGetConstant(input1, out dval1) && tryGetConstant(input2, out dval2))
                         setToConstant(ref output, dval1 % dval2);
                     break;
 
                 case ABCOp.add_i:
-                    if (tryGetConstant(ref input1, out ival1) && tryGetConstant(ref input2, out ival2))
+                    if (tryGetConstant(input1, out ival1) && tryGetConstant(input2, out ival2))
                         setToConstant(ref output, ival1 + ival2);
                     break;
 
                 case ABCOp.subtract_i:
-                    if (tryGetConstant(ref input1, out ival1) && tryGetConstant(ref input2, out ival2))
+                    if (tryGetConstant(input1, out ival1) && tryGetConstant(input2, out ival2))
                         setToConstant(ref output, ival1 - ival2);
                     break;
 
                 case ABCOp.multiply_i:
-                    if (tryGetConstant(ref input1, out ival1) && tryGetConstant(ref input2, out ival2))
+                    if (tryGetConstant(input1, out ival1) && tryGetConstant(input2, out ival2))
                         setToConstant(ref output, ival1 * ival2);
                     break;
 
                 case ABCOp.bitand:
-                    if (tryGetConstant(ref input1, out ival1) && tryGetConstant(ref input2, out ival2))
+                    if (tryGetConstant(input1, out ival1) && tryGetConstant(input2, out ival2))
                         setToConstant(ref output, ival1 & ival2);
                     break;
 
                 case ABCOp.bitor:
-                    if (tryGetConstant(ref input1, out ival1) && tryGetConstant(ref input2, out ival2))
+                    if (tryGetConstant(input1, out ival1) && tryGetConstant(input2, out ival2))
                         setToConstant(ref output, ival1 | ival2);
                     break;
 
                 case ABCOp.bitxor:
-                    if (tryGetConstant(ref input1, out ival1) && tryGetConstant(ref input2, out ival2))
+                    if (tryGetConstant(input1, out ival1) && tryGetConstant(input2, out ival2))
                         setToConstant(ref output, ival1 ^ ival2);
                     break;
 
                 case ABCOp.lshift:
-                    if (tryGetConstant(ref input1, out ival1) && tryGetConstant(ref input2, out ival2))
+                    if (tryGetConstant(input1, out ival1) && tryGetConstant(input2, out ival2))
                         setToConstant(ref output, ival1 << ival2);
                     break;
 
                 case ABCOp.rshift:
-                    if (tryGetConstant(ref input1, out ival1) && tryGetConstant(ref input2, out ival2))
+                    if (tryGetConstant(input1, out ival1) && tryGetConstant(input2, out ival2))
                         setToConstant(ref output, ival1 >> ival2);
                     break;
 
                 case ABCOp.urshift:
-                    if (tryGetConstant(ref input1, out ival1) && tryGetConstant(ref input2, out ival2)) {
+                    if (tryGetConstant(input1, out ival1) && tryGetConstant(input2, out ival2)) {
                         setToConstant(ref output, (int)((uint)ival1 >> ival2));
                         output.dataType = DataNodeType.UINT;
                     }
@@ -579,7 +579,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="output">A reference to a <see cref="DataNode"/> representing the output node.</param>
         /// <param name="opcode">The opcode for the binary operation.</param>
         /// <returns>True if the operation could be evaluated at compile time, otherwise false.</returns>
-        public static bool tryEvalConstCompareOp(ref DataNode input1, ref DataNode input2, ref DataNode output, ABCOp opcode) {
+        public static bool tryEvalConstCompareOp(in DataNode input1, in DataNode input2, ref DataNode output, ABCOp opcode) {
             if (!input1.isConstant || !input2.isConstant)
                 return false;
 
@@ -624,7 +624,7 @@ namespace Mariana.AVM2.Compiler {
                         return false;
                 }
             }
-            else if (tryGetConstant(ref input1, out double dval1) && tryGetConstant(ref input2, out double dval2)) {
+            else if (tryGetConstant(input1, out double dval1) && tryGetConstant(input2, out double dval2)) {
                 switch (opcode) {
                     case ABCOp.equals:
                     case ABCOp.strictequals:

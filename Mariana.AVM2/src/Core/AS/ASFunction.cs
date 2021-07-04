@@ -401,7 +401,7 @@ namespace Mariana.AVM2.Core {
         }
 
         public override T createDelegate<T>(ASObject receiver = null) {
-            receiver = receiver ?? m_method.applicationDomain.globalObject;
+            receiver ??= m_method.applicationDomain.globalObject;
             if (m_scope != null)
                 receiver = new ScopedClosureReceiver(receiver, m_scope, this);
 

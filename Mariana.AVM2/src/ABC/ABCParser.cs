@@ -155,28 +155,15 @@ namespace Mariana.AVM2.ABC {
             }
 
             string name = m_abcFile.resolveString(nameIndex);
-            NamespaceKind kind;
-
-            switch (constKind) {
-                case ABCConstKind.Namespace:
-                case ABCConstKind.PackageNamespace:
-                    kind = NamespaceKind.NAMESPACE;
-                    break;
-                case ABCConstKind.ExplicitNamespace:
-                    kind = NamespaceKind.EXPLICIT;
-                    break;
-                case ABCConstKind.PackageInternalNs:
-                    kind = NamespaceKind.PACKAGE_INTERNAL;
-                    break;
-                case ABCConstKind.ProtectedNamespace:
-                    kind = NamespaceKind.PROTECTED;
-                    break;
-                case ABCConstKind.StaticProtectedNs:
-                    kind = NamespaceKind.STATIC_PROTECTED;
-                    break;
-                default:
-                    throw ErrorHelper.createError(ErrorCode.ILLEGAL_NAMESPACE_VALUE);
-            }
+            var kind = constKind switch {
+                ABCConstKind.Namespace => NamespaceKind.NAMESPACE,
+                ABCConstKind.PackageNamespace => NamespaceKind.NAMESPACE,
+                ABCConstKind.ExplicitNamespace => NamespaceKind.EXPLICIT,
+                ABCConstKind.PackageInternalNs => NamespaceKind.PACKAGE_INTERNAL,
+                ABCConstKind.ProtectedNamespace => NamespaceKind.PROTECTED,
+                ABCConstKind.StaticProtectedNs => NamespaceKind.STATIC_PROTECTED,
+                _ => throw ErrorHelper.createError(ErrorCode.ILLEGAL_NAMESPACE_VALUE),
+            };
 
             return new Namespace(kind, name);
         }

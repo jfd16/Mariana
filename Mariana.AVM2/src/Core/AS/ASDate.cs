@@ -1992,7 +1992,7 @@ namespace Mariana.AVM2.Core {
                     value = nextValue;
                 } while (value != 0);
 
-                m_buffer.Slice(startPosition, m_position - startPosition).Reverse();
+                m_buffer[startPosition..m_position].Reverse();
             }
 
             /// <summary>

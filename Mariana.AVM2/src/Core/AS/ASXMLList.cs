@@ -1062,7 +1062,7 @@ namespace Mariana.AVM2.Core {
             QName qname = new QName(m_link.uri, m_link.localName);
             BindOptions bindOptions = BindOptions.SEARCH_DYNAMIC;
 
-            if (!(baseObj.AS_getProperty(qname, bindOptions).value is ASXMLList target))
+            if (baseObj.AS_getProperty(qname, bindOptions).value is not ASXMLList target)
                 return null;
 
             if (target.m_items.length != 0)

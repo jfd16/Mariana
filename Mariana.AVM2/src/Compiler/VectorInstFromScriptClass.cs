@@ -1,9 +1,9 @@
 using System;
-using System.Diagnostics;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using Mariana.AVM2.Core;
+using System.Diagnostics;
 using System.Reflection;
+using Mariana.AVM2.Core;
 
 namespace Mariana.AVM2.Compiler {
 
@@ -13,14 +13,14 @@ namespace Mariana.AVM2.Compiler {
     /// </summary>
     internal sealed class VectorInstFromScriptClass : ClassImpl {
 
-        private static readonly Class s_vecAnyClass = Class.fromType<ASVectorAny>();
+        private static readonly Class s_vecAnyClass = Class.fromType(typeof(ASVectorAny));
 
         // We use this class as a "marker" to identify the type argument of Vector in
         // field and method signatures so they can be substituted with the actual class.
         // The type T used as the marker must be chosen such that T or Vector<T> does
         // not appear in any field or method signature other than as the type argument
         // or a type dependent on it.
-        private static readonly Class s_markerElement = Class.fromType<ASVector<ASVectorAny>>();
+        private static readonly Class s_markerElement = Class.fromType(typeof(ASVector<ASVectorAny>));
 
         /// <summary>
         /// Contains the Vector instantiations that use classes not yet fully compiled in
@@ -32,8 +32,7 @@ namespace Mariana.AVM2.Compiler {
         /// and their traits are not available until they have been compiled (and the compiled
         /// assemblies loaded).
         /// </remarks>
-        private static readonly ConcurrentBag<VectorInstFromScriptClass> s_incompleteInstances =
-            new ConcurrentBag<VectorInstFromScriptClass>();
+        private static readonly ConcurrentBag<VectorInstFromScriptClass> s_incompleteInstances = new();
 
         private Class m_elementType;
 
@@ -151,7 +150,7 @@ namespace Mariana.AVM2.Compiler {
 
             s_incompleteInstances.Clear();
 
-            void complete(VectorInstFromScriptClass inst) {
+            static void complete(VectorInstFromScriptClass inst) {
                 if (inst.underlyingType != null)
                     return;
 

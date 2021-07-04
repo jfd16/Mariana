@@ -11,7 +11,7 @@ namespace Mariana.CodeGen {
         /// The namespace of the type name, or null if the type name does not include a
         /// namespace.
         /// </summary>
-        public readonly string ns;
+        public readonly string? ns;
 
         /// <summary>
         /// The type name.
@@ -29,7 +29,7 @@ namespace Mariana.CodeGen {
         /// </summary>
         /// <param name="ns">The namespace of the type name.</param>
         /// <param name="name">The type name.</param>
-        public TypeName(string ns, string name) {
+        public TypeName(string? ns, string name) {
             if (name == null)
                 throw new ArgumentNullException(nameof(name));
 

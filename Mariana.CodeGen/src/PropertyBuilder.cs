@@ -21,18 +21,22 @@ namespace Mariana.CodeGen {
 
         private BlobHandle m_sigHandle;
 
-        private object m_constantValue;
+        private object? m_constantValue;
 
-        private MethodBuilder m_getter;
+        private MethodBuilder? m_getter;
 
-        private MethodBuilder m_setter;
+        private MethodBuilder? m_setter;
 
         private DynamicArray<MethodBuilder> m_otherMethods;
 
         internal PropertyBuilder(
-            TypeBuilder declaringType, string name, PropertyAttributes attrs,
-            StringHandle nameHandle, BlobHandle sigHandle, object constantValue)
-        {
+            TypeBuilder declaringType,
+            string name,
+            PropertyAttributes attrs,
+            StringHandle nameHandle,
+            BlobHandle sigHandle,
+            object? constantValue
+        ) {
             m_declType = declaringType;
             m_name = name;
             m_attrs = attrs;

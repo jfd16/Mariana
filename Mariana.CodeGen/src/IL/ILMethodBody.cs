@@ -33,9 +33,14 @@ namespace Mariana.CodeGen.IL {
         private readonly int m_totalLength;
 
         internal ILMethodBody(
-            ushort maxStack, bool initLocals, byte[] localSignature, int localSignatureToken,
-            byte[] methodBody, byte[] ehSection, int[] virtualTokenLocations)
-        {
+            ushort maxStack,
+            bool initLocals,
+            byte[]? localSignature,
+            int localSignatureToken,
+            byte[]? methodBody,
+            byte[]? ehSection,
+            int[]? virtualTokenLocations
+        ) {
             m_initLocals = initLocals;
             m_maxStack = maxStack;
             m_localSignature = localSignature ?? Array.Empty<byte>();
@@ -43,7 +48,7 @@ namespace Mariana.CodeGen.IL {
             m_methodBody = methodBody ?? Array.Empty<byte>();
             m_ehSection = ehSection ?? Array.Empty<byte>();
             m_virtualTokenLocations = virtualTokenLocations ?? Array.Empty<int>();
-            m_useFatHeader = initLocals || localSignatureToken != 0 || maxStack > 8 || methodBody.Length >= 64 || m_ehSection.Length != 0;
+            m_useFatHeader = initLocals || localSignatureToken != 0 || maxStack > 8 || m_methodBody.Length >= 64 || m_ehSection.Length != 0;
             m_totalLength = _computeTotalLength();
         }
 
@@ -121,7 +126,7 @@ namespace Mariana.CodeGen.IL {
         /// <param name="tokenMapping">A <see cref="TokenMapping"/> instance to use for replacing
         /// virtual tokens with their corresponding real tokens. If this is null, virtual tokens
         /// are not replaced.</param>
-        public void writeToBlobBuilder(BlobBuilder blob, TokenMapping tokenMapping = null) {
+        public void writeToBlobBuilder(BlobBuilder blob, TokenMapping? tokenMapping = null) {
             if (m_useFatHeader)
                 blob.Align(4);
 
@@ -137,7 +142,7 @@ namespace Mariana.CodeGen.IL {
         /// <param name="tokenMapping">A <see cref="TokenMapping"/> instance to use for replacing
         /// virtual tokens with their corresponding real tokens. If this is null, virtual tokens
         /// are not replaced.</param>
-        public void writeToSpan(Span<byte> span, TokenMapping tokenMapping = null) {
+        public void writeToSpan(Span<byte> span, TokenMapping? tokenMapping = null) {
             int codeSize = m_methodBody.Length;
 
             if (m_useFatHeader) {
@@ -183,7 +188,7 @@ namespace Mariana.CodeGen.IL {
         /// virtual tokens with their corresponding real tokens. If this is null, virtual tokens
         /// are not replaced.</param>
         /// <returns>A byte array.</returns>
-        public byte[] toByteArray(TokenMapping tokenMapping = null) {
+        public byte[] toByteArray(TokenMapping? tokenMapping = null) {
             byte[] arr = new byte[m_totalLength];
             writeToSpan(arr, tokenMapping);
             return arr;

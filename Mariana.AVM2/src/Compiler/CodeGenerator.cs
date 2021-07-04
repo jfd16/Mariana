@@ -147,7 +147,7 @@ namespace Mariana.AVM2.Compiler {
                 var traits = klass.getTraits(TraitType.ALL, TraitScope.INSTANCE_DECLARED);
 
                 for (int i = 0; i < traits.length; i++) {
-                    if (!(traits[i] is MethodTrait method))
+                    if (traits[i] is not MethodTrait method)
                         continue;
 
                     if (method.name.localName == toStringName.localName
@@ -192,7 +192,7 @@ namespace Mariana.AVM2.Compiler {
 
                 var rpo = m_compilation.getBasicBlockReversePostorder();
                 for (int i = 0; i < rpo.Length; i++)
-                    _visitBasicBlock(ref m_compilation.getBasicBlock(rpo[i]));
+                    _visitBasicBlock(m_compilation.getBasicBlock(rpo[i]));
 
                 _emitTrailer();
             }
@@ -223,7 +223,7 @@ namespace Mariana.AVM2.Compiler {
 
                 bool mustStashAndRestoreStack =
                     m_compilation.staticIntArrayPool.getLength(block.stackAtEntry) > 0
-                    && hasBackwardEntryOrCatch(ref block);
+                    && hasBackwardEntryOrCatch(block);
 
                 if (!mustStashAndRestoreStack) {
                     emitInfo.backwardLabel = emitInfo.forwardLabel;
@@ -232,11 +232,11 @@ namespace Mariana.AVM2.Compiler {
                 else {
                     emitInfo.backwardLabel = m_ilBuilder.createLabel();
                     emitInfo.needsStackStashAndRestore = true;
-                    emitInfo.stackStashVars = _createStackStashForBlockEntry(ref block);
+                    emitInfo.stackStashVars = _createStackStashForBlockEntry(block);
                 }
             }
 
-            bool hasBackwardEntryOrCatch(ref BasicBlock bb) {
+            bool hasBackwardEntryOrCatch(in BasicBlock bb) {
                 var entryPoints = m_compilation.cfgNodeRefArrayPool.getSpan(bb.entryPoints);
                 for (int i = 0; i < entryPoints.Length; i++) {
                     CFGNodeRef ep = entryPoints[i];
@@ -247,7 +247,7 @@ namespace Mariana.AVM2.Compiler {
             }
         }
 
-        private StaticArrayPoolToken<ILBuilder.Local> _createStackStashForBlockEntry(ref BasicBlock block) {
+        private StaticArrayPoolToken<ILBuilder.Local> _createStackStashForBlockEntry(in BasicBlock block) {
             var stackAtEntry = m_compilation.staticIntArrayPool.getSpan(block.stackAtEntry);
             var token = m_localVarArrayPool.allocate(stackAtEntry.Length, out Span<ILBuilder.Local> vars);
 
@@ -330,7 +330,7 @@ namespace Mariana.AVM2.Compiler {
                     //   This prevents sync writes that are redundant (when transferring from a parent
                     //   to a child try region) or duplicate.
 
-                    if (m_compilation.getDataNodeUseCount(ref node) > 0
+                    if (m_compilation.getDataNodeUseCount(node) > 0
                         && _tryGetLocalVarForNode(node, out var localVar)
                         && !hasExistingLocalVarInTable(i, j, localVar))
                     {
@@ -363,10 +363,9 @@ namespace Mariana.AVM2.Compiler {
                 m_ilBuilder.beginExceptionHandler();
 
                 if (m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_RETURN_VALUE)) {
-                    using (var lockedContext = m_compilation.getContext()) {
-                        var retTypeSig = lockedContext.value.getTypeSignature(m_compilation.getCurrentMethod().returnType);
-                        m_excReturnValueLocal = m_ilBuilder.declareLocal(retTypeSig);
-                    }
+                    using var lockedContext = m_compilation.getContext();
+                    var retTypeSig = lockedContext.value.getTypeSignature(m_compilation.getCurrentMethod().returnType);
+                    m_excReturnValueLocal = m_ilBuilder.declareLocal(retTypeSig);
                 }
             }
 
@@ -613,8 +612,8 @@ namespace Mariana.AVM2.Compiler {
                 traits = m_compilation.declaringClass.getTraits(TraitType.ALL, TraitScope.STATIC);
             }
             else if (m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCRIPT_INIT)) {
-                using (var lockedContext = m_compilation.getContext())
-                    traits = lockedContext.value.getScriptTraits(m_compilation.currentScriptInfo);
+                using var lockedContext = m_compilation.getContext();
+                traits = lockedContext.value.getScriptTraits(m_compilation.currentScriptInfo);
             }
 
             if (traits.length == 0)
@@ -624,7 +623,7 @@ namespace Mariana.AVM2.Compiler {
 
             using (var lockedContext = m_compilation.getContext()) {
                 for (int i = 0; i < traits.length; i++) {
-                    if (!(traits[i] is ScriptField field))
+                    if (traits[i] is not ScriptField field)
                         continue;
 
                     if (m_fieldInitInstructionIds.tryGetValue(field, out int initId) && initId != -1)
@@ -681,7 +680,7 @@ namespace Mariana.AVM2.Compiler {
                 if (node.dataType != thisArgNode.dataType || node.constant != thisArgNode.constant)
                     continue;
 
-                var nodeUses = m_compilation.getDataNodeUses(ref node);
+                var nodeUses = m_compilation.getDataNodeUses(node);
 
                 for (int j = 0; j < nodeUses.Length; j++) {
                     if (!nodeUses[j].isInstruction)
@@ -827,18 +826,18 @@ namespace Mariana.AVM2.Compiler {
             }
         }
 
-        private void _visitBasicBlock(ref BasicBlock block) {
-            _emitBasicBlockHeader(ref block);
+        private void _visitBasicBlock(in BasicBlock block) {
+            _emitBasicBlockHeader(block);
 
             var instructions = m_compilation.getInstructionsInBasicBlock(block);
             for (int i = 0; i < instructions.Length; i++)
                 _visitInstruction(ref instructions[i]);
 
             if (block.exitType == BasicBlockExitType.JUMP)
-                _emitJumpFromBasicBlock(ref block);
+                _emitJumpFromBasicBlock(block);
         }
 
-        private void _emitBasicBlockHeader(ref BasicBlock block) {
+        private void _emitBasicBlockHeader(in BasicBlock block) {
             ref BlockEmitInfo emitInfo = ref m_blockEmitInfo[block.id];
 
             if (emitInfo.backwardLabel != emitInfo.forwardLabel)
@@ -852,7 +851,7 @@ namespace Mariana.AVM2.Compiler {
                     if (!stashVars[i].isDefault)
                         m_ilBuilder.emit(ILOp.ldloc, stashVars[i]);
                     else
-                        _emitPushConstantNode(ref m_compilation.getDataNode(stackAtEntry[i]));
+                        _emitPushConstantNode(m_compilation.getDataNode(stackAtEntry[i]));
                 }
             }
 
@@ -876,7 +875,7 @@ namespace Mariana.AVM2.Compiler {
                     m_ilBuilder.emit(ILOp.stloc, m_curExcHandlerIdLocal);
                 }
 
-                _syncLocalsWithCatchVarsOnTryEntry(ref block);
+                _syncLocalsWithCatchVarsOnTryEntry(block);
             }
         }
 
@@ -1205,7 +1204,7 @@ namespace Mariana.AVM2.Compiler {
             }
 
             if (instr.stackPushedNodeId != -1)
-                _emitOnPushTypeCoerce(ref m_compilation.getDataNode(instr.stackPushedNodeId));
+                _emitOnPushTypeCoerce(m_compilation.getDataNode(instr.stackPushedNodeId));
         }
 
         private void _visitGetLocal(ref Instruction instr) {
@@ -1216,7 +1215,7 @@ namespace Mariana.AVM2.Compiler {
                 return;
 
             if (pushed.isConstant) {
-                _emitPushConstantNode(ref pushed);
+                _emitPushConstantNode(pushed);
                 return;
             }
 
@@ -1233,7 +1232,7 @@ namespace Mariana.AVM2.Compiler {
             if (canUseDup)
                 m_ilBuilder.emit(ILOp.dup);
             else
-                _emitLoadScopeOrLocalNode(ref local);
+                _emitLoadScopeOrLocalNode(local);
         }
 
         private void _visitGetScopeObject(ref Instruction instr) {
@@ -1244,13 +1243,13 @@ namespace Mariana.AVM2.Compiler {
                 return;
 
             if (pushed.isConstant)
-                _emitPushConstantNode(ref pushed);
+                _emitPushConstantNode(pushed);
             else
-                _emitLoadScopeOrLocalNode(ref scope);
+                _emitLoadScopeOrLocalNode(scope);
         }
 
         private void _visitPushScope(ref Instruction instr) {
-            ref DataNode popped = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode popped = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
             ref DataNode scope = ref m_compilation.getDataNode(instr.data.pushScope.pushedNodeId);
 
             bool isCoercedToObject = false;
@@ -1258,19 +1257,19 @@ namespace Mariana.AVM2.Compiler {
             if (scope.isConstant || scope.dataType == DataNodeType.THIS || scope.dataType == DataNodeType.REST) {
                 if (m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_RUNTIME_SCOPE_STACK)) {
                     if (popped.isNotPushed)
-                        _emitPushConstantNode(ref popped, ignoreNoPush: true);
+                        _emitPushConstantNode(popped, ignoreNoPush: true);
 
-                    emitPushToRuntimeScope(ref popped, ref scope);
+                    emitPushToRuntimeScope(popped, scope);
                 }
                 else {
-                    _emitDiscardTopOfStack(ref popped);
+                    _emitDiscardTopOfStack(popped);
                 }
                 return;
             }
 
             if (isAnyOrUndefined(popped.dataType)) {
                 Debug.Assert(scope.dataType == DataNodeType.OBJECT);
-                _emitTypeCoerceForTopOfStack(ref popped, DataNodeType.OBJECT);
+                _emitTypeCoerceForTopOfStack(popped, DataNodeType.OBJECT);
                 isCoercedToObject = true;
             }
 
@@ -1292,19 +1291,19 @@ namespace Mariana.AVM2.Compiler {
 
                 if (popped.isNotPushed) {
                     // We need to force push the node if it has been marked as nopush.
-                    _emitPushConstantNode(ref popped, ignoreNoPush: true);
+                    _emitPushConstantNode(popped, ignoreNoPush: true);
                 }
                 else {
                     m_ilBuilder.emit(ILOp.dup);
                 }
-                emitPushToRuntimeScope(ref popped, ref scope);
+                emitPushToRuntimeScope(popped, scope);
             }
 
             m_ilBuilder.emit(ILOp.stloc, _getLocalVarForNode(scope));
 
-            void emitPushToRuntimeScope(ref DataNode _popped, ref DataNode _scope) {
+            void emitPushToRuntimeScope(in DataNode _popped, in DataNode _scope) {
                 if (!isCoercedToObject)
-                    _emitTypeCoerceForTopOfStack(ref _popped, DataNodeType.OBJECT, isForcePushed: true);
+                    _emitTypeCoerceForTopOfStack(_popped, DataNodeType.OBJECT, isForcePushed: true);
 
                 BindOptions bindOpts = BindOptions.SEARCH_TRAITS;
                 if (_scope.dataType == DataNodeType.GLOBAL)
@@ -1325,38 +1324,38 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitSetLocal(ref Instruction instr) {
-            ref DataNode popped = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode popped = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
             ref DataNode local = ref m_compilation.getDataNode(instr.data.getSetLocal.newNodeId);
 
             local = ref _checkForLocalWriteThrough(ref local);
 
-            if (m_compilation.getDataNodeUseCount(ref local) == 0) {
-                _emitDiscardTopOfStack(ref popped);
+            if (m_compilation.getDataNodeUseCount(local) == 0) {
+                _emitDiscardTopOfStack(popped);
             }
             else if (local.isConstant || local.dataType == DataNodeType.THIS || local.dataType == DataNodeType.REST) {
-                _emitDiscardTopOfStack(ref popped);
-                _syncLocalWriteWithCatchVars(ref instr, ref local);
+                _emitDiscardTopOfStack(popped);
+                _syncLocalWriteWithCatchVars(instr, local);
             }
             else {
                 var localVar = _getLocalVarForNode(local);
 
                 if (popped.dataType == DataNodeType.UNDEFINED && local.dataType == DataNodeType.ANY) {
-                    _emitDiscardTopOfStack(ref popped);
+                    _emitDiscardTopOfStack(popped);
                     m_ilBuilder.emit(ILOp.ldloca, localVar);
                     m_ilBuilder.emit(ILOp.initobj, typeof(ASAny));
                 }
                 else {
                     if (popped.isNotPushed) {
-                        _emitPushConstantNode(ref popped, ignoreNoPush: true);
-                        _emitTypeCoerceForTopOfStack(ref popped, m_compilation.getDataNodeClass(local), isForcePushed: true);
+                        _emitPushConstantNode(popped, ignoreNoPush: true);
+                        _emitTypeCoerceForTopOfStack(popped, m_compilation.getDataNodeClass(local), isForcePushed: true);
                     }
                     else {
-                        _emitTypeCoerceForTopOfStack(ref popped, m_compilation.getDataNodeClass(local));
+                        _emitTypeCoerceForTopOfStack(popped, m_compilation.getDataNodeClass(local));
                     }
                     m_ilBuilder.emit(ILOp.stloc, localVar);
                 }
 
-                _syncLocalWriteWithCatchVars(ref instr, ref local, localVar);
+                _syncLocalWriteWithCatchVars(instr, local, localVar);
             }
         }
 
@@ -1392,15 +1391,15 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitThrow(ref Instruction instr) {
-            ref DataNode popped = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
-            _emitTypeCoerceForTopOfStack(ref popped, DataNodeType.ANY);
+            ref DataNode popped = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
+            _emitTypeCoerceForTopOfStack(popped, DataNodeType.ANY);
 
             m_ilBuilder.emit(ILOp.newobj, KnownMembers.newException, 0);
             m_ilBuilder.emit(ILOp.@throw);
         }
 
         private void _visitReturnValue(ref Instruction instr) {
-            ref DataNode popped = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode popped = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
 
             var excessStack = m_compilation.staticIntArrayPool.getSpan(instr.data.returnVoidOrValue.excessStackNodeIds);
             if (excessStack.Length > 0) {
@@ -1413,7 +1412,7 @@ namespace Mariana.AVM2.Compiler {
                 }
 
                 if (popsRequired > 0) {
-                    var stashVar = _emitStashTopOfStack(ref popped);
+                    var stashVar = _emitStashTopOfStack(popped);
 
                     for (int i = 0; i < popsRequired; i++)
                         m_ilBuilder.emit(ILOp.pop);
@@ -1424,13 +1423,13 @@ namespace Mariana.AVM2.Compiler {
 
             if (m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_RETURN_VALUE)) {
                 Class returnType = m_compilation.getCurrentMethod().returnType;
-                _emitTypeCoerceForTopOfStack(ref popped, returnType);
+                _emitTypeCoerceForTopOfStack(popped, returnType);
 
                 if (m_hasExceptionHandling)
                     m_ilBuilder.emit(ILOp.stloc, m_excReturnValueLocal);
             }
             else {
-                _emitDiscardTopOfStack(ref popped);
+                _emitDiscardTopOfStack(popped);
             }
 
             if (m_hasExceptionHandling)
@@ -1441,12 +1440,12 @@ namespace Mariana.AVM2.Compiler {
 
         private void _visitPushConst(ref Instruction instr) {
             ref DataNode pushed = ref m_compilation.getDataNode(instr.stackPushedNodeId);
-            _emitPushConstantNode(ref pushed);
+            _emitPushConstantNode(pushed);
         }
 
         private void _visitPop(ref Instruction instr) {
-            ref DataNode popped = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
-            _emitDiscardTopOfStack(ref popped);
+            ref DataNode popped = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
+            _emitDiscardTopOfStack(popped);
         }
 
         private void _visitPopScope(ref Instruction instr) {
@@ -1468,13 +1467,13 @@ namespace Mariana.AVM2.Compiler {
                     || node.onPushCoerceType != DataNodeType.UNKNOWN
                     || node.isNotPushed)
                 {
-                    _emitPushConstantNode(ref dupedNode);
+                    _emitPushConstantNode(dupedNode);
                     return;
                 }
             }
 
             if (node.isNotPushed) {
-                _emitPushConstantNode(ref node, ignoreNoPush: true);
+                _emitPushConstantNode(node, ignoreNoPush: true);
                 return;
             }
 
@@ -1482,52 +1481,52 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitSwap(ref Instruction instr) {
-            ref DataNode left = ref m_compilation.getDataNode(instr.data.dupOrSwap.nodeId1);
-            ref DataNode right = ref m_compilation.getDataNode(instr.data.dupOrSwap.nodeId2);
+            ref DataNode leftNode = ref m_compilation.getDataNode(instr.data.dupOrSwap.nodeId1);
+            ref DataNode rightNode = ref m_compilation.getDataNode(instr.data.dupOrSwap.nodeId2);
 
-            if (((left.flags | right.flags) & DataNodeFlags.NO_PUSH) != 0)
+            if (((leftNode.flags | rightNode.flags) & DataNodeFlags.NO_PUSH) != 0)
                 // If any one node is marked as no-push then no need to swap.
                 return;
 
-            var stashRight = _emitStashTopOfStack(ref right);
-            var stashLeft = _emitStashTopOfStack(ref left);
+            var stashRight = _emitStashTopOfStack(rightNode);
+            var stashLeft = _emitStashTopOfStack(leftNode);
             _emitUnstash(stashRight);
             _emitUnstash(stashLeft);
         }
 
         private void _visitUnaryOp(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
-            ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
+            ref DataNode inputNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
+            ref DataNode outputNode = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
-            if (output.isConstant) {
-                _emitDiscardTopOfStack(ref input);
-                _emitPushConstantNode(ref output);
+            if (outputNode.isConstant) {
+                _emitDiscardTopOfStack(inputNode);
+                _emitPushConstantNode(outputNode);
                 return;
             }
 
             switch (instr.opcode) {
                 case ABCOp.bitnot:
-                    _emitTypeCoerceForTopOfStack(ref input, DataNodeType.INT);
+                    _emitTypeCoerceForTopOfStack(inputNode, DataNodeType.INT);
                     m_ilBuilder.emit(ILOp.not);
                     break;
 
                 case ABCOp.negate_i:
-                    _emitTypeCoerceForTopOfStack(ref input, DataNodeType.INT);
+                    _emitTypeCoerceForTopOfStack(inputNode, DataNodeType.INT);
                     m_ilBuilder.emit(ILOp.neg);
                     break;
 
                 case ABCOp.negate:
-                    _emitTypeCoerceForTopOfStack(ref input, output.dataType);
+                    _emitTypeCoerceForTopOfStack(inputNode, outputNode.dataType);
                     m_ilBuilder.emit(ILOp.neg);
                     break;
 
                 case ABCOp.increment:
                 case ABCOp.decrement:
                 {
-                    _emitTypeCoerceForTopOfStack(ref input, output.dataType);
+                    _emitTypeCoerceForTopOfStack(inputNode, outputNode.dataType);
 
                     m_ilBuilder.emit(ILOp.ldc_i4_1);
-                    if (output.dataType == DataNodeType.NUMBER)
+                    if (outputNode.dataType == DataNodeType.NUMBER)
                         m_ilBuilder.emit(ILOp.conv_r8);
 
                     m_ilBuilder.emit((instr.opcode == ABCOp.decrement) ? ILOp.sub : ILOp.add);
@@ -1538,7 +1537,7 @@ namespace Mariana.AVM2.Compiler {
                 case ABCOp.increment_i:
                 case ABCOp.decrement_i:
                 {
-                    _emitTypeCoerceForTopOfStack(ref input, DataNodeType.INT);
+                    _emitTypeCoerceForTopOfStack(inputNode, DataNodeType.INT);
 
                     m_ilBuilder.emit(ILOp.ldc_i4_1);
                     m_ilBuilder.emit((instr.opcode == ABCOp.decrement_i) ? ILOp.sub : ILOp.add);
@@ -1547,7 +1546,7 @@ namespace Mariana.AVM2.Compiler {
                 }
 
                 case ABCOp.sxi1:
-                    _emitTypeCoerceForTopOfStack(ref input, DataNodeType.INT);
+                    _emitTypeCoerceForTopOfStack(inputNode, DataNodeType.INT);
                     m_ilBuilder.emit(ILOp.ldc_i4_1);
                     m_ilBuilder.emit(ILOp.and);
                     m_ilBuilder.emit(ILOp.neg);
@@ -1555,23 +1554,23 @@ namespace Mariana.AVM2.Compiler {
 
                 case ABCOp.sxi8:
                 case ABCOp.sxi16:
-                    _emitTypeCoerceForTopOfStack(ref input, DataNodeType.INT);
+                    _emitTypeCoerceForTopOfStack(inputNode, DataNodeType.INT);
                     m_ilBuilder.emit((instr.opcode == ABCOp.sxi8) ? ILOp.conv_i1 : ILOp.conv_i2);
                     break;
             }
         }
 
         private void _visitNot(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
-            ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
+            ref DataNode inputNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
+            ref DataNode outputNode = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
-            if (output.isConstant) {
-                _emitDiscardTopOfStack(ref input);
-                _emitPushConstantNode(ref output);
+            if (outputNode.isConstant) {
+                _emitDiscardTopOfStack(inputNode);
+                _emitPushConstantNode(outputNode);
                 return;
             }
 
-            switch (_getPushedTypeOfNode(input)) {
+            switch (_getPushedTypeOfNode(inputNode)) {
                 case DataNodeType.INT:
                 case DataNodeType.UINT:
                 case DataNodeType.BOOL:
@@ -1580,7 +1579,7 @@ namespace Mariana.AVM2.Compiler {
                     break;
 
                 case DataNodeType.OBJECT: {
-                    if (!_getPushedClassOfNode(input).isObjectClass) {
+                    if (!_getPushedClassOfNode(inputNode).isObjectClass) {
                         m_ilBuilder.emit(ILOp.ldnull);
                         m_ilBuilder.emit(ILOp.ceq);
                         break;
@@ -1589,7 +1588,7 @@ namespace Mariana.AVM2.Compiler {
                 }
 
                 default:
-                    _emitTypeCoerceForTopOfStack(ref input, DataNodeType.BOOL);
+                    _emitTypeCoerceForTopOfStack(inputNode, DataNodeType.BOOL);
                     goto case DataNodeType.BOOL;
             }
         }
@@ -1598,11 +1597,11 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode oldLocal = ref m_compilation.getDataNode(instr.data.getSetLocal.nodeId);
             ref DataNode newLocal = ref m_compilation.getDataNode(instr.data.getSetLocal.newNodeId);
 
-            if (m_compilation.getDataNodeUseCount(ref newLocal) == 0)
+            if (m_compilation.getDataNodeUseCount(newLocal) == 0)
                 return;
 
             if (newLocal.isConstant) {
-                _syncLocalWriteWithCatchVars(ref instr, ref newLocal);
+                _syncLocalWriteWithCatchVars(instr, newLocal);
                 return;
             }
 
@@ -1611,8 +1610,8 @@ namespace Mariana.AVM2.Compiler {
 
             Debug.Assert(type == newLocal.dataType);
 
-            _emitLoadScopeOrLocalNode(ref oldLocal);
-            _emitTypeCoerceForTopOfStack(ref oldLocal, type);
+            _emitLoadScopeOrLocalNode(oldLocal);
+            _emitTypeCoerceForTopOfStack(oldLocal, type);
 
             m_ilBuilder.emit(ILOp.ldc_i4_1);
             if (type == DataNodeType.NUMBER)
@@ -1622,37 +1621,37 @@ namespace Mariana.AVM2.Compiler {
 
             var newLocalVar = _getLocalVarForNode(newLocal);
             m_ilBuilder.emit(ILOp.stloc, newLocalVar);
-            _syncLocalWriteWithCatchVars(ref instr, ref newLocal, newLocalVar);
+            _syncLocalWriteWithCatchVars(instr, newLocal, newLocalVar);
         }
 
         private void _visitCoerce(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
-            ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
+            ref DataNode inputNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
+            ref DataNode outputNode = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
-            if (output.isConstant) {
-                _emitDiscardTopOfStack(ref input);
-                _emitPushConstantNode(ref output);
+            if (outputNode.isConstant) {
+                _emitDiscardTopOfStack(inputNode);
+                _emitPushConstantNode(outputNode);
             }
             else {
-                _emitTypeCoerceForTopOfStack(ref input, m_compilation.getDataNodeClass(output));
+                _emitTypeCoerceForTopOfStack(inputNode, m_compilation.getDataNodeClass(outputNode));
             }
         }
 
         private void _visitConvertX(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
-            ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
+            ref DataNode inputNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
+            ref DataNode outputNode = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
-            if (output.isConstant) {
-                _emitDiscardTopOfStack(ref input);
-                _emitPushConstantNode(ref output);
+            if (outputNode.isConstant) {
+                _emitDiscardTopOfStack(inputNode);
+                _emitPushConstantNode(outputNode);
             }
             else if (instr.opcode != ABCOp.coerce_a) {
-                _emitTypeCoerceForTopOfStack(ref input, output.dataType, useConvertStr: instr.opcode == ABCOp.convert_s);
+                _emitTypeCoerceForTopOfStack(inputNode, outputNode.dataType, useConvertStr: instr.opcode == ABCOp.convert_s);
             }
         }
 
         private void _visitNewArray(ref Instruction instr) {
-            var poppedNodeIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var poppedNodeIds = m_compilation.getInstructionStackPoppedNodes(instr);
             int elementCount = instr.data.newArrOrObj.elementCount;
 
             if (elementCount == 0) {
@@ -1677,7 +1676,7 @@ namespace Mariana.AVM2.Compiler {
 
             for (int i = elementCount - 1; i >= 0; i--) {
                 ref DataNode node = ref m_compilation.getDataNode(poppedNodeIds[i]);
-                _emitTypeCoerceForTopOfStack(ref node, DataNodeType.ANY);
+                _emitTypeCoerceForTopOfStack(node, DataNodeType.ANY);
 
                 m_ilBuilder.emit(ILOp.stloc, elemLocal);
                 m_ilBuilder.emit(ILOp.ldloc, arrLocal);
@@ -1694,30 +1693,29 @@ namespace Mariana.AVM2.Compiler {
             bool tryGetHelper(ReadOnlySpan<int> _argsOnStack, out EntityHandle _helperHandle) {
                 _helperHandle = default;
 
-                using (var lockedContext = m_compilation.getContext()) {
-                    HelperEmitter helperEmitter = lockedContext.value.helperEmitter;
+                using var lockedContext = m_compilation.getContext();
+                HelperEmitter helperEmitter = lockedContext.value.helperEmitter;
 
-                    if (_argsOnStack.Length > helperEmitter.newArrayHelperMaxSize)
+                if (_argsOnStack.Length > helperEmitter.newArrayHelperMaxSize)
+                    return false;
+
+                // Use a helper only if no type conversions are needed.
+                // This is not a significant limitation in practice because type conversions to "any" are
+                // considered as non-side-effecting, and so would be hoisted except in some complex data flow
+                // graphs.
+
+                for (int i = 0; i < _argsOnStack.Length; i++) {
+                    DataNodeType pushedType = _getPushedTypeOfNode(m_compilation.getDataNode(_argsOnStack[i]));
+                    if (!isAnyOrUndefined(pushedType))
                         return false;
-
-                    // Use a helper only if no type conversions are needed.
-                    // This is not a significant limitation in practice because type conversions to "any" are
-                    // considered as non-side-effecting, and so would be hoisted except in some complex data flow
-                    // graphs.
-
-                    for (int i = 0; i < _argsOnStack.Length; i++) {
-                        DataNodeType pushedType = _getPushedTypeOfNode(m_compilation.getDataNode(_argsOnStack[i]));
-                        if (!isAnyOrUndefined(pushedType))
-                            return false;
-                    }
-
-                    return helperEmitter.tryGetNewArrayHelper(_argsOnStack.Length, out _helperHandle);
                 }
+
+                return helperEmitter.tryGetNewArrayHelper(_argsOnStack.Length, out _helperHandle);
             }
         }
 
         private void _visitNewObject(ref Instruction instr) {
-            var poppedNodeIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var poppedNodeIds = m_compilation.getInstructionStackPoppedNodes(instr);
             int propertyCount = instr.data.newArrOrObj.elementCount;
 
             Debug.Assert(poppedNodeIds.Length == propertyCount * 2);
@@ -1755,9 +1753,9 @@ namespace Mariana.AVM2.Compiler {
                 ref DataNode keyNode = ref m_compilation.getDataNode(poppedNodeIds[keyStackPos]);
                 ref DataNode valNode = ref m_compilation.getDataNode(poppedNodeIds[keyStackPos + 1]);
 
-                _emitTypeCoerceForTopOfStack(ref valNode, DataNodeType.ANY);
+                _emitTypeCoerceForTopOfStack(valNode, DataNodeType.ANY);
                 m_ilBuilder.emit(ILOp.stloc, valLocal);
-                _emitTypeCoerceForTopOfStack(ref keyNode, DataNodeType.STRING);
+                _emitTypeCoerceForTopOfStack(keyNode, DataNodeType.STRING);
                 m_ilBuilder.emit(ILOp.stloc, keyLocal);
 
                 m_ilBuilder.emit(ILOp.ldloc, dynPropLocal);
@@ -1777,52 +1775,51 @@ namespace Mariana.AVM2.Compiler {
             bool tryGetHelper(ReadOnlySpan<int> _argsOnStack, out EntityHandle _helperHandle) {
                 _helperHandle = default;
 
-                using (var lockedContext = m_compilation.getContext()) {
-                    HelperEmitter helperEmitter = lockedContext.value.helperEmitter;
+                using var lockedContext = m_compilation.getContext();
+                HelperEmitter helperEmitter = lockedContext.value.helperEmitter;
 
-                    if (_argsOnStack.Length > helperEmitter.newObjectHelperMaxSize * 2)
+                if (_argsOnStack.Length > helperEmitter.newObjectHelperMaxSize * 2)
+                    return false;
+
+                // Use a helper only if no type conversions are needed.
+                // This is not a significant limitation in practice because: (i) the keys are usually literal strings
+                // and (ii) type conversions of the values to "any" are considered as non-side-effecting, and so would
+                // be hoisted except in some complex data flow graphs.
+
+                for (int i = 0; i < _argsOnStack.Length; i++) {
+                    DataNodeType pushedType = _getPushedTypeOfNode(m_compilation.getDataNode(_argsOnStack[i]));
+                    bool argIsKey = (i & 1) == 0;
+
+                    if ((argIsKey && pushedType != DataNodeType.STRING) || (!argIsKey && !isAnyOrUndefined(pushedType)))
                         return false;
-
-                    // Use a helper only if no type conversions are needed.
-                    // This is not a significant limitation in practice because: (i) the keys are usually literal strings
-                    // and (ii) type conversions of the values to "any" are considered as non-side-effecting, and so would
-                    // be hoisted except in some complex data flow graphs.
-
-                    for (int i = 0; i < _argsOnStack.Length; i++) {
-                        DataNodeType pushedType = _getPushedTypeOfNode(m_compilation.getDataNode(_argsOnStack[i]));
-                        bool argIsKey = (i & 1) == 0;
-
-                        if ((argIsKey && pushedType != DataNodeType.STRING) || (!argIsKey && !isAnyOrUndefined(pushedType)))
-                            return false;
-                    }
-
-                    return helperEmitter.tryGetNewObjectHelper(_argsOnStack.Length >> 1, out _helperHandle);
                 }
+
+                return helperEmitter.tryGetNewObjectHelper(_argsOnStack.Length >> 1, out _helperHandle);
             }
         }
 
         private void _visitAdd(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode left = ref m_compilation.getDataNode(stackPopIds[0]);
-            ref DataNode right = ref m_compilation.getDataNode(stackPopIds[1]);
-            ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
+            ref DataNode leftInputNode = ref m_compilation.getDataNode(stackPopIds[0]);
+            ref DataNode rightInputNode = ref m_compilation.getDataNode(stackPopIds[1]);
+            ref DataNode outputNode = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
-            if (output.isConstant) {
-                _emitDiscardTopOfStack(ref right);
-                _emitDiscardTopOfStack(ref left);
-                _emitPushConstantNode(ref output);
+            if (outputNode.isConstant) {
+                _emitDiscardTopOfStack(rightInputNode);
+                _emitDiscardTopOfStack(leftInputNode);
+                _emitPushConstantNode(outputNode);
                 return;
             }
 
-            switch (output.dataType) {
+            switch (outputNode.dataType) {
                 case DataNodeType.INT:
                 case DataNodeType.UINT:
-                    _emitTypeCoerceForStackTop2(ref left, ref right, DataNodeType.INT, DataNodeType.INT);
+                    _emitTypeCoerceForStackTop2(leftInputNode, rightInputNode, DataNodeType.INT, DataNodeType.INT);
                     m_ilBuilder.emit(ILOp.add);
                     break;
 
                 case DataNodeType.NUMBER:
-                    _emitTypeCoerceForStackTop2(ref left, ref right, DataNodeType.NUMBER, DataNodeType.NUMBER);
+                    _emitTypeCoerceForStackTop2(leftInputNode, rightInputNode, DataNodeType.NUMBER, DataNodeType.NUMBER);
                     m_ilBuilder.emit(ILOp.add);
                     break;
 
@@ -1833,15 +1830,15 @@ namespace Mariana.AVM2.Compiler {
                     }
                     else if (instr.data.add.isConcatTreeRoot) {
                         // String concat tree root node.
-                        _emitStringConcatTree(ref instr);
+                        _emitStringConcatTree(instr);
                     }
                     else {
                         // Not part of a concat tree. Just a simple binary concatenation.
                         // The concatentation helpers convert null strings to "null", so don't emit conversions
                         // if both operands are already strings.
-                        bool useConvertStr = !isStringOrNull(_getPushedTypeOfNode(left)) && !isStringOrNull(_getPushedTypeOfNode(right));
+                        bool useConvertStr = !isStringOrNull(_getPushedTypeOfNode(leftInputNode)) && !isStringOrNull(_getPushedTypeOfNode(rightInputNode));
 
-                        _emitTypeCoerceForStackTop2(ref left, ref right, DataNodeType.STRING, DataNodeType.STRING, useConvertStr);
+                        _emitTypeCoerceForStackTop2(leftInputNode, rightInputNode, DataNodeType.STRING, DataNodeType.STRING, useConvertStr);
                         m_ilBuilder.emit(ILOp.call, KnownMembers.stringAdd2, -1);
                     }
                     break;
@@ -1849,7 +1846,7 @@ namespace Mariana.AVM2.Compiler {
 
                 case DataNodeType.OBJECT: {
                     DataNodeType inputType = instr.data.add.argsAreAnyType ? DataNodeType.ANY : DataNodeType.OBJECT;
-                    _emitTypeCoerceForStackTop2(ref left, ref right, inputType, inputType);
+                    _emitTypeCoerceForStackTop2(leftInputNode, rightInputNode, inputType, inputType);
                     m_ilBuilder.emit(ILOp.call, instr.data.add.argsAreAnyType ? KnownMembers.anyAdd : KnownMembers.objectAdd, -1);
                     break;
                 }
@@ -1857,34 +1854,34 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitBinaryNumberOp(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode left = ref m_compilation.getDataNode(stackPopIds[0]);
-            ref DataNode right = ref m_compilation.getDataNode(stackPopIds[1]);
-            ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
+            ref DataNode leftInputNode = ref m_compilation.getDataNode(stackPopIds[0]);
+            ref DataNode rightInputNode = ref m_compilation.getDataNode(stackPopIds[1]);
+            ref DataNode outputNode = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
-            if (output.isConstant) {
-                _emitDiscardTopOfStack(ref right);
-                _emitDiscardTopOfStack(ref left);
-                _emitPushConstantNode(ref output);
+            if (outputNode.isConstant) {
+                _emitDiscardTopOfStack(rightInputNode);
+                _emitDiscardTopOfStack(leftInputNode);
+                _emitPushConstantNode(outputNode);
                 return;
             }
 
             if (instr.opcode == ABCOp.subtract || instr.opcode == ABCOp.multiply) {
-                _emitTypeCoerceForStackTop2(ref left, ref right, output.dataType, output.dataType);
+                _emitTypeCoerceForStackTop2(leftInputNode, rightInputNode, outputNode.dataType, outputNode.dataType);
                 m_ilBuilder.emit((instr.opcode == ABCOp.subtract) ? ILOp.sub : ILOp.mul);
             }
             else {
                 // Divide and modulo
 
-                _emitTypeCoerceForStackTop2(ref left, ref right, output.dataType, output.dataType);
+                _emitTypeCoerceForStackTop2(leftInputNode, rightInputNode, outputNode.dataType, outputNode.dataType);
 
-                if (output.dataType == DataNodeType.NUMBER) {
+                if (outputNode.dataType == DataNodeType.NUMBER) {
                     // Floating-point division/remainder.
                     m_ilBuilder.emit((instr.opcode == ABCOp.divide) ? ILOp.div : ILOp.rem);
                     return;
                 }
 
-                bool isUnsigned = shouldUseUnsignedDivOrMod(ref instr, ref left, ref right);
+                bool isUnsigned = shouldUseUnsignedDivOrMod(instr, leftInputNode, rightInputNode);
 
                 ILOp opcode = isUnsigned
                     ? ((instr.opcode == ABCOp.divide) ? ILOp.div_un : ILOp.rem_un)
@@ -1895,15 +1892,15 @@ namespace Mariana.AVM2.Compiler {
                 // If the divisor is a constant that is not one of these values, the checks can be
                 // skipped.
 
-                bool willNeverThrow = right.isConstant && right.constant.intValue != 0
-                    && (isUnsigned || right.constant.intValue != -1);
+                bool willNeverThrow = rightInputNode.isConstant && rightInputNode.constant.intValue != 0
+                    && (isUnsigned || rightInputNode.constant.intValue != -1);
 
                 if (willNeverThrow) {
                     m_ilBuilder.emit(opcode);
                     return;
                 }
 
-                bool shouldCheckForMinus1 = !isUnsigned && (!right.isConstant || right.constant.intValue == -1);
+                bool shouldCheckForMinus1 = !isUnsigned && (!rightInputNode.isConstant || rightInputNode.constant.intValue == -1);
 
                 var label1 = m_ilBuilder.createLabel();
                 var label2 = m_ilBuilder.createLabel();
@@ -1940,7 +1937,7 @@ namespace Mariana.AVM2.Compiler {
                 m_ilBuilder.markLabel(label2);
             }
 
-            bool shouldUseUnsignedDivOrMod(ref Instruction _instr, ref DataNode _left, ref DataNode _right) {
+            static bool shouldUseUnsignedDivOrMod(in Instruction _instr, in DataNode _left, in DataNode _right) {
                 if (_instr.data.binaryOp.forceUnsignedDivOrMod)
                     return true;
 
@@ -1955,64 +1952,43 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitBinaryIntegerOp(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode left = ref m_compilation.getDataNode(stackPopIds[0]);
-            ref DataNode right = ref m_compilation.getDataNode(stackPopIds[1]);
-            ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
+            ref DataNode leftInputNode = ref m_compilation.getDataNode(stackPopIds[0]);
+            ref DataNode rightInputNode = ref m_compilation.getDataNode(stackPopIds[1]);
+            ref DataNode outputNode = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
-            if (output.isConstant) {
-                _emitDiscardTopOfStack(ref right);
-                _emitDiscardTopOfStack(ref left);
-                _emitPushConstantNode(ref output);
+            if (outputNode.isConstant) {
+                _emitDiscardTopOfStack(rightInputNode);
+                _emitDiscardTopOfStack(leftInputNode);
+                _emitPushConstantNode(outputNode);
                 return;
             }
 
-            _emitTypeCoerceForStackTop2(ref left, ref right, DataNodeType.INT, DataNodeType.INT);
+            _emitTypeCoerceForStackTop2(leftInputNode, rightInputNode, DataNodeType.INT, DataNodeType.INT);
 
-            switch (instr.opcode) {
-                case ABCOp.add_i:
-                    m_ilBuilder.emit(ILOp.add);
-                    break;
-                case ABCOp.subtract_i:
-                    m_ilBuilder.emit(ILOp.sub);
-                    break;
-                case ABCOp.multiply_i:
-                    m_ilBuilder.emit(ILOp.mul);
-                    break;
-                case ABCOp.bitand:
-                    m_ilBuilder.emit(ILOp.and);
-                    break;
-                case ABCOp.bitor:
-                    m_ilBuilder.emit(ILOp.or);
-                    break;
-                case ABCOp.bitxor:
-                    m_ilBuilder.emit(ILOp.xor);
-                    break;
-                case ABCOp.lshift:
-                    m_ilBuilder.emit(ILOp.shl);
-                    break;
-                case ABCOp.rshift:
-                    m_ilBuilder.emit(ILOp.shr);
-                    break;
-                case ABCOp.urshift:
-                    m_ilBuilder.emit(ILOp.shr_un);
-                    break;
-                default:
-                    Debug.Assert(false);
-                    break;
-            }
+            m_ilBuilder.emit(instr.opcode switch {
+                ABCOp.add_i => ILOp.add,
+                ABCOp.subtract_i => ILOp.sub,
+                ABCOp.multiply_i => ILOp.mul,
+                ABCOp.bitand => ILOp.and,
+                ABCOp.bitor => ILOp.or,
+                ABCOp.bitxor => ILOp.xor,
+                ABCOp.lshift => ILOp.shl,
+                ABCOp.rshift => ILOp.shr,
+                ABCOp.urshift => ILOp.shr_un
+            });
         }
 
         private void _visitBinaryCompareOp(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode left = ref m_compilation.getDataNode(stackPopIds[0]);
-            ref DataNode right = ref m_compilation.getDataNode(stackPopIds[1]);
-            ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
+            ref DataNode leftInputNode = ref m_compilation.getDataNode(stackPopIds[0]);
+            ref DataNode rightInputNode = ref m_compilation.getDataNode(stackPopIds[1]);
+            ref DataNode outputNode = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
-            if (output.isConstant) {
-                _emitDiscardTopOfStack(ref right);
-                _emitDiscardTopOfStack(ref left);
-                _emitPushConstantNode(ref output);
+            if (outputNode.isConstant) {
+                _emitDiscardTopOfStack(rightInputNode);
+                _emitDiscardTopOfStack(leftInputNode);
+                _emitPushConstantNode(outputNode);
                 return;
             }
 
@@ -2021,32 +1997,32 @@ namespace Mariana.AVM2.Compiler {
             {
                 // branchEmitInfo is ignored since this instruction is not a branch, so use a dummy value.
                 TwoWayBranchEmitInfo branchEmitInfo = default;
-                _emitStringCharAtIntrinsicCompare(ref instr, ref left, ref right, branchEmitInfo);
+                _emitStringCharAtIntrinsicCompare(instr, leftInputNode, rightInputNode, branchEmitInfo);
                 return;
             }
 
             if (instr.opcode == ABCOp.equals || instr.opcode == ABCOp.strictequals)
-                emitEquals(ref instr, ref left, ref right);
+                emitEquals(instr, leftInputNode, rightInputNode);
             else
-                emitCompare(ref instr, ref left, ref right);
+                emitCompare(instr, leftInputNode, rightInputNode);
 
-            void emitEquals(ref Instruction _instr, ref DataNode _left, ref DataNode _right) {
+            void emitEquals(in Instruction _instr, in DataNode _left, in DataNode _right) {
                 var compareType = _instr.data.compare.compareType;
 
                 switch (compareType) {
                     case ComparisonType.INT:
                     case ComparisonType.UINT:
-                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.INT, DataNodeType.INT);
+                        _emitTypeCoerceForStackTop2(_left, _right, DataNodeType.INT, DataNodeType.INT);
                         m_ilBuilder.emit(ILOp.ceq);
                         break;
 
                     case ComparisonType.NUMBER:
-                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.NUMBER, DataNodeType.NUMBER);
+                        _emitTypeCoerceForStackTop2(_left, _right, DataNodeType.NUMBER, DataNodeType.NUMBER);
                         m_ilBuilder.emit(ILOp.ceq);
                         break;
 
                     case ComparisonType.STRING:
-                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.STRING, DataNodeType.STRING);
+                        _emitTypeCoerceForStackTop2(_left, _right, DataNodeType.STRING, DataNodeType.STRING);
                         m_ilBuilder.emit(ILOp.call, KnownMembers.strEquals, -1);
                         break;
 
@@ -2061,17 +2037,17 @@ namespace Mariana.AVM2.Compiler {
                         break;
 
                     case ComparisonType.OBJ_REF:
-                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.OBJECT, DataNodeType.OBJECT);
+                        _emitTypeCoerceForStackTop2(_left, _right, DataNodeType.OBJECT, DataNodeType.OBJECT);
                         m_ilBuilder.emit(ILOp.ceq);
                         break;
 
                     case ComparisonType.OBJECT:
-                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.OBJECT, DataNodeType.OBJECT);
+                        _emitTypeCoerceForStackTop2(_left, _right, DataNodeType.OBJECT, DataNodeType.OBJECT);
                         m_ilBuilder.emit(ILOp.call, (_instr.opcode == ABCOp.equals) ? KnownMembers.objWeakEq : KnownMembers.objStrictEq, -1);
                         break;
 
                     case ComparisonType.ANY:
-                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.ANY, DataNodeType.ANY);
+                        _emitTypeCoerceForStackTop2(_left, _right, DataNodeType.ANY, DataNodeType.ANY);
                         m_ilBuilder.emit(ILOp.call, (_instr.opcode == ABCOp.equals) ? KnownMembers.anyWeakEq : KnownMembers.anyStrictEq, -1);
                         break;
 
@@ -2093,10 +2069,11 @@ namespace Mariana.AVM2.Compiler {
                         var constFlags = (compareType == ComparisonType.OBJ_NULL_L) ? _left.flags : _right.flags;
 
                         if ((constFlags & DataNodeFlags.NO_PUSH) == 0) {
-                            ref DataNode varNode = ref ((compareType == ComparisonType.OBJ_NULL_L) ? ref _right : ref _left);
+                            ref readonly DataNode varNode =
+                                ref ((compareType == ComparisonType.OBJ_NULL_L) ? ref _right : ref _left);
 
                             if (_getPushedTypeOfNode(varNode) != DataNodeType.STRING)
-                                _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.OBJECT, DataNodeType.OBJECT);
+                                _emitTypeCoerceForStackTop2(_left, _right, DataNodeType.OBJECT, DataNodeType.OBJECT);
 
                             m_ilBuilder.emit(ILOp.ceq);
                         }
@@ -2147,89 +2124,62 @@ namespace Mariana.AVM2.Compiler {
                 }
             }
 
-            void emitCompare(ref Instruction _instr, ref DataNode _left, ref DataNode _right) {
+            void emitCompare(in Instruction _instr, in DataNode _left, in DataNode _right) {
                 var compareType = _instr.data.compare.compareType;
 
                 switch (compareType) {
                     case ComparisonType.INT:
-                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.INT, DataNodeType.INT);
+                        _emitTypeCoerceForStackTop2(_left, _right, DataNodeType.INT, DataNodeType.INT);
                         emitNumericCompareOp(_instr.opcode);
                         break;
 
                     case ComparisonType.UINT:
-                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.INT, DataNodeType.INT);
+                        _emitTypeCoerceForStackTop2(_left, _right, DataNodeType.INT, DataNodeType.INT);
                         emitNumericCompareOp(_instr.opcode, isUnsigned: true);
                         break;
 
                     case ComparisonType.NUMBER:
-                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.NUMBER, DataNodeType.NUMBER);
+                        _emitTypeCoerceForStackTop2(_left, _right, DataNodeType.NUMBER, DataNodeType.NUMBER);
                         emitNumericCompareOp(_instr.opcode, isFloat: true);
                         break;
 
                     case ComparisonType.STRING: {
-                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.STRING, DataNodeType.STRING);
+                        _emitTypeCoerceForStackTop2(_left, _right, DataNodeType.STRING, DataNodeType.STRING);
 
-                        MethodInfo method = null;
-                        switch (_instr.opcode) {
-                            case ABCOp.lessthan:
-                                method = KnownMembers.strLt;
-                                break;
-                            case ABCOp.lessequals:
-                                method = KnownMembers.strLeq;
-                                break;
-                            case ABCOp.greaterthan:
-                                method = KnownMembers.strGt;
-                                break;
-                            case ABCOp.greaterequals:
-                                method = KnownMembers.strGeq;
-                                break;
-                        }
+                        MethodInfo method = _instr.opcode switch {
+                            ABCOp.lessthan => KnownMembers.strLt,
+                            ABCOp.lessequals => KnownMembers.strLeq,
+                            ABCOp.greaterthan => KnownMembers.strGt,
+                            ABCOp.greaterequals => KnownMembers.strGeq
+                        };
 
                         m_ilBuilder.emit(ILOp.call, method, -1);
                         break;
                     }
 
                     case ComparisonType.OBJECT: {
-                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.OBJECT, DataNodeType.OBJECT);
+                        _emitTypeCoerceForStackTop2(_left, _right, DataNodeType.OBJECT, DataNodeType.OBJECT);
 
-                        MethodInfo method = null;
-                        switch (_instr.opcode) {
-                            case ABCOp.lessthan:
-                                method = KnownMembers.objLt;
-                                break;
-                            case ABCOp.lessequals:
-                                method = KnownMembers.objLeq;
-                                break;
-                            case ABCOp.greaterthan:
-                                method = KnownMembers.objGt;
-                                break;
-                            case ABCOp.greaterequals:
-                                method = KnownMembers.objGeq;
-                                break;
-                        }
+                        MethodInfo method = _instr.opcode switch {
+                            ABCOp.lessthan => KnownMembers.objLt,
+                            ABCOp.lessequals => KnownMembers.objLeq,
+                            ABCOp.greaterthan => KnownMembers.objGt,
+                            ABCOp.greaterequals => KnownMembers.objGeq,
+                        };
 
                         m_ilBuilder.emit(ILOp.call, method, -1);
                         break;
                     }
 
                     case ComparisonType.ANY: {
-                        _emitTypeCoerceForStackTop2(ref _left, ref _right, DataNodeType.ANY, DataNodeType.ANY);
+                        _emitTypeCoerceForStackTop2(_left, _right, DataNodeType.ANY, DataNodeType.ANY);
 
-                        MethodInfo method = null;
-                        switch (_instr.opcode) {
-                            case ABCOp.lessthan:
-                                method = KnownMembers.anyLt;
-                                break;
-                            case ABCOp.lessequals:
-                                method = KnownMembers.anyLeq;
-                                break;
-                            case ABCOp.greaterthan:
-                                method = KnownMembers.anyGt;
-                                break;
-                            case ABCOp.greaterequals:
-                                method = KnownMembers.anyGeq;
-                                break;
-                        }
+                        MethodInfo method = _instr.opcode switch {
+                            ABCOp.lessthan => KnownMembers.anyLt,
+                            ABCOp.lessequals => KnownMembers.anyLeq,
+                            ABCOp.greaterthan => KnownMembers.anyGt,
+                            ABCOp.greaterequals => KnownMembers.anyGeq,
+                        };
 
                         m_ilBuilder.emit(ILOp.call, method, -1);
                         break;
@@ -2257,8 +2207,8 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitIsAsType(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
-            ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
+            ref DataNode inputNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
+            ref DataNode outputNode = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
             ABCMultiname multiname = m_compilation.abcFile.resolveMultiname(instr.data.coerceOrIsType.multinameId);
 
@@ -2266,54 +2216,54 @@ namespace Mariana.AVM2.Compiler {
             using (var lockedContext = m_compilation.getContext())
                 klass = lockedContext.value.getClassByMultiname(multiname);
 
-            if (ClassTagSet.numeric.contains(klass.tag) || !isObjectType(input.dataType))
-                _emitTypeCoerceForTopOfStack(ref input, DataNodeType.OBJECT);
+            if (ClassTagSet.numeric.contains(klass.tag) || !isObjectType(inputNode.dataType))
+                _emitTypeCoerceForTopOfStack(inputNode, DataNodeType.OBJECT);
 
-            _emitIsOrAsType(klass, instr.opcode, output.id);
+            _emitIsOrAsType(klass, instr.opcode, outputNode.id);
         }
 
         private void _visitIsAsTypeLate(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
 
-            ref DataNode objNode = ref m_compilation.getDataNode(stackPopIds[0]);
+            ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
             ref DataNode typeNode = ref m_compilation.getDataNode(stackPopIds[1]);
-            ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
+            ref DataNode outputNode = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
             Class klass = (typeNode.dataType == DataNodeType.CLASS) ? typeNode.constant.classValue : null;
 
             if (klass != null && klass.underlyingType != typeof(ASVector<>)) {
-                _emitDiscardTopOfStack(ref typeNode);
+                _emitDiscardTopOfStack(typeNode);
 
-                if (ClassTagSet.numeric.contains(klass.tag) || !isObjectType(objNode.dataType))
-                    _emitTypeCoerceForTopOfStack(ref objNode, DataNodeType.OBJECT);
+                if (ClassTagSet.numeric.contains(klass.tag) || !isObjectType(objectNode.dataType))
+                    _emitTypeCoerceForTopOfStack(objectNode, DataNodeType.OBJECT);
 
-                _emitIsOrAsType(klass, instr.opcode, output.id);
+                _emitIsOrAsType(klass, instr.opcode, outputNode.id);
             }
             else {
                 MethodInfo method = (instr.opcode == ABCOp.istypelate) ? KnownMembers.objIsType : KnownMembers.objAsType;
 
-                _emitTypeCoerceForStackTop2(ref objNode, ref typeNode, DataNodeType.OBJECT, DataNodeType.OBJECT);
+                _emitTypeCoerceForStackTop2(objectNode, typeNode, DataNodeType.OBJECT, DataNodeType.OBJECT);
                 m_ilBuilder.emit(ILOp.call, method, -1);
             }
         }
 
         private void _visitInstanceof(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode objNode = ref m_compilation.getDataNode(stackPopIds[0]);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
+            ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
             ref DataNode typeNode = ref m_compilation.getDataNode(stackPopIds[1]);
 
-            _emitTypeCoerceForStackTop2(ref objNode, ref typeNode, DataNodeType.OBJECT, DataNodeType.OBJECT);
+            _emitTypeCoerceForStackTop2(objectNode, typeNode, DataNodeType.OBJECT, DataNodeType.OBJECT);
             m_ilBuilder.emit(ILOp.call, KnownMembers.objInstanceof, -1);
         }
 
         private void _visitTypeof(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode inputNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
 
-            if (isAnyOrUndefined(input.dataType)) {
+            if (isAnyOrUndefined(inputNode.dataType)) {
                 m_ilBuilder.emit(ILOp.call, KnownMembers.anyTypeof, 0);
             }
             else {
-                _emitTypeCoerceForTopOfStack(ref input, DataNodeType.OBJECT);
+                _emitTypeCoerceForTopOfStack(inputNode, DataNodeType.OBJECT);
                 m_ilBuilder.emit(ILOp.call, KnownMembers.objTypeof, 0);
             }
         }
@@ -2325,21 +2275,21 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitDxnsLate(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode inputNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
 
-            if (input.isConstant
-                && (input.dataType == DataNodeType.NAMESPACE || input.dataType == DataNodeType.STRING))
+            if (inputNode.isConstant
+                && (inputNode.dataType == DataNodeType.NAMESPACE || inputNode.dataType == DataNodeType.STRING))
             {
-                _emitDiscardTopOfStack(ref input);
+                _emitDiscardTopOfStack(inputNode);
 
-                Namespace constNamespace = (input.dataType == DataNodeType.NAMESPACE)
-                    ? input.constant.namespaceValue
-                    : new Namespace(input.constant.stringValue);
+                Namespace constNamespace = (inputNode.dataType == DataNodeType.NAMESPACE)
+                    ? inputNode.constant.namespaceValue
+                    : new Namespace(inputNode.constant.stringValue);
 
                 _emitPushXmlNamespaceConstant(constNamespace);
             }
-            else if (input.dataType != DataNodeType.NAMESPACE) {
-                _emitTypeCoerceForTopOfStack(ref input, DataNodeType.STRING);
+            else if (inputNode.dataType != DataNodeType.NAMESPACE) {
+                _emitTypeCoerceForTopOfStack(inputNode, DataNodeType.STRING);
                 m_ilBuilder.emit(ILOp.newobj, KnownMembers.xmlNsCtorFromURI, 0);
             }
 
@@ -2347,22 +2297,22 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitEscapeXML(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
-            _emitTypeCoerceForTopOfStack(ref input, DataNodeType.STRING, useConvertStr: true);
+            ref DataNode inputNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
+            _emitTypeCoerceForTopOfStack(inputNode, DataNodeType.STRING, useConvertStr: true);
 
             var method = (instr.opcode == ABCOp.esc_xelem) ? KnownMembers.escapeXmlElem : KnownMembers.escapeXmlAttr;
             m_ilBuilder.emit(ILOp.call, method, 0);
         }
 
         private void _visitHasNextNameValue(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode objNode = ref m_compilation.getDataNode(stackPopIds[0]);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
+            ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
             ref DataNode indexNode = ref m_compilation.getDataNode(stackPopIds[1]);
 
-            _emitTypeCoerceForStackTop2(ref objNode, ref indexNode, DataNodeType.OBJECT, DataNodeType.INT);
+            _emitTypeCoerceForStackTop2(objectNode, indexNode, DataNodeType.OBJECT, DataNodeType.INT);
 
             if (instr.opcode == ABCOp.hasnext) {
-                if (objNode.isNotNull) {
+                if (objectNode.isNotNull) {
                     m_ilBuilder.emit(ILOp.callvirt, KnownMembers.objHasNext, -1);
                 }
                 else {
@@ -2410,9 +2360,9 @@ namespace Mariana.AVM2.Compiler {
                 if (oldObjHasLocal)
                     m_ilBuilder.emit(ILOp.ldloc, oldObjLocal);
                 else
-                    _emitLoadScopeOrLocalNode(ref oldObject);
+                    _emitLoadScopeOrLocalNode(oldObject);
 
-                _emitTypeCoerceForTopOfStack(ref oldObject, DataNodeType.OBJECT);
+                _emitTypeCoerceForTopOfStack(oldObject, DataNodeType.OBJECT);
                 m_ilBuilder.emit(ILOp.stloc, objLocal);
             }
 
@@ -2420,9 +2370,9 @@ namespace Mariana.AVM2.Compiler {
                 if (oldIndHasLocal)
                     m_ilBuilder.emit(ILOp.ldloc, oldIndLocal);
                 else
-                    _emitLoadScopeOrLocalNode(ref oldIndex);
+                    _emitLoadScopeOrLocalNode(oldIndex);
 
-                _emitTypeCoerceForTopOfStack(ref oldIndex, DataNodeType.INT);
+                _emitTypeCoerceForTopOfStack(oldIndex, DataNodeType.INT);
                 m_ilBuilder.emit(ILOp.stloc, indLocal);
             }
 
@@ -2430,27 +2380,27 @@ namespace Mariana.AVM2.Compiler {
             m_ilBuilder.emit(ILOp.ldloca, indLocal);
             m_ilBuilder.emit(ILOp.call, KnownMembers.hasnext2, -1);
 
-            _syncLocalWriteWithCatchVars(ref instr, ref newObject, objLocal);
-            _syncLocalWriteWithCatchVars(ref instr, ref newIndex, indLocal);
+            _syncLocalWriteWithCatchVars(instr, newObject, objLocal);
+            _syncLocalWriteWithCatchVars(instr, newIndex, indLocal);
         }
 
         private void _visitCheckFilter(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(instr.data.checkFilter.stackNodeId);
+            ref DataNode inputNode = ref m_compilation.getDataNode(instr.data.checkFilter.stackNodeId);
 
-            if (input.dataType == DataNodeType.OBJECT
-                && ClassTagSet.xmlOrXmlList.contains(input.constant.classValue.tag))
+            if (inputNode.dataType == DataNodeType.OBJECT
+                && ClassTagSet.xmlOrXmlList.contains(inputNode.constant.classValue.tag))
             {
                 return;
             }
 
-            if (input.isNotPushed) {
+            if (inputNode.isNotPushed) {
                 // We need to force push the node if it has been marked as no-push.
-                _emitPushConstantNode(ref input, ignoreNoPush: true);
-                _emitTypeCoerceForTopOfStack(ref input, DataNodeType.OBJECT, isForcePushed: true);
+                _emitPushConstantNode(inputNode, ignoreNoPush: true);
+                _emitTypeCoerceForTopOfStack(inputNode, DataNodeType.OBJECT, isForcePushed: true);
             }
             else {
                 m_ilBuilder.emit(ILOp.dup);
-                _emitTypeCoerceForTopOfStack(ref input, DataNodeType.OBJECT);
+                _emitTypeCoerceForTopOfStack(inputNode, DataNodeType.OBJECT);
             }
 
             m_ilBuilder.emit(ILOp.call, KnownMembers.objCheckFilter, -1);
@@ -2458,36 +2408,36 @@ namespace Mariana.AVM2.Compiler {
 
         private void _visitNewActivation(ref Instruction instr) {
             var klass = m_compilation.getClassForActivation();
-            using (var lockedContext = m_compilation.getContext())
-                m_ilBuilder.emit(ILOp.newobj, lockedContext.value.getEntityHandleForCtor(klass), 1);
+            using var lockedContext = m_compilation.getContext();
+            m_ilBuilder.emit(ILOp.newobj, lockedContext.value.getEntityHandleForCtor(klass), 1);
         }
 
         private void _visitNewCatch(ref Instruction instr) {
             var klass = m_compilation.getClassForCatchScope(instr.data.newCatch.excInfoId);
-            using (var lockedContext = m_compilation.getContext())
-                m_ilBuilder.emit(ILOp.newobj, lockedContext.value.getEntityHandleForCtor(klass), 1);
+            using var lockedContext = m_compilation.getContext();
+            m_ilBuilder.emit(ILOp.newobj, lockedContext.value.getEntityHandleForCtor(klass), 1);
         }
 
         private void _visitIn(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode nameNode = ref m_compilation.getDataNode(stackPopIds[0]);
-            ref DataNode objNode = ref m_compilation.getDataNode(stackPopIds[1]);
+            ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[1]);
 
             ILBuilder.Local objLocal;
 
             var bindOpts = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC;
-            Class objClass = _getPushedClassOfNode(objNode);
+            Class objClass = _getPushedClassOfNode(objectNode);
 
             if (objClass == null) {
                 objLocal = m_ilBuilder.acquireTempLocal(typeof(ASAny));
             }
             else {
                 objLocal = m_ilBuilder.acquireTempLocal(typeof(ASObject));
-                _emitTypeCoerceForTopOfStack(ref objNode, DataNodeType.OBJECT);
+                _emitTypeCoerceForTopOfStack(objectNode, DataNodeType.OBJECT);
             }
             m_ilBuilder.emit(ILOp.stloc, objLocal);
 
-            _emitTypeCoerceForTopOfStack(ref nameNode, DataNodeType.STRING);
+            _emitTypeCoerceForTopOfStack(nameNode, DataNodeType.STRING);
 
             ILBuilder.Local nameLocal;
             MethodInfo method;
@@ -2530,14 +2480,14 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitApplyType(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode result = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
             if (result.isConstant) {
                 for (int i = stackPopIds.Length - 1; i >= 0; i--)
                     _emitDiscardTopOfStack(stackPopIds[i]);
 
-                _emitPushConstantNode(ref result);
+                _emitPushConstantNode(result);
                 return;
             }
 
@@ -2548,7 +2498,7 @@ namespace Mariana.AVM2.Compiler {
             if (argIds.Length > 0)
                 argsLocal = _emitCollectStackArgsIntoArray(argIds);
 
-            _emitTypeCoerceForTopOfStack(ref def, DataNodeType.OBJECT);
+            _emitTypeCoerceForTopOfStack(def, DataNodeType.OBJECT);
 
             if (argIds.Length > 0) {
                 m_ilBuilder.emit(ILOp.ldloc, argsLocal);
@@ -2565,9 +2515,9 @@ namespace Mariana.AVM2.Compiler {
         private void _visitGetProperty(ref Instruction instr) {
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.accessProperty.resolvedPropId);
 
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode obj = ref m_compilation.getDataNode(stackPopIds[0]);
-            ref DataNode result = ref m_compilation.getDataNode(instr.stackPushedNodeId);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
+            ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
+            ref DataNode resultNode = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
             var multiname = m_compilation.abcFile.resolveMultiname(instr.data.accessProperty.multinameId);
             _getRuntimeMultinameArgIds(stackPopIds.Slice(1), multiname, out int rtNsNodeId, out int rtNameNodeId);
@@ -2578,31 +2528,31 @@ namespace Mariana.AVM2.Compiler {
                 Debug.Assert(rtNsNodeId == -1 || m_compilation.getDataNode(rtNsNodeId).isNotPushed);
                 Debug.Assert(rtNameNodeId == -1 || m_compilation.getDataNode(rtNameNodeId).isNotPushed);
 
-                if (result.isConstant) {
-                    _emitDiscardTopOfStack(ref obj);
-                    _emitPushConstantNode(ref result);
+                if (resultNode.isConstant) {
+                    _emitDiscardTopOfStack(objectNode);
+                    _emitPushConstantNode(resultNode);
                 }
                 else {
-                    _emitGetPropertyTrait((Trait)resolvedProp.propInfo, ref obj, isSuper);
+                    _emitGetPropertyTrait((Trait)resolvedProp.propInfo, objectNode, isSuper);
                 }
             }
             else if (resolvedProp.propKind == ResolvedPropertyKind.INDEX) {
                 ref DataNode nameNode = ref m_compilation.getDataNode(rtNameNodeId);
                 Debug.Assert(rtNsNodeId == -1 || m_compilation.getDataNode(rtNsNodeId).isNotPushed);
-                _emitGetPropertyIndex((IndexProperty)resolvedProp.propInfo, ref obj, ref nameNode);
+                _emitGetPropertyIndex((IndexProperty)resolvedProp.propInfo, objectNode, nameNode);
             }
             else if (resolvedProp.propKind == ResolvedPropertyKind.RUNTIME) {
-                Debug.Assert(!obj.isNotPushed);
-                _emitGetPropertyRuntime(ref obj, multiname, rtNsNodeId, rtNameNodeId);
+                Debug.Assert(!objectNode.isNotPushed);
+                _emitGetPropertyRuntime(objectNode, multiname, rtNsNodeId, rtNameNodeId);
             }
         }
 
         private void _visitSetProperty(ref Instruction instr) {
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.accessProperty.resolvedPropId);
 
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode obj = ref m_compilation.getDataNode(stackPopIds[0]);
-            ref DataNode value = ref m_compilation.getDataNode(stackPopIds[stackPopIds.Length - 1]);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
+            ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
+            ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[^1]);
 
             var multiname = m_compilation.abcFile.resolveMultiname(instr.data.accessProperty.multinameId);
             _getRuntimeMultinameArgIds(stackPopIds.Slice(1), multiname, out int rtNsNodeId, out int rtNameNodeId);
@@ -2618,46 +2568,47 @@ namespace Mariana.AVM2.Compiler {
                 var trait = (Trait)resolvedProp.propInfo;
                 bool isRtInvoke = resolvedProp.propKind == ResolvedPropertyKind.TRAIT_RT_INVOKE;
 
-                _emitSetPropertyTrait(trait, ref obj, ref value, isSuper, isRtInvoke);
+                _emitSetPropertyTrait(trait, objectNode, valueNode, isSuper, isRtInvoke);
             }
             else if (resolvedProp.propKind == ResolvedPropertyKind.INDEX) {
                 ref DataNode nameNode = ref m_compilation.getDataNode(rtNameNodeId);
                 Debug.Assert(rtNsNodeId == -1 || m_compilation.getDataNode(rtNsNodeId).isNotPushed);
 
                 var indexProp = (IndexProperty)resolvedProp.propInfo;
-                Span<int> argIds = stackalloc int[] {rtNameNodeId, value.id};
-                _emitCallToMethod(indexProp.setMethod, _getPushedClassOfNode(obj), argIds, noReturn: true);
+                Span<int> argIds = stackalloc int[] {rtNameNodeId, valueNode.id};
+                _emitCallToMethod(indexProp.setMethod, _getPushedClassOfNode(objectNode), argIds, noReturn: true);
             }
             else if (resolvedProp.propKind == ResolvedPropertyKind.RUNTIME) {
-                Debug.Assert(!obj.isNotPushed);
+                Debug.Assert(!objectNode.isNotPushed);
 
                 var valueLocal = m_ilBuilder.acquireTempLocal(typeof(ASAny));
-                _emitTypeCoerceForTopOfStack(ref value, DataNodeType.ANY);
+                _emitTypeCoerceForTopOfStack(valueNode, DataNodeType.ANY);
                 m_ilBuilder.emit(ILOp.stloc, valueLocal);
 
                 _emitPrepareRuntimeBinding(
-                    multiname, rtNsNodeId, rtNameNodeId, _getPushedClassOfNode(obj), isOnRuntimeScopeStack: false, out var bindingKind);
+                    multiname,
+                    rtNsNodeId,
+                    rtNameNodeId,
+                    _getPushedClassOfNode(objectNode),
+                    isOnRuntimeScopeStack: false,
+                    out RuntimeBindingKind bindingKind
+                );
 
                 m_ilBuilder.emit(ILOp.ldloc, valueLocal);
                 m_ilBuilder.releaseTempLocal(valueLocal);
 
-                MethodInfo method = null;
-                bool isObjAny = isAnyOrUndefined(_getPushedTypeOfNode(obj));
+                bool isObjAny = isAnyOrUndefined(_getPushedTypeOfNode(objectNode));
 
-                switch (bindingKind) {
-                    case RuntimeBindingKind.QNAME:
-                        method = isObjAny ? KnownMembers.anySetPropertyQName : KnownMembers.objSetPropertyQName;
-                        break;
-                    case RuntimeBindingKind.MULTINAME:
-                        method = isObjAny ? KnownMembers.anySetPropertyNsSet : KnownMembers.objSetPropertyNsSet;
-                        break;
-                    case RuntimeBindingKind.KEY:
-                        method = isObjAny ? KnownMembers.anySetPropertyKey : KnownMembers.objSetPropertyKey;
-                        break;
-                    case RuntimeBindingKind.KEY_MULTINAME:
-                        method = isObjAny ? KnownMembers.anySetPropertyKeyNsSet : KnownMembers.objSetPropertyKeyNsSet;
-                        break;
-                }
+                MethodInfo method = (bindingKind, isObjAny) switch {
+                    (RuntimeBindingKind.QNAME, false) => KnownMembers.objSetPropertyQName,
+                    (RuntimeBindingKind.QNAME, true) => KnownMembers.anySetPropertyQName,
+                    (RuntimeBindingKind.MULTINAME, false) => KnownMembers.objSetPropertyNsSet,
+                    (RuntimeBindingKind.MULTINAME, true) => KnownMembers.anySetPropertyNsSet,
+                    (RuntimeBindingKind.KEY, false) => KnownMembers.objSetPropertyKey,
+                    (RuntimeBindingKind.KEY, true) => KnownMembers.anySetPropertyKey,
+                    (RuntimeBindingKind.KEY_MULTINAME, false) => KnownMembers.objSetPropertyKeyNsSet,
+                    (RuntimeBindingKind.KEY_MULTINAME, true) => KnownMembers.anySetPropertyKeyNsSet,
+                };
 
                 var bindOpts =
                     BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | _getBindingOptionsForMultiname(multiname);
@@ -2670,8 +2621,8 @@ namespace Mariana.AVM2.Compiler {
         private void _visitDeleteProperty(ref Instruction instr) {
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.accessProperty.resolvedPropId);
 
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode obj = ref m_compilation.getDataNode(stackPopIds[0]);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
+            ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
 
             var multiname = m_compilation.abcFile.resolveMultiname(instr.data.accessProperty.multinameId);
             _getRuntimeMultinameArgIds(stackPopIds.Slice(1), multiname, out int rtNsNodeId, out int rtNameNodeId);
@@ -2684,31 +2635,32 @@ namespace Mariana.AVM2.Compiler {
 
                 var indexProp = (IndexProperty)resolvedProp.propInfo;
                 Span<int> argIds = stackalloc int[] {rtNameNodeId};
-                _emitCallToMethod(indexProp.deleteMethod, _getPushedClassOfNode(obj), argIds);
+                _emitCallToMethod(indexProp.deleteMethod, _getPushedClassOfNode(objectNode), argIds);
             }
             else if (resolvedProp.propKind == ResolvedPropertyKind.RUNTIME) {
-                Debug.Assert(!obj.isNotPushed);
+                Debug.Assert(!objectNode.isNotPushed);
 
                 _emitPrepareRuntimeBinding(
-                    multiname, rtNsNodeId, rtNameNodeId, _getPushedClassOfNode(obj), isOnRuntimeScopeStack: false, out var bindingKind);
+                    multiname,
+                    rtNsNodeId,
+                    rtNameNodeId,
+                    _getPushedClassOfNode(objectNode),
+                    isOnRuntimeScopeStack: false,
+                    out RuntimeBindingKind bindingKind
+                );
 
-                MethodInfo method = null;
-                bool isObjAny = isAnyOrUndefined(obj.dataType);
+                bool isObjAny = isAnyOrUndefined(objectNode.dataType);
 
-                switch (bindingKind) {
-                    case RuntimeBindingKind.QNAME:
-                        method = isObjAny ? KnownMembers.anyDelPropertyQName : KnownMembers.objDelPropertyQName;
-                        break;
-                    case RuntimeBindingKind.MULTINAME:
-                        method = isObjAny ? KnownMembers.anyDelPropertyNsSet : KnownMembers.objDelPropertyNsSet;
-                        break;
-                    case RuntimeBindingKind.KEY:
-                        method = isObjAny ? KnownMembers.anyDelPropertyKey : KnownMembers.objDelPropertyKey;
-                        break;
-                    case RuntimeBindingKind.KEY_MULTINAME:
-                        method = isObjAny ? KnownMembers.anyDelPropertyKeyNsSet : KnownMembers.objDelPropertyKeyNsSet;
-                        break;
-                }
+                MethodInfo method = (bindingKind, isObjAny) switch {
+                    (RuntimeBindingKind.QNAME, false) => KnownMembers.objDelPropertyQName,
+                    (RuntimeBindingKind.QNAME, true) => KnownMembers.anyDelPropertyQName,
+                    (RuntimeBindingKind.MULTINAME, false) => KnownMembers.objDelPropertyNsSet,
+                    (RuntimeBindingKind.MULTINAME, true) => KnownMembers.anyDelPropertyNsSet,
+                    (RuntimeBindingKind.KEY, false) => KnownMembers.objDelPropertyKey,
+                    (RuntimeBindingKind.KEY, true) => KnownMembers.anyDelPropertyKey,
+                    (RuntimeBindingKind.KEY_MULTINAME, false) => KnownMembers.objDelPropertyKeyNsSet,
+                    (RuntimeBindingKind.KEY_MULTINAME, true) => KnownMembers.anyDelPropertyKeyNsSet,
+                };
 
                 var bindOpts = BindOptions.SEARCH_DYNAMIC | _getBindingOptionsForMultiname(multiname);
 
@@ -2718,34 +2670,36 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitGetSlot(ref Instruction instr) {
-            ref DataNode obj = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
-            ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.getSetSlot.resolvedPropId);
-            ref DataNode result = ref m_compilation.getDataNode(instr.stackPushedNodeId);
+            ref DataNode objectNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
+            ref DataNode resultNode = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
-            if (result.isConstant) {
-                _emitDiscardTopOfStack(ref obj);
-                _emitPushConstantNode(ref result);
+            ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.getSetSlot.resolvedPropId);
+
+            if (resultNode.isConstant) {
+                _emitDiscardTopOfStack(objectNode);
+                _emitPushConstantNode(resultNode);
             }
             else {
-                _emitGetPropertyTrait((Trait)resolvedProp.propInfo, ref obj, isSuper: false);
+                _emitGetPropertyTrait((Trait)resolvedProp.propInfo, objectNode, isSuper: false);
             }
         }
 
         private void _visitSetSlot(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode obj = ref m_compilation.getDataNode(stackPopIds[0]);
-            ref DataNode value = ref m_compilation.getDataNode(stackPopIds[1]);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
+
+            ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
+            ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[1]);
 
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.getSetSlot.resolvedPropId);
             bool isRtInvoke = resolvedProp.propKind == ResolvedPropertyKind.TRAIT_RT_INVOKE;
 
-            _emitSetPropertyTrait((Trait)resolvedProp.propInfo, ref obj, ref value, isSuper: false, isRtInvoke);
+            _emitSetPropertyTrait((Trait)resolvedProp.propInfo, objectNode, valueNode, isSuper: false, isRtInvoke);
         }
 
         private void _visitGetGlobalScope(ref Instruction instr) {
             ref DataNode result = ref m_compilation.getDataNode(instr.stackPushedNodeId);
             Debug.Assert(result.dataType == DataNodeType.GLOBAL);
-            _emitPushConstantNode(ref result);
+            _emitPushConstantNode(result);
         }
 
         private void _visitGetGlobalSlot(ref Instruction instr) {
@@ -2756,7 +2710,7 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode result = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
             if (result.isConstant) {
-                _emitPushConstantNode(ref result);
+                _emitPushConstantNode(result);
                 return;
             }
 
@@ -2766,30 +2720,32 @@ namespace Mariana.AVM2.Compiler {
             dummyObject.dataType = DataNodeType.GLOBAL;
             dummyObject.flags = DataNodeFlags.CONSTANT | DataNodeFlags.NO_PUSH;
 
-            _emitGetPropertyTrait(trait, ref dummyObject, isSuper: false);
+            _emitGetPropertyTrait(trait, dummyObject, isSuper: false);
         }
 
         private void _visitSetGlobalSlot(ref Instruction instr) {
-            ref DataNode value = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode valueNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
 
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.getSetSlot.resolvedPropId);
             var trait = (Trait)resolvedProp.propInfo;
             bool isRtInvoke = resolvedProp.propKind == ResolvedPropertyKind.TRAIT_RT_INVOKE;
 
             Debug.Assert(trait.isStatic);
-            DataNode dummyObject = default;
-            dummyObject.id = -1;
-            dummyObject.slot = new DataNodeSlot(DataNodeSlotKind.STACK, -1);
-            dummyObject.dataType = DataNodeType.GLOBAL;
-            dummyObject.flags = DataNodeFlags.CONSTANT | DataNodeFlags.NO_PUSH;
 
-            _emitSetPropertyTrait(trait, ref dummyObject, ref value, isSuper: false, isRtInvoke);
+            DataNode dummyObject = new DataNode {
+                id = -1,
+                slot = new DataNodeSlot(DataNodeSlotKind.STACK, -1),
+                dataType = DataNodeType.GLOBAL,
+                flags = DataNodeFlags.CONSTANT | DataNodeFlags.NO_PUSH
+            };
+
+            _emitSetPropertyTrait(trait, dummyObject, valueNode, isSuper: false, isRtInvoke);
         }
 
         private void _visitCallOrConstructProp(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            var argIds = stackPopIds.Slice(stackPopIds.Length - instr.data.callProperty.argCount);
-            ref DataNode obj = ref m_compilation.getDataNode(stackPopIds[0]);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
+            var argNodeIds = stackPopIds.Slice(stackPopIds.Length - instr.data.callProperty.argCount);
+            ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
 
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.callProperty.resolvedPropId);
 
@@ -2824,35 +2780,42 @@ namespace Mariana.AVM2.Compiler {
                 var trait = (Trait)resolvedProp.propInfo;
 
                 if (resolvedProp.propKind == ResolvedPropertyKind.TRAIT)
-                    _emitCallOrConstructTrait(trait, obj.id, argIds, isConstruct, isSuper, resultId);
+                    _emitCallOrConstructTrait(trait, objectNode.id, argNodeIds, isConstruct, isSuper, resultId);
                 else
-                    _emitCallOrConstructTraitAtRuntime(trait, obj.id, argIds, isConstruct, isLex, resultId == -1);
+                    _emitCallOrConstructTraitAtRuntime(trait, objectNode.id, argNodeIds, isConstruct, isLex, resultId == -1);
             }
             else if (resolvedProp.propKind == ResolvedPropertyKind.INTRINSIC) {
                 Debug.Assert(rtNsNodeId == -1 || m_compilation.getDataNode(rtNsNodeId).isNotPushed);
                 Debug.Assert(rtNameNodeId == -1 || m_compilation.getDataNode(rtNameNodeId).isNotPushed);
 
                 var intrinsic = (Intrinsic)resolvedProp.propInfo;
-                _emitInvokeIntrinsic(intrinsic, obj.id, argIds, isConstruct, resultId);
+                _emitInvokeIntrinsic(intrinsic, objectNode.id, argNodeIds, isConstruct, resultId);
             }
             else if (resolvedProp.propKind == ResolvedPropertyKind.INDEX) {
                 Debug.Assert(rtNsNodeId == -1 || m_compilation.getDataNode(rtNsNodeId).isNotPushed);
                 ref DataNode nameNode = ref m_compilation.getDataNode(rtNameNodeId);
 
                 var indexProp = (IndexProperty)resolvedProp.propInfo;
-                _emitCallOrConstructIndexProp(indexProp, ref obj, ref nameNode, argIds, isConstruct, isLex, resultId == -1);
+                _emitCallOrConstructIndexProp(
+                    indexProp, objectNode, nameNode, argNodeIds, isConstruct, isLex, noReturn: resultId == -1);
             }
             else if (resolvedProp.propKind == ResolvedPropertyKind.RUNTIME) {
-                Debug.Assert(!obj.isNotPushed);
+                Debug.Assert(!objectNode.isNotPushed);
 
                 ILBuilder.Local argsLocal = default;
-                if (argIds.Length > 0)
-                    argsLocal = _emitCollectStackArgsIntoArray(argIds);
+                if (argNodeIds.Length > 0)
+                    argsLocal = _emitCollectStackArgsIntoArray(argNodeIds);
 
                 _emitPrepareRuntimeBinding(
-                    multiname, rtNsNodeId, rtNameNodeId, _getPushedClassOfNode(obj), isOnRuntimeScopeStack: false, out var bindingKind);
+                    multiname,
+                    rtNsNodeId,
+                    rtNameNodeId,
+                    _getPushedClassOfNode(objectNode),
+                    isOnRuntimeScopeStack: false,
+                    out RuntimeBindingKind bindingKind
+                );
 
-                bool isObjAny = isAnyOrUndefined(obj.dataType);
+                bool isObjAny = isAnyOrUndefined(objectNode.dataType);
                 MethodInfo method = getRuntimeBindMethod(bindingKind, isObjAny, isConstruct);
 
                 var bindOpts =
@@ -2864,7 +2827,7 @@ namespace Mariana.AVM2.Compiler {
                 if (isLex)
                     bindOpts |= BindOptions.NULL_RECEIVER;
 
-                if (argIds.Length > 0) {
+                if (argNodeIds.Length > 0) {
                     m_ilBuilder.emit(ILOp.ldloc, argsLocal);
                     m_ilBuilder.emit(ILOp.newobj, KnownMembers.roSpanOfAnyFromArray, 0);
                     m_ilBuilder.releaseTempLocal(argsLocal);
@@ -2880,34 +2843,33 @@ namespace Mariana.AVM2.Compiler {
                     m_ilBuilder.emit(ILOp.pop);
             }
 
-            MethodInfo getRuntimeBindMethod(RuntimeBindingKind bindingKind, bool isAny, bool isCons) {
-                switch (bindingKind) {
-                    case RuntimeBindingKind.QNAME:
-                        return isCons
-                            ? (isAny ? KnownMembers.anyConstructPropertyQName : KnownMembers.objConstructPropertyQName)
-                            : (isAny ? KnownMembers.anyCallPropertyQName : KnownMembers.objCallPropertyQName);
+            static MethodInfo getRuntimeBindMethod(RuntimeBindingKind bindingKind, bool isAny, bool isCons) {
+                return (bindingKind, isCons, isAny) switch {
+                    (RuntimeBindingKind.QNAME, false, false) => KnownMembers.objCallPropertyQName,
+                    (RuntimeBindingKind.QNAME, false, true) => KnownMembers.anyCallPropertyQName,
+                    (RuntimeBindingKind.QNAME, true, false) => KnownMembers.objConstructPropertyQName,
+                    (RuntimeBindingKind.QNAME, true, true) => KnownMembers.anyConstructPropertyQName,
 
-                    case RuntimeBindingKind.MULTINAME:
-                        return isCons
-                            ? (isAny ? KnownMembers.anyConstructPropertyNsSet : KnownMembers.objConstructPropertyNsSet)
-                            : (isAny ? KnownMembers.anyCallPropertyNsSet : KnownMembers.objCallPropertyNsSet);
+                    (RuntimeBindingKind.MULTINAME, false, false) => KnownMembers.objCallPropertyNsSet,
+                    (RuntimeBindingKind.MULTINAME, false, true) => KnownMembers.anyCallPropertyNsSet,
+                    (RuntimeBindingKind.MULTINAME, true, false) => KnownMembers.objConstructPropertyNsSet,
+                    (RuntimeBindingKind.MULTINAME, true, true) => KnownMembers.anyConstructPropertyNsSet,
 
-                    case RuntimeBindingKind.KEY:
-                        return isCons
-                            ? (isAny ? KnownMembers.anyConstructPropertyKey : KnownMembers.objConstructPropertyKey)
-                            : (isAny ? KnownMembers.anyCallPropertyKey : KnownMembers.objCallPropertyKey);
+                    (RuntimeBindingKind.KEY, false, false) => KnownMembers.objCallPropertyKey,
+                    (RuntimeBindingKind.KEY, false, true) => KnownMembers.anyCallPropertyKey,
+                    (RuntimeBindingKind.KEY, true, false) => KnownMembers.objConstructPropertyKey,
+                    (RuntimeBindingKind.KEY, true, true) => KnownMembers.anyConstructPropertyKey,
 
-                    case RuntimeBindingKind.KEY_MULTINAME:
-                        return isCons
-                            ? (isAny ? KnownMembers.anyConstructPropertyKeyNsSet : KnownMembers.objConstructPropertyKeyNsSet)
-                            : (isAny ? KnownMembers.anyCallPropertyKeyNsSet : KnownMembers.objCallPropertyKeyNsSet);
-                }
-                return null;
+                    (RuntimeBindingKind.KEY_MULTINAME, false, false) => KnownMembers.objCallPropertyKeyNsSet,
+                    (RuntimeBindingKind.KEY_MULTINAME, false, true) => KnownMembers.anyCallPropertyKeyNsSet,
+                    (RuntimeBindingKind.KEY_MULTINAME, true, false) => KnownMembers.objConstructPropertyKeyNsSet,
+                    (RuntimeBindingKind.KEY_MULTINAME, true, true) => KnownMembers.anyConstructPropertyKeyNsSet
+                };
             }
         }
 
         private void _visitCallOrConstruct(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             var argIds = stackPopIds.Slice(stackPopIds.Length - instr.data.callOrConstruct.argCount);
 
             bool isConstruct = instr.opcode == ABCOp.construct;
@@ -2990,7 +2952,7 @@ namespace Mariana.AVM2.Compiler {
             if (!func.isNotPushed) {
                 ILBuilder.Local resultStash = default;
                 if (resultId != -1)
-                    resultStash = _emitStashTopOfStack(ref m_compilation.getDataNode(resultId), usePrePushType: true);
+                    resultStash = _emitStashTopOfStack(m_compilation.getDataNode(resultId), usePrePushType: true);
 
                 m_ilBuilder.emit(ILOp.pop);
 
@@ -3000,7 +2962,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitCallMethodOrStatic(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             var argIds = stackPopIds.Slice(stackPopIds.Length - instr.data.callOrConstruct.argCount);
             int receiverId = stackPopIds[0];
 
@@ -3023,7 +2985,7 @@ namespace Mariana.AVM2.Compiler {
         private void _visitConstructSuper(ref Instruction instr) {
             Class parentClass = m_compilation.declaringClass.parent;
             int argCount = instr.data.constructSuper.argCount;
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
 
             if (!checkArgCountValidAndEmitError())
                 return;
@@ -3037,8 +2999,8 @@ namespace Mariana.AVM2.Compiler {
                 var argsOnStack = stackPopIds.Slice(stackPopIds.Length - argCount);
                 _emitPrepareMethodCallArguments(ctor.getParameters().asSpan(), ctor.hasRest, argsOnStack, null, null);
 
-                using (var lockedContext = m_compilation.getContext())
-                    m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForCtor(parentClass));
+                using var lockedContext = m_compilation.getContext();
+                m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForCtor(parentClass));
             }
             else {
                 var error = ErrorHelper.createErrorObject(ErrorCode.CLASS_CANNOT_BE_INSTANTIATED, parentClass.name.ToString());
@@ -3070,32 +3032,33 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitGetDescendants(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode obj = ref m_compilation.getDataNode(stackPopIds[0]);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
+            ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
 
             var multiname = m_compilation.abcFile.resolveMultiname(instr.data.getDescendants.multinameId);
             _getRuntimeMultinameArgIds(stackPopIds.Slice(1), multiname, out int rtNsNodeId, out int rtNameNodeId);
 
             _emitPrepareRuntimeBinding(
-                multiname, rtNsNodeId, rtNameNodeId, _getPushedClassOfNode(obj), isOnRuntimeScopeStack: false, out var bindingKind);
+                multiname,
+                rtNsNodeId,
+                rtNameNodeId,
+                _getPushedClassOfNode(objectNode),
+                isOnRuntimeScopeStack: false,
+                out RuntimeBindingKind bindingKind
+            );
 
-            MethodInfo method = null;
-            bool isObjAny = isAnyOrUndefined(obj.dataType);
+            bool isObjAny = isAnyOrUndefined(objectNode.dataType);
 
-            switch (bindingKind) {
-                case RuntimeBindingKind.QNAME:
-                    method = isObjAny ? KnownMembers.anyGetDescQName : KnownMembers.objGetDescQName;
-                    break;
-                case RuntimeBindingKind.MULTINAME:
-                    method = isObjAny ? KnownMembers.anyGetDescNsSet : KnownMembers.objGetDescNsSet;
-                    break;
-                case RuntimeBindingKind.KEY:
-                    method = isObjAny ? KnownMembers.anyGetDescKey : KnownMembers.objGetDescKey;
-                    break;
-                case RuntimeBindingKind.KEY_MULTINAME:
-                    method = isObjAny ? KnownMembers.anyGetDescKeyNsSet : KnownMembers.objGetDescKeyNsSet;
-                    break;
-            }
+            MethodInfo method = (bindingKind, isObjAny) switch {
+                (RuntimeBindingKind.QNAME, false) => KnownMembers.objGetDescQName,
+                (RuntimeBindingKind.QNAME, true) => KnownMembers.anyGetDescQName,
+                (RuntimeBindingKind.MULTINAME, false) => KnownMembers.objGetDescNsSet,
+                (RuntimeBindingKind.MULTINAME, true) => KnownMembers.anyGetDescNsSet,
+                (RuntimeBindingKind.KEY, false) => KnownMembers.objGetDescKey,
+                (RuntimeBindingKind.KEY, true) => KnownMembers.anyGetDescKey,
+                (RuntimeBindingKind.KEY_MULTINAME, false) => KnownMembers.objGetDescKeyNsSet,
+                (RuntimeBindingKind.KEY_MULTINAME, true) => KnownMembers.anyGetDescKeyNsSet,
+            };
 
             var bindOpts = BindOptions.SEARCH_DYNAMIC | _getBindingOptionsForMultiname(multiname);
 
@@ -3104,7 +3067,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitFindProperty(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
 
             var multiname = m_compilation.abcFile.resolveMultiname(instr.data.findProperty.multinameId);
             _getRuntimeMultinameArgIds(stackPopIds, multiname, out int rtNsNodeId, out int rtNameNodeId);
@@ -3116,23 +3079,20 @@ namespace Mariana.AVM2.Compiler {
                 Debug.Assert(m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_RUNTIME_SCOPE_STACK));
 
                 _emitPrepareRuntimeBinding(
-                    multiname, rtNsNodeId, rtNameNodeId, null, isOnRuntimeScopeStack: true, out var bindingKind);
+                    multiname,
+                    rtNsNodeId,
+                    rtNameNodeId,
+                    objectType: null,
+                    isOnRuntimeScopeStack: true,
+                    out RuntimeBindingKind bindingKind
+                );
 
-                MethodInfo method = null;
-                switch (bindingKind) {
-                    case RuntimeBindingKind.QNAME:
-                        method = KnownMembers.rtScopeStackFindQname;
-                        break;
-                    case RuntimeBindingKind.MULTINAME:
-                        method = KnownMembers.rtScopeStackFindNsSet;
-                        break;
-                    case RuntimeBindingKind.KEY:
-                        method = KnownMembers.rtScopeStackFindKey;
-                        break;
-                    case RuntimeBindingKind.KEY_MULTINAME:
-                        method = KnownMembers.rtScopeStackFindKeyNsSet;
-                        break;
-                }
+                MethodInfo method = bindingKind switch {
+                    RuntimeBindingKind.QNAME => KnownMembers.rtScopeStackFindQname,
+                    RuntimeBindingKind.MULTINAME => KnownMembers.rtScopeStackFindNsSet,
+                    RuntimeBindingKind.KEY => KnownMembers.rtScopeStackFindKey,
+                    RuntimeBindingKind.KEY_MULTINAME => KnownMembers.rtScopeStackFindKeyNsSet
+                };
 
                 m_ilBuilder.emit(ILOp.ldc_i4_0);
                 m_ilBuilder.emit(ILOp.ldc_i4, multiname.isAttributeName ? 1 : 0);
@@ -3150,9 +3110,9 @@ namespace Mariana.AVM2.Compiler {
                     return;
 
                 if (result.isConstant)
-                    _emitPushConstantNode(ref result);
+                    _emitPushConstantNode(result);
                 else if (scopeRef.isLocal)
-                    _emitLoadScopeOrLocalNode(ref m_compilation.getDataNode(scopeRef.idOrCaptureHeight));
+                    _emitLoadScopeOrLocalNode(m_compilation.getDataNode(scopeRef.idOrCaptureHeight));
                 else
                     _emitPushCapturedScopeItem(scopeRef.idOrCaptureHeight);
             }
@@ -3168,23 +3128,20 @@ namespace Mariana.AVM2.Compiler {
                 Debug.Assert(m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_RUNTIME_SCOPE_STACK));
 
                 _emitPrepareRuntimeBinding(
-                    multiname, rtNsNodeId: -1, rtNameNodeId: -1, objectType: null, isOnRuntimeScopeStack: true, out var bindingKind);
+                    multiname,
+                    rtNsNodeId: -1,
+                    rtNameNodeId: -1,
+                    objectType: null,
+                    isOnRuntimeScopeStack: true,
+                    out RuntimeBindingKind bindingKind
+                );
 
-                MethodInfo method = null;
-                switch (bindingKind) {
-                    case RuntimeBindingKind.QNAME:
-                        method = KnownMembers.rtScopeStackGetQname;
-                        break;
-                    case RuntimeBindingKind.MULTINAME:
-                        method = KnownMembers.rtScopeStackGetNsSet;
-                        break;
-                    case RuntimeBindingKind.KEY:
-                        method = KnownMembers.rtScopeStackGetKey;
-                        break;
-                    case RuntimeBindingKind.KEY_MULTINAME:
-                        method = KnownMembers.rtScopeStackGetKeyNsSet;
-                        break;
-                }
+                MethodInfo method = bindingKind switch {
+                    RuntimeBindingKind.QNAME => KnownMembers.rtScopeStackGetQname,
+                    RuntimeBindingKind.MULTINAME => KnownMembers.rtScopeStackGetNsSet,
+                    RuntimeBindingKind.KEY => KnownMembers.rtScopeStackGetKey,
+                    RuntimeBindingKind.KEY_MULTINAME => KnownMembers.rtScopeStackGetKeyNsSet
+                };
 
                 m_ilBuilder.emit(ILOp.ldc_i4_0);
                 m_ilBuilder.emit(ILOp.ldc_i4, multiname.isAttributeName ? 1 : 0);
@@ -3197,7 +3154,7 @@ namespace Mariana.AVM2.Compiler {
                     return;
 
                 if (result.isConstant) {
-                    _emitPushConstantNode(ref result);
+                    _emitPushConstantNode(result);
                     return;
                 }
 
@@ -3224,7 +3181,7 @@ namespace Mariana.AVM2.Compiler {
                     dummyNode.constant = scopeNode.constant;
 
                     if (mustPushObject)
-                        _emitLoadScopeOrLocalNode(ref scopeNode);
+                        _emitLoadScopeOrLocalNode(scopeNode);
                 }
                 else {
                     ref readonly CapturedScopeItem capturedItem =
@@ -3241,18 +3198,18 @@ namespace Mariana.AVM2.Compiler {
                 }
 
                 if (trait != null) {
-                    _emitGetPropertyTrait(trait, ref dummyNode, isSuper: false);
+                    _emitGetPropertyTrait(trait, dummyNode, isSuper: false);
                 }
                 else {
                     Debug.Assert(resolvedProp.propKind == ResolvedPropertyKind.RUNTIME);
-                    _emitGetPropertyRuntime(ref dummyNode, multiname, -1, -1);
+                    _emitGetPropertyRuntime(dummyNode, multiname, -1, -1);
                 }
             }
         }
 
         private void _visitNewClass(ref Instruction instr) {
-            ref DataNode baseClass = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
-            _emitDiscardTopOfStack(ref baseClass);
+            ref DataNode baseClass = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
+            _emitDiscardTopOfStack(baseClass);
 
             using (var lockedContext = m_compilation.getContext()) {
                 ScriptClass klass = lockedContext.value.getClassFromClassInfo(instr.data.newClass.classInfoId);
@@ -3275,7 +3232,7 @@ namespace Mariana.AVM2.Compiler {
             }
 
             ref DataNode pushed = ref m_compilation.getDataNode(instr.stackPushedNodeId);
-            _emitPushConstantNode(ref pushed);
+            _emitPushConstantNode(pushed);
         }
 
         private void _visitNewFunction(ref Instruction instr) {
@@ -3299,14 +3256,14 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitIfTrueFalse(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode inputNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
 
-            Class inputClass = _getPushedClassOfNode(input);
+            Class inputClass = _getPushedClassOfNode(inputNode);
 
             if (inputClass == null || inputClass.isObjectClass
                 || inputClass.tag == ClassTag.NUMBER || inputClass.tag == ClassTag.STRING)
             {
-                _emitTypeCoerceForTopOfStack(ref input, DataNodeType.BOOL);
+                _emitTypeCoerceForTopOfStack(inputNode, DataNodeType.BOOL);
             }
 
             ref BasicBlock thisBlock = ref m_compilation.getBasicBlockOfInstruction(instr);
@@ -3314,33 +3271,33 @@ namespace Mariana.AVM2.Compiler {
             ref BasicBlock trueBlock = ref m_compilation.getBasicBlock(exitBlockIds[0]);
             ref BasicBlock falseBlock = ref m_compilation.getBasicBlock(exitBlockIds[1]);
 
-            TwoWayBranchEmitInfo emitInfo = _getTwoWayBranchEmitInfo(ref thisBlock, ref trueBlock, ref falseBlock);
+            TwoWayBranchEmitInfo emitInfo = _getTwoWayBranchEmitInfo(thisBlock, trueBlock, falseBlock);
 
             if (emitInfo.trueIsFallThrough)
                 m_ilBuilder.emit((instr.opcode == ABCOp.iftrue) ? ILOp.brfalse : ILOp.brtrue, emitInfo.falseLabel);
             else
                 m_ilBuilder.emit((instr.opcode == ABCOp.iftrue) ? ILOp.brtrue : ILOp.brfalse, emitInfo.trueLabel);
 
-            _finishTwoWayConditionalBranch(ref thisBlock, emitInfo);
+            _finishTwoWayConditionalBranch(thisBlock, emitInfo);
         }
 
         private void _visitBinaryCompareBranch(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode left = ref m_compilation.getDataNode(stackPopIds[0]);
-            ref DataNode right = ref m_compilation.getDataNode(stackPopIds[1]);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
+            ref DataNode leftInputNode = ref m_compilation.getDataNode(stackPopIds[0]);
+            ref DataNode rightInputNode = ref m_compilation.getDataNode(stackPopIds[1]);
 
             ref BasicBlock thisBlock = ref m_compilation.getBasicBlockOfInstruction(instr);
             var exitBlockIds = m_compilation.staticIntArrayPool.getSpan(thisBlock.exitBlockIds);
             ref BasicBlock trueBlock = ref m_compilation.getBasicBlock(exitBlockIds[0]);
             ref BasicBlock falseBlock = ref m_compilation.getBasicBlock(exitBlockIds[1]);
 
-            TwoWayBranchEmitInfo branchEmitInfo = _getTwoWayBranchEmitInfo(ref thisBlock, ref trueBlock, ref falseBlock);
+            TwoWayBranchEmitInfo branchEmitInfo = _getTwoWayBranchEmitInfo(thisBlock, trueBlock, falseBlock);
 
             ComparisonType cmpType = instr.data.compareBranch.compareType;
 
             if (cmpType == ComparisonType.STR_CHARAT_L || cmpType == ComparisonType.STR_CHARAT_R) {
-                _emitStringCharAtIntrinsicCompare(ref instr, ref left, ref right, branchEmitInfo);
-                _finishTwoWayConditionalBranch(ref thisBlock, branchEmitInfo);
+                _emitStringCharAtIntrinsicCompare(instr, leftInputNode, rightInputNode, branchEmitInfo);
+                _finishTwoWayConditionalBranch(thisBlock, branchEmitInfo);
                 return;
             }
 
@@ -3348,46 +3305,46 @@ namespace Mariana.AVM2.Compiler {
 
             switch (cmpType) {
                 case ComparisonType.INT:
-                    _emitTypeCoerceForStackTop2(ref left, ref right, DataNodeType.INT, DataNodeType.INT);
+                    _emitTypeCoerceForStackTop2(leftInputNode, rightInputNode, DataNodeType.INT, DataNodeType.INT);
                     getILOpForIntCompare(instr.opcode, isUnsigned: false, out ilOp, out invIlOp);
                     break;
 
                 case ComparisonType.UINT:
-                    _emitTypeCoerceForStackTop2(ref left, ref right, DataNodeType.UINT, DataNodeType.UINT);
+                    _emitTypeCoerceForStackTop2(leftInputNode, rightInputNode, DataNodeType.UINT, DataNodeType.UINT);
                     getILOpForIntCompare(instr.opcode, isUnsigned: true, out ilOp, out invIlOp);
                     break;
 
                 case ComparisonType.NUMBER:
-                    _emitTypeCoerceForStackTop2(ref left, ref right, DataNodeType.NUMBER, DataNodeType.NUMBER);
+                    _emitTypeCoerceForStackTop2(leftInputNode, rightInputNode, DataNodeType.NUMBER, DataNodeType.NUMBER);
                     getILOpForFloatCompare(instr.opcode, out ilOp, out invIlOp);
                     break;
 
                 case ComparisonType.STRING:
-                    _emitTypeCoerceForStackTop2(ref left, ref right, DataNodeType.STRING, DataNodeType.STRING);
+                    _emitTypeCoerceForStackTop2(leftInputNode, rightInputNode, DataNodeType.STRING, DataNodeType.STRING);
                     m_ilBuilder.emit(ILOp.call, getMethodForStrCompare(instr.opcode));
                     (ilOp, invIlOp) = isNegativeCompare(instr.opcode) ? (ILOp.brfalse, ILOp.brtrue) : (ILOp.brtrue, ILOp.brfalse);
                     break;
 
                 case ComparisonType.NAMESPACE:
-                    Debug.Assert(left.dataType == DataNodeType.NAMESPACE && right.dataType == DataNodeType.NAMESPACE);
+                    Debug.Assert(leftInputNode.dataType == DataNodeType.NAMESPACE && rightInputNode.dataType == DataNodeType.NAMESPACE);
                     m_ilBuilder.emit(ILOp.call, KnownMembers.xmlNamespaceEquals, -1);
                     (ilOp, invIlOp) = isNegativeCompare(instr.opcode) ? (ILOp.brfalse, ILOp.brtrue) : (ILOp.brtrue, ILOp.brfalse);
                     break;
 
                 case ComparisonType.QNAME:
-                    Debug.Assert(left.dataType == DataNodeType.QNAME && right.dataType == DataNodeType.QNAME);
+                    Debug.Assert(leftInputNode.dataType == DataNodeType.QNAME && rightInputNode.dataType == DataNodeType.QNAME);
                     m_ilBuilder.emit(ILOp.call, KnownMembers.xmlQnameEquals, -1);
                     (ilOp, invIlOp) = isNegativeCompare(instr.opcode) ? (ILOp.brfalse, ILOp.brtrue) : (ILOp.brtrue, ILOp.brfalse);
                     break;
 
                 case ComparisonType.OBJECT:
-                    _emitTypeCoerceForStackTop2(ref left, ref right, DataNodeType.OBJECT, DataNodeType.OBJECT);
+                    _emitTypeCoerceForStackTop2(leftInputNode, rightInputNode, DataNodeType.OBJECT, DataNodeType.OBJECT);
                     m_ilBuilder.emit(ILOp.call, getMethodForObjectCompare(instr.opcode), -1);
                     (ilOp, invIlOp) = isNegativeCompare(instr.opcode) ? (ILOp.brfalse, ILOp.brtrue) : (ILOp.brtrue, ILOp.brfalse);
                     break;
 
                 case ComparisonType.ANY:
-                    _emitTypeCoerceForStackTop2(ref left, ref right, DataNodeType.ANY, DataNodeType.ANY);
+                    _emitTypeCoerceForStackTop2(leftInputNode, rightInputNode, DataNodeType.ANY, DataNodeType.ANY);
                     m_ilBuilder.emit(ILOp.call, getMethodForAnyCompare(instr.opcode), -1);
                     (ilOp, invIlOp) = isNegativeCompare(instr.opcode) ? (ILOp.brfalse, ILOp.brtrue) : (ILOp.brtrue, ILOp.brfalse);
                     break;
@@ -3400,9 +3357,9 @@ namespace Mariana.AVM2.Compiler {
                 case ComparisonType.OBJ_NULL_L:
                 {
                     if (instr.opcode == ABCOp.ifeq || instr.opcode == ABCOp.ifstricteq)
-                        (ilOp, invIlOp) = !left.isNotPushed ? (ILOp.beq, ILOp.bne_un) : (ILOp.brfalse, ILOp.brtrue);
+                        (ilOp, invIlOp) = !leftInputNode.isNotPushed ? (ILOp.beq, ILOp.bne_un) : (ILOp.brfalse, ILOp.brtrue);
                     else
-                        (ilOp, invIlOp) = !left.isNotPushed ? (ILOp.bne_un, ILOp.beq) : (ILOp.brtrue, ILOp.brfalse);
+                        (ilOp, invIlOp) = !leftInputNode.isNotPushed ? (ILOp.bne_un, ILOp.beq) : (ILOp.brtrue, ILOp.brfalse);
                     break;
                 }
 
@@ -3410,16 +3367,16 @@ namespace Mariana.AVM2.Compiler {
                 case ComparisonType.OBJ_NULL_R:
                 {
                     if (instr.opcode == ABCOp.ifeq || instr.opcode == ABCOp.ifstricteq)
-                        (ilOp, invIlOp) = !right.isNotPushed ? (ILOp.beq, ILOp.bne_un) : (ILOp.brfalse, ILOp.brtrue);
+                        (ilOp, invIlOp) = !rightInputNode.isNotPushed ? (ILOp.beq, ILOp.bne_un) : (ILOp.brfalse, ILOp.brtrue);
                     else
-                        (ilOp, invIlOp) = !right.isNotPushed ? (ILOp.bne_un, ILOp.beq) : (ILOp.brtrue, ILOp.brfalse);
+                        (ilOp, invIlOp) = !rightInputNode.isNotPushed ? (ILOp.bne_un, ILOp.beq) : (ILOp.brtrue, ILOp.brfalse);
                     break;
                 }
 
                 case ComparisonType.ANY_UNDEF_L:
                 case ComparisonType.ANY_UNDEF_R:
                 {
-                    if ((cmpType == ComparisonType.ANY_UNDEF_L) ? !left.isNotPushed : !right.isNotPushed)
+                    if ((cmpType == ComparisonType.ANY_UNDEF_L) ? !leftInputNode.isNotPushed : !rightInputNode.isNotPushed)
                         goto case ComparisonType.ANY;
 
                     var tempvar = m_ilBuilder.acquireTempLocal(typeof(ASAny));
@@ -3440,7 +3397,7 @@ namespace Mariana.AVM2.Compiler {
             else
                 m_ilBuilder.emit(ilOp, branchEmitInfo.trueLabel);
 
-            _finishTwoWayConditionalBranch(ref thisBlock, branchEmitInfo);
+            _finishTwoWayConditionalBranch(thisBlock, branchEmitInfo);
 
             bool isNegativeCompare(ABCOp abcOp) {
                 return abcOp == ABCOp.ifne || abcOp == ABCOp.ifstrictne
@@ -3448,155 +3405,72 @@ namespace Mariana.AVM2.Compiler {
             }
 
             void getILOpForIntCompare(ABCOp abcOp, bool isUnsigned, out ILOp _ilOp, out ILOp _invIlOp) {
-                switch (abcOp) {
-                    case ABCOp.ifeq:
-                    case ABCOp.ifstricteq:
-                        (_ilOp, _invIlOp) = (ILOp.beq, ILOp.bne_un);
-                        break;
-                    case ABCOp.ifne:
-                    case ABCOp.ifstrictne:
-                        (_ilOp, _invIlOp) = (ILOp.bne_un, ILOp.beq);
-                        break;
-                    case ABCOp.iflt:
-                    case ABCOp.ifnge:
-                        (_ilOp, _invIlOp) = isUnsigned ? (ILOp.blt_un, ILOp.bge_un) : (ILOp.blt, ILOp.bge);
-                        break;
-                    case ABCOp.ifle:
-                    case ABCOp.ifngt:
-                        (_ilOp, _invIlOp) = isUnsigned ? (ILOp.ble_un, ILOp.bgt_un) : (ILOp.ble, ILOp.bgt);
-                        break;
-                    case ABCOp.ifgt:
-                    case ABCOp.ifnle:
-                        (_ilOp, _invIlOp) = isUnsigned ? (ILOp.bgt_un, ILOp.ble_un) : (ILOp.bgt, ILOp.ble);
-                        break;
-                    case ABCOp.ifge:
-                    case ABCOp.ifnlt:
-                        (_ilOp, _invIlOp) = isUnsigned ? (ILOp.bge_un, ILOp.blt_un) : (ILOp.bge, ILOp.blt);
-                        break;
-                    default:
-                        (_ilOp, _invIlOp) = (0, 0);
-                        break;
-                }
+                (_ilOp, _invIlOp) = (abcOp, isUnsigned) switch {
+                    (ABCOp.ifeq or ABCOp.ifstricteq, _) => (ILOp.beq, ILOp.bne_un),
+                    (ABCOp.ifne or ABCOp.ifstrictne, _) => (ILOp.bne_un, ILOp.beq),
+
+                    (ABCOp.iflt or ABCOp.ifnge, false) => (ILOp.blt, ILOp.bge),
+                    (ABCOp.iflt or ABCOp.ifnge, true) => (ILOp.blt_un, ILOp.bge_un),
+                    (ABCOp.ifle or ABCOp.ifngt, false) => (ILOp.ble, ILOp.bgt),
+                    (ABCOp.ifle or ABCOp.ifngt, true) => (ILOp.ble_un, ILOp.bgt_un),
+                    (ABCOp.ifgt or ABCOp.ifnle, false) => (ILOp.bgt, ILOp.ble),
+                    (ABCOp.ifgt or ABCOp.ifnle, true) => (ILOp.bgt_un, ILOp.ble_un),
+                    (ABCOp.ifge or ABCOp.ifnlt, false) => (ILOp.bge, ILOp.blt),
+                    (ABCOp.ifge or ABCOp.ifnlt, true) => (ILOp.bge_un, ILOp.blt_un)
+                };
             }
 
             void getILOpForFloatCompare(ABCOp abcOp, out ILOp _ilOp, out ILOp _invIlOp) {
-                switch (abcOp) {
-                    case ABCOp.ifeq:
-                    case ABCOp.ifstricteq:
-                        (_ilOp, _invIlOp) = (ILOp.beq, ILOp.bne_un);
-                        break;
-                    case ABCOp.ifne:
-                    case ABCOp.ifstrictne:
-                        (_ilOp, _invIlOp) = (ILOp.bne_un, ILOp.beq);
-                        break;
-                    case ABCOp.iflt:
-                        (_ilOp, _invIlOp) = (ILOp.blt, ILOp.bge_un);
-                        break;
-                    case ABCOp.ifle:
-                        (_ilOp, _invIlOp) = (ILOp.ble, ILOp.bgt_un);
-                        break;
-                    case ABCOp.ifgt:
-                        (_ilOp, _invIlOp) = (ILOp.bgt, ILOp.ble_un);
-                        break;
-                    case ABCOp.ifge:
-                        (_ilOp, _invIlOp) = (ILOp.bge, ILOp.blt_un);
-                        break;
-                    case ABCOp.ifnlt:
-                        (_ilOp, _invIlOp) = (ILOp.bge_un, ILOp.blt);
-                        break;
-                    case ABCOp.ifnle:
-                        (_ilOp, _invIlOp) = (ILOp.bgt_un, ILOp.ble);
-                        break;
-                    case ABCOp.ifngt:
-                        (_ilOp, _invIlOp) = (ILOp.ble_un, ILOp.bgt);
-                        break;
-                    case ABCOp.ifnge:
-                        (_ilOp, _invIlOp) = (ILOp.blt_un, ILOp.bge);
-                        break;
-                    default:
-                        (_ilOp, _invIlOp) = (0, 0);
-                        break;
-                }
+                (_ilOp, _invIlOp) = abcOp switch {
+                    ABCOp.ifeq or ABCOp.ifstricteq => (ILOp.beq, ILOp.bne_un),
+                    ABCOp.ifne or ABCOp.ifstrictne => (ILOp.bne_un, ILOp.beq),
+                    ABCOp.iflt => (ILOp.blt, ILOp.bge_un),
+                    ABCOp.ifle => (ILOp.ble, ILOp.bgt_un),
+                    ABCOp.ifgt => (ILOp.bgt, ILOp.ble_un),
+                    ABCOp.ifge => (ILOp.bge, ILOp.blt_un),
+                    ABCOp.ifnlt => (ILOp.bge_un, ILOp.blt),
+                    ABCOp.ifnle => (ILOp.bgt_un, ILOp.ble),
+                    ABCOp.ifngt => (ILOp.ble_un, ILOp.bgt),
+                    ABCOp.ifnge => (ILOp.blt_un, ILOp.bge)
+                };
             }
 
             MethodInfo getMethodForStrCompare(ABCOp abcOp) {
-                switch (abcOp) {
-                    case ABCOp.ifeq:
-                    case ABCOp.ifne:
-                    case ABCOp.ifstricteq:
-                    case ABCOp.ifstrictne:
-                        return KnownMembers.strEquals;
-                    case ABCOp.iflt:
-                    case ABCOp.ifnlt:
-                        return KnownMembers.strLt;
-                    case ABCOp.ifle:
-                    case ABCOp.ifnle:
-                        return KnownMembers.strLeq;
-                    case ABCOp.ifgt:
-                    case ABCOp.ifngt:
-                        return KnownMembers.strGt;
-                    case ABCOp.ifge:
-                    case ABCOp.ifnge:
-                        return KnownMembers.strGeq;
-                    default:
-                        return null;
-                }
+                return abcOp switch {
+                    ABCOp.ifeq or ABCOp.ifne or ABCOp.ifstricteq or ABCOp.ifstrictne => KnownMembers.strEquals,
+                    ABCOp.iflt or ABCOp.ifnlt => KnownMembers.strLt,
+                    ABCOp.ifle or ABCOp.ifnle => KnownMembers.strLeq,
+                    ABCOp.ifgt or ABCOp.ifngt => KnownMembers.strGt,
+                    ABCOp.ifge or ABCOp.ifnge => KnownMembers.strGeq
+                };
             }
 
             MethodInfo getMethodForObjectCompare(ABCOp abcOp) {
-                switch (abcOp) {
-                    case ABCOp.ifeq:
-                    case ABCOp.ifne:
-                        return KnownMembers.objWeakEq;
-                    case ABCOp.ifstricteq:
-                    case ABCOp.ifstrictne:
-                        return KnownMembers.objStrictEq;
-                    case ABCOp.iflt:
-                    case ABCOp.ifnlt:
-                        return KnownMembers.objLt;
-                    case ABCOp.ifle:
-                    case ABCOp.ifnle:
-                        return KnownMembers.objLeq;
-                    case ABCOp.ifgt:
-                    case ABCOp.ifngt:
-                        return KnownMembers.objGt;
-                    case ABCOp.ifge:
-                    case ABCOp.ifnge:
-                        return KnownMembers.objGeq;
-                    default:
-                        return null;
-                }
+                return abcOp switch {
+                    ABCOp.ifeq or ABCOp.ifne => KnownMembers.objWeakEq,
+                    ABCOp.ifstricteq or ABCOp.ifstrictne => KnownMembers.objStrictEq,
+                    ABCOp.iflt or ABCOp.ifnlt => KnownMembers.objLt,
+                    ABCOp.ifle or ABCOp.ifnle => KnownMembers.objLeq,
+                    ABCOp.ifgt or ABCOp.ifngt => KnownMembers.objGt,
+                    ABCOp.ifge or ABCOp.ifnge => KnownMembers.objGeq
+                };
             }
 
             MethodInfo getMethodForAnyCompare(ABCOp abcOp) {
-                switch (abcOp) {
-                    case ABCOp.ifeq:
-                    case ABCOp.ifne:
-                        return KnownMembers.anyWeakEq;
-                    case ABCOp.ifstricteq:
-                    case ABCOp.ifstrictne:
-                        return KnownMembers.anyStrictEq;
-                    case ABCOp.iflt:
-                    case ABCOp.ifnlt:
-                        return KnownMembers.anyLt;
-                    case ABCOp.ifle:
-                    case ABCOp.ifnle:
-                        return KnownMembers.anyLeq;
-                    case ABCOp.ifgt:
-                    case ABCOp.ifngt:
-                        return KnownMembers.anyGt;
-                    case ABCOp.ifge:
-                    case ABCOp.ifnge:
-                        return KnownMembers.anyGeq;
-                    default:
-                        return null;
-                }
+                return abcOp switch {
+                    ABCOp.ifeq or ABCOp.ifne => KnownMembers.anyWeakEq,
+                    ABCOp.ifstricteq or ABCOp.ifstrictne => KnownMembers.anyStrictEq,
+                    ABCOp.iflt or ABCOp.ifnlt => KnownMembers.anyLt,
+                    ABCOp.ifle or ABCOp.ifnle => KnownMembers.anyLeq,
+                    ABCOp.ifgt or ABCOp.ifngt => KnownMembers.anyGt,
+                    ABCOp.ifge or ABCOp.ifnge => KnownMembers.anyGeq
+                };
             }
         }
 
         private void _visitLookupSwitch(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
-            _emitTypeCoerceForTopOfStack(ref input, DataNodeType.INT);
+            ref DataNode inputNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
+            _emitTypeCoerceForTopOfStack(inputNode, DataNodeType.INT);
 
             ref BasicBlock thisBlock = ref m_compilation.getBasicBlockOfInstruction(instr);
             var exitBlockIds = m_compilation.staticIntArrayPool.getSpan(thisBlock.exitBlockIds);
@@ -3607,7 +3481,7 @@ namespace Mariana.AVM2.Compiler {
 
             for (int i = 0; i < caseBlockIds.Length; i++) {
                 ref BasicBlock caseBlock = ref m_compilation.getBasicBlock(caseBlockIds[i]);
-                if (_isBlockTransitionRequired(ref thisBlock, ref caseBlock))
+                if (_isBlockTransitionRequired(thisBlock, caseBlock))
                     caseLabels[i] = m_ilBuilder.createLabel();
                 else
                     caseLabels[i] = _getLabelForJumpToBlock(thisBlock, caseBlock);
@@ -3615,25 +3489,26 @@ namespace Mariana.AVM2.Compiler {
 
             m_ilBuilder.emit(ILOp.@switch, caseLabels);
 
-            _emitBlockTransition(ref thisBlock, ref defaultBlock);
+            _emitBlockTransition(thisBlock, defaultBlock);
             if (!_isBasicBlockImmediatelyBefore(thisBlock, defaultBlock))
                 m_ilBuilder.emit(ILOp.br, _getLabelForJumpToBlock(thisBlock, defaultBlock));
 
             for (int i = 0; i < caseBlockIds.Length; i++) {
                 ref BasicBlock caseBlock = ref m_compilation.getBasicBlock(caseBlockIds[i]);
                 var targetLabel = _getLabelForJumpToBlock(thisBlock, caseBlock);
+
                 if (caseLabels[i] != targetLabel) {
                     m_ilBuilder.markLabel(caseLabels[i]);
-                    _emitBlockTransition(ref thisBlock, ref caseBlock);
+                    _emitBlockTransition(thisBlock, caseBlock);
                     m_ilBuilder.emit(ILOp.br, targetLabel);
                 }
             }
         }
 
         private void _visitGlobalMemoryLoad(ref Instruction instr) {
-            ref DataNode address = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode address = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
 
-            _emitTypeCoerceForTopOfStack(ref address, DataNodeType.INT);
+            _emitTypeCoerceForTopOfStack(address, DataNodeType.INT);
 
             var addrTemp = m_ilBuilder.acquireTempLocal(typeof(int));
             m_ilBuilder.emit(ILOp.stloc, addrTemp);
@@ -3702,9 +3577,9 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitGlobalMemoryStore(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode value = ref m_compilation.getDataNode(stackPopIds[0]);
-            ref DataNode address = ref m_compilation.getDataNode(stackPopIds[1]);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
+            ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[0]);
+            ref DataNode addressNode = ref m_compilation.getDataNode(stackPopIds[1]);
 
             DataNodeType valueType;
             Type valueTempType;
@@ -3719,9 +3594,9 @@ namespace Mariana.AVM2.Compiler {
             var addrTemp = m_ilBuilder.acquireTempLocal(typeof(int));
             var valueTemp = m_ilBuilder.acquireTempLocal(valueTempType);
 
-            _emitTypeCoerceForTopOfStack(ref address, DataNodeType.INT);
+            _emitTypeCoerceForTopOfStack(addressNode, DataNodeType.INT);
             m_ilBuilder.emit(ILOp.stloc, addrTemp);
-            _emitTypeCoerceForTopOfStack(ref value, valueType);
+            _emitTypeCoerceForTopOfStack(valueNode, valueType);
             m_ilBuilder.emit(ILOp.stloc, valueTemp);
 
             // Emit length check
@@ -3755,20 +3630,11 @@ namespace Mariana.AVM2.Compiler {
             else if (instr.opcode == ABCOp.sf64)
                 m_ilBuilder.emit(ILOp.call, KnownMembers.doubleToInt64Bits, 0);
 
-            MethodInfo writeMethod = null;
-
-            switch (instr.opcode) {
-                case ABCOp.si16:
-                    writeMethod = KnownMembers.tryWriteInt16LittleEndian;
-                    break;
-                case ABCOp.si32:
-                case ABCOp.sf32:
-                    writeMethod = KnownMembers.tryWriteInt32LittleEndian;
-                    break;
-                case ABCOp.sf64:
-                    writeMethod = KnownMembers.tryWriteInt64LittleEndian;
-                    break;
-            }
+            MethodInfo writeMethod = instr.opcode switch {
+                ABCOp.si16 => KnownMembers.tryWriteInt16LittleEndian,
+                ABCOp.si32 or ABCOp.sf32 => KnownMembers.tryWriteInt32LittleEndian,
+                ABCOp.sf64 => KnownMembers.tryWriteInt64LittleEndian
+            };
 
             m_ilBuilder.emit(ILOp.call, writeMethod, -1);
             m_ilBuilder.emit(ILOp.brfalse, m_globalMemOutOfBoundsErrLabel);
@@ -3806,13 +3672,13 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         /// <param name="pushedNode">A reference to a <see cref="DataNode"/> reprsenting the node
         /// that has been pushed onto the stack by the latest emitted instruction.</param>
-        private void _emitOnPushTypeCoerce(ref DataNode pushedNode) {
+        private void _emitOnPushTypeCoerce(in DataNode pushedNode) {
             if (pushedNode.isNotPushed)
                 return;
 
             if (pushedNode.onPushCoerceType != DataNodeType.UNKNOWN) {
                 _emitTypeCoerceForTopOfStack(
-                    ref pushedNode,
+                    pushedNode,
                     pushedNode.onPushCoerceType,
                     usePrePushType: true,
                     useConvertStr: (pushedNode.flags & DataNodeFlags.PUSH_CONVERT_STRING) != 0
@@ -3824,8 +3690,10 @@ namespace Mariana.AVM2.Compiler {
                 using (var lockedContext = m_compilation.getContext())
                     optParamTypeSig = lockedContext.value.getTypeSigForOptionalParam(_getPushedClassOfNode(pushedNode));
 
-                var mdContext = m_compilation.metadataContext;
-                var ctorHandle = mdContext.getMemberHandle(KnownMembers.optionalParamCtor, mdContext.getTypeHandle(optParamTypeSig));
+                var ctorHandle = m_compilation.metadataContext.getMemberHandle(
+                    KnownMembers.optionalParamCtor,
+                    m_compilation.metadataContext.getTypeHandle(optParamTypeSig)
+                );
 
                 m_ilBuilder.emit(ILOp.newobj, ctorHandle, 0);
             }
@@ -3893,7 +3761,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="toClass">The type to which the value must be coerced to.</param>
         /// <returns>True if the conversion from the type of <paramref name="node"/> to
         /// <paramref name="toClass"/> is trivial, otherwise false.</returns>
-        private bool _isTrivialTypeConversion(ref DataNode node, Class toClass) {
+        private bool _isTrivialTypeConversion(in DataNode node, Class toClass) {
             if (_getPushedTypeOfNode(node) == DataNodeType.NULL)
                 return toClass != null && !ClassTagSet.numericOrBool.contains(toClass.tag);
 
@@ -3914,7 +3782,7 @@ namespace Mariana.AVM2.Compiler {
         private void _emitTypeCoerceForTopOfStack(
             int nodeId, DataNodeType toType, bool usePrePushType = false, bool useConvertStr = false)
         {
-            _emitTypeCoerceForTopOfStack(ref m_compilation.getDataNode(nodeId), toType, usePrePushType, useConvertStr);
+            _emitTypeCoerceForTopOfStack(m_compilation.getDataNode(nodeId), toType, usePrePushType, useConvertStr);
         }
 
         /// <summary>
@@ -3931,7 +3799,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="isForcePushed">Set to true if <paramref name="node"/> may have been force pushed
         /// onto the stack after being marked as no-push.</param>
         private void _emitTypeCoerceForTopOfStack(
-            ref DataNode node,
+            in DataNode node,
             DataNodeType toType,
             bool usePrePushType = false,
             bool useConvertStr = false,
@@ -3989,15 +3857,15 @@ namespace Mariana.AVM2.Compiler {
                     if (node.dataType == DataNodeType.NULL)
                         break;
 
-                    using (var lockedContext = m_compilation.getContext()) {
-                        Class toClass = getClass(toType);
-                        if (currentClass == null) {
-                            m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForAnyCast(toClass), 0);
-                        }
-                        else {
-                            ILEmitHelper.emitTypeCoerceToObject(m_ilBuilder, currentClass);
-                            m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForObjectCast(toClass), 0);
-                        }
+                    using var lockedContext = m_compilation.getContext();
+                    Class toClass = getClass(toType);
+
+                    if (currentClass == null) {
+                        m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForAnyCast(toClass), 0);
+                    }
+                    else {
+                        ILEmitHelper.emitTypeCoerceToObject(m_ilBuilder, currentClass);
+                        m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForObjectCast(toClass), 0);
                     }
                     break;
                 }
@@ -4012,18 +3880,18 @@ namespace Mariana.AVM2.Compiler {
         /// the value represented by <paramref name="node"/> is to be coerced.</param>
         /// <param name="isForcePushed">Set to true if <paramref name="node"/> may have been force
         /// pushed onto the stack after being marked as no-push.</param>
-        private void _emitTypeCoerceForTopOfStack(ref DataNode node, Class toClass, bool isForcePushed = false) {
+        private void _emitTypeCoerceForTopOfStack(in DataNode node, Class toClass, bool isForcePushed = false) {
             Debug.Assert(isForcePushed || !node.isNotPushed);
 
             DataNodeType nodeType = _getPushedTypeOfNode(node);
             DataNodeType nodeTypeForClass = getDataTypeOfClass(toClass);
 
             if (nodeTypeForClass != DataNodeType.OBJECT || toClass.isObjectClass) {
-                _emitTypeCoerceForTopOfStack(ref node, nodeTypeForClass, isForcePushed: isForcePushed);
+                _emitTypeCoerceForTopOfStack(node, nodeTypeForClass, isForcePushed: isForcePushed);
             }
             else if (isAnyOrUndefined(nodeType)) {
-                using (var lockedContext = m_compilation.getContext())
-                    m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForAnyCast(toClass), 0);
+                using var lockedContext = m_compilation.getContext();
+                m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForAnyCast(toClass), 0);
             }
             else {
                 if (nodeType == DataNodeType.NULL)
@@ -4038,13 +3906,13 @@ namespace Mariana.AVM2.Compiler {
                     nodeClass = s_arrayClass;
                 }
                 else {
-                    _emitTypeCoerceForTopOfStack(ref node, DataNodeType.OBJECT);
+                    _emitTypeCoerceForTopOfStack(node, DataNodeType.OBJECT);
                     nodeClass = s_objectClass;
                 }
 
                 if (!nodeClass.canAssignTo(toClass)) {
-                    using (var lockedContext = m_compilation.getContext())
-                        m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForObjectCast(toClass), 0);
+                    using var lockedContext = m_compilation.getContext();
+                    m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForObjectCast(toClass), 0);
                 }
             }
         }
@@ -4069,14 +3937,14 @@ namespace Mariana.AVM2.Compiler {
                 return;
             }
 
-            using (var lockedContext = m_compilation.getContext()) {
-                if (fromClass == null) {
-                    m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForAnyCast(toClass), 0);
-                }
-                else if (fromClass.isPrimitiveClass || !fromClass.canAssignTo(toClass)) {
-                    ILEmitHelper.emitTypeCoerceToObject(m_ilBuilder, fromClass);
-                    m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForObjectCast(toClass), 0);
-                }
+            using var lockedContext = m_compilation.getContext();
+
+            if (fromClass == null) {
+                m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForAnyCast(toClass), 0);
+            }
+            else if (fromClass.isPrimitiveClass || !fromClass.canAssignTo(toClass)) {
+                ILEmitHelper.emitTypeCoerceToObject(m_ilBuilder, fromClass);
+                m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForObjectCast(toClass), 0);
             }
         }
 
@@ -4092,21 +3960,21 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="useConvertStr">Set to true to use convert_s semantics (instead of
         /// coerce_s) when coercing to a string.</param>
         private void _emitTypeCoerceForStackTop2(
-            ref DataNode node1, ref DataNode node2, DataNodeType toType1, DataNodeType toType2, bool useConvertStr = false)
+            in DataNode node1, in DataNode node2, DataNodeType toType1, DataNodeType toType2, bool useConvertStr = false)
         {
             Debug.Assert(((node1.flags | node2.flags) & DataNodeFlags.NO_PUSH) == 0);
 
             if (_isTrivialTypeConversion(_getPushedTypeOfNode(node1), toType1)
                 && (!useConvertStr || toType1 != DataNodeType.STRING || node1.isNotNull))
             {
-                _emitTypeCoerceForTopOfStack(ref node2, toType2, useConvertStr: useConvertStr);
+                _emitTypeCoerceForTopOfStack(node2, toType2, useConvertStr: useConvertStr);
                 return;
             }
 
-            var stashVar = _emitStashTopOfStack(ref node2, preserveObjectClass: false);
-            _emitTypeCoerceForTopOfStack(ref node1, toType1, useConvertStr: useConvertStr);
+            var stashVar = _emitStashTopOfStack(node2, preserveObjectClass: false);
+            _emitTypeCoerceForTopOfStack(node1, toType1, useConvertStr: useConvertStr);
             _emitUnstash(stashVar);
-            _emitTypeCoerceForTopOfStack(ref node2, toType2, useConvertStr: useConvertStr);
+            _emitTypeCoerceForTopOfStack(node2, toType2, useConvertStr: useConvertStr);
         }
 
         /// <summary>
@@ -4117,13 +3985,13 @@ namespace Mariana.AVM2.Compiler {
         /// <see cref="DataNodeType.REST"/>.</param>
         /// <param name="ignoreNoPush">If true, emits the pushing code even if the node has the
         /// <see cref="DataNodeFlags.NO_PUSH"/> flag set.</param>
-        private void _emitPushConstantNode(ref DataNode node, bool ignoreNoPush = false) {
+        private void _emitPushConstantNode(in DataNode node, bool ignoreNoPush = false) {
             Debug.Assert(node.isConstant || node.dataType == DataNodeType.THIS || node.dataType == DataNodeType.REST);
 
             if (node.isNotPushed && !ignoreNoPush)
                 return;
 
-            if (_canUseDupForConstantNode(ref node)) {
+            if (_canUseDupForConstantNode(node)) {
                 m_ilBuilder.emit(ILOp.dup);
                 return;
             }
@@ -4159,13 +4027,12 @@ namespace Mariana.AVM2.Compiler {
                     break;
 
                 case DataNodeType.QNAME: {
-                    using (var lockedContext = m_compilation.getContext()) {
-                        var emitConstData = lockedContext.value.emitConstData;
-                        var index = emitConstData.getXMLQNameIndex(node.constant.qnameValue);
-                        m_ilBuilder.emit(ILOp.ldsfld, emitConstData.xmlQnameArrayFieldHandle);
-                        m_ilBuilder.emit(ILOp.ldc_i4, index);
-                        m_ilBuilder.emit(ILOp.ldelem_ref);
-                    }
+                    using var lockedContext = m_compilation.getContext();
+                    var emitConstData = lockedContext.value.emitConstData;
+                    var index = emitConstData.getXMLQNameIndex(node.constant.qnameValue);
+                    m_ilBuilder.emit(ILOp.ldsfld, emitConstData.xmlQnameArrayFieldHandle);
+                    m_ilBuilder.emit(ILOp.ldc_i4, index);
+                    m_ilBuilder.emit(ILOp.ldelem_ref);
                     break;
                 }
 
@@ -4182,8 +4049,8 @@ namespace Mariana.AVM2.Compiler {
                     break;
 
                 case DataNodeType.GLOBAL: {
-                    using (var lockedContext = m_compilation.getContext())
-                        m_ilBuilder.emit(ILOp.ldsfld, lockedContext.value.emitConstData.globalObjFieldHandle);
+                    using var lockedContext = m_compilation.getContext();
+                    m_ilBuilder.emit(ILOp.ldsfld, lockedContext.value.emitConstData.globalObjFieldHandle);
                     break;
                 }
 
@@ -4207,7 +4074,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="node">A reference to the data node that represents the constant value pushed
         /// onto the stack.</param>
         /// <returns>True if a dup instruction can be used, otherwise false.</returns>
-        private bool _canUseDupForConstantNode(ref DataNode node) {
+        private bool _canUseDupForConstantNode(in DataNode node) {
             if (node.isPhi || node.slot.kind != DataNodeSlotKind.STACK)
                 return false;
 
@@ -4220,7 +4087,7 @@ namespace Mariana.AVM2.Compiler {
                 return false;
             }
 
-            ref Instruction pushInstr = ref m_compilation.getInstruction(m_compilation.getStackNodePushInstrId(ref node));
+            ref Instruction pushInstr = ref m_compilation.getInstruction(m_compilation.getStackNodePushInstrId(node));
             if (pushInstr.id == 0)
                 return false;
 
@@ -4243,7 +4110,7 @@ namespace Mariana.AVM2.Compiler {
             }
 
             // Has the instruction that has pushed the node not popped anything from the IL stack?
-            var poppedNodeIds = m_compilation.getInstructionStackPoppedNodes(ref pushInstr);
+            var poppedNodeIds = m_compilation.getInstructionStackPoppedNodes(pushInstr);
             for (int i = 0; i < poppedNodeIds.Length; i++) {
                 if (!m_compilation.getDataNode(poppedNodeIds[i]).isNotPushed)
                     return false;
@@ -4253,50 +4120,41 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _emitPushXmlNamespaceConstant(Namespace value) {
-            using (var lockedContext = m_compilation.getContext()) {
-                var emitConstData = lockedContext.value.emitConstData;
-                var index = emitConstData.getXMLNamespaceIndex(value);
-                m_ilBuilder.emit(ILOp.ldsfld, emitConstData.xmlNsArrayFieldHandle);
-                m_ilBuilder.emit(ILOp.ldc_i4, index);
-                m_ilBuilder.emit(ILOp.ldelem_ref);
-            }
+            using var lockedContext = m_compilation.getContext();
+            var emitConstData = lockedContext.value.emitConstData;
+            var index = emitConstData.getXMLNamespaceIndex(value);
+            m_ilBuilder.emit(ILOp.ldsfld, emitConstData.xmlNsArrayFieldHandle);
+            m_ilBuilder.emit(ILOp.ldc_i4, index);
+            m_ilBuilder.emit(ILOp.ldelem_ref);
         }
 
         private void _emitPushTraitConstant(Trait trait) {
-            using (var lockedContext = m_compilation.getContext()) {
-                var emitConstData = lockedContext.value.emitConstData;
-                int index;
+            using var lockedContext = m_compilation.getContext();
+            var emitConstData = lockedContext.value.emitConstData;
+            int index;
 
-                if (trait is Class klass) {
-                    index = emitConstData.getClassIndex(klass);
-                    m_ilBuilder.emit(ILOp.ldsfld, emitConstData.classesArrayFieldHandle);
-                }
-                else {
-                    index = emitConstData.getTraitIndex(trait);
-                    m_ilBuilder.emit(ILOp.ldsfld, emitConstData.traitsArrayFieldHandle);
-                }
-
-                m_ilBuilder.emit(ILOp.ldc_i4, index);
-                m_ilBuilder.emit(ILOp.ldelem_ref);
+            if (trait is Class klass) {
+                index = emitConstData.getClassIndex(klass);
+                m_ilBuilder.emit(ILOp.ldsfld, emitConstData.classesArrayFieldHandle);
             }
+            else {
+                index = emitConstData.getTraitIndex(trait);
+                m_ilBuilder.emit(ILOp.ldsfld, emitConstData.traitsArrayFieldHandle);
+            }
+
+            m_ilBuilder.emit(ILOp.ldc_i4, index);
+            m_ilBuilder.emit(ILOp.ldelem_ref);
         }
 
         private void _emitIsOrAsType(Class klass, ABCOp opcode, int outputNodeId) {
             if (ClassTagSet.numeric.contains(klass.tag)) {
                 // Special cases for numeric types.
 
-                MethodInfo method = null;
-                switch (klass.tag) {
-                    case ClassTag.INT:
-                        method = KnownMembers.objIsInt;
-                        break;
-                    case ClassTag.UINT:
-                        method = KnownMembers.objIsUint;
-                        break;
-                    case ClassTag.NUMBER:
-                        method = KnownMembers.objIsNumeric;
-                        break;
-                }
+                MethodInfo method = klass.tag switch {
+                    ClassTag.INT => KnownMembers.objIsInt,
+                    ClassTag.UINT => KnownMembers.objIsUint,
+                    ClassTag.NUMBER => KnownMembers.objIsNumeric
+                };
 
                 if (opcode == ABCOp.istype || opcode == ABCOp.istypelate) {
                     m_ilBuilder.emit(ILOp.call, method, 0);
@@ -4365,10 +4223,9 @@ namespace Mariana.AVM2.Compiler {
             else {
                 Debug.Assert(m_compilation.declaringClass != null);
 
-                using (var lockedContext = m_compilation.getContext()) {
-                    var fieldHandle = lockedContext.value.getClassCapturedScopeFieldHandle(m_compilation.declaringClass);
-                    m_ilBuilder.emit(ILOp.ldsfld, fieldHandle);
-                }
+                using var lockedContext = m_compilation.getContext();
+                var fieldHandle = lockedContext.value.getClassCapturedScopeFieldHandle(m_compilation.declaringClass);
+                m_ilBuilder.emit(ILOp.ldsfld, fieldHandle);
             }
         }
 
@@ -4377,11 +4234,11 @@ namespace Mariana.AVM2.Compiler {
             m_ilBuilder.emit(ILOp.ldfld, m_compilation.capturedScope.container.getFieldHandle(height));
         }
 
-        private void _emitLoadScopeOrLocalNode(ref DataNode node) {
+        private void _emitLoadScopeOrLocalNode(in DataNode node) {
             Debug.Assert(node.slot.kind != DataNodeSlotKind.STACK);
 
             if (node.isConstant) {
-                _emitPushConstantNode(ref node);
+                _emitPushConstantNode(node);
                 return;
             }
 
@@ -4438,7 +4295,7 @@ namespace Mariana.AVM2.Compiler {
                 if ((node.flags & DataNodeFlags.LOCAL_WRITE_THROUGH) != 0)
                     break;
 
-                var uses = m_compilation.getDataNodeUses(ref node);
+                var uses = m_compilation.getDataNodeUses(node);
                 if (uses.Length != 1 || !uses[0].isDataNode)
                     break;
 
@@ -4463,7 +4320,7 @@ namespace Mariana.AVM2.Compiler {
         /// does not have an associated local variable in IL (for example, it is a constant),
         /// do not pass this argument.</param>
         private void _syncLocalWriteWithCatchVars(
-            ref Instruction writeInstr, ref DataNode localNode, ILBuilder.Local localVar = default)
+            in Instruction writeInstr, in DataNode localNode, ILBuilder.Local localVar = default)
         {
             int excHandlerId = m_compilation.getBasicBlockOfInstruction(writeInstr).excHandlerId;
             if (excHandlerId == -1)
@@ -4474,10 +4331,10 @@ namespace Mariana.AVM2.Compiler {
                 // The local assignment has already been synced with the catch node by write-through.
                 return;
 
-            _syncLocalWithCatchVars(ref localNode, excHandlerId, -1, localVar);
+            _syncLocalWithCatchVars(localNode, excHandlerId, -1, localVar);
         }
 
-        private void _syncLocalsWithCatchVarsOnTryEntry(ref BasicBlock block) {
+        private void _syncLocalsWithCatchVarsOnTryEntry(in BasicBlock block) {
             if (block.excHandlerId == -1)
                 // We're not in a try region, no need to sync anything.
                 return;
@@ -4525,7 +4382,7 @@ namespace Mariana.AVM2.Compiler {
             for (int i = 0; i < localsAtEntry.Length; i++) {
                 ref DataNode localNode = ref m_compilation.getDataNode(localsAtEntry[i]);
                 _tryGetLocalVarForNode(localNode, out var localVarForNode);
-                _syncLocalWithCatchVars(ref localNode, block.excHandlerId, syncStopAtHandlerId, localVarForNode);
+                _syncLocalWithCatchVars(localNode, block.excHandlerId, syncStopAtHandlerId, localVarForNode);
             }
 
             bool isExcHandlerSameOrAncestorOf(int ancestorId, int handlerId) {
@@ -4539,7 +4396,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _syncLocalWithCatchVars(
-            ref DataNode localNode, int handlerId, int stopHandlerId, ILBuilder.Local localVar)
+            in DataNode localNode, int handlerId, int stopHandlerId, ILBuilder.Local localVar)
         {
             int localSlotId = localNode.slot.id;
 
@@ -4551,13 +4408,13 @@ namespace Mariana.AVM2.Compiler {
                     if (!localVar.isDefault)
                         m_ilBuilder.emit(ILOp.ldloc, localVar);
                     else
-                        _emitLoadScopeOrLocalNode(ref localNode);
+                        _emitLoadScopeOrLocalNode(localNode);
 
                     ref BasicBlock catchBlock = ref m_compilation.getBasicBlockOfInstruction(handler.catchTargetInstrId);
                     var entryLocalNodeIds = m_compilation.staticIntArrayPool.getSpan(catchBlock.localsAtEntry);
                     ref DataNode catchLocalNode = ref m_compilation.getDataNode(entryLocalNodeIds[localSlotId]);
 
-                    _emitTypeCoerceForTopOfStack(ref localNode, m_compilation.getDataNodeClass(catchLocalNode));
+                    _emitTypeCoerceForTopOfStack(localNode, m_compilation.getDataNodeClass(catchLocalNode));
                     m_ilBuilder.emit(ILOp.stloc, catchLocalVar);
                 }
 
@@ -4569,13 +4426,13 @@ namespace Mariana.AVM2.Compiler {
         /// Emits code to discard (pop) the top node from the stack.
         /// </summary>
         /// <param name="nodeId">The node id of the node currently at the top of the stack.</param>
-        private void _emitDiscardTopOfStack(int nodeId) => _emitDiscardTopOfStack(ref m_compilation.getDataNode(nodeId));
+        private void _emitDiscardTopOfStack(int nodeId) => _emitDiscardTopOfStack(m_compilation.getDataNode(nodeId));
 
         /// <summary>
         /// Emits code to discard (pop) the top node from the stack.
         /// </summary>
         /// <param name="node">The node currently at the top of the stack.</param>
-        private void _emitDiscardTopOfStack(ref DataNode node) {
+        private void _emitDiscardTopOfStack(in DataNode node) {
             Debug.Assert(node.slot.kind == DataNodeSlotKind.STACK);
             if (!node.isNotPushed)
                 m_ilBuilder.emit(ILOp.pop);
@@ -4596,7 +4453,7 @@ namespace Mariana.AVM2.Compiler {
         /// <returns>An instance of <see cref="ILBuilder.Local"/> representing the temporary
         /// variable holding the popped value.</returns>
         private ILBuilder.Local _emitStashTopOfStack(
-            ref DataNode node, bool preserveObjectClass = true, bool usePrePushType = false)
+            in DataNode node, bool preserveObjectClass = true, bool usePrePushType = false)
         {
             Debug.Assert(!node.isNotPushed);
 
@@ -4841,7 +4698,7 @@ namespace Mariana.AVM2.Compiler {
                     var nsLocal = m_ilBuilder.acquireTempLocal(typeof(Namespace));
                     var qnameLocal = m_ilBuilder.acquireTempLocal(typeof(QName));
 
-                    _emitTypeCoerceForTopOfStack(ref nameNode, DataNodeType.STRING);
+                    _emitTypeCoerceForTopOfStack(nameNode, DataNodeType.STRING);
                     m_ilBuilder.emit(ILOp.stloc, nameLocal);
 
                     m_ilBuilder.emit(ILOp.call, KnownMembers.namespaceFromXmlNs, 0);
@@ -4899,7 +4756,7 @@ namespace Mariana.AVM2.Compiler {
                         bindingKind = RuntimeBindingKind.MULTINAME;
                     }
                     else {
-                        _emitTypeCoerceForTopOfStack(ref nameNode, DataNodeType.ANY);
+                        _emitTypeCoerceForTopOfStack(nameNode, DataNodeType.ANY);
 
                         if (needToPrepareObject) {
                             var tempvar = m_ilBuilder.acquireTempLocal(typeof(ASAny));
@@ -4935,11 +4792,10 @@ namespace Mariana.AVM2.Compiler {
             }
 
             void emitPushNsSet(int abcIndex) {
-                using (var lockedContext = m_compilation.getContext()) {
-                    m_ilBuilder.emit(ILOp.ldsfld, lockedContext.value.emitConstData.nsSetArrayFieldHandle);
-                    m_ilBuilder.emit(ILOp.ldc_i4, lockedContext.value.getEmitConstDataIdForNamespaceSet(abcIndex));
-                    m_ilBuilder.emit(ILOp.ldelema, typeof(NamespaceSet));
-                }
+                using var lockedContext = m_compilation.getContext();
+                m_ilBuilder.emit(ILOp.ldsfld, lockedContext.value.emitConstData.nsSetArrayFieldHandle);
+                m_ilBuilder.emit(ILOp.ldc_i4, lockedContext.value.getEmitConstDataIdForNamespaceSet(abcIndex));
+                m_ilBuilder.emit(ILOp.ldelema, typeof(NamespaceSet));
             }
         }
 
@@ -4967,14 +4823,14 @@ namespace Mariana.AVM2.Compiler {
         /// Emits code to get the value of a trait on an object.
         /// </summary>
         /// <param name="trait">The trait for which to emit code to get the value.</param>
-        /// <param name="obj">A reference to a <see cref="DataNode"/> representing the
+        /// <param name="objectNode">A reference to a <see cref="DataNode"/> representing the
         /// object from which to get the trait value.</param>
         /// <param name="isSuper">Set to true when emitting a getsuper instruction.</param>
-        private void _emitGetPropertyTrait(Trait trait, ref DataNode obj, bool isSuper) {
-            if (trait.isStatic && obj.slot.kind == DataNodeSlotKind.STACK)
-                _emitDiscardTopOfStack(ref obj);
+        private void _emitGetPropertyTrait(Trait trait, in DataNode objectNode, bool isSuper) {
+            if (trait.isStatic && objectNode.slot.kind == DataNodeSlotKind.STACK)
+                _emitDiscardTopOfStack(objectNode);
 
-            if (obj.dataType == DataNodeType.REST
+            if (objectNode.dataType == DataNodeType.REST
                 && !m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_REST_ARRAY))
             {
                 Debug.Assert(trait.name == QName.publicName("length") && trait.declaringClass.tag == ClassTag.ARRAY);
@@ -4992,7 +4848,8 @@ namespace Mariana.AVM2.Compiler {
                 m_ilBuilder.emit(trait.isStatic ? ILOp.ldsfld : ILOp.ldfld, fieldHandle);
             }
             else if (traitType == TraitType.PROPERTY) {
-                _emitCallToMethod(((PropertyTrait)trait).getter, _getPushedClassOfNode(obj), ReadOnlySpan<int>.Empty, isSuper);
+                _emitCallToMethod(
+                    ((PropertyTrait)trait).getter, _getPushedClassOfNode(objectNode), ReadOnlySpan<int>.Empty, isSuper);
             }
             else if (traitType == TraitType.CONSTANT) {
                 ILEmitHelper.emitPushConstant(m_ilBuilder, ((ConstantTrait)trait).constantValue);
@@ -5002,7 +4859,7 @@ namespace Mariana.AVM2.Compiler {
 
                 ILBuilder.Local objLocal = default;
                 if (!trait.isStatic) {
-                    _emitTypeCoerceForTopOfStack(ref obj, DataNodeType.OBJECT);
+                    _emitTypeCoerceForTopOfStack(objectNode, DataNodeType.OBJECT);
                     objLocal = m_ilBuilder.acquireTempLocal(typeof(ASObject));
                     m_ilBuilder.emit(ILOp.stloc, objLocal);
                 }
@@ -5026,60 +4883,59 @@ namespace Mariana.AVM2.Compiler {
         /// Emits code to get the value of an index property on an object.
         /// </summary>
         /// <param name="indexProp">The index property for which to emit code to get the value.</param>
-        /// <param name="obj">A reference to a <see cref="DataNode"/> representing the
+        /// <param name="objectNode">A reference to a <see cref="DataNode"/> representing the
         /// object from which to get the value at the index.</param>
-        /// <param name="index">A reference to a <see cref="DataNode"/> representing the index.</param>
-        private void _emitGetPropertyIndex(IndexProperty indexProp, ref DataNode obj, ref DataNode index) {
-            if (obj.dataType == DataNodeType.REST
+        /// <param name="indexNode">A reference to a <see cref="DataNode"/> representing the index.</param>
+        private void _emitGetPropertyIndex(IndexProperty indexProp, in DataNode objectNode, in DataNode indexNode) {
+            if (objectNode.dataType == DataNodeType.REST
                 && !m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_REST_ARRAY))
             {
-                MethodInfo method;
-                if (index.dataType == DataNodeType.INT)
-                    method = KnownMembers.restParamGetElementI;
-                else if (index.dataType == DataNodeType.UINT)
-                    method = KnownMembers.restParamGetElementU;
-                else
-                    method = KnownMembers.restParamGetElementD;
+                MethodInfo method = indexNode.dataType switch {
+                    DataNodeType.INT => KnownMembers.restParamGetElementI,
+                    DataNodeType.UINT => KnownMembers.restParamGetElementU,
+                    DataNodeType.NUMBER => KnownMembers.restParamGetElementD,
+                };
 
                 m_ilBuilder.emit(ILOp.call, method, -1);
                 return;
             }
 
-            Span<int> argIds = stackalloc int[] {index.id};
-            _emitCallToMethod(indexProp.getMethod, _getPushedClassOfNode(obj), argIds);
+            Span<int> argIds = stackalloc int[] {indexNode.id};
+            _emitCallToMethod(indexProp.getMethod, _getPushedClassOfNode(objectNode), argIds);
         }
 
         /// <summary>
         /// Emits code to get the value of a property on an object at runtime.
         /// </summary>
-        /// <param name="obj">A reference to a <see cref="DataNode"/> representing the
+        /// <param name="objectNode">A reference to a <see cref="DataNode"/> representing the
         /// object from which to get the property value.</param>
         /// <param name="multiname">The <see cref="ABCMultiname"/> representing the property name.</param>
         /// <param name="rtNsNodeId">The node id of the runtime namespace argument on the stack, -1
         /// if no runtime namespace is present.</param>
         /// <param name="rtNameNodeId">The node id of the runtime name argument on the stack, -1
         /// if no runtime name argument is present.</param>
-        private void _emitGetPropertyRuntime(ref DataNode obj, in ABCMultiname multiname, int rtNsNodeId, int rtNameNodeId) {
+        private void _emitGetPropertyRuntime(in DataNode objectNode, in ABCMultiname multiname, int rtNsNodeId, int rtNameNodeId) {
             _emitPrepareRuntimeBinding(
-                multiname, rtNsNodeId, rtNameNodeId, _getPushedClassOfNode(obj), isOnRuntimeScopeStack: false, out var bindingKind);
+                multiname,
+                rtNsNodeId,
+                rtNameNodeId,
+                _getPushedClassOfNode(objectNode),
+                isOnRuntimeScopeStack: false,
+                out RuntimeBindingKind bindingKind
+            );
 
-            MethodInfo method = null;
-            bool isObjAny = isAnyOrUndefined(obj.dataType);
+            bool isObjAny = isAnyOrUndefined(objectNode.dataType);
 
-            switch (bindingKind) {
-                case RuntimeBindingKind.QNAME:
-                    method = isObjAny ? KnownMembers.anyGetPropertyQName : KnownMembers.objGetPropertyQName;
-                    break;
-                case RuntimeBindingKind.MULTINAME:
-                    method = isObjAny ? KnownMembers.anyGetPropertyNsSet : KnownMembers.objGetPropertyNsSet;
-                    break;
-                case RuntimeBindingKind.KEY:
-                    method = isObjAny ? KnownMembers.anyGetPropertyKey : KnownMembers.objGetPropertyKey;
-                    break;
-                case RuntimeBindingKind.KEY_MULTINAME:
-                    method = isObjAny ? KnownMembers.anyGetPropertyKeyNsSet : KnownMembers.objGetPropertyKeyNsSet;
-                    break;
-            }
+            MethodInfo method = (bindingKind, isObjAny) switch {
+                (RuntimeBindingKind.QNAME, false) => KnownMembers.objGetPropertyQName,
+                (RuntimeBindingKind.QNAME, true) => KnownMembers.anyGetPropertyQName,
+                (RuntimeBindingKind.MULTINAME, false) => KnownMembers.objGetPropertyNsSet,
+                (RuntimeBindingKind.MULTINAME, true) => KnownMembers.anyGetPropertyNsSet,
+                (RuntimeBindingKind.KEY, false) => KnownMembers.objGetPropertyKey,
+                (RuntimeBindingKind.KEY, true) => KnownMembers.anyGetPropertyKey,
+                (RuntimeBindingKind.KEY_MULTINAME, false) => KnownMembers.objGetPropertyKeyNsSet,
+                (RuntimeBindingKind.KEY_MULTINAME, true) => KnownMembers.anyGetPropertyKeyNsSet,
+            };
 
             var bindOpts =
                 BindOptions.SEARCH_TRAITS
@@ -5092,10 +4948,10 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _emitSetPropertyTrait(
-            Trait trait, ref DataNode obj, ref DataNode value, bool isSuper, bool invokeAtRuntime)
+            Trait trait, in DataNode objectNode, in DataNode valueNode, bool isSuper, bool invokeAtRuntime)
         {
             if (invokeAtRuntime) {
-                _emitSetPropertyTraitAtRuntime(trait, ref obj, ref value);
+                _emitSetPropertyTraitAtRuntime(trait, objectNode, valueNode);
                 return;
             }
 
@@ -5103,7 +4959,7 @@ namespace Mariana.AVM2.Compiler {
 
             if (traitType == TraitType.FIELD) {
                 var field = (FieldTrait)trait;
-                _emitTypeCoerceForTopOfStack(ref value, field.fieldType);
+                _emitTypeCoerceForTopOfStack(valueNode, field.fieldType);
 
                 EntityHandle fieldHandle;
                 using (var lockedContext = m_compilation.getContext())
@@ -5112,23 +4968,25 @@ namespace Mariana.AVM2.Compiler {
                 m_ilBuilder.emit(trait.isStatic ? ILOp.stsfld : ILOp.stfld, fieldHandle);
             }
             else if (traitType == TraitType.PROPERTY) {
-                Span<int> argIds = stackalloc int[] {value.id};
-                _emitCallToMethod(((PropertyTrait)trait).setter, _getPushedClassOfNode(obj), argIds, isSuper, noReturn: true);
+                Span<int> argIds = stackalloc int[] {valueNode.id};
+                _emitCallToMethod(
+                    ((PropertyTrait)trait).setter, _getPushedClassOfNode(objectNode), argIds, isSuper, noReturn: true);
             }
 
             if (trait.isStatic)
-                _emitDiscardTopOfStack(ref obj);
+                _emitDiscardTopOfStack(objectNode);
         }
 
-        private void _emitSetPropertyTraitAtRuntime(Trait trait, ref DataNode obj, ref DataNode value) {
+        private void _emitSetPropertyTraitAtRuntime(Trait trait, in DataNode objectNode, in DataNode valueNode) {
             ILBuilder.Local valueLocal = m_ilBuilder.acquireTempLocal(typeof(ASAny));
-            _emitTypeCoerceForTopOfStack(ref value, DataNodeType.ANY);
+
+            _emitTypeCoerceForTopOfStack(valueNode, DataNodeType.ANY);
             m_ilBuilder.emit(ILOp.stloc, valueLocal);
 
             ILBuilder.Local objLocal = default;
             if (!trait.isStatic) {
                 objLocal = m_ilBuilder.acquireTempLocal(typeof(ASAny));
-                _emitTypeCoerceForTopOfStack(ref obj, DataNodeType.ANY);
+                _emitTypeCoerceForTopOfStack(objectNode, DataNodeType.ANY);
                 m_ilBuilder.emit(ILOp.stloc, objLocal);
             }
 
@@ -5138,6 +4996,7 @@ namespace Mariana.AVM2.Compiler {
                 m_ilBuilder.emit(ILOp.ldloc, objLocal);
                 m_ilBuilder.releaseTempLocal(objLocal);
             }
+
             m_ilBuilder.emit(ILOp.ldloc, valueLocal);
             m_ilBuilder.releaseTempLocal(valueLocal);
 
@@ -5145,7 +5004,7 @@ namespace Mariana.AVM2.Compiler {
                 ILOp.callvirt, trait.isStatic ? KnownMembers.traitSetValueStatic : KnownMembers.traitSetValueInst);
 
             if (trait.isStatic)
-                _emitDiscardTopOfStack(ref obj);
+                _emitDiscardTopOfStack(objectNode);
         }
 
         private void _emitCallOrConstructTrait(
@@ -5175,7 +5034,7 @@ namespace Mariana.AVM2.Compiler {
                 }
                 else {
                     Debug.Assert(argIds.Length == 1);
-                    _emitTypeCoerceForTopOfStack(ref m_compilation.getDataNode(argIds[0]), klass);
+                    _emitTypeCoerceForTopOfStack(m_compilation.getDataNode(argIds[0]), klass);
                 }
             }
 
@@ -5183,7 +5042,7 @@ namespace Mariana.AVM2.Compiler {
                 // Remove the receiver object if the method called is static.
                 ILBuilder.Local resultStash = default;
                 if (resultId != -1)
-                    resultStash = _emitStashTopOfStack(ref m_compilation.getDataNode(resultId), usePrePushType: true);
+                    resultStash = _emitStashTopOfStack(m_compilation.getDataNode(resultId), usePrePushType: true);
 
                 m_ilBuilder.emit(ILOp.pop);
 
@@ -5310,29 +5169,34 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _emitCallOrConstructIndexProp(
-            IndexProperty indexProperty, ref DataNode obj, ref DataNode name, ReadOnlySpan<int> argIds,
-            bool isConstruct, bool nullReceiver, bool noReturn)
-        {
+            IndexProperty indexProperty,
+            in DataNode objectNode,
+            in DataNode nameNode,
+            ReadOnlySpan<int> argNodeIds,
+            bool isConstruct,
+            bool nullReceiver,
+            bool noReturn
+        ) {
             ILBuilder.Local argsLocal = default;
-            if (argIds.Length > 0)
-                argsLocal = _emitCollectStackArgsIntoArray(argIds);
+            if (argNodeIds.Length > 0)
+                argsLocal = _emitCollectStackArgsIntoArray(argNodeIds);
 
             ILBuilder.Local objLocal = default;
             if (!isConstruct && !nullReceiver) {
                 // Save the target object, as it has to be passed in as the receiver.
-                var indexLocal = _emitStashTopOfStack(ref name);
+                var indexLocal = _emitStashTopOfStack(nameNode);
                 objLocal = m_ilBuilder.acquireTempLocal(typeof(ASAny));
 
                 m_ilBuilder.emit(ILOp.dup);
-                _emitTypeCoerceForTopOfStack(ref obj, DataNodeType.ANY);
+                _emitTypeCoerceForTopOfStack(objectNode, DataNodeType.ANY);
                 m_ilBuilder.emit(ILOp.stloc, objLocal);
 
                 _emitUnstash(indexLocal);
             }
 
             MethodTrait getter = indexProperty.getMethod;
-            Span<int> getterArgs = stackalloc int[] {name.id};
-            _emitCallToMethod(getter, _getPushedClassOfNode(obj), getterArgs);
+            Span<int> getterArgs = stackalloc int[] {nameNode.id};
+            _emitCallToMethod(getter, _getPushedClassOfNode(objectNode), getterArgs);
 
             if (getter.hasReturn)
                 ILEmitHelper.emitTypeCoerceToAny(m_ilBuilder, getter.returnType);
@@ -5353,7 +5217,7 @@ namespace Mariana.AVM2.Compiler {
                 }
             }
 
-            if (argIds.Length > 0) {
+            if (argNodeIds.Length > 0) {
                 m_ilBuilder.emit(ILOp.ldloc, argsLocal);
                 m_ilBuilder.emit(ILOp.newobj, KnownMembers.roSpanOfAnyFromArray, 0);
                 m_ilBuilder.releaseTempLocal(argsLocal);
@@ -5383,8 +5247,12 @@ namespace Mariana.AVM2.Compiler {
         /// true and the method returns a value, it is popped. If this is false and the method does not return
         /// a value, undefined is pushed.</param>
         private void _emitCallToMethod(
-            MethodTrait method, Class receiverType, ReadOnlySpan<int> argsOnStack, bool isCallSuper = false, bool noReturn = false)
-        {
+            MethodTrait method,
+            Class receiverType,
+            ReadOnlySpan<int> argsOnStack,
+            bool isCallSuper = false,
+            bool noReturn = false
+        ) {
             _emitPrepareMethodCallArguments(
                 method.getParameters().asSpan(),
                 method.hasRest,
@@ -5401,8 +5269,8 @@ namespace Mariana.AVM2.Compiler {
             }
             else {
                 ILOp callOp = (method.isStatic || isCallSuper) ? ILOp.call : ILOp.callvirt;
-                using (var lockedContext = m_compilation.getContext())
-                    m_ilBuilder.emit(callOp, lockedContext.value.getEntityHandle(method));
+                using var lockedContext = m_compilation.getContext();
+                m_ilBuilder.emit(callOp, lockedContext.value.getEntityHandle(method));
             }
 
             if (noReturn && method.hasReturn)
@@ -5465,7 +5333,7 @@ namespace Mariana.AVM2.Compiler {
                     ref DataNode arg = ref m_compilation.getDataNode(argsOnStack[i]);
                     var param = parameters[i];
 
-                    if (!_isTrivialTypeConversion(ref arg, param.type)
+                    if (!_isTrivialTypeConversion(arg, param.type)
                         || (param.isOptional && !param.hasDefault && (arg.flags & DataNodeFlags.PUSH_OPTIONAL_PARAM) == 0))
                     {
                         indexOfFirstNonTrivialArg = i;
@@ -5514,7 +5382,7 @@ namespace Mariana.AVM2.Compiler {
                     ref DataNode arg = ref m_compilation.getDataNode(argsToPrepare[i]);
                     var param = paramsForPrepArgs[i];
 
-                    _emitTypeCoerceForTopOfStack(ref arg, param.type);
+                    _emitTypeCoerceForTopOfStack(arg, param.type);
 
                     ILBuilder.Local stash;
 
@@ -5534,8 +5402,8 @@ namespace Mariana.AVM2.Compiler {
                         stash = m_ilBuilder.acquireTempLocal(optParamTypeSig);
                     }
                     else {
-                        using (var lockedContext = m_compilation.getContext())
-                            stash = m_ilBuilder.acquireTempLocal(lockedContext.value.getTypeSignature(param.type));
+                        using var lockedContext = m_compilation.getContext();
+                        stash = m_ilBuilder.acquireTempLocal(lockedContext.value.getTypeSignature(param.type));
                     }
 
                     m_ilBuilder.emit(ILOp.stloc, stash);
@@ -5605,7 +5473,7 @@ namespace Mariana.AVM2.Compiler {
             m_ilBuilder.emit(ILOp.stloc, arrLocal);
 
             for (int i = argsOnStack.Length - 1; i >= 0; i--) {
-                _emitTypeCoerceForTopOfStack(ref m_compilation.getDataNode(argsOnStack[i]), DataNodeType.ANY);
+                _emitTypeCoerceForTopOfStack(m_compilation.getDataNode(argsOnStack[i]), DataNodeType.ANY);
 
                 m_ilBuilder.emit(ILOp.stloc, elemLocal);
                 m_ilBuilder.emit(ILOp.ldloc, arrLocal);
@@ -5620,25 +5488,24 @@ namespace Mariana.AVM2.Compiler {
             bool tryGetHelper(ReadOnlySpan<int> _argsOnStack, out EntityHandle _helperHandle) {
                 _helperHandle = default;
 
-                using (var lockedContext = m_compilation.getContext()) {
-                    HelperEmitter helperEmitter = lockedContext.value.helperEmitter;
+                using var lockedContext = m_compilation.getContext();
+                HelperEmitter helperEmitter = lockedContext.value.helperEmitter;
 
-                    if (_argsOnStack.Length > helperEmitter.argArrayHelperMaxSize)
+                if (_argsOnStack.Length > helperEmitter.argArrayHelperMaxSize)
+                    return false;
+
+                // Use a helper only if no type conversions are needed.
+                // This is not a significant limitation in practice because type conversions to "any" are
+                // considered as non-side-effecting, and so would be hoisted except in some complex data flow
+                // graphs.
+
+                for (int i = 0; i < _argsOnStack.Length; i++) {
+                    DataNodeType pushedType = _getPushedTypeOfNode(m_compilation.getDataNode(_argsOnStack[i]));
+                    if (!isAnyOrUndefined(pushedType))
                         return false;
-
-                    // Use a helper only if no type conversions are needed.
-                    // This is not a significant limitation in practice because type conversions to "any" are
-                    // considered as non-side-effecting, and so would be hoisted except in some complex data flow
-                    // graphs.
-
-                    for (int i = 0; i < _argsOnStack.Length; i++) {
-                        DataNodeType pushedType = _getPushedTypeOfNode(m_compilation.getDataNode(_argsOnStack[i]));
-                        if (!isAnyOrUndefined(pushedType))
-                            return false;
-                    }
-
-                    return helperEmitter.tryGetArgArrayHelper(_argsOnStack.Length, out _helperHandle);
                 }
+
+                return helperEmitter.tryGetArgArrayHelper(_argsOnStack.Length, out _helperHandle);
             }
         }
 
@@ -5647,16 +5514,16 @@ namespace Mariana.AVM2.Compiler {
         /// are on the stack.
         /// </summary>
         /// <param name="instr">The instruction at the root of the concatentation tree.</param>
-        private void _emitStringConcatTree(ref Instruction instr) {
+        private void _emitStringConcatTree(in Instruction instr) {
             Debug.Assert(instr.opcode == ABCOp.add && instr.data.add.isConcatTreeRoot);
 
             // Walk the concatenation tree and get the stack node ids of the leaf nodes.
             // These will be the arguments on the IL stack.
 
-            ref var leafNodeIds = ref m_tempIntArray;
+            ref DynamicArray<int> leafNodeIds = ref m_tempIntArray;
             leafNodeIds.clear();
 
-            var rootChildIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var rootChildIds = m_compilation.getInstructionStackPoppedNodes(instr);
             collectLeafNodes(rootChildIds[0], ref leafNodeIds);
             collectLeafNodes(rootChildIds[1], ref leafNodeIds);
 
@@ -5667,13 +5534,13 @@ namespace Mariana.AVM2.Compiler {
                 int leftChildId = -1, rightChildId = -1;
 
                 if (!node.isConstant) {
-                    int pushInstrId = m_compilation.getStackNodePushInstrId(ref node);
+                    int pushInstrId = m_compilation.getStackNodePushInstrId(node);
                     if (pushInstrId != -1) {
                         ref Instruction pushInstr = ref m_compilation.getInstruction(pushInstrId);
                         if (pushInstr.opcode == ABCOp.add && pushInstr.data.add.isConcatTreeInternalNode) {
                             // This is an internal node of the concat tree. We need to recurse into it.
                             isLeaf = false;
-                            var childNodeIds = m_compilation.getInstructionStackPoppedNodes(ref pushInstr);
+                            var childNodeIds = m_compilation.getInstructionStackPoppedNodes(pushInstr);
                             (leftChildId, rightChildId) = (childNodeIds[0], childNodeIds[1]);
                         }
                     }
@@ -5759,7 +5626,7 @@ namespace Mariana.AVM2.Compiler {
                     // Don't emit string conversions for string arguments because the concatenation
                     // helper does the null to "null" conversion.
                     if (!isStringOrNull(_getPushedTypeOfNode(node)))
-                        _emitTypeCoerceForTopOfStack(ref node, DataNodeType.STRING, useConvertStr: true);
+                        _emitTypeCoerceForTopOfStack(node, DataNodeType.STRING, useConvertStr: true);
 
                     var stashLocal = m_ilBuilder.acquireTempLocal(typeof(string));
                     m_ilBuilder.emit(ILOp.stloc, stashLocal);
@@ -5775,17 +5642,11 @@ namespace Mariana.AVM2.Compiler {
                 }
             }
 
-            switch (argsOnStack.Length) {
-                case 2:
-                    m_ilBuilder.emit(ILOp.call, KnownMembers.stringAdd2, -1);
-                    break;
-                case 3:
-                    m_ilBuilder.emit(ILOp.call, KnownMembers.stringAdd3, -2);
-                    break;
-                case 4:
-                    m_ilBuilder.emit(ILOp.call, KnownMembers.stringAdd4, -3);
-                    break;
-            }
+            m_ilBuilder.emit(ILOp.call, argsOnStack.Length switch {
+                2 => KnownMembers.stringAdd2,
+                3 => KnownMembers.stringAdd3,
+                4 => KnownMembers.stringAdd4
+            });
         }
 
         /// <summary>
@@ -5800,7 +5661,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="branchEmitInfo">A <see cref="TwoWayBranchEmitInfo"/> instance, only applicable
         /// if <paramref name="instr"/> is a compare-and-branch instruction.</param>
         private void _emitStringCharAtIntrinsicCompare(
-            ref Instruction instr, ref DataNode left, ref DataNode right, in TwoWayBranchEmitInfo branchEmitInfo)
+            in Instruction instr, in DataNode left, in DataNode right, in TwoWayBranchEmitInfo branchEmitInfo)
         {
             bool isBranch = ABCOpInfo.getInfo(instr.opcode).controlType == ABCOpInfo.ControlType.BRANCH;
 
@@ -5812,43 +5673,20 @@ namespace Mariana.AVM2.Compiler {
             bool isLeftComparand = ComparisonType.STR_CHARAT_L
                 == (isBranch ? instr.data.compareBranch.compareType : instr.data.compare.compareType);
 
-            // Determine the "effective" operation to be performed.
-            // If the comparand is on the left then the effective operation is reversed.
+            var effectiveOp = (instr.opcode, isLeftComparand) switch {
+                (ABCOp.equals or ABCOp.ifeq or ABCOp.ifne, _) => ABCOp.equals,
+                (ABCOp.ifstricteq or ABCOp.ifstrictne or ABCOp.strictequals, _) => ABCOp.equals,
+                (ABCOp.lessthan or ABCOp.iflt or ABCOp.ifnlt, false) => ABCOp.lessthan,
+                (ABCOp.lessthan or ABCOp.iflt or ABCOp.ifnlt, true) => ABCOp.greaterthan,
+                (ABCOp.lessequals or ABCOp.ifle or ABCOp.ifnle, false) => ABCOp.lessequals,
+                (ABCOp.lessequals or ABCOp.ifle or ABCOp.ifnle, true) => ABCOp.greaterequals,
+                (ABCOp.greaterthan or ABCOp.ifgt or ABCOp.ifngt, false) => ABCOp.greaterthan,
+                (ABCOp.greaterthan or ABCOp.ifgt or ABCOp.ifngt, true) => ABCOp.lessthan,
+                (ABCOp.greaterequals or ABCOp.ifge or ABCOp.ifnge, false) => ABCOp.greaterequals,
+                (ABCOp.greaterequals or ABCOp.ifge or ABCOp.ifnge, true) => ABCOp.lessequals,
+            };
 
-            ABCOp effectiveOp = default;
-
-            switch (instr.opcode) {
-                case ABCOp.equals:
-                case ABCOp.ifeq:
-                case ABCOp.ifne:
-                case ABCOp.ifstricteq:
-                case ABCOp.ifstrictne:
-                case ABCOp.strictequals:
-                    effectiveOp = ABCOp.equals;
-                    break;
-                case ABCOp.lessthan:
-                case ABCOp.iflt:
-                case ABCOp.ifnlt:
-                    effectiveOp = isLeftComparand ? ABCOp.greaterthan : ABCOp.lessthan;
-                    break;
-                case ABCOp.lessequals:
-                case ABCOp.ifle:
-                case ABCOp.ifnle:
-                    effectiveOp = isLeftComparand ? ABCOp.greaterequals : ABCOp.lessequals;
-                    break;
-                case ABCOp.greaterthan:
-                case ABCOp.ifgt:
-                case ABCOp.ifngt:
-                    effectiveOp = isLeftComparand ? ABCOp.lessthan : ABCOp.greaterthan;
-                    break;
-                case ABCOp.greaterequals:
-                case ABCOp.ifge:
-                case ABCOp.ifnge:
-                    effectiveOp = isLeftComparand ? ABCOp.lessequals : ABCOp.greaterequals;
-                    break;
-            }
-
-            ref DataNode comparandNode = ref (isLeftComparand ? ref left : ref right);
+            ref readonly DataNode comparandNode = ref (isLeftComparand ? ref left : ref right);
 
             // If the comparand is of a numeric type, then this is a charCodeAt compare pattern.
             // Otherwise it is a string constant and this is a charAt compare pattern.
@@ -5858,7 +5696,7 @@ namespace Mariana.AVM2.Compiler {
             int comparandConstValue = 0;
 
             if (isCharCodeAt) {
-                isComparandConstant = tryGetConstant(ref comparandNode, out comparandConstValue);
+                isComparandConstant = tryGetConstant(comparandNode, out comparandConstValue);
             }
             else {
                 Debug.Assert(
@@ -5893,7 +5731,7 @@ namespace Mariana.AVM2.Compiler {
 
             if (!isLeftComparand) {
                 if (isComparandConstant)
-                    _emitDiscardTopOfStack(ref right);
+                    _emitDiscardTopOfStack(right);
                 else
                     m_ilBuilder.emit(ILOp.stloc, comparandTemp);
             }
@@ -5903,7 +5741,7 @@ namespace Mariana.AVM2.Compiler {
 
             if (isLeftComparand) {
                 if (isComparandConstant)
-                    _emitDiscardTopOfStack(ref left);
+                    _emitDiscardTopOfStack(left);
                 else
                     m_ilBuilder.emit(ILOp.stloc, comparandTemp);
             }
@@ -5924,25 +5762,13 @@ namespace Mariana.AVM2.Compiler {
                 else
                     m_ilBuilder.emit(ILOp.ldloc, comparandTemp);
 
-                ILOp ilOp = 0, invIlOp = 0;
-
-                switch (effectiveOp) {
-                    case ABCOp.equals:
-                        (ilOp, invIlOp) = (ILOp.beq, ILOp.bne_un);
-                        break;
-                    case ABCOp.lessthan:
-                        (ilOp, invIlOp) = (ILOp.blt, ILOp.bge);
-                        break;
-                    case ABCOp.greaterequals:
-                        (ilOp, invIlOp) = (ILOp.bge, ILOp.blt);
-                        break;
-                    case ABCOp.greaterthan:
-                        (ilOp, invIlOp) = (ILOp.bgt, ILOp.ble);
-                        break;
-                    case ABCOp.lessequals:
-                        (ilOp, invIlOp) = (ILOp.ble, ILOp.bgt);
-                        break;
-                }
+                (ILOp ilOp, ILOp invIlOp) = effectiveOp switch {
+                    ABCOp.equals => (ILOp.beq, ILOp.bne_un),
+                    ABCOp.lessthan => (ILOp.blt, ILOp.bge),
+                    ABCOp.greaterequals => (ILOp.bge, ILOp.blt),
+                    ABCOp.greaterthan => (ILOp.bgt, ILOp.ble),
+                    ABCOp.lessequals => (ILOp.ble, ILOp.bgt)
+                };
 
                 if (isNegative)
                     (ilOp, invIlOp) = (invIlOp, ilOp);
@@ -6025,7 +5851,7 @@ namespace Mariana.AVM2.Compiler {
                     if (objectId != -1)
                         _emitDiscardTopOfStack(objectId);
 
-                    _emitPushConstantNode(ref result);
+                    _emitPushConstantNode(result);
                     return;
                 }
             }
@@ -6055,7 +5881,7 @@ namespace Mariana.AVM2.Compiler {
                     vectorTypeHandle = lockedContext.value.getEntityHandle(vectorClass);
 
                 ref DataNode arg = ref m_compilation.getDataNode(argsOnStack[0]);
-                _emitTypeCoerceForTopOfStack(ref arg, vectorClass.vectorElementType);
+                _emitTypeCoerceForTopOfStack(arg, vectorClass.vectorElementType);
                 m_ilBuilder.emit(ILOp.callvirt, mdContext.getMemberHandle(KnownMembers.vectorPushOneArg, vectorTypeHandle), -1);
 
                 if (!hasResult)
@@ -6213,22 +6039,22 @@ namespace Mariana.AVM2.Compiler {
 
             switch (intrinsic.name) {
                 case IntrinsicName.INT_NEW_1:
-                    _emitTypeCoerceForTopOfStack(ref arg1, DataNodeType.INT);
+                    _emitTypeCoerceForTopOfStack(arg1, DataNodeType.INT);
                     break;
                 case IntrinsicName.UINT_NEW_1:
-                    _emitTypeCoerceForTopOfStack(ref arg1, DataNodeType.UINT);
+                    _emitTypeCoerceForTopOfStack(arg1, DataNodeType.UINT);
                     break;
                 case IntrinsicName.NUMBER_NEW_1:
-                    _emitTypeCoerceForTopOfStack(ref arg1, DataNodeType.NUMBER);
+                    _emitTypeCoerceForTopOfStack(arg1, DataNodeType.NUMBER);
                     break;
                 case IntrinsicName.STRING_NEW_1:
-                    _emitTypeCoerceForTopOfStack(ref arg1, DataNodeType.STRING, useConvertStr: true);
+                    _emitTypeCoerceForTopOfStack(arg1, DataNodeType.STRING, useConvertStr: true);
                     break;
                 case IntrinsicName.BOOLEAN_NEW_1:
-                    _emitTypeCoerceForTopOfStack(ref arg1, DataNodeType.BOOL);
+                    _emitTypeCoerceForTopOfStack(arg1, DataNodeType.BOOL);
                     break;
                 case IntrinsicName.ARRAY_NEW_1_LEN:
-                    _emitTypeCoerceForTopOfStack(ref arg1, DataNodeType.INT);
+                    _emitTypeCoerceForTopOfStack(arg1, DataNodeType.INT);
                     m_ilBuilder.emit(ILOp.newobj, KnownMembers.arrayCtorWithLength, 0);
                     break;
 
@@ -6237,7 +6063,7 @@ namespace Mariana.AVM2.Compiler {
                         m_ilBuilder.emit(ILOp.newobj, KnownMembers.dateCtorFromString, 0);
                     }
                     else {
-                        _emitTypeCoerceForTopOfStack(ref arg1, DataNodeType.NUMBER);
+                        _emitTypeCoerceForTopOfStack(arg1, DataNodeType.NUMBER);
                         m_ilBuilder.emit(ILOp.newobj, KnownMembers.dateCtorFromValue, 0);
                     }
                     break;
@@ -6317,13 +6143,13 @@ namespace Mariana.AVM2.Compiler {
                 }
 
                 case IntrinsicName.VECTOR_ANY_CALL_1: {
-                    _emitTypeCoerceForTopOfStack(ref arg1, DataNodeType.OBJECT);
+                    _emitTypeCoerceForTopOfStack(arg1, DataNodeType.OBJECT);
                     m_ilBuilder.emit(ILOp.call, KnownMembers.vecAnyFromObject, 0);
                     break;
                 }
 
                 case IntrinsicName.VECTOR_T_CALL_1: {
-                    _emitTypeCoerceForTopOfStack(ref arg1, DataNodeType.OBJECT);
+                    _emitTypeCoerceForTopOfStack(arg1, DataNodeType.OBJECT);
 
                     MetadataContext mdContext = m_compilation.metadataContext;
                     EntityHandle vectorTypeHandle;
@@ -6365,7 +6191,7 @@ namespace Mariana.AVM2.Compiler {
                 case IntrinsicName.MATH_MIN_2:
                 {
                     ref DataNode arg2 = ref m_compilation.getDataNode(argsOnStack[1]);
-                    _emitTypeCoerceForStackTop2(ref arg1, ref arg2, DataNodeType.NUMBER, DataNodeType.NUMBER);
+                    _emitTypeCoerceForStackTop2(arg1, arg2, DataNodeType.NUMBER, DataNodeType.NUMBER);
                     MethodInfo method = (intrinsic.name == IntrinsicName.MATH_MAX_2) ? KnownMembers.mathMax2D : KnownMembers.mathMin2D;
                     m_ilBuilder.emit(ILOp.call, method, -1);
                     break;
@@ -6375,7 +6201,7 @@ namespace Mariana.AVM2.Compiler {
                 case IntrinsicName.MATH_MIN_2_I:
                 {
                     ref DataNode arg2 = ref m_compilation.getDataNode(argsOnStack[1]);
-                    _emitTypeCoerceForStackTop2(ref arg1, ref arg2, DataNodeType.INT, DataNodeType.INT);
+                    _emitTypeCoerceForStackTop2(arg1, arg2, DataNodeType.INT, DataNodeType.INT);
                     MethodInfo method = (intrinsic.name == IntrinsicName.MATH_MAX_2_I) ? KnownMembers.mathMax2I : KnownMembers.mathMin2I;
                     m_ilBuilder.emit(ILOp.call, method, -1);
                     break;
@@ -6385,7 +6211,7 @@ namespace Mariana.AVM2.Compiler {
                 case IntrinsicName.MATH_MIN_2_U:
                 {
                     ref DataNode arg2 = ref m_compilation.getDataNode(argsOnStack[1]);
-                    _emitTypeCoerceForStackTop2(ref arg1, ref arg2, DataNodeType.UINT, DataNodeType.UINT);
+                    _emitTypeCoerceForStackTop2(arg1, arg2, DataNodeType.UINT, DataNodeType.UINT);
                     MethodInfo method = (intrinsic.name == IntrinsicName.MATH_MAX_2_U) ? KnownMembers.mathMax2U : KnownMembers.mathMin2U;
                     m_ilBuilder.emit(ILOp.call, method, -1);
                     break;
@@ -6432,15 +6258,14 @@ namespace Mariana.AVM2.Compiler {
                         m_ilBuilder.emit(ILOp.ldstr, flags);
                     }
 
-                    using (var lockedContext = m_compilation.getContext()) {
-                        var emitConstData = lockedContext.value.emitConstData;
-                        int constId = emitConstData.addRegExp(pattern, flags);
+                    using var lockedContext = m_compilation.getContext();
+                    var emitConstData = lockedContext.value.emitConstData;
+                    int constId = emitConstData.addRegExp(pattern, flags);
 
-                        m_ilBuilder.emit(ILOp.ldsfld, emitConstData.regexpArrayFieldHandle);
-                        m_ilBuilder.emit(ILOp.ldc_i4, constId);
-                        m_ilBuilder.emit(ILOp.ldelema, typeof(ASRegExp));
-                        m_ilBuilder.emit(ILOp.call, KnownMembers.regexpLazyConstruct, -2);
-                    }
+                    m_ilBuilder.emit(ILOp.ldsfld, emitConstData.regexpArrayFieldHandle);
+                    m_ilBuilder.emit(ILOp.ldc_i4, constId);
+                    m_ilBuilder.emit(ILOp.ldelema, typeof(ASRegExp));
+                    m_ilBuilder.emit(ILOp.call, KnownMembers.regexpLazyConstruct, -2);
 
                     break;
                 }
@@ -6453,7 +6278,7 @@ namespace Mariana.AVM2.Compiler {
                     _emitDiscardTopOfStack(objectId);
             }
             else if (objectId != -1 && !m_compilation.getDataNode(objectId).isNotPushed) {
-                var resultStash = _emitStashTopOfStack(ref m_compilation.getDataNode(resultId), usePrePushType: true);
+                var resultStash = _emitStashTopOfStack(m_compilation.getDataNode(resultId), usePrePushType: true);
                 m_ilBuilder.emit(ILOp.pop);
                 _emitUnstash(resultStash);
             }
@@ -6487,7 +6312,7 @@ namespace Mariana.AVM2.Compiler {
                 m_ilBuilder.emit(ILOp.ldloc, newScopeLocal);
 
                 if (i >= heightOfFirstLocalItem)
-                    _emitLoadScopeOrLocalNode(ref m_compilation.getDataNode(localScopeNodeIds[i - heightOfFirstLocalItem]));
+                    _emitLoadScopeOrLocalNode(m_compilation.getDataNode(localScopeNodeIds[i - heightOfFirstLocalItem]));
                 else
                     _emitPushCapturedScopeItem(i);
 
@@ -6527,13 +6352,13 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         /// <param name="fromBlock">A reference to a <see cref="BasicBlock"/> representing
         /// the block from which the jump is to be emitted.</param>
-        private void _emitJumpFromBasicBlock(ref BasicBlock fromBlock) {
+        private void _emitJumpFromBasicBlock(in BasicBlock fromBlock) {
             Debug.Assert(fromBlock.exitType == BasicBlockExitType.JUMP);
 
             var exitBlockIds = m_compilation.staticIntArrayPool.getSpan(fromBlock.exitBlockIds);
             ref BasicBlock toBlock = ref m_compilation.getBasicBlock(exitBlockIds[0]);
 
-            _emitBlockTransition(ref fromBlock, ref toBlock);
+            _emitBlockTransition(fromBlock, toBlock);
 
             if (!_isBasicBlockImmediatelyBefore(fromBlock, toBlock))
                 m_ilBuilder.emit(ILOp.br, _getLabelForJumpToBlock(fromBlock, toBlock));
@@ -6551,15 +6376,15 @@ namespace Mariana.AVM2.Compiler {
         /// basic block that is the target of the false branch.</param>
         /// <returns>A <see cref="TwoWayBranchEmitInfo"/> instance.</returns>
         private TwoWayBranchEmitInfo _getTwoWayBranchEmitInfo(
-            ref BasicBlock fromBlock, ref BasicBlock trueBlock, ref BasicBlock falseBlock)
+            in BasicBlock fromBlock, in BasicBlock trueBlock, in BasicBlock falseBlock)
         {
             TwoWayBranchEmitInfo emitInfo = default;
 
             emitInfo.trueBlockId = trueBlock.id;
             emitInfo.falseBlockId = falseBlock.id;
 
-            emitInfo.trueBlockNeedsTransition = _isBlockTransitionRequired(ref fromBlock, ref trueBlock);
-            emitInfo.falseBlockNeedsTransition = _isBlockTransitionRequired(ref fromBlock, ref falseBlock);
+            emitInfo.trueBlockNeedsTransition = _isBlockTransitionRequired(fromBlock, trueBlock);
+            emitInfo.falseBlockNeedsTransition = _isBlockTransitionRequired(fromBlock, falseBlock);
 
             if (!emitInfo.trueBlockNeedsTransition && !emitInfo.falseBlockNeedsTransition) {
                 emitInfo.trueLabel = _getLabelForJumpToBlock(fromBlock, trueBlock);
@@ -6591,7 +6416,7 @@ namespace Mariana.AVM2.Compiler {
         /// basic block that exits with the two-way branch.</param>
         /// <param name="emitInfo">A <see cref="TwoWayBranchEmitInfo"/> obtained from a call to the
         /// <see cref="_getTwoWayBranchEmitInfo"/> method.</param>
-        private void _finishTwoWayConditionalBranch(ref BasicBlock fromBlock, in TwoWayBranchEmitInfo emitInfo) {
+        private void _finishTwoWayConditionalBranch(in BasicBlock fromBlock, in TwoWayBranchEmitInfo emitInfo) {
             ref BasicBlock trueBlock = ref m_compilation.getBasicBlock(emitInfo.trueBlockId);
             ref BasicBlock falseBlock = ref m_compilation.getBasicBlock(emitInfo.falseBlockId);
 
@@ -6612,12 +6437,12 @@ namespace Mariana.AVM2.Compiler {
 
                 if (emitInfo.falseBlockNeedsTransition) {
                     m_ilBuilder.markLabel(emitInfo.falseLabel);
-                    _emitBlockTransition(ref fromBlock, ref falseBlock);
+                    _emitBlockTransition(fromBlock, falseBlock);
                     m_ilBuilder.emit(ILOp.br, _getLabelForJumpToBlock(fromBlock, falseBlock));
                 }
                 if (emitInfo.trueBlockNeedsTransition) {
                     m_ilBuilder.markLabel(emitInfo.trueLabel);
-                    _emitBlockTransition(ref fromBlock, ref trueBlock);
+                    _emitBlockTransition(fromBlock, trueBlock);
                     m_ilBuilder.emit(ILOp.br, _getLabelForJumpToBlock(fromBlock, trueBlock));
                 }
             }
@@ -6648,7 +6473,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="toBlock">A reference to a <see cref="BasicBlock"/> representing the
         /// basic block from which control is being transferred to from <paramref name="fromBlock"/>.</param>
         /// <returns>True if transition code is required, otherwise false.</returns>
-        private bool _isBlockTransitionRequired(ref BasicBlock fromBlock, ref BasicBlock toBlock) {
+        private bool _isBlockTransitionRequired(in BasicBlock fromBlock, in BasicBlock toBlock) {
             if (fromBlock.postorderIndex <= toBlock.postorderIndex
                 && m_compilation.staticIntArrayPool.getLength(toBlock.stackAtEntry) > 0)
             {
@@ -6671,7 +6496,7 @@ namespace Mariana.AVM2.Compiler {
 
                 if (node.slot.kind == DataNodeSlotKind.STACK) {
                     int entryNodeId = entryStack[node.slot.id];
-                    if (entryNodeId != node.id && !_isStackNodeCompatibleWithPhi(ref node, ref dataNodes[entryNodeId]))
+                    if (entryNodeId != node.id && !_isStackNodeCompatibleWithPhi(node, dataNodes[entryNodeId]))
                         return true;
                 }
                 else {
@@ -6679,7 +6504,7 @@ namespace Mariana.AVM2.Compiler {
                         ? entryScope[node.slot.id]
                         : entryLocals[node.slot.id];
 
-                    if (entryNodeId != node.id && !_isScopeOrLocalNodeCompatibleWithPhi(ref node, ref dataNodes[entryNodeId]))
+                    if (entryNodeId != node.id && !_isScopeOrLocalNodeCompatibleWithPhi(node, dataNodes[entryNodeId]))
                         return true;
                 }
             }
@@ -6697,7 +6522,7 @@ namespace Mariana.AVM2.Compiler {
         /// basic block from which control is leaving.</param>
         /// <param name="toBlock">A reference to a <see cref="BasicBlock"/> representing the
         /// basic block from which control is being transferred to from <paramref name="fromBlock"/>.</param>
-        private void _emitBlockTransition(ref BasicBlock fromBlock, ref BasicBlock toBlock) {
+        private void _emitBlockTransition(in BasicBlock fromBlock, in BasicBlock toBlock) {
             bool isBackwardJumpWithNonEmptyStack =
                 fromBlock.postorderIndex <= toBlock.postorderIndex
                 && m_compilation.staticIntArrayPool.getLength(toBlock.stackAtEntry) != 0;
@@ -6721,11 +6546,8 @@ namespace Mariana.AVM2.Compiler {
                 if (node.slot.kind == DataNodeSlotKind.STACK) {
                     int entryNodeId = entryStack[node.slot.id];
 
-                    if (entryNodeId != node.id
-                        && !_isStackNodeCompatibleWithPhi(ref node, ref dataNodes[entryNodeId]))
-                    {
+                    if (entryNodeId != node.id && !_isStackNodeCompatibleWithPhi(node, dataNodes[entryNodeId]))
                         exitStackForConversion[node.slot.id] = node.id;
-                    }
                 }
                 else {
                     int entryNodeId = (node.slot.kind == DataNodeSlotKind.SCOPE)
@@ -6736,7 +6558,7 @@ namespace Mariana.AVM2.Compiler {
                         continue;
 
                     ref DataNode entryNode = ref dataNodes[entryNodeId];
-                    if (_isScopeOrLocalNodeCompatibleWithPhi(ref node, ref entryNode))
+                    if (_isScopeOrLocalNodeCompatibleWithPhi(node, entryNode))
                         continue;
 
                     var localVarForEntry = _getLocalVarForNode(entryNode);
@@ -6746,8 +6568,8 @@ namespace Mariana.AVM2.Compiler {
                         m_ilBuilder.emit(ILOp.initobj, typeof(ASAny));
                     }
                     else {
-                        _emitLoadScopeOrLocalNode(ref node);
-                        _emitTypeCoerceForTopOfStack(ref node, m_compilation.getDataNodeClass(entryNode));
+                        _emitLoadScopeOrLocalNode(node);
+                        _emitTypeCoerceForTopOfStack(node, m_compilation.getDataNodeClass(entryNode));
                         m_ilBuilder.emit(ILOp.stloc, localVarForEntry);
                     }
                 }
@@ -6774,7 +6596,7 @@ namespace Mariana.AVM2.Compiler {
         {
             if (exitNodeId != -1) {
                 _emitTypeCoerceForTopOfStack(
-                    ref m_compilation.getDataNode(exitNodeId),
+                    m_compilation.getDataNode(exitNodeId),
                     m_compilation.getDataNodeClass(entryNodeId)
                 );
             }
@@ -6807,7 +6629,7 @@ namespace Mariana.AVM2.Compiler {
                 Class entryNodeClass = m_compilation.getDataNodeClass(entryStack[i]);
 
                 if (exitStackForFixing[i] != -1)
-                    _emitTypeCoerceForTopOfStack(ref m_compilation.getDataNode(exitStackForFixing[i]), entryNodeClass);
+                    _emitTypeCoerceForTopOfStack(m_compilation.getDataNode(exitStackForFixing[i]), entryNodeClass);
 
                 using (var lockedContext = m_compilation.getContext())
                     stashVars[i] = m_ilBuilder.acquireTempLocal(lockedContext.value.getTypeSignature(entryNodeClass));
@@ -6865,7 +6687,7 @@ namespace Mariana.AVM2.Compiler {
                     convertVars[i] = m_ilBuilder.acquireTempLocal(lockedContext.value.getTypeSignature(entryNodeClass));
 
                 if (exitStackForFixing[i] != -1)
-                    _emitTypeCoerceForTopOfStack(ref m_compilation.getDataNode(exitStackForFixing[i]), entryNodeClass);
+                    _emitTypeCoerceForTopOfStack(m_compilation.getDataNode(exitStackForFixing[i]), entryNodeClass);
 
                 m_ilBuilder.emit(ILOp.stloc, convertVars[i]);
             }
@@ -6896,7 +6718,7 @@ namespace Mariana.AVM2.Compiler {
         /// transferred to.</param>
         /// <returns>True if the node is compatible (no type conversion is required), otherwise
         /// false.</returns>
-        private bool _isStackNodeCompatibleWithPhi(ref DataNode node, ref DataNode phiNode) {
+        private bool _isStackNodeCompatibleWithPhi(in DataNode node, in DataNode phiNode) {
             if (phiNode.isNotPushed) {
                 Debug.Assert(node.isNotPushed);
                 return true;
@@ -6940,9 +6762,9 @@ namespace Mariana.AVM2.Compiler {
         /// block to which control is to be transferred to.</param>
         /// <returns>True if the node is compatible (no type conversion is required), otherwise
         /// false.</returns>
-        private bool _isScopeOrLocalNodeCompatibleWithPhi(ref DataNode node, ref DataNode phiNode) {
+        private bool _isScopeOrLocalNodeCompatibleWithPhi(in DataNode node, in DataNode phiNode) {
             if (node.slot.kind == DataNodeSlotKind.LOCAL
-                && ((node.flags & DataNodeFlags.LOCAL_WRITE_THROUGH) != 0 || isDead(ref phiNode)))
+                && ((node.flags & DataNodeFlags.LOCAL_WRITE_THROUGH) != 0 || isDead(phiNode)))
             {
                 // If a local assignment has already been written through to the phi node, or
                 // if the phi node is not live, the merge can be eliminated.
@@ -6963,7 +6785,7 @@ namespace Mariana.AVM2.Compiler {
 
             return false;
 
-            bool isDead(ref DataNode nodeToCheck) {
+            bool isDead(in DataNode nodeToCheck) {
                 // To avoid cycles, if we don't reach a node with zero uses after a limited number
                 // of iterations of following through phi nodes, we conservatively assume that the
                 // node isn't dead.
@@ -6971,7 +6793,7 @@ namespace Mariana.AVM2.Compiler {
                 const int ITER_LIMIT = 15;
 
                 for (int i = 0; i < ITER_LIMIT; i++) {
-                    var nodeUses = m_compilation.getDataNodeUses(ref nodeToCheck);
+                    var nodeUses = m_compilation.getDataNodeUses(nodeToCheck);
                     if (nodeUses.Length == 0)
                         return true;
                     if (nodeUses.Length > 1 || !nodeUses[0].isDataNode)
@@ -7129,8 +6951,8 @@ namespace Mariana.AVM2.Compiler {
                     m_ilBuilder.emit(ILOp.call, KnownMembers.anyGetObject, 0);
 
                     if (!targetStackNodeClass.isObjectClass) {
-                        using (var lockedContext = m_compilation.getContext())
-                            m_ilBuilder.emit(ILOp.castclass, lockedContext.value.getEntityHandle(targetStackNodeClass));
+                        using var lockedContext = m_compilation.getContext();
+                        m_ilBuilder.emit(ILOp.castclass, lockedContext.value.getEntityHandle(targetStackNodeClass));
                     }
                 }
 

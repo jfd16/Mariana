@@ -632,17 +632,12 @@ namespace Mariana.AVM2.Compiler {
             if (type == null)
                 return value.isUndefined;
 
-            switch (type.tag) {
-                case ClassTag.INT:
-                case ClassTag.UINT:
-                    return (int)value == 0;
-                case ClassTag.NUMBER:
-                    return (double)value == 0.0;
-                case ClassTag.BOOLEAN:
-                    return (bool)value == false;
-                default:
-                    return value.value == null;
-            }
+            return type.tag switch {
+                ClassTag.INT or ClassTag.UINT => (int)value == 0,
+                ClassTag.NUMBER => (double)value == 0.0,
+                ClassTag.BOOLEAN => (bool)value == false,
+                _ => value.value == null,
+            };
         }
 
         /// <summary>

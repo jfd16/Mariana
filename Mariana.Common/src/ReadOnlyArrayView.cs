@@ -17,39 +17,39 @@ namespace Mariana.Common {
         /// </summary>
         public static readonly ReadOnlyArrayView<T> empty = default(ReadOnlyArrayView<T>);
 
-        private readonly T[] m_data;
+        private readonly T[]? m_data;
         private readonly int m_start;
         private readonly int m_length;
 
         /// <summary>
         /// Creates a new <see cref="ReadOnlyArrayView{T}"/> for an array.
         /// </summary>
-        /// <param name="arr">The array. If this is null, creates a view over an empty array.</param>
-        public ReadOnlyArrayView(T[] arr) {
-            m_data = arr;
+        /// <param name="array">The array. If this is null, creates a view over an empty array.</param>
+        public ReadOnlyArrayView(T[]? array) {
+            m_data = array;
             m_start = 0;
-            m_length = (arr == null) ? 0 : arr.Length;
+            m_length = (array == null) ? 0 : array.Length;
         }
 
         /// <summary>
         /// Creates a new <see cref="ReadOnlyArrayView{T}"/> for a segment of an array.
         /// </summary>
-        /// <param name="arr">The array.</param>
+        /// <param name="array">The array.</param>
         /// <param name="start">The index of the first element of the range.</param>
         /// <param name="length">The number of elements in the range.</param>
         /// <exception cref="ArgumentException">The range defined by <paramref name="start"/> and
-        /// <paramref name="length"/> is out of the bounds of <paramref name="arr"/>, or
-        /// <paramref name="arr"/> is null and <paramref name="start"/> or <paramref name="length"/>
+        /// <paramref name="length"/> is out of the bounds of <paramref name="array"/>, or
+        /// <paramref name="array"/> is null and <paramref name="start"/> or <paramref name="length"/>
         /// is not zero.</exception>
-        public ReadOnlyArrayView(T[] arr, int start, int length) {
-            T[] arr2 = arr ?? Array.Empty<T>();
+        public ReadOnlyArrayView(T[]? array, int start, int length) {
+            array ??= Array.Empty<T>();
 
-            if ((uint)start > (uint)arr2.Length)
+            if ((uint)start > (uint)array.Length)
                 throw new ArgumentOutOfRangeException(nameof(start));
-            if ((uint)length > (uint)(arr2.Length - start))
+            if ((uint)length > (uint)(array.Length - start))
                 throw new ArgumentOutOfRangeException(nameof(length));
 
-            (m_data, m_start, m_length) = (arr2, start, length);
+            (m_data, m_start, m_length) = (array, start, length);
         }
 
         /// <summary>
@@ -86,7 +86,7 @@ namespace Mariana.Common {
             get {
                 if ((uint)index >= (uint)m_length)
                     throw new ArgumentOutOfRangeException(nameof(index));
-                return ref m_data[m_start + index];
+                return ref m_data![m_start + index];
             }
         }
 
@@ -216,7 +216,7 @@ namespace Mariana.Common {
             private int m_end;
 
             internal Enumerator(in ReadOnlyArrayView<T> view) {
-                m_data = view.m_data;
+                m_data = view.m_data ?? Array.Empty<T>();
                 m_current = view.m_start - 1;
                 m_end = view.m_start + view.m_length;
             }
@@ -246,7 +246,7 @@ namespace Mariana.Common {
             /// <summary>
             /// Returns the value of the element at the current position.
             /// </summary>
-            object IEnumerator.Current => (object)m_data[m_current];
+            object IEnumerator.Current => (object)m_data[m_current]!;
 
             /// <summary>
             /// This method is not supported (throws NotImplementedException).

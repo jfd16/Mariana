@@ -162,24 +162,15 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <returns>A string that represents the current namespace.</returns>
         public override string ToString() {
-            switch (kind) {
-                case NamespaceKind.ANY:
-                    return "*";
-                case NamespaceKind.NAMESPACE:
-                    return uri;
-                case NamespaceKind.EXPLICIT:
-                    return "<explicit " + uri + ">";
-                case NamespaceKind.PACKAGE_INTERNAL:
-                    return "<internal " + uri + ">";
-                case NamespaceKind.PRIVATE:
-                    return "<private #" + privateNamespaceId.ToString(CultureInfo.InvariantCulture) + ">";
-                case NamespaceKind.PROTECTED:
-                    return "<protected " + uri + ">";
-                case NamespaceKind.STATIC_PROTECTED:
-                    return "<static protected " + uri + ">";
-                default:
-                    return null;
-            }
+            return kind switch {
+                NamespaceKind.ANY => "*",
+                NamespaceKind.NAMESPACE => uri,
+                NamespaceKind.EXPLICIT => "<explicit " + uri + ">",
+                NamespaceKind.PACKAGE_INTERNAL => "<internal " + uri + ">",
+                NamespaceKind.PRIVATE => "<private #" + privateNamespaceId.ToString(CultureInfo.InvariantCulture) + ">",
+                NamespaceKind.PROTECTED => "<protected " + uri + ">",
+                NamespaceKind.STATIC_PROTECTED => "<static protected " + uri + ">"
+            };
         }
 
         /// <summary>

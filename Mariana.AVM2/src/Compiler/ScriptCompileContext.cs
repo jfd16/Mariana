@@ -111,38 +111,33 @@ namespace Mariana.AVM2.Compiler {
 
         private DynamicArray<ScriptClass> m_abcClassesByIndex;
 
-        private ReferenceDictionary<ScriptClass, ClassData> m_classData =
-            new ReferenceDictionary<ScriptClass, ClassData>();
+        private ReferenceDictionary<ScriptClass, ClassData> m_classData = new();
 
-        private ReferenceDictionary<ScriptField, ASAny> m_fieldDefaultValues =
-            new ReferenceDictionary<ScriptField, ASAny>();
+        private ReferenceDictionary<ScriptField, ASAny> m_fieldDefaultValues = new();
 
-        private ReferenceDictionary<MethodTrait, MethodTraitData> m_methodTraitData =
-            new ReferenceDictionary<MethodTrait, MethodTraitData>();
+        private ReferenceDictionary<MethodTrait, MethodTraitData> m_methodTraitData = new();
 
-        private ReferenceDictionary<Trait, ABCScriptInfo> m_traitExportScripts =
-            new ReferenceDictionary<Trait, ABCScriptInfo>();
+        private ReferenceDictionary<Trait, ABCScriptInfo> m_traitExportScripts = new();
 
-        private Dictionary<ABCMultiname, (BindStatus, Trait)> m_globalTraitLookupCache =
-            new Dictionary<ABCMultiname, (BindStatus, Trait)>();
+        private Dictionary<ABCMultiname, (BindStatus, Trait)> m_globalTraitLookupCache = new();
 
-        private Dictionary<ABCMultiname, Class> m_classesByMultiname = new Dictionary<ABCMultiname, Class>();
+        private Dictionary<ABCMultiname, Class> m_classesByMultiname = new();
 
-        private Dictionary<QName, ScriptProperty> m_tempPropsInst = new Dictionary<QName, ScriptProperty>();
+        private Dictionary<QName, ScriptProperty> m_tempPropsInst = new();
 
-        private Dictionary<QName, ScriptProperty> m_tempPropsStatic = new Dictionary<QName, ScriptProperty>();
+        private Dictionary<QName, ScriptProperty> m_tempPropsStatic = new();
 
-        private ReferenceDictionary<object, EntityHandle> m_traitEntityHandles = new ReferenceDictionary<object, EntityHandle>();
+        private ReferenceDictionary<object, EntityHandle> m_traitEntityHandles = new();
 
-        private ReferenceDictionary<Class, TypeSignature> m_classTypeSignatures = new ReferenceDictionary<Class, TypeSignature>();
+        private ReferenceDictionary<Class, TypeSignature> m_classTypeSignatures = new();
 
-        private ReferenceDictionary<Class, EntityHandle> m_objectCastMethodHandles = new ReferenceDictionary<Class, EntityHandle>();
+        private ReferenceDictionary<Class, EntityHandle> m_objectCastMethodHandles = new();
 
-        private ReferenceDictionary<Class, EntityHandle> m_anyCastMethodHandles = new ReferenceDictionary<Class, EntityHandle>();
+        private ReferenceDictionary<Class, EntityHandle> m_anyCastMethodHandles = new();
 
-        private ReferenceDictionary<Class, TypeSignature> m_optionalParamTypeSig = new ReferenceDictionary<Class, TypeSignature>();
+        private ReferenceDictionary<Class, TypeSignature> m_optionalParamTypeSig = new();
 
-        private Dictionary<int, MemberInfo> m_vectorMembersByDefToken = new Dictionary<int, MemberInfo>();
+        private Dictionary<int, MemberInfo> m_vectorMembersByDefToken = new();
 
         private DynamicArray<int> m_nsSetEmitConstIdsByABCIndex;
 
@@ -150,7 +145,7 @@ namespace Mariana.AVM2.Compiler {
 
         private DynamicArray<ScriptClass> m_catchScopeClasses;
 
-        private Queue<ScriptMethod> m_functionCompileQueue = new Queue<ScriptMethod>();
+        private Queue<ScriptMethod> m_functionCompileQueue = new();
 
         private string m_assemblyBuilderName;
 
@@ -1148,16 +1143,12 @@ namespace Mariana.AVM2.Compiler {
                 if (type == null || type.isObjectClass)
                     return val;
 
-                switch (type.tag) {
-                    case ClassTag.INT:
-                        return (val.value is ASint) ? val : (ASAny)(int)val;
-                    case ClassTag.UINT:
-                        return (val.value is ASuint) ? val : (ASAny)(uint)val;
-                    case ClassTag.NUMBER:
-                        return (val.value is ASNumber) ? val : (ASAny)(double)val;
-                    default:
-                        throw ErrorHelper.createError(ErrorCode.ILLEGAL_DEFAULT_VALUE, type.name);
-                }
+                return type.tag switch {
+                    ClassTag.INT => (val.value is ASint) ? val : (int)val,
+                    ClassTag.UINT => (val.value is ASuint) ? val : (uint)val,
+                    ClassTag.NUMBER => (val.value is ASNumber) ? val : (double)val,
+                    _ => throw ErrorHelper.createError(ErrorCode.ILLEGAL_DEFAULT_VALUE, type.name),
+                };
             }
             else {
                 // In all other cases, the types must have an exact match, or the field
@@ -1304,7 +1295,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="baseMethod">The base class method that <paramref name="method"/> overrides,
         /// or the interface method that it implements.</param>
         private bool _checkOverrideSignature(MethodTrait method, MethodTrait baseMethod) {
-            bool hasRestArg(MethodTrait m) =>
+            static bool hasRestArg(MethodTrait m) =>
                 m is ScriptMethod sm ? (sm.abcMethodInfo.flags & ABCMethodFlags.NEED_REST) != 0 : m.hasRest;
 
             if (baseMethod == null
@@ -1539,21 +1530,12 @@ namespace Mariana.AVM2.Compiler {
             in QName name,
             MethodNameMangleMode nameMangleMode = MethodNameMangleMode.METHOD
         ) {
-            string methodBuilderName;
-            switch (nameMangleMode) {
-                case MethodNameMangleMode.METHOD:
-                    methodBuilderName = m_nameMangler.createName(name);
-                    break;
-                case MethodNameMangleMode.GETTER:
-                    methodBuilderName = m_nameMangler.createGetterName(name);
-                    break;
-                case MethodNameMangleMode.SETTER:
-                    methodBuilderName = m_nameMangler.createSetterName(name);
-                    break;
-                default:
-                    methodBuilderName = name.ToString();
-                    break;
-            }
+            string methodBuilderName = nameMangleMode switch {
+                MethodNameMangleMode.METHOD => m_nameMangler.createName(name),
+                MethodNameMangleMode.GETTER => m_nameMangler.createGetterName(name),
+                MethodNameMangleMode.SETTER => m_nameMangler.createSetterName(name),
+                _ => name.ToString(),
+            };
 
             MethodTraitData methodData = m_methodTraitData[method];
 
@@ -1985,7 +1967,7 @@ namespace Mariana.AVM2.Compiler {
                     if (defTrait == null)
                         return (BindStatus.NOT_FOUND, null);
 
-                    if (!(defTrait is Class defClass))
+                    if (defTrait is not Class defClass)
                         throw ErrorHelper.createError(ErrorCode.MARIANA__APPLYTYPE_NON_CLASS);
 
                     if (defClass.underlyingType != typeof(ASVector<>))
@@ -2142,6 +2124,9 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="multiname">The multiname. This must not contain runtime arguments.</param>
         /// <param name="allowAny">If this is set to true and <paramref name="multiname"/> represents
         /// the "any" name, this method returns null instead of throwing.</param>
+        /// <param name="allowUninstVector">If this is set to true, <paramref name="multiname"/> is
+        /// allowed to be the name of the raw Vector class (without any type argument). Otherwise an
+        /// error is thrown for this class.</param>
         public Class getClassByMultiname(in ABCMultiname multiname, bool allowAny = false, bool allowUninstVector = false) {
             if (!m_classesByMultiname.TryGetValue(multiname, out Class c)) {
                 c = resolve(multiname);
@@ -2901,7 +2886,7 @@ namespace Mariana.AVM2.Compiler {
             m_functionCompileQueue.Enqueue(funcMethod);
             return funcMethod;
 
-            bool capturedScopeTypesMatch(
+            static bool capturedScopeTypesMatch(
                 ReadOnlyArrayView<CapturedScopeItem> scope1, ReadOnlyArrayView<CapturedScopeItem> scope2)
             {
                 if (scope1.length != scope2.length)
@@ -3113,7 +3098,7 @@ namespace Mariana.AVM2.Compiler {
                         };
                     }
 
-                    if (!(trait is PropertyTrait prop))
+                    if (trait is not PropertyTrait prop)
                         continue;
 
                     if (prop.getter is ScriptMethod getter && getter.declaringClass == prop.declaringClass

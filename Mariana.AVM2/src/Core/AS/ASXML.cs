@@ -907,7 +907,7 @@ namespace Mariana.AVM2.Core {
                 childTail = ref childTail.m_next;
             }
 
-            ASXML lastChild = (children.Length > 0) ? children[children.Length - 1] : null;
+            ASXML lastChild = (children.Length > 0) ? children[^1] : null;
 
             var elem = new _ElementNode(name, parent: null, firstAttr, firstChild, lastChild, nsDecls);
 
@@ -2189,21 +2189,13 @@ namespace Mariana.AVM2.Core {
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
         public string nodeKind() {
-            switch (m_nodeType) {
-                case XMLNodeType.ATTRIBUTE:
-                    return "attribute";
-                case XMLNodeType.COMMENT:
-                    return "comment";
-                case XMLNodeType.ELEMENT:
-                    return "element";
-                case XMLNodeType.PROCESSING_INSTRUCTION:
-                    return "processing-instruction";
-                case XMLNodeType.TEXT:
-                case XMLNodeType.CDATA:
-                    return "text";
-                default:
-                    return null;
-            }
+            return m_nodeType switch {
+                XMLNodeType.ATTRIBUTE => "attribute",
+                XMLNodeType.COMMENT => "comment",
+                XMLNodeType.ELEMENT => "element",
+                XMLNodeType.PROCESSING_INSTRUCTION => "processing-instruction",
+                XMLNodeType.TEXT or XMLNodeType.CDATA => "text"
+            };
         }
 
         /// <summary>
@@ -2669,7 +2661,7 @@ namespace Mariana.AVM2.Core {
                 m_firstChild = firstChild;
                 m_lastChild = lastChild;
 
-                nsdecls = nsdecls ?? Array.Empty<ASNamespace>();
+                nsdecls ??= Array.Empty<ASNamespace>();
                 m_nsdecls = new DynamicArray<ASNamespace>(nsdecls, nsdecls.Length);
             }
 
@@ -2964,7 +2956,7 @@ namespace Mariana.AVM2.Core {
             /// <param name="node">The node for which to create a copy.</param>
             /// <param name="newParent">The node to be set as the parent of the copy.</param>
             private static ASXML _makeShallowCopy(ASXML node, ASXML newParent) {
-                if (!(node is _ElementNode elem))
+                if (node is not _ElementNode elem)
                     return new _TextNode(node.m_name, newParent, node.m_nodeType, node.nodeText);
 
                 _ElementNode newElem = new _ElementNode(node.m_name, newParent);
@@ -3395,7 +3387,7 @@ namespace Mariana.AVM2.Core {
                 var iterator = getDescendantEnumerator(includeThis: true);
 
                 while (iterator.MoveNext()) {
-                    if (!(iterator.Current is _ElementNode cur))
+                    if (iterator.Current is not _ElementNode cur)
                         continue;
 
                     if (cur != this) {
@@ -3478,7 +3470,7 @@ namespace Mariana.AVM2.Core {
                 DescendantEnumerator iterator = getDescendantEnumerator(includeThis: true);
 
                 while (iterator.MoveNext()) {
-                    if (!(iterator.Current is _ElementNode curElement))
+                    if (iterator.Current is not _ElementNode curElement)
                         continue;
 
                     bool hasSubElement = false;
@@ -3574,7 +3566,7 @@ namespace Mariana.AVM2.Core {
                 DescendantEnumerator iterator = getDescendantEnumerator(includeThis: true);
 
                 while (iterator.MoveNext()) {
-                    if (!(iterator.Current is _ElementNode curNode))
+                    if (iterator.Current is not _ElementNode curNode)
                         continue;
 
                     int nsDeclIndex = _findNamespaceByPrefix(curNode.m_nsdecls.asSpan(), prefix);

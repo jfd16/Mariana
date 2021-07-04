@@ -229,91 +229,35 @@ namespace Mariana.AVM2.ABC {
             if (!opInfo.isValid)
                 return -1;
 
-            int popCount;
-            bool hasMultiname = false;
+            (int popCount, bool hasMultiname) = opcode switch {
+                ABCOp.newarray => (argCount, false),
+                ABCOp.newobject => (checked(argCount * 2), false),
+                ABCOp.call => (argCount + 2, false),
 
-            switch (opcode) {
-                case ABCOp.newarray:
-                    popCount = argCount;
-                    break;
+                ABCOp.construct or ABCOp.callmethod or ABCOp.callstatic
+                or ABCOp.constructsuper or ABCOp.applytype =>
+                    (argCount + 1, false),
 
-                case ABCOp.newobject:
-                    popCount = argCount * 2;
-                    break;
+                ABCOp.callproperty or ABCOp.callproplex or ABCOp.callpropvoid
+                or ABCOp.callsuper or ABCOp.callsupervoid or ABCOp.constructprop =>
+                    (argCount + 1, true),
 
-                case ABCOp.call:
-                    popCount = argCount + 2;
-                    break;
+                ABCOp.finddef or ABCOp.findproperty or ABCOp.findpropstrict => (0, true),
+                ABCOp.deleteproperty or ABCOp.getdescendants or ABCOp.getproperty or ABCOp.getsuper => (1, true),
+                ABCOp.setproperty or ABCOp.setsuper => (2, true),
 
-                case ABCOp.construct:
-                case ABCOp.callmethod:
-                case ABCOp.callstatic:
-                case ABCOp.constructsuper:
-                case ABCOp.applytype:
-                    popCount = argCount + 1;
-                    break;
-
-                case ABCOp.callproperty:
-                case ABCOp.callproplex:
-                case ABCOp.callpropvoid:
-                case ABCOp.callsuper:
-                case ABCOp.callsupervoid:
-                case ABCOp.constructprop:
-                    popCount = argCount + 1;
-                    hasMultiname = true;
-                    break;
-
-                case ABCOp.finddef:
-                case ABCOp.findproperty:
-                case ABCOp.findpropstrict:
-                    popCount = 0;
-                    hasMultiname = true;
-                    break;
-
-                case ABCOp.deleteproperty:
-                case ABCOp.getdescendants:
-                case ABCOp.getproperty:
-                case ABCOp.getsuper:
-                case ABCOp.@in:
-                    popCount = 1;
-                    hasMultiname = true;
-                    break;
-
-                case ABCOp.initproperty:
-                case ABCOp.setproperty:
-                case ABCOp.setsuper:
-                    popCount = 2;
-                    hasMultiname = true;
-                    break;
-
-                default:
-                    popCount = opInfo.stackPopCount;
-                    break;
-            }
+                _ => (opInfo.stackPopCount, false)
+            };
 
             if (!hasMultiname)
                 return popCount;
 
-            switch (multinameKind) {
-                case ABCConstKind.QName:
-                case ABCConstKind.QNameA:
-                case ABCConstKind.Multiname:
-                case ABCConstKind.MultinameA:
-                    return popCount;
-
-                case ABCConstKind.RTQName:
-                case ABCConstKind.RTQNameA:
-                case ABCConstKind.MultinameL:
-                case ABCConstKind.MultinameLA:
-                    return popCount + 1;
-
-                case ABCConstKind.RTQNameL:
-                case ABCConstKind.RTQNameLA:
-                    return popCount + 2;
-
-                default:
-                    throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_OUT_OF_RANGE, nameof(multinameKind));
-            }
+            return multinameKind switch {
+                ABCConstKind.QName or ABCConstKind.QNameA or ABCConstKind.Multiname or ABCConstKind.MultinameA => popCount,
+                ABCConstKind.RTQName or ABCConstKind.RTQNameA or ABCConstKind.MultinameL or ABCConstKind.MultinameLA => popCount + 1,
+                ABCConstKind.RTQNameL or ABCConstKind.RTQNameLA => popCount + 2,
+                _ => throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_OUT_OF_RANGE, nameof(multinameKind)),
+            };
         }
 
         private static ABCOpInfo[] _initOpInfoTable() {

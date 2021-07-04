@@ -89,7 +89,7 @@ namespace Mariana.AVM2.Native {
         private static NativeClass _internalCreateClass(
             Type underlyingType, ApplicationDomain domain, bool isDependent = false, bool dontLoadParentAndInterfaces = false)
         {
-            domain = domain ?? ApplicationDomain.systemDomain;
+            domain ??= ApplicationDomain.systemDomain;
 
             // If isDependent is true, this call is a callback from ClassTypeMap.getOrCreateClass, which
             // calls this method only if the class has not been imported.
@@ -803,7 +803,7 @@ namespace Mariana.AVM2.Native {
                     // If the parameter type is a namespace, the default value must be a string
                     // that will be used as the URI to construct the default namespace value.
 
-                    if (!(defaultValueAttr.m_value is string defaultValueURI)) {
+                    if (defaultValueAttr.m_value is not string defaultValueURI) {
                         throw ErrorHelper.createError(
                             ErrorCode.MARIANA__NATIVE_CLASS_METHOD_INVALID_DEFAULT,
                             traitName,
@@ -951,7 +951,7 @@ namespace Mariana.AVM2.Native {
         /// <param name="domain">The application domain in which the traits exported by the module
         /// should be defined.</param>
         internal static void createModule(Type moduleType, ApplicationDomain domain) {
-            domain = domain ?? ApplicationDomain.systemDomain;
+            domain ??= ApplicationDomain.systemDomain;
 
             if (ApplicationDomain.getDomainOfModule(moduleType) != null)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__NATIVE_CLASS_LOAD_MODULE_EXISTS, moduleType);

@@ -131,16 +131,11 @@ namespace Mariana.AVM2.Compiler {
         public override string ToString() {
             var type = this.type;
 
-            switch (type) {
-                case CFGNodeRefType.START:
-                    return "start";
-                case CFGNodeRefType.CATCH:
-                    return "EH(" + ASint.AS_convertString(id) + ")";
-                case CFGNodeRefType.BLOCK:
-                    return "BB(" + ASint.AS_convertString(id) + ")";
-                default:
-                    return "";
-            }
+            return type switch {
+                CFGNodeRefType.START => "start",
+                CFGNodeRefType.CATCH => "EH(" + ASint.AS_convertString(id) + ")",
+                CFGNodeRefType.BLOCK => "BB(" + ASint.AS_convertString(id) + ")"
+            };
         }
 
     }

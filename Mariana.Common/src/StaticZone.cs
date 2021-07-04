@@ -32,7 +32,7 @@ namespace Mariana.Common {
         private static int s_nextZoneId = NON_DEFAULT_ZONE_ID_BEGIN;
         private static readonly Stack<int> s_availableIds = new Stack<int>();
 
-        private static ConcurrentBag<IZoneStaticData>[] s_registeredVarsByZoneId;
+        private static ConcurrentBag<IZoneStaticData>[] s_registeredVarsByZoneId = Array.Empty<ConcurrentBag<IZoneStaticData>>();
 
         /// <summary>
         /// The zone ID of the active zone for the thread.
@@ -59,7 +59,7 @@ namespace Mariana.Common {
 
                     int collectionsIndex = m_id - NON_DEFAULT_ZONE_ID_BEGIN;
                     ConcurrentBag<IZoneStaticData>[] variableCollections =
-                        DataStructureUtil.volatileEnsureArraySize(ref s_registeredVarsByZoneId, collectionsIndex + 1);
+                        DataStructureUtil.volatileEnsureArraySize(ref s_registeredVarsByZoneId!, collectionsIndex + 1);
 
                     variableCollections[collectionsIndex] = new ConcurrentBag<IZoneStaticData>();
                 }
@@ -276,14 +276,14 @@ namespace Mariana.Common {
         /// <summary>
         /// The default disposer for a zone-static variable of type <typeparamref name="T"/>.
         /// </summary>
-        private static readonly Action<T> s_defaultDisposer =
+        private static readonly Action<T>? s_defaultDisposer =
             typeof(IDisposable).IsAssignableFrom(typeof(T)) ? new Action<T>(x => ((IDisposable)x)?.Dispose()) : null;
 
-        private readonly Func<T> m_initializer;
-        private readonly Action<T> m_disposer;
+        private readonly Func<T>? m_initializer;
+        private readonly Action<T>? m_disposer;
         private readonly object m_lazyInitLock = new object();
 
-        private T[] m_zoneValues;
+        private T?[] m_zoneValues = Array.Empty<T?>();
 
         /// <summary>
         /// Creates a new instance of <see cref="ZoneStaticData{T}"/>.
@@ -297,7 +297,7 @@ namespace Mariana.Common {
         /// zone-static variable is disposed. If this is null, a default disposer is used which
         /// calls <see cref="IDisposable.Dispose"/> if <typeparamref name="T"/> implements
         /// <see cref="IDisposable"/> and does nothing otherwise.</param>
-        public ZoneStaticData(Func<T> initializer = null, Action<T> disposer = null) {
+        public ZoneStaticData(Func<T>? initializer = null, Action<T>? disposer = null) {
             m_initializer = initializer;
             m_disposer = disposer ?? s_defaultDisposer;
         }
@@ -343,12 +343,12 @@ namespace Mariana.Common {
         public T value {
             get {
                 int zoneId = StaticZone.currentZoneId;
-                T currentValue = null;
+                T? currentValue = null;
 
                 // Check if the value is initialized.
-                T[] values = Volatile.Read(ref m_zoneValues);
+                T?[] values = Volatile.Read(ref m_zoneValues);
 
-                if (values != null && (uint)zoneId < (uint)values.Length)
+                if ((uint)zoneId < (uint)values.Length)
                     currentValue = Volatile.Read(ref values[zoneId]);
 
                 if (currentValue != null) {
@@ -361,10 +361,10 @@ namespace Mariana.Common {
                         throw new InvalidOperationException("Cannot access a disposable ZoneStaticData outside of a zone.");
 
                     // Resize the array if needed.
-                    values = DataStructureUtil.volatileEnsureArraySize(ref m_zoneValues, zoneId + 1);
+                    values = DataStructureUtil.volatileEnsureArraySize(ref m_zoneValues!, zoneId + 1);
 
                     // Check again inside the lock if the value has already been initialized.
-                    ref T currentValueRef = ref values[zoneId];
+                    ref T? currentValueRef = ref values[zoneId];
                     currentValue = Volatile.Read(ref currentValueRef);
 
                     if (currentValue != null)
@@ -392,14 +392,14 @@ namespace Mariana.Common {
                     throw new ArgumentNullException(nameof(value));
 
                 int zoneId = StaticZone.currentZoneId;
-                T currentValue = null;
+                T? currentValue = null;
 
                 // We need to check if the value is already initialized before setting it
                 // because it will have to be registered in the zone if it is being set for
                 // the first time.
-                T[] values = Volatile.Read(ref m_zoneValues);
+                T?[] values = Volatile.Read(ref m_zoneValues);
 
-                if (values != null && (uint)zoneId < (uint)values.Length)
+                if ((uint)zoneId < (uint)values.Length)
                     currentValue = Volatile.Read(ref values[zoneId]);
 
                 if (currentValue == value)
@@ -417,10 +417,10 @@ namespace Mariana.Common {
                         throw new InvalidOperationException("Cannot access a disposable ZoneStaticData outside of a zone.");
 
                     // Resize the array if needed.
-                    values = DataStructureUtil.volatileEnsureArraySize(ref m_zoneValues, zoneId + 1);
+                    values = DataStructureUtil.volatileEnsureArraySize(ref m_zoneValues!, zoneId + 1);
 
                     // Check again for an initialized variable inside the lock.
-                    ref T currentValueRef = ref values[zoneId];
+                    ref T? currentValueRef = ref values[zoneId];
                     currentValue = Volatile.Read(ref currentValueRef);
 
                     if (currentValue == value)
@@ -447,8 +447,8 @@ namespace Mariana.Common {
         /// </summary>
         /// <param name="zoneId">The id of the zone being disposed.</param>
         void IZoneStaticData.onZoneDisposed(int zoneId) {
-            T[] values = Volatile.Read(ref m_zoneValues);
-            T value = Volatile.Read(ref values[zoneId]);
+            T?[] values = Volatile.Read(ref m_zoneValues);
+            T value = Volatile.Read(ref values[zoneId])!;
 
             m_disposer?.Invoke(value);
             Volatile.Write(ref values[zoneId], null);

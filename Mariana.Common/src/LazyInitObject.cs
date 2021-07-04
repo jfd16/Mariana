@@ -78,7 +78,7 @@ namespace Mariana.Common {
     /// </remarks>
     public struct LazyInitObject<T> {
 
-        private T m_value;
+        private T? m_value;
         private Func<T> m_initFunc;
         private readonly object m_initLock;
         private readonly LazyInitRecursionHandling m_recursionHandler;
@@ -95,9 +95,10 @@ namespace Mariana.Common {
         /// <param name="recursionHandling">Specifies how accesses to the object within the
         /// initialization function are handled.</param>
         public LazyInitObject(
-            Func<T> initFunc, object initLock = null,
-            LazyInitRecursionHandling recursionHandling = LazyInitRecursionHandling.THROW)
-        {
+            Func<T> initFunc,
+            object? initLock = null,
+            LazyInitRecursionHandling recursionHandling = LazyInitRecursionHandling.THROW
+        ) {
             if (initFunc == null)
                 throw new ArgumentNullException(nameof(initFunc));
 
@@ -117,11 +118,18 @@ namespace Mariana.Common {
         /// <summary>
         /// Returns the current initialization state of the object.
         /// </summary>
-        public LazyInitObjectState currentState => m_state;
+        public readonly LazyInitObjectState currentState => m_state;
 
         /// <summary>
         /// Returns the object value, initializing it if it has not yet been initialized.
         /// </summary>
+        ///
+        /// <remarks>
+        /// If the recursion handling policy of this <see cref="LazyInitObject{T}"/> instance is
+        /// <see cref="LazyInitRecursionHandling.RETURN_DEFAULT"/>, this property will return
+        /// null when accessed inside the initializer function when <typeparamref name="T"/>
+        /// is a (possibly non-nullable) reference type.
+        /// </remarks>
         ///
         /// <exception cref="InvalidOperationException">
         /// <list type="bullet">
@@ -139,7 +147,8 @@ namespace Mariana.Common {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get {
                 if (m_state == LazyInitObjectState.COMPLETE)
-                    return m_value;
+                    return m_value!;
+
                 return _internalGetValue();
             }
         }
@@ -151,15 +160,17 @@ namespace Mariana.Common {
             lock (m_initLock) {
                 LazyInitObjectState state = m_state;
                 if (state == LazyInitObjectState.COMPLETE)
-                    return m_value;
+                    return m_value!;
+
                 if (state == LazyInitObjectState.FAILED)
                     throw new InvalidOperationException("Cannot access lazy object after initialization failure.");
 
                 if (state == LazyInitObjectState.IN_INITIALIZER) {
                     if (m_recursionHandler == LazyInitRecursionHandling.THROW)
                         throw new InvalidOperationException("Cannot access lazy object in initializer.");
+
                     if (m_recursionHandler == LazyInitRecursionHandling.RETURN_DEFAULT)
-                        return default(T);
+                        return default(T)!;
                 }
 
                 m_state = LazyInitObjectState.IN_INITIALIZER;
@@ -169,13 +180,13 @@ namespace Mariana.Common {
                 }
                 catch {
                     m_state = LazyInitObjectState.FAILED;
-                    m_initFunc = null;
+                    m_initFunc = null!;    // This will never be called again
                     throw;
                 }
 
                 m_value = value;
                 m_state = LazyInitObjectState.COMPLETE;
-                m_initFunc = null;
+                m_initFunc = null!;    // This will never be called again
 
                 return value;
             }

@@ -42,7 +42,7 @@ namespace Mariana.CodeGen {
             };
 
         private readonly long m_compact;
-        private readonly byte[] m_bytes;
+        private readonly byte[]? m_bytes;
 
         internal TypeSignature(long compact) {
             m_compact = compact;
@@ -551,50 +551,31 @@ namespace Mariana.CodeGen {
         /// </summary>
         /// <returns>The <see cref="Type"/> for the primitive type that this signature represents,
         /// or null if this signature does not represent a primitive type.</returns>
-        public Type getPrimitiveType() {
+        public Type? getPrimitiveType() {
             if (byteLength != 1)
                 return null;
 
-            switch ((SignatureTypeCode)getFirstByte()) {
-                case SignatureTypeCode.Boolean:
-                    return typeof(bool);
-                case SignatureTypeCode.Byte:
-                    return typeof(byte);
-                case SignatureTypeCode.Char:
-                    return typeof(char);
-                case SignatureTypeCode.Double:
-                    return typeof(double);
-                case SignatureTypeCode.Int16:
-                    return typeof(short);
-                case SignatureTypeCode.Int32:
-                    return typeof(int);
-                case SignatureTypeCode.Int64:
-                    return typeof(long);
-                case SignatureTypeCode.IntPtr:
-                    return typeof(IntPtr);
-                case SignatureTypeCode.Object:
-                    return typeof(object);
-                case SignatureTypeCode.SByte:
-                    return typeof(sbyte);
-                case SignatureTypeCode.Single:
-                    return typeof(float);
-                case SignatureTypeCode.String:
-                    return typeof(string);
-                case SignatureTypeCode.TypedReference:
-                    return typeof(TypedReference);
-                case SignatureTypeCode.UInt16:
-                    return typeof(ushort);
-                case SignatureTypeCode.UInt32:
-                    return typeof(uint);
-                case SignatureTypeCode.UInt64:
-                    return typeof(ulong);
-                case SignatureTypeCode.UIntPtr:
-                    return typeof(UIntPtr);
-                case SignatureTypeCode.Void:
-                    return typeof(void);
-                default:
-                    return null;
-            }
+            return (SignatureTypeCode)getFirstByte() switch {
+                SignatureTypeCode.Boolean => typeof(bool),
+                SignatureTypeCode.Byte => typeof(byte),
+                SignatureTypeCode.Char => typeof(char),
+                SignatureTypeCode.Double => typeof(double),
+                SignatureTypeCode.Int16 => typeof(short),
+                SignatureTypeCode.Int32 => typeof(int),
+                SignatureTypeCode.Int64 => typeof(long),
+                SignatureTypeCode.IntPtr => typeof(IntPtr),
+                SignatureTypeCode.Object => typeof(object),
+                SignatureTypeCode.SByte => typeof(sbyte),
+                SignatureTypeCode.Single => typeof(float),
+                SignatureTypeCode.String => typeof(string),
+                SignatureTypeCode.TypedReference => typeof(TypedReference),
+                SignatureTypeCode.UInt16 => typeof(ushort),
+                SignatureTypeCode.UInt32 => typeof(uint),
+                SignatureTypeCode.UInt64 => typeof(ulong),
+                SignatureTypeCode.UIntPtr => typeof(UIntPtr),
+                SignatureTypeCode.Void => typeof(void),
+                _ => null,
+            };
         }
 
         /// <summary>
@@ -611,7 +592,7 @@ namespace Mariana.CodeGen {
         /// <exception cref="ArgumentNullException"><paramref name="handleGenerator"/> is null and
         /// <paramref name="type"/> does not represent a primitive type, an array, pointer or by-ref
         /// type composed from primitive types, or a generic type or method parameter.</exception>
-        public static TypeSignature fromType(Type type, Func<Type, EntityHandle> handleGenerator = null) {
+        public static TypeSignature fromType(Type type, Func<Type, EntityHandle>? handleGenerator = null) {
             if (type.IsGenericParameter) {
                 int position = type.GenericParameterPosition;
                 return type.IsGenericMethodParameter ? forGenericMethodParam(position) : forGenericTypeParam(position);
@@ -780,15 +761,16 @@ namespace Mariana.CodeGen {
     internal sealed class TypeSignatureBuilder {
 
         [ThreadStatic]
-        private static TypeSignatureBuilder s_threadInstance;
+        private static TypeSignatureBuilder? s_threadInstance;
 
         private byte[] m_initialBuffer;
         private byte[] m_currentBuffer;
-        private int m_pos = 0;
+        private int m_pos;
 
         private TypeSignatureBuilder() {
             m_initialBuffer = new byte[64];
-            clear();
+            m_currentBuffer = m_initialBuffer;
+            m_pos = 0;
         }
 
         public static TypeSignatureBuilder getInstance() {

@@ -21,3 +21,6 @@ csharp_new_line_before_open_brace = none
 
 dotnet_diagnostic.IDE0016.severity = silent
 dotnet_diagnostic.IDE1006.severity = silent
+
+dotnet_diagnostic.IDE0057.severity = silent   # https://github.com/dotnet/roslyn/issues/47629
+dotnet_diagnostic.IDE0090.severity = silent

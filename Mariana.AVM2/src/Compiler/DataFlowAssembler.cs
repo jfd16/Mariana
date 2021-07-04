@@ -138,7 +138,7 @@ namespace Mariana.AVM2.Compiler {
             CFGNodeRef thisBlockRef = CFGNodeRef.forBasicBlock(block.id);
             bool hasLocalAssignments = false;
 
-            Span<Instruction> instructions = m_compilation.getInstructionsInBasicBlock(block.id);
+            Span<Instruction> instructions = m_compilation.getInstructionsInBasicBlock(block);
 
             for (int i = 0; i < instructions.Length; i++) {
                 ref Instruction instr = ref instructions[i];
@@ -279,7 +279,7 @@ namespace Mariana.AVM2.Compiler {
                     // Check for stack/scope stack size mismatch.
 
                     Debug.Assert(cfgNodeRefArrPool.getLength(nextBlock.entryPoints) > 1);
-                    int lastInstrId = instructions[instructions.Length - 1].id;
+                    int lastInstrId = instructions[^1].id;
 
                     int nextEntryStackSize = staticIntArrPool.getLength(nextBlock.stackAtEntry);
                     int nextEntryScopeSize = staticIntArrPool.getLength(nextBlock.scopeStackAtEntry);

@@ -640,7 +640,7 @@ namespace Mariana.AVM2.Compiler {
                 sb.Append(' ', indentSpaces + 4);
                 sb.AppendLine(instructionToString(instr));
 
-                ReadOnlySpan<int> poppedNodeIds = getInstructionStackPoppedNodes(ref instr);
+                ReadOnlySpan<int> poppedNodeIds = getInstructionStackPoppedNodes(instr);
                 int pushedNodeId = instr.stackPushedNodeId;
 
                 if (poppedNodeIds.Length > 0 || pushedNodeId != -1) {

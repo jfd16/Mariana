@@ -396,18 +396,18 @@ namespace Mariana.AVM2.Core {
             if (!expNegative) {
                 if (expAbsVal == precision - 1)
                     // No decimal point to be inserted.
-                    return new string(buffer.Slice(numberStart, numberEnd - numberStart));
+                    return new string(buffer[numberStart..numberEnd]);
 
                 int dotPos = digitsStart + expAbsVal + 1;
-                buffer.Slice(dotPos, numberEnd - dotPos).CopyTo(buffer.Slice(dotPos + 1));
+                buffer[dotPos..numberEnd].CopyTo(buffer.Slice(dotPos + 1));
                 buffer[dotPos] = '.';
-                return new string(buffer.Slice(numberStart, numberEnd - numberStart + 1));
+                return new string(buffer[numberStart..(numberEnd + 1)]);
             }
             else {
                 int fractionDigits = precision + expAbsVal - 1;
                 int fractionZeros = fractionDigits - precision;
                 int stringLength = fractionDigits + 2 + (isNegative ? 1 : 0);
-                ReadOnlySpan<char> digitsInBuffer = buffer.Slice(digitsStart, numberEnd - digitsStart);
+                ReadOnlySpan<char> digitsInBuffer = buffer[digitsStart..numberEnd];
 
                 // If the buffer already allocated has sufficient space for the output, it can be reused.
                 Span<char> outBuffer = (stringLength <= buffer.Length) ? buffer : stackalloc char[stringLength];
@@ -728,7 +728,7 @@ namespace Mariana.AVM2.Core {
             value = isNeg ? -num : num;
             return true;
 
-            int getPrefixLength(ReadOnlySpan<char> sp) {
+            static int getPrefixLength(ReadOnlySpan<char> sp) {
                 int dotpos = Int32.MinValue, epos = Int32.MinValue, esignpos = Int32.MinValue;
                 int i;
 

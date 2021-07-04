@@ -21,12 +21,17 @@ namespace Mariana.CodeGen {
 
         private BlobHandle m_sigHandle;
 
-        private object m_constantValue;
+        private object? m_constantValue;
 
         internal FieldBuilder(
-            TypeBuilder declaringType, string name, FieldAttributes attrs,
-            EntityHandle handle, StringHandle nameHandle, BlobHandle sigHandle, object constantValue)
-        {
+            TypeBuilder declaringType,
+            string name,
+            FieldAttributes attrs,
+            EntityHandle handle,
+            StringHandle nameHandle,
+            BlobHandle sigHandle,
+            object? constantValue
+        ) {
             m_declType = declaringType;
             m_name = name;
             m_attrs = attrs;

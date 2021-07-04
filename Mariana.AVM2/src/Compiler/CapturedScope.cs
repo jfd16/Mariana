@@ -131,26 +131,16 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         /// <returns>A string representation of this <see cref="CapturedScopeItem"/> instance.</returns>
         public override string ToString() {
-            switch (dataType) {
-                case DataNodeType.INT:
-                    return "[I]";
-                case DataNodeType.UINT:
-                    return "[U]";
-                case DataNodeType.NUMBER:
-                    return "[N]";
-                case DataNodeType.STRING:
-                    return "[S]";
-                case DataNodeType.BOOL:
-                    return "[B]";
-                case DataNodeType.OBJECT:
-                    return "[O " + objClass.name.ToString() + "]";
-                case DataNodeType.CLASS:
-                    return "[C " + objClass.name.ToString() + "]";
-                case DataNodeType.GLOBAL:
-                    return "[global]";
-                default:
-                    return "";
-            }
+            return dataType switch {
+                DataNodeType.INT => "[I]",
+                DataNodeType.UINT => "[U]",
+                DataNodeType.NUMBER => "[N]",
+                DataNodeType.STRING => "[S]",
+                DataNodeType.BOOL => "[B]",
+                DataNodeType.OBJECT => "[O " + objClass.name.ToString() + "]",
+                DataNodeType.CLASS => "[C " + objClass.name.ToString() + "]",
+                DataNodeType.GLOBAL => "[global]"
+            };
         }
 
     }

@@ -55,7 +55,7 @@ namespace Mariana.CodeGen.IL {
 
         private struct _LocalInfo {
             public _LocalStatus status;
-            public Type type;
+            public Type? type;
         }
 
         private struct _LabelInfo {
@@ -593,7 +593,7 @@ namespace Mariana.CodeGen.IL {
         /// The <see cref="ILTokenProvider"/> that provides the tokens for referring to types,
         /// members and strings in code emitted by this <see cref="ILBuilder"/>.
         /// </summary>
-        private ILTokenProvider m_tokenProvider;
+        private ILTokenProvider? m_tokenProvider;
 
         /// <summary>
         /// The byte array containing the emitted IL code.
@@ -679,7 +679,7 @@ namespace Mariana.CodeGen.IL {
         /// tokens for referring to types, members and strings in code emitted by this
         /// <see cref="ILBuilder"/>. If this is null, the overloads of the emit method
         /// that take a type, member or string operand cannot be used.</param>
-        public ILBuilder(ILTokenProvider tokenProvider = null) {
+        public ILBuilder(ILTokenProvider? tokenProvider = null) {
             m_tokenProvider = tokenProvider;
         }
 
@@ -833,7 +833,7 @@ namespace Mariana.CodeGen.IL {
         public Local declareLocal(Type type, bool isPinned = false) {
             _throwIfTokenProviderNotSet();
 
-            var local = declareLocal(m_tokenProvider.getTypeSignature(type), isPinned);
+            var local = declareLocal(m_tokenProvider!.getTypeSignature(type), isPinned);
             m_localInfo[local.id].type = type;
 
             return local;
@@ -900,7 +900,7 @@ namespace Mariana.CodeGen.IL {
         public Local acquireTempLocal(Type type) {
             _throwIfTokenProviderNotSet();
 
-            var local = acquireTempLocal(m_tokenProvider.getTypeSignature(type));
+            var local = acquireTempLocal(m_tokenProvider!.getTypeSignature(type));
 
             ref _LocalInfo localInfo = ref m_localInfo[local.id];
             if (localInfo.type == null)
@@ -1150,7 +1150,7 @@ namespace Mariana.CodeGen.IL {
             }
             else {
                 _throwIfTokenProviderNotSet();
-                beginCatchClause(m_tokenProvider.getHandle(catchType));
+                beginCatchClause(m_tokenProvider!.getHandle(catchType));
             }
         }
 
@@ -1825,7 +1825,7 @@ namespace Mariana.CodeGen.IL {
             }
             else {
                 _throwIfTokenProviderNotSet();
-                emit(opcode, m_tokenProvider.getHandle(arg));
+                emit(opcode, m_tokenProvider!.getHandle(arg));
             }
         }
 
@@ -1920,7 +1920,7 @@ namespace Mariana.CodeGen.IL {
                 throw new ArgumentNullException(nameof(arg));
 
             _throwIfTokenProviderNotSet();
-            emit(opcode, m_tokenProvider.getHandle(arg));
+            emit(opcode, m_tokenProvider!.getHandle(arg));
         }
 
         /// <summary>
@@ -1937,7 +1937,7 @@ namespace Mariana.CodeGen.IL {
                 throw new ArgumentNullException(nameof(arg));
 
             _throwIfTokenProviderNotSet();
-            emit(opcode, m_tokenProvider.getHandle(arg));
+            emit(opcode, m_tokenProvider!.getHandle(arg));
         }
 
         /// <summary>
@@ -1961,7 +1961,7 @@ namespace Mariana.CodeGen.IL {
                 throw new ArgumentNullException(nameof(arg));
 
             _throwIfTokenProviderNotSet();
-            emit(opcode, m_tokenProvider.getHandle(arg), stackDelta);
+            emit(opcode, m_tokenProvider!.getHandle(arg), stackDelta);
         }
 
         /// <summary>
@@ -1990,7 +1990,7 @@ namespace Mariana.CodeGen.IL {
             }
 
             _throwIfTokenProviderNotSet();
-            emit(opcode, m_tokenProvider.getHandle(arg));
+            emit(opcode, m_tokenProvider!.getHandle(arg));
         }
 
         /// <summary>
@@ -2002,137 +2002,62 @@ namespace Mariana.CodeGen.IL {
         /// returns the opcode itself.</returns>
         private static ILOp _getShortOpcodeForType(ILOp opcode, Type type) {
         	if (!type.IsValueType) {
-        		switch (opcode) {
-        			case ILOp.ldelem:
-        				return ILOp.ldelem_ref;
-        			case ILOp.stelem:
-        				return ILOp.stelem_ref;
-        			case ILOp.ldobj:
-        				return ILOp.ldind_ref;
-        			case ILOp.stobj:
-        				return ILOp.stind_ref;
-        		}
-        	}
-            else if (type == (object)typeof(IntPtr) || type == (object)typeof(UIntPtr)) {
-                switch (opcode) {
-                    case ILOp.ldelem:
-                        return ILOp.ldelem_i;
-                    case ILOp.stelem:
-                        return ILOp.stelem_i;
-                    case ILOp.ldobj:
-                        return ILOp.ldind_i;
-                    case ILOp.stobj:
-                        return ILOp.stind_i;
-                }
+                return opcode switch {
+                    ILOp.ldelem => ILOp.ldelem_ref,
+                    ILOp.stelem => ILOp.stelem_ref,
+                    ILOp.ldobj => ILOp.ldind_ref,
+                    ILOp.stobj => ILOp.stind_ref
+                };
             }
-        	else {
-        		switch (Type.GetTypeCode(type)) {
-        			case TypeCode.Boolean:
-        			case TypeCode.SByte:
-        				if (opcode == ILOp.ldelem)
-        					return ILOp.ldelem_i1;
-        				if (opcode == ILOp.stelem)
-        					return ILOp.stelem_i1;
-        				if (opcode == ILOp.ldobj)
-        					return ILOp.ldind_i1;
-        				if (opcode == ILOp.stobj)
-        					return ILOp.stind_i1;
-        				break;
 
-        			case TypeCode.Byte:
-        				if (opcode == ILOp.ldelem)
-        					return ILOp.ldelem_u1;
-        				if (opcode == ILOp.stelem)
-        					return ILOp.stelem_i1;
-        				if (opcode == ILOp.ldobj)
-        					return ILOp.ldind_u1;
-        				if (opcode == ILOp.stobj)
-        					return ILOp.stind_i1;
-        				break;
+            if (type == (object)typeof(IntPtr) || type == (object)typeof(UIntPtr)) {
+                return opcode switch {
+                    ILOp.ldelem => ILOp.ldelem_i,
+                    ILOp.stelem => ILOp.stelem_i,
+                    ILOp.ldobj => ILOp.ldind_i,
+                    ILOp.stobj => ILOp.stind_i
+                };
+            }
 
-        			case TypeCode.Int16:
-        				if (opcode == ILOp.ldelem)
-        					return ILOp.ldelem_i2;
-        				if (opcode == ILOp.stelem)
-        					return ILOp.stelem_i2;
-        				if (opcode == ILOp.ldobj)
-        					return ILOp.ldind_i2;
-        				if (opcode == ILOp.stobj)
-        					return ILOp.stind_i2;
-        				break;
+            return (Type.GetTypeCode(type), opcode) switch {
+                (TypeCode.Boolean or TypeCode.SByte, ILOp.ldelem) => ILOp.ldelem_i1,
+                (TypeCode.Byte, ILOp.ldelem) => ILOp.ldelem_u1,
+                (TypeCode.Boolean or TypeCode.SByte or TypeCode.Byte, ILOp.stelem) => ILOp.stelem_i1,
+                (TypeCode.Boolean or TypeCode.SByte, ILOp.ldobj) => ILOp.ldind_i1,
+                (TypeCode.Byte, ILOp.ldobj) => ILOp.ldind_u1,
+                (TypeCode.Boolean or TypeCode.SByte or TypeCode.Byte, ILOp.stobj) => ILOp.stind_i1,
 
-        			case TypeCode.UInt16:
-                    case TypeCode.Char:
-        				if (opcode == ILOp.ldelem)
-        					return ILOp.ldelem_u2;
-        				if (opcode == ILOp.stelem)
-        					return ILOp.stelem_i2;
-        				if (opcode == ILOp.ldobj)
-        					return ILOp.ldind_u2;
-        				if (opcode == ILOp.stobj)
-        					return ILOp.stind_i2;
-        				break;
+                (TypeCode.Int16, ILOp.ldelem) => ILOp.ldelem_i2,
+                (TypeCode.UInt16 or TypeCode.Char, ILOp.ldelem) => ILOp.ldelem_u2,
+                (TypeCode.Int16 or TypeCode.UInt16 or TypeCode.Char, ILOp.stelem) => ILOp.stelem_i2,
+                (TypeCode.Int16, ILOp.ldobj) => ILOp.ldind_i2,
+                (TypeCode.UInt16 or TypeCode.Char, ILOp.ldobj) => ILOp.ldind_u2,
+                (TypeCode.Int16 or TypeCode.UInt16 or TypeCode.Char, ILOp.stobj) => ILOp.stind_i2,
 
-        			case TypeCode.Int32:
-        				if (opcode == ILOp.ldelem)
-        					return ILOp.ldelem_i4;
-        				if (opcode == ILOp.stelem)
-        					return ILOp.stelem_i4;
-        				if (opcode == ILOp.ldobj)
-        					return ILOp.ldind_i4;
-        				if (opcode == ILOp.stobj)
-        					return ILOp.stind_i4;
-        				break;
+                (TypeCode.Int32, ILOp.ldelem) => ILOp.ldelem_i4,
+                (TypeCode.UInt32, ILOp.ldelem) => ILOp.ldelem_u4,
+                (TypeCode.Int32 or TypeCode.UInt32, ILOp.stelem) => ILOp.stelem_i4,
+                (TypeCode.Int32, ILOp.ldobj) => ILOp.ldind_i4,
+                (TypeCode.UInt32, ILOp.ldobj) => ILOp.ldind_u4,
+                (TypeCode.Int32 or TypeCode.UInt32, ILOp.stobj) => ILOp.stind_i4,
 
-        			case TypeCode.UInt32:
-        				if (opcode == ILOp.ldelem)
-        					return ILOp.ldelem_u4;
-        				if (opcode == ILOp.stelem)
-        					return ILOp.stelem_i4;
-        				if (opcode == ILOp.ldobj)
-        					return ILOp.ldind_u4;
-        				if (opcode == ILOp.stobj)
-        					return ILOp.stind_i4;
-        				break;
+                (TypeCode.Int64 or TypeCode.UInt64, ILOp.ldelem) => ILOp.ldelem_i8,
+                (TypeCode.Int64 or TypeCode.UInt64, ILOp.stelem) => ILOp.stelem_i8,
+                (TypeCode.Int64 or TypeCode.UInt64, ILOp.ldobj) => ILOp.ldind_i8,
+                (TypeCode.Int64 or TypeCode.UInt64, ILOp.stobj) => ILOp.stind_i8,
 
-        			case TypeCode.Int64:
-        			case TypeCode.UInt64:
-        				if (opcode == ILOp.ldelem)
-        					return ILOp.ldelem_i8;
-        				if (opcode == ILOp.stelem)
-        					return ILOp.stelem_i8;
-        				if (opcode == ILOp.ldobj)
-        					return ILOp.ldind_i8;
-        				if (opcode == ILOp.stobj)
-        					return ILOp.stind_i8;
-        				break;
+                (TypeCode.Single, ILOp.ldelem) => ILOp.ldelem_r4,
+                (TypeCode.Single, ILOp.stelem) => ILOp.stelem_r4,
+                (TypeCode.Single, ILOp.ldobj) => ILOp.ldind_r4,
+                (TypeCode.Single, ILOp.stobj) => ILOp.stind_r4,
 
-        			case TypeCode.Single:
-        				if (opcode == ILOp.ldelem)
-        					return ILOp.ldelem_r4;
-        				if (opcode == ILOp.stelem)
-        					return ILOp.stelem_r4;
-        				if (opcode == ILOp.ldobj)
-        					return ILOp.ldind_r4;
-        				if (opcode == ILOp.stobj)
-        					return ILOp.stind_r4;
-        				break;
+                (TypeCode.Double, ILOp.ldelem) => ILOp.ldelem_r8,
+                (TypeCode.Double, ILOp.stelem) => ILOp.stelem_r8,
+                (TypeCode.Double, ILOp.ldobj) => ILOp.ldind_r8,
+                (TypeCode.Double, ILOp.stobj) => ILOp.stind_r8,
 
-        			case TypeCode.Double:
-        				if (opcode == ILOp.ldelem)
-        					return ILOp.ldelem_r8;
-        				if (opcode == ILOp.stelem)
-        					return ILOp.stelem_r8;
-        				if (opcode == ILOp.ldobj)
-        					return ILOp.ldind_r8;
-        				if (opcode == ILOp.stobj)
-        					return ILOp.stind_r8;
-        				break;
-
-        		}
-        	}
-
-        	return opcode;
+                _ => opcode
+            };
         }
 
         /// <summary>
@@ -2264,7 +2189,7 @@ namespace Mariana.CodeGen.IL {
             ushort maxStack = (ushort)m_maxStackSize;
             bool initLocals = m_initLocals && (m_localSig.length > 0 || m_hasLocAlloc);
 
-            byte[] localSignature = null;
+            byte[]? localSignature = null;
             int localSigToken = 0;
 
             if (m_localSig.length > 0) {
@@ -2280,7 +2205,7 @@ namespace Mariana.CodeGen.IL {
             _validateAndShortenBranches();
 
             byte[] methodBody = _generateMethodBody();
-            byte[] ehSection = _generateExceptionHandlingSection();
+            byte[]? ehSection = _generateExceptionHandlingSection();
             int[] virtualTokenLocations = _generateVirtualTokenLocations();
 
             reset();
@@ -2292,7 +2217,7 @@ namespace Mariana.CodeGen.IL {
             var sigHelper = SignatureHelper.GetLocalVarSigHelper();
 
             for (int i = 0; i < m_localInfo.length; i++) {
-                Type type = m_localInfo[i].type;
+                Type? type = m_localInfo[i].type;
                 if (type == null)
                     throw new NotSupportedException("A local variable only has a type signature available, but the current token provider requires a Type.");
 
@@ -2363,7 +2288,7 @@ namespace Mariana.CodeGen.IL {
             var relocations = m_relocations.asSpan();
 
             if (relocations.Length > 0)
-                codeSize += relocations[relocations.Length - 1].shift;
+                codeSize += relocations[^1].shift;
 
             byte[] code = new byte[codeSize];
 
@@ -2403,7 +2328,7 @@ namespace Mariana.CodeGen.IL {
             return code;
         }
 
-        private byte[] _generateExceptionHandlingSection() {
+        private byte[]? _generateExceptionHandlingSection() {
             if (m_excHandlers.length == 0)
                 return null;
 

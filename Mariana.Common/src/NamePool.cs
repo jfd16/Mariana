@@ -49,6 +49,7 @@ namespace Mariana.Common {
                 ref Slot slot = ref m_slots[i];
                 if (slot.hash == hash && span.Equals(slot.value, StringComparison.Ordinal))
                     return slot.value;
+
                 i = slot.next;
             }
 
@@ -88,6 +89,7 @@ namespace Mariana.Common {
             int value = 1362874787;
             for (int i = 0; i < span.Length; i++)
                 value = (value + span[i]) * 464739103;
+
             return value;
         }
 

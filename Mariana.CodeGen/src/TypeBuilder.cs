@@ -160,7 +160,7 @@ namespace Mariana.CodeGen {
         /// <see cref="FieldAttributes.HasFieldRVA"/> or <see cref="FieldAttributes.HasFieldMarshal"/>
         /// flag set.</exception>
         public FieldBuilder defineField(
-            string name, in TypeSignature fieldType, FieldAttributes attrs, object constantValue = null)
+            string name, in TypeSignature fieldType, FieldAttributes attrs, object? constantValue = null)
         {
             if (name == null || name.Length == 0)
                 throw new ArgumentException("Name cannot be null or empty.", nameof(name));
@@ -314,9 +314,13 @@ namespace Mariana.CodeGen {
         ///
         /// <exception cref="ArgumentException"><paramref name="name"/> is null or the empty string.</exception>
         public PropertyBuilder defineProperty(
-            string name, PropertyAttributes attributes, bool isStatic, in TypeSignature propertyType,
-            ReadOnlySpan<TypeSignature> paramTypes = default, object constantValue = null)
-        {
+            string name,
+            PropertyAttributes attributes,
+            bool isStatic,
+            in TypeSignature propertyType,
+            ReadOnlySpan<TypeSignature> paramTypes = default,
+            object? constantValue = null
+        ) {
             if (name == null || name.Length == 0)
                 throw new ArgumentException("Name cannot be null or empty.", nameof(name));
 

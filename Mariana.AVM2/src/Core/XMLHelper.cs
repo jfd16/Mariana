@@ -189,7 +189,7 @@ namespace Mariana.AVM2.Core {
             ReadOnlySpan<char> ec1 = isAttr ? s_escapeAttrChars1 : s_escapeElemChars;
             ReadOnlySpan<char> ec2 = isAttr ? s_escapeAttrChars2 : default;
 
-            int findNextEscapeChar(
+            static int findNextEscapeChar(
                 in ReadOnlySpan<char> _span, in ReadOnlySpan<char> _ec1, in ReadOnlySpan<char> _ec2)
             {
                 if (_ec2.IsEmpty)
@@ -437,7 +437,7 @@ namespace Mariana.AVM2.Core {
         public static string objectToAttrString(ASAny obj) {
             // See: ECMA-357, sec. 9.1.1.2, [[Put]], steps 6b and 6c
 
-            if (!(obj.value is ASXMLList xmlList))
+            if (obj.value is not ASXMLList xmlList)
                 return ASAny.AS_convertString(obj);
 
             int nListItems = xmlList.length();

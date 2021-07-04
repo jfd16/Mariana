@@ -36,20 +36,14 @@ namespace Mariana.AVM2.Core {
             if (klass == null)
                 return typeof(ASAny);
 
-            switch (klass.tag) {
-                case ClassTag.INT:
-                    return typeof(int);
-                case ClassTag.UINT:
-                    return typeof(uint);
-                case ClassTag.NUMBER:
-                    return typeof(double);
-                case ClassTag.BOOLEAN:
-                    return typeof(bool);
-                case ClassTag.STRING:
-                    return typeof(string);
-                default:
-                    return klass.underlyingType;
-            }
+            return klass.tag switch {
+                ClassTag.INT => typeof(int),
+                ClassTag.UINT => typeof(uint),
+                ClassTag.NUMBER => typeof(double),
+                ClassTag.BOOLEAN => typeof(bool),
+                ClassTag.STRING => typeof(string),
+                _ => klass.underlyingType,
+            };
         }
 
         /// <summary>

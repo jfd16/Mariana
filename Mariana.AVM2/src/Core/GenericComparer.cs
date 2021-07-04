@@ -114,18 +114,13 @@ namespace Mariana.AVM2.Core {
         /// comparer may throw invalid conversion errors.
         /// </remarks>
         public static GenericComparer<T> getComparer(GenericComparerType type) {
-            switch (type) {
-                case GenericComparerType.DEFAULT:
-                    return defaultComparer;
-                case GenericComparerType.NUMERIC:
-                    return s_lazyComparerSet.value.numericCmp;
-                case GenericComparerType.STRING:
-                    return s_lazyComparerSet.value.stringCmp;
-                case GenericComparerType.STRING_IGNORECASE:
-                    return s_lazyComparerSet.value.stringCmpIgnoreCase;
-                default:
-                    throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_OUT_OF_RANGE, nameof(type));
-            }
+            return type switch {
+                GenericComparerType.DEFAULT => defaultComparer,
+                GenericComparerType.NUMERIC => s_lazyComparerSet.value.numericCmp,
+                GenericComparerType.STRING => s_lazyComparerSet.value.stringCmp,
+                GenericComparerType.STRING_IGNORECASE => s_lazyComparerSet.value.stringCmpIgnoreCase,
+                _ => throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_OUT_OF_RANGE, nameof(type)),
+            };
         }
 
         /// <summary>

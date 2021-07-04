@@ -3809,7 +3809,7 @@ namespace Mariana.AVM2.Core {
             int len = (int)Math.Min(m_length, (uint)Int32.MaxValue);
             var strings = new string[len];
 
-            string callToLocaleStringOnElement(ASAny elem) {
+            static string callToLocaleStringOnElement(ASAny elem) {
                 if (elem.value == null)
                     return null;
 

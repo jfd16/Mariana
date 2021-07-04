@@ -21,18 +21,21 @@ namespace Mariana.CodeGen {
 
         private EntityHandle m_eventTypeHandle;
 
-        private MethodBuilder m_add;
+        private MethodBuilder? m_add;
 
-        private MethodBuilder m_remove;
+        private MethodBuilder? m_remove;
 
-        private MethodBuilder m_fire;
+        private MethodBuilder? m_fire;
 
         private DynamicArray<MethodBuilder> m_otherMethods;
 
         internal EventBuilder(
-            TypeBuilder declaringType, string name, EventAttributes attrs,
-            StringHandle nameHandle, EntityHandle eventTypeHandle)
-        {
+            TypeBuilder declaringType,
+            string name,
+            EventAttributes attrs,
+            StringHandle nameHandle,
+            EntityHandle eventTypeHandle
+        ) {
             m_declType = declaringType;
             m_name = name;
             m_attrs = attrs;

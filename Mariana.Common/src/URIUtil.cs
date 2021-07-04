@@ -23,7 +23,7 @@ namespace Mariana.Common {
         /// <param name="encodedURI">The encoded URI string.</param>
         ///
         /// <returns>True if the URI was encoded successfully, false if it is invalid.</returns>
-        public static bool tryEncode(string uri, string noEscapeChars, bool failOnInvalidSurrogate, out string encodedURI) {
+        public static bool tryEncode(string uri, string noEscapeChars, bool failOnInvalidSurrogate, out string? encodedURI) {
             if (uri == null) {
                 encodedURI = null;
                 return false;
@@ -125,13 +125,13 @@ namespace Mariana.Common {
         ///
         /// <returns>True if <paramref name="uri"/> was decoded successfully, otherwise
         /// false.</returns>
-        public static bool tryDecode(string uri, string noDecodeChars, bool failOnInvalidSurrogate, out string decodedURI) {
+        public static bool tryDecode(string uri, string noDecodeChars, bool failOnInvalidSurrogate, out string? decodedURI) {
             if (uri == null) {
                 decodedURI = null;
                 return false;
             }
 
-            char[] buffer = null;
+            char[]? buffer = null;
             int bufPos = 0;
 
             ReadOnlySpan<char> uriSpan = uri;
@@ -142,6 +142,7 @@ namespace Mariana.Common {
                 if (buffer == null) {
                     if (pcIndex == -1)
                         break;
+
                     buffer = new char[uri.Length];
                 }
 

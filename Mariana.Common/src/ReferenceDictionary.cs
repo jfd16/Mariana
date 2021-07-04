@@ -20,7 +20,7 @@ namespace Mariana.Common {
     public sealed class ReferenceDictionary<TKey, TValue> : IEnumerable<KeyValuePair<TKey, TValue>> where TKey : class {
 
         private struct Slot {
-            internal TKey key;         // Key of the slot
+            internal TKey? key;        // Key of the slot
             internal int next;         // Index of the next slot in a linked list
             internal TValue value;     // The value of the slot
             internal bool hasValue;    // True if the slot is used, otherwise false
@@ -79,7 +79,7 @@ namespace Mariana.Common {
         /// <param name="value">The value of the entry with the given key, or the default value of
         /// the value type if no entry with that key exists.</param>
         /// <returns>True if an entry exists with the given key, false otherwise.</returns>
-        public bool tryGetValue(TKey key, out TValue value) {
+        public bool tryGetValue(TKey key, out TValue? value) {
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
@@ -95,7 +95,7 @@ namespace Mariana.Common {
                 i = slot.next;
             }
 
-            value = default(TValue);
+            value = default;
             return false;
         }
 
@@ -118,8 +118,8 @@ namespace Mariana.Common {
         /// <returns>The value associated with the given key in the dictionary, or the default
         /// value of <typeparamref name="TValue"/> if no entry with the key exists.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="key"/> is null.</exception>
-        public TValue getValueOrDefault(TKey key) {
-            tryGetValue(key, out TValue value);
+        public TValue? getValueOrDefault(TKey key) {
+            tryGetValue(key, out TValue? value);
             return value;
         }
 
@@ -229,7 +229,8 @@ namespace Mariana.Common {
                     slot.key = null;
                     slot.next = m_emptyChain;
                     slot.hasValue = false;
-                    slot.value = default(TValue);
+                    slot.value = default(TValue)!;
+
                     m_emptyChain = i;
                     m_emptyCount++;
                     return true;
@@ -308,7 +309,7 @@ namespace Mariana.Common {
             public KeyValuePair<TKey, TValue> Current {
                 get {
                     ref var slot = ref m_slots[m_index];
-                    return new KeyValuePair<TKey, TValue>(slot.key, slot.value);
+                    return new KeyValuePair<TKey, TValue>(slot.key!, slot.value);
                 }
             }
 

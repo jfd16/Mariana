@@ -55,7 +55,7 @@ namespace Mariana.Common {
         /// compatible with the delegate type <typeparamref name="T"/>, and <paramref name="throwOnFail"/>
         /// is true.</exception>
         public static T makeDelegate<T>(
-            MethodInfo method, object target = null, bool throwOnFail = false) where T : Delegate
+            MethodInfo method, object? target = null, bool throwOnFail = false) where T : Delegate
         {
             if (target == null)
                 return (T)Delegate.CreateDelegate(typeof(T), method, throwOnFail);
@@ -75,7 +75,7 @@ namespace Mariana.Common {
         /// <exception cref="ArgumentNullException"><paramref name="method"/> is null.</exception>
         /// <exception cref="ArgumentException">The signature of <paramref name="method"/> is not
         /// compatible with the delegate type <typeparamref name="T"/>.</exception>
-        public static T makeDelegate<T>(DynamicMethod method, object target = null) where T : Delegate {
+        public static T makeDelegate<T>(DynamicMethod method, object? target = null) where T : Delegate {
             if (method == null)
                 throw new ArgumentNullException(nameof(method));
 

@@ -527,7 +527,7 @@ namespace Mariana.AVM2.Core {
 
                 long delta = (long)adjustmentRule.DaylightDelta.TotalMilliseconds;
 
-                DSTTransition createTransition(TimeZoneInfo.TransitionTime transitionTime) {
+                static DSTTransition createTransition(TimeZoneInfo.TransitionTime transitionTime) {
                     int timeOfDay =
                         transitionTime.TimeOfDay.Hour * MS_PER_HOUR
                         + transitionTime.TimeOfDay.Minute * MS_PER_MIN

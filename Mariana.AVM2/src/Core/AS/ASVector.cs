@@ -1098,7 +1098,7 @@ namespace Mariana.AVM2.Core {
             if (m_length == 0)
                 return "";
 
-            sep = sep ?? "";
+            sep ??= "";
             string[] stringsToJoin = new string[m_length];
             GenericTypeConverter<T, string>.instance.convertSpan(asSpan(), stringsToJoin);
 

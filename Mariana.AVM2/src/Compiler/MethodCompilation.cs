@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Mariana.AVM2.ABC;
 using Mariana.AVM2.Core;
@@ -413,7 +414,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="nodeId">The id of the data node.</param>
         /// <returns>A read-only span containing <see cref="DataNodeOrInstrRef"/> instances representing the
         /// definitions for the node.</returns>
-        public ReadOnlySpan<DataNodeOrInstrRef> getDataNodeDefs(int nodeId) => getDataNodeDefs(ref m_dataNodes[nodeId]);
+        public ReadOnlySpan<DataNodeOrInstrRef> getDataNodeDefs(int nodeId) => getDataNodeDefs(m_dataNodes[nodeId]);
 
         /// <summary>
         /// Returns a read-only span containing the data flow uses for the data node with the given id.
@@ -421,21 +422,21 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="nodeId">The id of the data node.</param>
         /// <returns>A read-only span containing <see cref="DataNodeOrInstrRef"/> instances representing the
         /// uses for the node.</returns>
-        public ReadOnlySpan<DataNodeOrInstrRef> getDataNodeUses(int nodeId) => getDataNodeUses(ref m_dataNodes[nodeId]);
+        public ReadOnlySpan<DataNodeOrInstrRef> getDataNodeUses(int nodeId) => getDataNodeUses(m_dataNodes[nodeId]);
 
         /// <summary>
         /// Returns the number of data flow definitions for the data node with the given id.
         /// </summary>
         /// <param name="nodeId">The id of the data node.</param>
         /// <returns>The number of data flow definitions for the data node with the given id.</returns>
-        public int getDataNodeDefCount(int nodeId) => getDataNodeDefCount(ref m_dataNodes[nodeId]);
+        public int getDataNodeDefCount(int nodeId) => getDataNodeDefCount(m_dataNodes[nodeId]);
 
         /// <summary>
         /// Returns the number of data flow uses for the data node with the given id.
         /// </summary>
         /// <param name="nodeId">The id of the data node.</param>
         /// <returns>The number of data flow uses for the data node with the given id.</returns>
-        public int getDataNodeUseCount(int nodeId) => getDataNodeUseCount(ref m_dataNodes[nodeId]);
+        public int getDataNodeUseCount(int nodeId) => getDataNodeUseCount(m_dataNodes[nodeId]);
 
         /// <summary>
         /// Returns the node id of the stack item popped by the instruction with the given id.
@@ -443,7 +444,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="instrId">The id of the instruction.</param>
         /// <returns>The node id of the stack item popped by the instruction whose id is <paramref name="instrId"/>.
         /// If the instruction does not pop anything or pops more than one item, returns -1.</returns>
-        public int getInstructionStackPoppedNode(int instrId) => getInstructionStackPoppedNode(ref m_instructions[instrId]);
+        public int getInstructionStackPoppedNode(int instrId) => getInstructionStackPoppedNode(m_instructions[instrId]);
 
         /// <summary>
         /// Returns a read-only span containing the node ids of the stack items popped by
@@ -452,7 +453,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="instrId">The id of the instruction.</param>
         /// <returns>A read-only span containing the node ids of the stack items popped by
         /// the instruction whose id is <paramref name="instrId"/>.</returns>
-        public ReadOnlySpan<int> getInstructionStackPoppedNodes(int instrId) => getInstructionStackPoppedNodes(ref m_instructions[instrId]);
+        public ReadOnlySpan<int> getInstructionStackPoppedNodes(int instrId) => getInstructionStackPoppedNodes(m_instructions[instrId]);
 
         /// <summary>
         /// Returns the node id of the stack node popped by an instruction.
@@ -460,7 +461,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="instr">A reference to an <see cref="Instruction"/> instance.</param>
         /// <returns>The node id of the popped stack node, or -1 if the instruction does not
         /// pop anything or pops more than one item off the stack.</returns>
-        public int getInstructionStackPoppedNode(ref Instruction instr) =>
+        public int getInstructionStackPoppedNode(in Instruction instr) =>
             ((instr.flags & InstructionFlags.HAS_SINGLE_STACK_POP) != 0) ? instr.stackPoppedNodeIds.single : -1;
 
         /// <summary>
@@ -470,10 +471,15 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="instr">A reference to an <see cref="Instruction"/> instance.</param>
         /// <returns>A read-only span containing the node ids of the stack items popped by
         /// the instruction represented by <paramref name="instr"/>.</returns>
-        public ReadOnlySpan<int> getInstructionStackPoppedNodes(ref Instruction instr) {
-            return ((instr.flags & InstructionFlags.HAS_SINGLE_STACK_POP) != 0)
-                ? MemoryMarshal.CreateSpan(ref instr.stackPoppedNodeIds.single, 1)
-                : m_staticIntArrayPool.getSpan(instr.stackPoppedNodeIds.staticToken);
+        public ReadOnlySpan<int> getInstructionStackPoppedNodes(in Instruction instr) {
+            if ((instr.flags & InstructionFlags.HAS_SINGLE_STACK_POP) != 0) {
+                return MemoryMarshal.CreateReadOnlySpan(
+                    ref Unsafe.AsRef(in instr.stackPoppedNodeIds.single),
+                    length: 1
+                );
+            }
+
+            return m_staticIntArrayPool.getSpan(instr.stackPoppedNodeIds.staticToken);
         }
 
         /// <summary>
@@ -506,10 +512,15 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="node">A reference to a <see cref="DataNode"/> instance.</param>
         /// <returns>A span containing <see cref="DataNodeOrInstrRef"/> instances representing the
         /// definitions for the node.</returns>
-        public ReadOnlySpan<DataNodeOrInstrRef> getDataNodeDefs(ref DataNode node) {
-            return ((node.flags & DataNodeFlags.HAS_SINGLE_DEF) != 0)
-                ? MemoryMarshal.CreateSpan(ref DataNodeDUInfo.singleDef(ref node.defUseInfo), 1)
-                : m_dataNodeOrInstrRefArrayPool.getSpan(DataNodeDUInfo.defs(ref node.defUseInfo));
+        public ReadOnlySpan<DataNodeOrInstrRef> getDataNodeDefs(in DataNode node) {
+            if ((node.flags & DataNodeFlags.HAS_SINGLE_DEF) != 0) {
+                return MemoryMarshal.CreateReadOnlySpan(
+                    ref Unsafe.AsRef(in DataNodeDUInfo.singleDefReadonly(node.defUseInfo)),
+                    length: 1
+                );
+            }
+
+            return m_dataNodeOrInstrRefArrayPool.getSpan(DataNodeDUInfo.defsReadonly(node.defUseInfo));
         }
 
         /// <summary>
@@ -518,10 +529,15 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="node">A reference to a <see cref="DataNode"/> instance.</param>
         /// <returns>A read-only span containing <see cref="DataNodeOrInstrRef"/> instances representing the
         /// uses for the node.</returns>
-        public ReadOnlySpan<DataNodeOrInstrRef> getDataNodeUses(ref DataNode node) {
-            return ((node.flags & DataNodeFlags.HAS_SINGLE_USE) != 0)
-                ? MemoryMarshal.CreateSpan(ref DataNodeDUInfo.singleUse(ref node.defUseInfo), 1)
-                : m_dataNodeOrInstrRefArrayPool.getSpan(DataNodeDUInfo.uses(ref node.defUseInfo));
+        public ReadOnlySpan<DataNodeOrInstrRef> getDataNodeUses(in DataNode node) {
+            if ((node.flags & DataNodeFlags.HAS_SINGLE_USE) != 0) {
+                return MemoryMarshal.CreateReadOnlySpan(
+                    ref Unsafe.AsRef(in DataNodeDUInfo.singleUseReadonly(node.defUseInfo)),
+                    length: 1
+                );
+            }
+
+            return m_dataNodeOrInstrRefArrayPool.getSpan(DataNodeDUInfo.usesReadonly(node.defUseInfo));
         }
 
         /// <summary>
@@ -529,10 +545,11 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         /// <param name="node">A reference to a <see cref="DataNode"/> instance.</param>
         /// <returns>The number of data flow definitions for the given data node.</returns>
-        public int getDataNodeDefCount(ref DataNode node) {
+        public int getDataNodeDefCount(in DataNode node) {
             if ((node.flags & DataNodeFlags.HAS_SINGLE_DEF) != 0)
                 return 1;
-            return m_dataNodeOrInstrRefArrayPool.getLength(DataNodeDUInfo.defs(ref node.defUseInfo));
+
+            return m_dataNodeOrInstrRefArrayPool.getLength(DataNodeDUInfo.defsReadonly(node.defUseInfo));
         }
 
         /// <summary>
@@ -540,10 +557,11 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         /// <param name="node">A reference to a <see cref="DataNode"/> instance.</param>
         /// <returns>The number of data flow uses for the given data node.</returns>
-        public int getDataNodeUseCount(ref DataNode node) {
+        public int getDataNodeUseCount(in DataNode node) {
             if ((node.flags & DataNodeFlags.HAS_SINGLE_USE) != 0)
                 return 1;
-            return m_dataNodeOrInstrRefArrayPool.getLength(DataNodeDUInfo.uses(ref node.defUseInfo));
+
+            return m_dataNodeOrInstrRefArrayPool.getLength(DataNodeDUInfo.usesReadonly(node.defUseInfo));
         }
 
         /// <summary>
@@ -552,11 +570,11 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="node">A reference to a <see cref="DataNode"/> instance.</param>
         /// <returns>The id of the pushing instruction. If <paramref name="node"/> does not represent
         /// a node on the stack or is a phi node, returns -1.</returns>
-        public int getStackNodePushInstrId(ref DataNode node) {
+        public int getStackNodePushInstrId(in DataNode node) {
             if (node.slot.kind != DataNodeSlotKind.STACK)
                 return -1;
 
-            var defs = getDataNodeDefs(ref node);
+            var defs = getDataNodeDefs(node);
             if (defs.Length != 1 || !defs[0].isInstruction)
                 return -1;
 
@@ -924,32 +942,16 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="node">A reference to a data node.</param>
         /// <returns>The name of the data type of the given node.</returns>
         public string getDataNodeTypeName(in DataNode node) {
-            switch (node.dataType) {
-                case DataNodeType.UNKNOWN:
-                    return "?";
-
-                case DataNodeType.OBJECT:
-                    return node.constant.classValue.ToString();
-
-                case DataNodeType.CLASS:
-                    return "class " + node.constant.classValue.ToString();
-
-                case DataNodeType.THIS:
-                    return m_declClass.name.ToString();
-
-                case DataNodeType.GLOBAL:
-                    return "global";
-
-                case DataNodeType.ANY:
-                case DataNodeType.UNDEFINED:
-                    return "*";
-
-                case DataNodeType.NULL:
-                    return "null";
-
-                default:
-                    return DataNodeTypeHelper.getClass(node.dataType).name.ToString();
-            }
+            return node.dataType switch {
+                DataNodeType.UNKNOWN => "?",
+                DataNodeType.OBJECT => node.constant.classValue.ToString(),
+                DataNodeType.CLASS => "class " + node.constant.classValue.ToString(),
+                DataNodeType.THIS => m_declClass.name.ToString(),
+                DataNodeType.GLOBAL => "global",
+                DataNodeType.ANY or DataNodeType.UNDEFINED => "*",
+                DataNodeType.NULL => "null",
+                _ => DataNodeTypeHelper.getClass(node.dataType).name.ToString(),
+            };
         }
 
         /// <summary>
@@ -1087,8 +1089,8 @@ namespace Mariana.AVM2.Compiler {
                         throw createError(ErrorCode.MARIANA__ABC_ACTIVATION_INVALID_TRAIT_KIND, (int)kind);
                 }
 
-                using (var lockedContext = getContext())
-                    m_activationClass = lockedContext.value.createActivationClass(traits);
+                using var lockedContext = getContext();
+                m_activationClass = lockedContext.value.createActivationClass(traits);
             }
 
             return m_activationClass;

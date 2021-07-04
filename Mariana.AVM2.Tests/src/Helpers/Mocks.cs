@@ -252,10 +252,9 @@ namespace Mariana.AVM2.Tests.Helpers {
             if (isReadOnly)
                 return BindStatus.FAILED_WRITEONLY;
 
-            if (m_setValueFunc != null)
-                m_setValueFunc(target, value);
-
+            m_setValueFunc?.Invoke(target, value);
             m_records.add(new MockCallRecord(target.value, new[] {target, value}, retval: default, isConstruct: false));
+
             return BindStatus.SUCCESS;
         }
 

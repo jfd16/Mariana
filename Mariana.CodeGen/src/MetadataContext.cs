@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
-using System.Collections.Generic;
 using Mariana.CodeGen.IL;
 using Mariana.Common;
 
@@ -41,35 +41,27 @@ namespace Mariana.CodeGen {
         private static readonly StringHandle s_nullStringHandle = MetadataTokens.StringHandle(0);
         private static readonly BlobHandle s_nullBlobHandle = MetadataTokens.BlobHandle(0);
 
-        private ReferenceDictionary<Type, EntityHandle> m_extTypeHandleCache =
-            new ReferenceDictionary<Type, EntityHandle>();
+        private ReferenceDictionary<Type, EntityHandle> m_extTypeHandleCache = new();
 
-        private Dictionary<TypeSignature, TypeSpecificationHandle> m_typeSpecCache =
-            new Dictionary<TypeSignature, TypeSpecificationHandle>();
+        private Dictionary<TypeSignature, TypeSpecificationHandle> m_typeSpecCache = new();
 
-        private ReferenceDictionary<Type, TypeSignature> m_typeSignatureCache =
-            new ReferenceDictionary<Type, TypeSignature>();
+        private ReferenceDictionary<Type, TypeSignature> m_typeSignatureCache = new();
 
-        private ReferenceDictionary<MemberInfo, EntityHandle> m_extMemberHandleCache =
-            new ReferenceDictionary<MemberInfo, EntityHandle>();
+        private ReferenceDictionary<MemberInfo, EntityHandle> m_extMemberHandleCache = new();
 
-        private ReferenceDictionary<MemberInfo, BlobHandle> m_memberSigBlobCache =
-            new ReferenceDictionary<MemberInfo, BlobHandle>();
+        private ReferenceDictionary<MemberInfo, BlobHandle> m_memberSigBlobCache = new();
 
-        private Dictionary<InstantiatedMemberRef, EntityHandle> m_instantiatedMemberRefCache =
-            new Dictionary<InstantiatedMemberRef, EntityHandle>();
+        private Dictionary<InstantiatedMemberRef, EntityHandle> m_instantiatedMemberRefCache = new();
 
-        private ReferenceDictionary<Assembly, AssemblyReferenceHandle> m_assemblyRefCache =
-            new ReferenceDictionary<Assembly, AssemblyReferenceHandle>();
+        private ReferenceDictionary<Assembly, AssemblyReferenceHandle> m_assemblyRefCache = new();
 
-        private IndexedSet<MethodInstantiation> m_methodSpecEntries = new IndexedSet<MethodInstantiation>();
+        private IndexedSet<MethodInstantiation> m_methodSpecEntries = new();
 
         private MetadataBuilder m_metadataBuilder;
 
-        private ConcurrentBag<BlobBuilder> m_internalBlobBuilders = new ConcurrentBag<BlobBuilder>();
+        private ConcurrentBag<BlobBuilder> m_internalBlobBuilders = new();
 
-        private ConcurrentDictionary<EntityHandle, MethodStackChangeInfo> m_methodTokenStackInfo =
-            new ConcurrentDictionary<EntityHandle, MethodStackChangeInfo>();
+        private ConcurrentDictionary<EntityHandle, MethodStackChangeInfo> m_methodTokenStackInfo = new();
 
         private ILTokenProvider m_ilTokenProvider;
 
@@ -103,12 +95,12 @@ namespace Mariana.CodeGen {
         /// exist in the heap, a new string heap entry is created.
         /// </summary>
         /// <param name="str">The string whose string heap handle is to be returned.</param>
-        internal StringHandle getStringHandle(string str) {
+        internal StringHandle getStringHandle(string? str) {
             lock (m_contextLock)
                 return _getStringHandleInternal(str);
         }
 
-        private StringHandle _getStringHandleInternal(string str) =>
+        private StringHandle _getStringHandleInternal(string? str) =>
             (str == null) ? s_nullStringHandle : m_metadataBuilder.GetOrAddString(str);
 
         /// <summary>
@@ -116,12 +108,12 @@ namespace Mariana.CodeGen {
         /// exist in the heap, a new blob heap entry is created.
         /// </summary>
         /// <param name="blob">The byte array whose blob heap handle is to be returned.</param>
-        internal BlobHandle getBlobHandle(byte[] blob) {
+        internal BlobHandle getBlobHandle(byte[]? blob) {
             lock (m_contextLock)
                 return _getBlobHandleInternal(blob);
         }
 
-        private BlobHandle _getBlobHandleInternal(byte[] blob) =>
+        private BlobHandle _getBlobHandleInternal(byte[]? blob) =>
             (blob == null) ? s_nullBlobHandle : m_metadataBuilder.GetOrAddBlob(blob);
 
         private BlobBuilder _acquireBlobBuilder() {
@@ -238,7 +230,7 @@ namespace Mariana.CodeGen {
             if (firstByte == (byte)SignatureTypeKind.Class || firstByte == (byte)SignatureTypeKind.ValueType)
                 return signature.getHandleOfClassOrValueType();
 
-            Type primitiveType = signature.getPrimitiveType();
+            Type? primitiveType = signature.getPrimitiveType();
             if (primitiveType != null)
                 return getTypeHandle(primitiveType);
 
@@ -365,7 +357,7 @@ namespace Mariana.CodeGen {
                     _getTypeSignatureInternal(field.FieldType, true).writeToBlobBuilder(blob);
                 }
                 else if (memberInfo is MethodBase methodOrCtor) {
-                    ParameterInfo retParam = (methodOrCtor is MethodInfo method) ? method.ReturnParameter : null;
+                    ParameterInfo? retParam = (methodOrCtor is MethodInfo method) ? method.ReturnParameter : null;
                     ParameterInfo[] parameters = methodOrCtor.GetParameters();
                     CallingConventions callConv = methodOrCtor.CallingConvention;
                     int genParamCount = methodOrCtor.IsGenericMethod ? methodOrCtor.GetGenericArguments().Length : 0;
@@ -684,9 +676,13 @@ namespace Mariana.CodeGen {
         }
 
         private void _writeExternalMethodSigToBlob(
-            CallingConventions callConv, int genParamCount,
-            Type declaringType, ParameterInfo retParam, ParameterInfo[] parameters, BlobBuilder blob)
-        {
+            CallingConventions callConv,
+            int genParamCount,
+            Type declaringType,
+            ParameterInfo? retParam,
+            ParameterInfo[] parameters,
+            BlobBuilder blob
+        ) {
             blob.WriteByte(_getFirstByteOfMethodSig(callConv, genParamCount));
 
             if (genParamCount != 0)

@@ -133,38 +133,17 @@ namespace Mariana.AVM2.Core {
         ///
         /// <returns>An <see cref="AVM2Exception"/> instance that can be thrown.</returns>
         public static AVM2Exception createBindingError(string className, string traitName, BindStatus bindStatus) {
-            switch (bindStatus) {
-                case BindStatus.AMBIGUOUS:
-                    return createError(ErrorCode.AMBIGUOUS_NAME_MATCH, traitName);
-
-                case BindStatus.FAILED_ASSIGNMETHOD:
-                    return createError(ErrorCode.CANNOT_ASSIGN_TO_METHOD, traitName, className);
-
-                case BindStatus.FAILED_CREATEDYNAMICNONPUBLIC:
-                    return createError(ErrorCode.CANNOT_CREATE_PROPERTY, traitName, className);
-
-                case BindStatus.FAILED_METHODCONSTRUCT:
-                    return createError(ErrorCode.CANNOT_CALL_METHOD_AS_CTOR, traitName, className);
-
-                case BindStatus.FAILED_NOTCONSTRUCTOR:
-                    return createError(ErrorCode.INSTANTIATE_NON_CONSTRUCTOR);
-
-                case BindStatus.FAILED_NOTFUNCTION:
-                    return createError(ErrorCode.INVOKE_NON_FUNCTION, traitName);
-
-                case BindStatus.FAILED_READONLY:
-                case BindStatus.FAILED_ASSIGNCLASS:
-                    return createError(ErrorCode.ILLEGAL_WRITE_READONLY, traitName, className);
-
-                case BindStatus.FAILED_WRITEONLY:
-                    return createError(ErrorCode.ILLEGAL_READ_WRITEONLY, traitName, className);
-
-                case BindStatus.NOT_FOUND:
-                    return createError(ErrorCode.PROPERTY_NOT_FOUND, traitName, className);
-
-                default:
-                    return null;
-            }
+            return bindStatus switch {
+                BindStatus.AMBIGUOUS => createError(ErrorCode.AMBIGUOUS_NAME_MATCH, traitName),
+                BindStatus.FAILED_ASSIGNMETHOD => createError(ErrorCode.CANNOT_ASSIGN_TO_METHOD, traitName, className),
+                BindStatus.FAILED_CREATEDYNAMICNONPUBLIC => createError(ErrorCode.CANNOT_CREATE_PROPERTY, traitName, className),
+                BindStatus.FAILED_METHODCONSTRUCT => createError(ErrorCode.CANNOT_CALL_METHOD_AS_CTOR, traitName, className),
+                BindStatus.FAILED_NOTCONSTRUCTOR => createError(ErrorCode.INSTANTIATE_NON_CONSTRUCTOR),
+                BindStatus.FAILED_NOTFUNCTION => createError(ErrorCode.INVOKE_NON_FUNCTION, traitName),
+                BindStatus.FAILED_READONLY or BindStatus.FAILED_ASSIGNCLASS => createError(ErrorCode.ILLEGAL_WRITE_READONLY, traitName, className),
+                BindStatus.FAILED_WRITEONLY => createError(ErrorCode.ILLEGAL_READ_WRITEONLY, traitName, className),
+                BindStatus.NOT_FOUND => createError(ErrorCode.PROPERTY_NOT_FOUND, traitName, className)
+            };
         }
 
         /// <summary>

@@ -17,7 +17,7 @@ namespace Mariana.Common {
     /// </remarks>
     public struct DynamicArray<T> {
 
-        private T[] m_array;
+        private T[]? m_array;
         private int m_length;
 
         /// <summary>
@@ -70,6 +70,7 @@ namespace Mariana.Common {
         public DynamicArray(T[] underlyingArray, int initialSize) {
             if (underlyingArray == null)
                 throw new ArgumentNullException(nameof(underlyingArray));
+
             if ((uint)initialSize > (uint)underlyingArray.Length)
                 throw new ArgumentOutOfRangeException(nameof(initialSize));
 
@@ -90,8 +91,10 @@ namespace Mariana.Common {
         public void setCapacity(int newCapacity) {
             if (newCapacity < m_length)
                 throw new ArgumentOutOfRangeException(nameof(newCapacity));
+
             if (m_array != null && newCapacity == m_array.Length)
                 return;
+
             _setCapacityInternal(newCapacity);
         }
 
@@ -132,7 +135,8 @@ namespace Mariana.Common {
                 int newCapacity = DataStructureUtil.getNextArraySize(m_length, m_length + 1);
                 _setCapacityInternal(newCapacity);
             }
-            m_array[m_length++] = item;
+
+            m_array![m_length++] = item;
         }
 
         /// <summary>
@@ -147,7 +151,8 @@ namespace Mariana.Common {
                 int newCapacity = DataStructureUtil.getNextArraySize(m_length, m_length + 1);
                 _setCapacityInternal(newCapacity);
             }
-            m_array[m_length++] = item;
+
+            m_array![m_length++] = item;
         }
 
         /// <summary>
@@ -269,7 +274,7 @@ namespace Mariana.Common {
 
             if (RuntimeHelpers.IsReferenceOrContainsReferences<T>()) {
                 if (count == 1)
-                    m_array[m_length - 1] = default(T);
+                    m_array[m_length - 1] = default(T)!;
                 else
                     m_array.AsSpan(m_length - count, count).Clear();
             }
@@ -289,7 +294,8 @@ namespace Mariana.Common {
         public void removeLast() {
             if (m_length == 0)
                 throw new InvalidOperationException("Cannot remove from an empty list.");
-            m_array[--m_length] = default(T);
+
+            m_array![--m_length] = default(T)!;
         }
 
         /// <summary>
@@ -304,7 +310,7 @@ namespace Mariana.Common {
         /// <see cref="setCapacity"/>), the span may no longer refer to the memory of the dynamic
         /// array.
         /// </remarks>
-        public Span<T> asSpan() => new Span<T>(m_array, 0, m_length);
+        public readonly Span<T> asSpan() => new Span<T>(m_array, 0, m_length);
 
         /// <summary>
         /// Gets a span that provides read-only access to the underlying memory of a segment of this array.
@@ -322,7 +328,7 @@ namespace Mariana.Common {
         /// <see cref="setCapacity"/>), the span may no longer refer to the memory of the dynamic
         /// array.
         /// </remarks>
-        public Span<T> asSpan(int start, int length) => new Span<T>(m_array, start, length);
+        public readonly Span<T> asSpan(int start, int length) => new Span<T>(m_array, start, length);
 
         /// <summary>
         /// Gets the array used as the underlying storage for this <see cref="DynamicArray{T}"/> instance.
@@ -339,7 +345,7 @@ namespace Mariana.Common {
         /// array, which may be greater than its current size. However, any elements beyond the
         /// current dynamic array size must not be modified.</para>
         /// </remarks>
-        public T[] getUnderlyingArray() => m_array ?? Array.Empty<T>();
+        public readonly T[] getUnderlyingArray() => m_array ?? Array.Empty<T>();
 
         /// <summary>
         /// Gets a <see cref="ReadOnlyArrayView{T}"/> instance providing read-only access to
@@ -356,7 +362,7 @@ namespace Mariana.Common {
         /// the returned <see cref="ReadOnlyArrayView{T}"/> may no longer refer to the memory of
         /// the dynamic array.
         /// </remarks>
-        public ReadOnlyArrayView<T> asReadOnlyArrayView() =>
+        public readonly ReadOnlyArrayView<T> asReadOnlyArrayView() =>
             (m_length == 0) ? ReadOnlyArrayView<T>.empty : new ReadOnlyArrayView<T>(m_array, 0, m_length);
 
         /// <summary>
@@ -372,12 +378,12 @@ namespace Mariana.Common {
         /// <para>If <paramref name="index"/> is out of bounds, this indexer may or may not throw
         /// an exception.</para>
         /// </remarks>
-        public ref T this[int index] => ref m_array[index];
+        public readonly ref T this[int index] => ref m_array![index];
 
         /// <summary>
         /// The current size of the array.
         /// </summary>
-        public int length => m_length;
+        public readonly int length => m_length;
 
         /// <summary>
         /// Gets an array containing the elements of this <see cref="DynamicArray{T}"/>.
@@ -388,11 +394,12 @@ namespace Mariana.Common {
         /// method may return the underlying array of this <see cref="DynamicArray{T}"/>, if its
         /// length is equal to the value of <see cref="length"/>.</param>
         /// <returns>An array containing the elements of this <see cref="DynamicArray{T}"/>.</returns>
-        public T[] toArray(bool alwaysCopy = false) {
+        public readonly T[] toArray(bool alwaysCopy = false) {
             if (m_length == 0)
                 return Array.Empty<T>();
-            if (m_length == m_array.Length && !alwaysCopy)
-                return m_array;
+
+            if (m_length == m_array!.Length && !alwaysCopy)
+                return m_array!;
 
             return asSpan().ToArray();
         }

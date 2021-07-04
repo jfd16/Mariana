@@ -7,12 +7,12 @@ namespace Mariana.Common {
     /// A structure wrapping an object that provides reference equality semantics.
     /// </summary>
     /// <typeparam name="T">The type of the object.</typeparam>
-    public readonly struct RefWrapper<T> : IEquatable<RefWrapper<T>>, IEquatable<T> where T : class {
+    public readonly struct RefWrapper<T> : IEquatable<RefWrapper<T>>, IEquatable<T> where T : class? {
 
         /// <summary>
         /// A <see cref="RefWrapper{T}"/> that holds a null reference.
         /// </summary>
-        public static readonly RefWrapper<T> nullRef = default;
+        public static readonly RefWrapper<T?> nullRef = default;
 
         /// <summary>
         /// The reference to the object contained in this <see cref="RefWrapper{T}"/> instance.

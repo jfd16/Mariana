@@ -20,7 +20,7 @@ namespace Mariana.Common {
     public sealed class ReferenceSet<T> : IEnumerable<T> where T : class {
 
         private struct Slot {
-            internal T value;        // Object key of the slot
+            internal T? value;        // Object key of the slot
             internal int next;       // Next slot in linked list
             internal bool hasValue;  // True if the slot is used, otherwise false
         }
@@ -214,7 +214,7 @@ namespace Mariana.Common {
             for (int i = 0; i < otherSlots.Length; i++) {
                 ref Slot otherSlot = ref otherSlots[i];
                 if (otherSlot.hasValue)
-                    add(otherSlot.value);
+                    add(otherSlot.value!);
             }
         }
 
@@ -244,7 +244,7 @@ namespace Mariana.Common {
                     ref Slot slot = ref slots[j];
 
                     int next = slot.next;
-                    if (!otherSet.find(slot.value)) {
+                    if (!otherSet.find(slot.value!)) {
                         if (prev == -1)
                             chains[i] = next;
                         else
@@ -272,10 +272,10 @@ namespace Mariana.Common {
         /// </summary>
         /// <returns>An array containing all the items in the set.</returns>
         public T[] toArray() {
-            DynamicArray<T> list = new DynamicArray<T>(m_count - m_emptyCount);
+            var list = new DynamicArray<T>(m_count - m_emptyCount);
             for (int i = 0, n = m_count; i < n; i++) {
                 if (m_slots[i].hasValue)
-                    list.add(m_slots[i].value);
+                    list.add(m_slots[i].value!);
             }
             return list.toArray();
         }
@@ -332,7 +332,7 @@ namespace Mariana.Common {
             /// Returns the key-value pair at the iterator's current position.
             /// </summary>
             /// <value>The key-value pair of the dictionary at the iterator's current position.</value>
-            public T Current => m_slots[m_index].value;
+            public T Current => m_slots[m_index].value!;
 
             /// <exclude/>
             public void Reset() => throw new NotImplementedException();

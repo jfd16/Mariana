@@ -75,10 +75,10 @@ namespace Mariana.AVM2.Core {
             if (parent == null || parent.m_valueType != child.m_valueType)
                 return child;
 
-            child.m_getMethod = child.m_getMethod ?? parent.m_getMethod;
-            child.m_setMethod = child.m_setMethod ?? parent.m_setMethod;
-            child.m_hasMethod = child.m_hasMethod ?? parent.m_hasMethod;
-            child.m_deleteMethod = child.m_deleteMethod ?? parent.m_deleteMethod;
+            child.m_getMethod ??= parent.m_getMethod;
+            child.m_setMethod ??= parent.m_setMethod;
+            child.m_hasMethod ??= parent.m_hasMethod;
+            child.m_deleteMethod ??= parent.m_deleteMethod;
 
             return child;
         }

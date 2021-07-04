@@ -121,7 +121,7 @@ namespace Mariana.AVM2.Core {
             return sb.ToString();
 
             void appendEscaped(string strToEscape) {
-                strToEscape = strToEscape ?? "null";
+                strToEscape ??= "null";
                 bool mustEscape = strToEscape.Length == 0;
 
                 for (int i = 0; i < strToEscape.Length && !mustEscape; i++) {

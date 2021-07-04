@@ -1106,16 +1106,11 @@ namespace Mariana.AVM2.Core {
             if (keyObj == null)
                 return null;
 
-            switch (keyObj.AS_class.tag) {
-                case ClassTag.INT:
-                    return classSpecials.intIndexProperty ?? classSpecials.numberIndexProperty;
-                case ClassTag.UINT:
-                    return classSpecials.uintIndexProperty ?? classSpecials.numberIndexProperty;
-                case ClassTag.NUMBER:
-                    return classSpecials.numberIndexProperty;
-            }
-
-            return null;
+            return keyObj.AS_class.tag switch {
+                ClassTag.INT => classSpecials.intIndexProperty ?? classSpecials.numberIndexProperty,
+                ClassTag.UINT => classSpecials.uintIndexProperty ?? classSpecials.numberIndexProperty,
+                ClassTag.NUMBER => classSpecials.numberIndexProperty
+            };
         }
 
         /// <summary>
@@ -2072,30 +2067,19 @@ namespace Mariana.AVM2.Core {
             if (obj is ASAny any)
                 return any.value;
 
-            switch (Type.GetTypeCode(obj.GetType())) {
-                case TypeCode.Byte:
-                    return AS_fromInt((byte)obj);
-                case TypeCode.SByte:
-                    return AS_fromInt((sbyte)obj);
-                case TypeCode.Int16:
-                    return AS_fromInt((short)obj);
-                case TypeCode.UInt16:
-                    return AS_fromInt((ushort)obj);
-                case TypeCode.Int32:
-                    return AS_fromInt((int)obj);
-                case TypeCode.UInt32:
-                    return AS_fromUint((uint)obj);
-                case TypeCode.Single:
-                    return AS_fromNumber((float)obj);
-                case TypeCode.Double:
-                    return AS_fromNumber((double)obj);
-                case TypeCode.String:
-                    return AS_fromString((string)obj);
-                case TypeCode.Boolean:
-                    return AS_fromBoolean((bool)obj);
-            }
-
-            throw ErrorHelper.createError(ErrorCode.MARIANA__OBJECT_FROMPRIMITIVE_INVALID);
+            return Type.GetTypeCode(obj.GetType()) switch {
+                TypeCode.Byte => AS_fromInt((byte)obj),
+                TypeCode.SByte => AS_fromInt((sbyte)obj),
+                TypeCode.Int16 => AS_fromInt((short)obj),
+                TypeCode.UInt16 => AS_fromInt((ushort)obj),
+                TypeCode.Int32 => AS_fromInt((int)obj),
+                TypeCode.UInt32 => AS_fromUint((uint)obj),
+                TypeCode.Single => AS_fromNumber((float)obj),
+                TypeCode.Double => AS_fromNumber((double)obj),
+                TypeCode.String => AS_fromString((string)obj),
+                TypeCode.Boolean => AS_fromBoolean((bool)obj),
+                _ => throw ErrorHelper.createError(ErrorCode.MARIANA__OBJECT_FROMPRIMITIVE_INVALID),
+            };
         }
 
         /// <summary>
@@ -2647,7 +2631,7 @@ namespace Mariana.AVM2.Core {
         /// </list>
         /// </exception>
         public static bool AS_isType(ASObject obj, ASObject typeObj) {
-            if (!(typeObj is ASClass klass))
+            if (typeObj is not ASClass klass)
                 throw ErrorHelper.createError(ErrorCode.IS_AS_NOT_CLASS);
 
             // The is and as operators are special-cased for numeric types: The is
@@ -2717,7 +2701,7 @@ namespace Mariana.AVM2.Core {
         /// class, an error is thrown.
         /// </remarks>
         public static ASObject AS_applyType(ASObject def, ReadOnlySpan<ASAny> typeParams) {
-            if (!(def is ASClass defClass))
+            if (def is not ASClass defClass)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__APPLYTYPE_NON_CLASS);
 
             Type underlyingType = defClass.internalClass.underlyingType;
@@ -3022,18 +3006,12 @@ namespace Mariana.AVM2.Core {
         /// <returns>A hash code for this instance that is suitable for use in hashing algorithms and
         /// data structures such as a hash table.</returns>
         public sealed override int GetHashCode() {
-            switch (AS_class.tag) {
-                case ClassTag.INT:
-                case ClassTag.UINT:
-                case ClassTag.NUMBER:
-                    return AS_coerceNumber().GetHashCode();
-                case ClassTag.STRING:
-                    return AS_coerceString().GetHashCode();
-                case ClassTag.FUNCTION:
-                    return ((ASFunction)this).internalGetHashCode();
-                default:
-                    return base.GetHashCode();
-            }
+            return AS_class.tag switch {
+                ClassTag.INT or ClassTag.UINT or ClassTag.NUMBER => AS_coerceNumber().GetHashCode(),
+                ClassTag.STRING => AS_coerceString().GetHashCode(),
+                ClassTag.FUNCTION => ((ASFunction)this).internalGetHashCode(),
+                _ => base.GetHashCode(),
+            };
         }
 
         /// <summary>

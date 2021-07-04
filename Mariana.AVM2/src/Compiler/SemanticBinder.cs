@@ -269,7 +269,7 @@ namespace Mariana.AVM2.Compiler {
                 node.constant = default;
                 node.flags &= ~(DataNodeFlags.CONSTANT | DataNodeFlags.NOT_NULL);
 
-                var sources = m_compilation.getDataNodeDefs(ref node);
+                var sources = m_compilation.getDataNodeDefs(node);
                 bool containsUnknownSource = false;
 
                 for (int j = 0; j < sources.Length; j++) {
@@ -752,7 +752,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="source">A reference to the source node containing type information.</param>
         /// <param name="dest">A reference to the destination node to which to copy type
         /// information from <paramref name="source"/>.</param>
-        private static void _copyDataNodeTypeInfo(ref DataNode source, ref DataNode dest) {
+        private static void _copyDataNodeTypeInfo(in DataNode source, ref DataNode dest) {
             dest.dataType = source.dataType;
             dest.constant = source.constant;
 
@@ -765,13 +765,13 @@ namespace Mariana.AVM2.Compiler {
         private void _visitGetLocal(ref Instruction instr) {
             ref DataNode pushed = ref m_compilation.getDataNode(instr.stackPushedNodeId);
             ref DataNode local = ref m_compilation.getDataNode(instr.data.getSetLocal.nodeId);
-            _copyDataNodeTypeInfo(ref local, ref pushed);
+            _copyDataNodeTypeInfo(local, ref pushed);
         }
 
         private void _visitSetLocal(ref Instruction instr) {
-            ref DataNode popped = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode popped = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
             ref DataNode local = ref m_compilation.getDataNode(instr.data.getSetLocal.newNodeId);
-            _copyDataNodeTypeInfo(ref popped, ref local);
+            _copyDataNodeTypeInfo(popped, ref local);
 
             m_localStateChangedFromLastVisit = true;
         }
@@ -790,7 +790,7 @@ namespace Mariana.AVM2.Compiler {
         private void _visitDup(ref Instruction instr) {
             ref DataNode source = ref m_compilation.getDataNode(instr.data.dupOrSwap.nodeId1);
             ref DataNode dest = ref m_compilation.getDataNode(instr.data.dupOrSwap.nodeId2);
-            _copyDataNodeTypeInfo(ref source, ref dest);
+            _copyDataNodeTypeInfo(source, ref dest);
         }
 
         private void _visitPushConst(ref Instruction instr) {
@@ -860,7 +860,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitPushScope(ref Instruction instr) {
-            ref DataNode popped = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode popped = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
             ref DataNode scope = ref m_compilation.getDataNode(instr.data.pushScope.pushedNodeId);
 
             if (isAnyOrUndefined(popped.dataType)) {
@@ -870,7 +870,7 @@ namespace Mariana.AVM2.Compiler {
                 scope.isNotNull = false;
             }
             else {
-                _copyDataNodeTypeInfo(ref popped, ref scope);
+                _copyDataNodeTypeInfo(popped, ref scope);
             }
 
             if (instr.opcode == ABCOp.pushwith)
@@ -894,11 +894,11 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode pushed = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
             instr.data.getScopeObject.nodeId = scope.id;
-            _copyDataNodeTypeInfo(ref scope, ref pushed);
+            _copyDataNodeTypeInfo(scope, ref pushed);
         }
 
         private void _visitCoerce(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
             if (input.dataType == DataNodeType.NULL) {
@@ -957,11 +957,11 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitConvertX(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
             if (instr.opcode == ABCOp.coerce_a) {
-                _copyDataNodeTypeInfo(ref input, ref output);
+                _copyDataNodeTypeInfo(input, ref output);
                 output.flags |= DataNodeFlags.LATE_MULTINAME_TRAIT_BINDING;
                 return;
             }
@@ -970,7 +970,7 @@ namespace Mariana.AVM2.Compiler {
             output.isNotNull = false;
             output.constant = default;
 
-            if (tryEvalConstUnaryOp(ref input, ref output, instr.opcode))
+            if (tryEvalConstUnaryOp(input, ref output, instr.opcode))
                 return;
 
             switch (instr.opcode) {
@@ -1010,35 +1010,26 @@ namespace Mariana.AVM2.Compiler {
         private void _visitUnaryArithmeticOp(ref Instruction instr) {
             // Handles bitnot, negate, negate_i, increment, decrement, increment_i, decrement_i, not
 
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
             output.isConstant = false;
             output.isNotNull = false;
             output.constant = default;
 
-            if (tryEvalConstUnaryOp(ref input, ref output, instr.opcode))
+            if (tryEvalConstUnaryOp(input, ref output, instr.opcode))
                 return;
 
-            switch (instr.opcode) {
-                case ABCOp.bitnot:
-                case ABCOp.negate_i:
-                case ABCOp.increment_i:
-                case ABCOp.decrement_i:
-                case ABCOp.sxi1:
-                case ABCOp.sxi8:
-                case ABCOp.sxi16:
-                    output.dataType = DataNodeType.INT;
-                    break;
+            output.dataType = instr.opcode switch {
+                ABCOp.bitnot
+                or ABCOp.negate_i
+                or ABCOp.increment_i or ABCOp.decrement_i
+                or ABCOp.sxi1 or ABCOp.sxi8 or ABCOp.sxi16 =>
+                    DataNodeType.INT,
 
-                case ABCOp.not:
-                    output.dataType = DataNodeType.BOOL;
-                    break;
-
-                default:
-                    output.dataType = DataNodeType.NUMBER;
-                    break;
-            }
+                ABCOp.not => DataNodeType.BOOL,
+                _ => DataNodeType.NUMBER,
+            };
 
             output.isNotNull = true;
         }
@@ -1053,7 +1044,7 @@ namespace Mariana.AVM2.Compiler {
 
             m_localStateChangedFromLastVisit = true;
 
-            if (tryEvalConstUnaryOp(ref input, ref output, instr.opcode))
+            if (tryEvalConstUnaryOp(input, ref output, instr.opcode))
                 return;
 
             output.dataType = (instr.opcode == ABCOp.inclocal_i || instr.opcode == ABCOp.declocal_i)
@@ -1109,7 +1100,7 @@ namespace Mariana.AVM2.Compiler {
         private void _visitAdd(ref Instruction instr) {
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
-            var inputIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var inputIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode input1 = ref m_compilation.getDataNode(inputIds[0]);
             ref DataNode input2 = ref m_compilation.getDataNode(inputIds[1]);
 
@@ -1118,7 +1109,7 @@ namespace Mariana.AVM2.Compiler {
             output.isConstant = false;
             output.isNotNull = false;
 
-            if (tryEvalConstBinaryOp(ref input1, ref input2, ref output, instr.opcode))
+            if (tryEvalConstBinaryOp(input1, input2, ref output, instr.opcode))
                 return;
 
             const int numberAddDataTypeMask =
@@ -1161,7 +1152,7 @@ namespace Mariana.AVM2.Compiler {
         private void _visitBinaryArithmeticOp(ref Instruction instr) {
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
-            var inputIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var inputIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode leftInput = ref m_compilation.getDataNode(inputIds[0]);
             ref DataNode rightInput = ref m_compilation.getDataNode(inputIds[1]);
 
@@ -1169,7 +1160,7 @@ namespace Mariana.AVM2.Compiler {
             output.isConstant = false;
             output.isNotNull = false;
 
-            if (tryEvalConstBinaryOp(ref leftInput, ref rightInput, ref output, instr.opcode))
+            if (tryEvalConstBinaryOp(leftInput, rightInput, ref output, instr.opcode))
                 return;
 
             ABCOp opcode = instr.opcode;
@@ -1216,7 +1207,7 @@ namespace Mariana.AVM2.Compiler {
         private void _visitBinaryCompareOp(ref Instruction instr) {
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
-            var inputIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var inputIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode input1 = ref m_compilation.getDataNode(inputIds[0]);
             ref DataNode input2 = ref m_compilation.getDataNode(inputIds[1]);
 
@@ -1224,7 +1215,7 @@ namespace Mariana.AVM2.Compiler {
             output.isConstant = false;
             output.isNotNull = false;
 
-            if (tryEvalConstCompareOp(ref input1, ref input2, ref output, instr.opcode))
+            if (tryEvalConstCompareOp(input1, input2, ref output, instr.opcode))
                 return;
 
             output.dataType = DataNodeType.BOOL;
@@ -1234,7 +1225,7 @@ namespace Mariana.AVM2.Compiler {
         private void _visitAsTypeLate(ref Instruction instr) {
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
-            var inputIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var inputIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode objectNode = ref m_compilation.getDataNode(inputIds[0]);
             ref DataNode typeNode = ref m_compilation.getDataNode(inputIds[1]);
 
@@ -1270,7 +1261,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitApplyType(ref Instruction instr) {
-            var inputIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var inputIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode defNode = ref m_compilation.getDataNode(inputIds[0]);
             ref DataNode resultNode = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
@@ -1351,7 +1342,7 @@ namespace Mariana.AVM2.Compiler {
                 _fixGenericPropertyMultiname(ref instr.data.accessProperty.multinameId, instr.id);
             }
 
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             var multiname = m_compilation.abcFile.resolveMultiname(instr.data.accessProperty.multinameId);
 
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.accessProperty.resolvedPropId);
@@ -1360,7 +1351,7 @@ namespace Mariana.AVM2.Compiler {
             // Fast path: if the object's type is unchanged from the last visit and there
             // are no runtime multiname arguments, no changes need to be made.
             if (!isFirstVisit && !multiname.hasRuntimeArguments
-                && _resolvedPropObjectTypeMatches(ref resolvedProp, ref objectNode))
+                && _resolvedPropObjectTypeMatches(resolvedProp, ref objectNode))
             {
                 return;
             }
@@ -1371,12 +1362,12 @@ namespace Mariana.AVM2.Compiler {
             bool isResolvedFromFindProp = false;
             if (!multiname.hasRuntimeArguments) {
                 isResolvedFromFindProp = _tryGetResolveInfoFromFindProp(
-                    ref objectNode, instr.data.accessProperty.multinameId, ref resolvedProp);
+                    objectNode, instr.data.accessProperty.multinameId, ref resolvedProp);
             }
 
             if (!isResolvedFromFindProp) {
                 _getRuntimeMultinameArgIds(stackPopIds.Slice(1), multiname, out int rtNsNodeId, out int rtNameNodeId);
-                _resolvePropertyOnObject(ref objectNode, multiname, rtNsNodeId, rtNameNodeId, instr.id, ref resolvedProp);
+                _resolvePropertyOnObject(objectNode, multiname, rtNsNodeId, rtNameNodeId, instr.id, ref resolvedProp);
             }
 
             switch (instr.opcode) {
@@ -1403,7 +1394,7 @@ namespace Mariana.AVM2.Compiler {
                 case ABCOp.setproperty:
                 case ABCOp.initproperty:
                 {
-                    ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[stackPopIds.Length - 1]);
+                    ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[^1]);
                     bool isInit = instr.opcode == ABCOp.initproperty;
                     _resolveSetProperty(ref resolvedProp, ref valueNode, isInit);
                     break;
@@ -1433,7 +1424,7 @@ namespace Mariana.AVM2.Compiler {
                 _fixGenericPropertyMultiname(ref instr.data.callProperty.multinameId, instr.id);
             }
 
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             var multiname = m_compilation.abcFile.resolveMultiname(instr.data.callProperty.multinameId);
 
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.callProperty.resolvedPropId);
@@ -1445,7 +1436,7 @@ namespace Mariana.AVM2.Compiler {
             // dependent on the types of the arguments.
             if (!isFirstVisit && !multiname.hasRuntimeArguments
                 && (resolvedProp.propKind != ResolvedPropertyKind.INTRINSIC || instr.data.callProperty.argCount == 0)
-                && _resolvedPropObjectTypeMatches(ref resolvedProp, ref objectNode))
+                && _resolvedPropObjectTypeMatches(resolvedProp, ref objectNode))
             {
                 return;
             }
@@ -1456,12 +1447,12 @@ namespace Mariana.AVM2.Compiler {
             bool isResolvedFromFindProp = false;
             if (!multiname.hasRuntimeArguments) {
                 isResolvedFromFindProp = _tryGetResolveInfoFromFindProp(
-                    ref objectNode, instr.data.callProperty.multinameId, ref resolvedProp);
+                    objectNode, instr.data.callProperty.multinameId, ref resolvedProp);
             }
 
             if (!isResolvedFromFindProp) {
                 _getRuntimeMultinameArgIds(stackPopIds.Slice(1), multiname, out int rtNsNodeId, out int rtNameNodeId);
-                _resolvePropertyOnObject(ref objectNode, multiname, rtNsNodeId, rtNameNodeId, instr.id, ref resolvedProp);
+                _resolvePropertyOnObject(objectNode, multiname, rtNsNodeId, rtNameNodeId, instr.id, ref resolvedProp);
             }
 
             var argsOnStackIds = stackPopIds.Slice(stackPopIds.Length - instr.data.callProperty.argCount);
@@ -1480,7 +1471,7 @@ namespace Mariana.AVM2.Compiler {
             if (isFirstVisit)
                 instr.data.accessProperty.resolvedPropId = m_compilation.createResolvedProperty().id;
 
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             var multiname = m_compilation.abcFile.resolveMultiname(instr.data.accessProperty.multinameId);
 
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.accessProperty.resolvedPropId);
@@ -1502,7 +1493,7 @@ namespace Mariana.AVM2.Compiler {
                 _resolveGetProperty(ref resolvedProp, ref resultNode);
             }
             else {
-                ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[stackPopIds.Length - 1]);
+                ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[^1]);
                 _resolveSetProperty(ref resolvedProp, ref valueNode, isInit: false);
             }
         }
@@ -1511,7 +1502,7 @@ namespace Mariana.AVM2.Compiler {
             if (isFirstVisit)
                 instr.data.callProperty.resolvedPropId = m_compilation.createResolvedProperty().id;
 
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             var multiname = m_compilation.abcFile.resolveMultiname(instr.data.callProperty.multinameId);
 
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.callProperty.resolvedPropId);
@@ -1536,7 +1527,7 @@ namespace Mariana.AVM2.Compiler {
             if (!isFirstVisit)
                 return;
 
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
 
             if (objectNode.dataType != DataNodeType.THIS || m_compilation.getCurrentConstructor() == null)
@@ -1547,21 +1538,21 @@ namespace Mariana.AVM2.Compiler {
             if (isFirstVisit)
                 instr.data.getSetSlot.resolvedPropId = m_compilation.createResolvedProperty().id;
 
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.getSetSlot.resolvedPropId);
 
-            if (!isFirstVisit && _resolvedPropObjectTypeMatches(ref resolvedProp, ref objectNode))
+            if (!isFirstVisit && _resolvedPropObjectTypeMatches(resolvedProp, ref objectNode))
                 return;
 
-            _resolveSlotOnObject(ref objectNode, instr.data.getSetSlot.slotId, instr.id, ref resolvedProp);
+            _resolveSlotOnObject(objectNode, instr.data.getSetSlot.slotId, instr.id, ref resolvedProp);
 
             if (instr.opcode == ABCOp.getslot) {
                 ref DataNode resultNode = ref m_compilation.getDataNode(instr.stackPushedNodeId);
                 _resolveGetProperty(ref resolvedProp, ref resultNode);
             }
             else {
-                ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[stackPopIds.Length - 1]);
+                ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[^1]);
                 _resolveSetProperty(ref resolvedProp, ref valueNode, isInit: false);
             }
         }
@@ -1572,7 +1563,7 @@ namespace Mariana.AVM2.Compiler {
 
             instr.data.getSetSlot.resolvedPropId = m_compilation.createResolvedProperty().id;
 
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.getSetSlot.resolvedPropId);
 
             int slotId = instr.data.getSetSlot.slotId;
@@ -1592,7 +1583,7 @@ namespace Mariana.AVM2.Compiler {
                 _resolveGetProperty(ref resolvedProp, ref resultNode);
             }
             else {
-                ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[stackPopIds.Length - 1]);
+                ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[^1]);
                 _resolveSetProperty(ref resolvedProp, ref valueNode, isInit: false);
             }
         }
@@ -1601,7 +1592,7 @@ namespace Mariana.AVM2.Compiler {
             if (isFirstVisit)
                 instr.data.callOrConstruct.resolvedPropId = m_compilation.createResolvedProperty().id;
 
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode function = ref m_compilation.getDataNode(stackPopIds[0]);
 
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.callOrConstruct.resolvedPropId);
@@ -1627,7 +1618,7 @@ namespace Mariana.AVM2.Compiler {
             if (isFirstVisit)
                 instr.data.callOrConstruct.resolvedPropId = m_compilation.createResolvedProperty().id;
 
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode function = ref m_compilation.getDataNode(stackPopIds[0]);
 
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.callOrConstruct.resolvedPropId);
@@ -1649,7 +1640,7 @@ namespace Mariana.AVM2.Compiler {
             if (isFirstVisit)
                 instr.data.callMethod.resolvedPropId = m_compilation.createResolvedProperty().id;
 
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
 
             int methodId = instr.data.callMethod.methodOrDispId;
@@ -1671,12 +1662,11 @@ namespace Mariana.AVM2.Compiler {
             }
             else {
                 // callstatic
-                using (var lockedContext = m_compilation.getContext()) {
-                    method = lockedContext.value.getMethodOrCtorForMethodInfo(methodId) as MethodTrait;
+                using var lockedContext = m_compilation.getContext();
+                method = lockedContext.value.getMethodOrCtorForMethodInfo(methodId) as MethodTrait;
 
-                    if (method == null || lockedContext.value.isMethodUsedAsFunction(method))
-                        throw m_compilation.createError(ErrorCode.MARIANA__ABC_CALLSTATIC_METHOD_NOT_SUPPORTED, instr.id, methodId);
-                }
+                if (method == null || lockedContext.value.isMethodUsedAsFunction(method))
+                    throw m_compilation.createError(ErrorCode.MARIANA__ABC_CALLSTATIC_METHOD_NOT_SUPPORTED, instr.id, methodId);
             }
 
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.callMethod.resolvedPropId);
@@ -1697,7 +1687,7 @@ namespace Mariana.AVM2.Compiler {
                 // Fast path: No change in the scope stack from the previous visit
                 return;
 
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             var multiname = m_compilation.abcFile.resolveMultiname(instr.data.findProperty.multinameId);
 
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.findProperty.resolvedPropId);
@@ -1781,7 +1771,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitNewClass(ref Instruction instr) {
-            ref DataNode baseClassNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode baseClassNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
             ref DataNode pushed = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
             Class klass;
@@ -1890,8 +1880,8 @@ namespace Mariana.AVM2.Compiler {
         /// information is available from a prior scope stack lookup, it will be copied to this instance.</param>
         /// <returns>True if resolution information could be obtained from a prior scope stack lookup,
         /// otherwise false.</returns>
-        private bool _tryGetResolveInfoFromFindProp(ref DataNode objectNode, int multinameId, ref ResolvedProperty resolvedProp) {
-            int objPushInstrId = m_compilation.getStackNodePushInstrId(ref objectNode);
+        private bool _tryGetResolveInfoFromFindProp(in DataNode objectNode, int multinameId, ref ResolvedProperty resolvedProp) {
+            int objPushInstrId = m_compilation.getStackNodePushInstrId(objectNode);
             if (objPushInstrId == -1)
                 return false;
 
@@ -1917,7 +1907,7 @@ namespace Mariana.AVM2.Compiler {
         /// object node.</param>
         /// <returns>True if the type of the node <paramref name="obj"/> matches the object
         /// type in <paramref name="prop"/>, otherwise false.</returns>
-        private bool _resolvedPropObjectTypeMatches(ref ResolvedProperty prop, ref DataNode obj) {
+        private bool _resolvedPropObjectTypeMatches(in ResolvedProperty prop, ref DataNode obj) {
             if (prop.objectType != obj.dataType)
                 return false;
 
@@ -1993,7 +1983,7 @@ namespace Mariana.AVM2.Compiler {
                 ref DataNode node = ref m_compilation.getDataNode(rtNsNodeId);
 
                 if (node.dataType == DataNodeType.NAMESPACE && node.isConstant
-                    && !node.isPhi && m_compilation.getDataNodeUseCount(ref node) == 1)
+                    && !node.isPhi && m_compilation.getDataNodeUseCount(node) == 1)
                 {
                     ns = node.constant.namespaceValue;
                 }
@@ -2006,7 +1996,7 @@ namespace Mariana.AVM2.Compiler {
                 Debug.Assert(rtNameNodeId >= 0);
                 ref DataNode node = ref m_compilation.getDataNode(rtNameNodeId);
 
-                if (node.isConstant && !node.isPhi && m_compilation.getDataNodeUseCount(ref node) == 1) {
+                if (node.isConstant && !node.isPhi && m_compilation.getDataNodeUseCount(node) == 1) {
                     if (node.dataType == DataNodeType.STRING) {
                         localName = node.constant.stringValue;
                     }
@@ -2059,7 +2049,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="resolvedProp">A <see cref="ResolvedProperty"/> instance into which the resolution
         /// information will be written.</param>
         private void _resolvePropertyOnObject(
-            ref DataNode objectNode,
+            in DataNode objectNode,
             in ABCMultiname multiname,
             int rtNsNodeId,
             int rtNameNodeId,
@@ -2252,7 +2242,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="instrId">The id of the instruction that requested the property resolution.</param>
         /// <param name="resolvedProp">A <see cref="ResolvedProperty"/> instance into which the resolution
         /// information will be written.</param>
-        private void _resolveSlotOnObject(ref DataNode objectNode, int slotId, int instrId, ref ResolvedProperty resolvedProp) {
+        private void _resolveSlotOnObject(in DataNode objectNode, int slotId, int instrId, ref ResolvedProperty resolvedProp) {
             resolvedProp.objectType = objectNode.dataType;
 
             if (objectNode.dataType == DataNodeType.OBJECT || objectNode.dataType == DataNodeType.CLASS)
@@ -2626,7 +2616,7 @@ namespace Mariana.AVM2.Compiler {
         /// false otherwise.</param>
         /// <returns>True if assignment of <paramref name="value"/> to <paramref name="trait"/>
         /// is valid in the current context.</returns>
-        private bool _isTraitAssignmentValid(Trait trait, ref DataNode value, bool isInit) {
+        private bool _isTraitAssignmentValid(Trait trait, in DataNode value, bool isInit) {
             switch (trait.traitType) {
                 case TraitType.FIELD: {
                     if (!((FieldTrait)trait).isReadOnly)
@@ -2639,8 +2629,8 @@ namespace Mariana.AVM2.Compiler {
                         if (!m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCRIPT_INIT))
                             return false;
 
-                        using (var lockedContext = m_compilation.getContext())
-                            return lockedContext.value.getExportingScript(trait) == m_compilation.currentScriptInfo;
+                        using var lockedContext = m_compilation.getContext();
+                        return lockedContext.value.getExportingScript(trait) == m_compilation.currentScriptInfo;
                     }
                     else if (trait.isStatic) {
                         return m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_STATIC_INIT)
@@ -2663,8 +2653,8 @@ namespace Mariana.AVM2.Compiler {
                     Class classBeingAssigned = value.constant.classValue;
 
                     if (classBeingAssigned == trait) {
-                        using (var lockedContext = m_compilation.getContext())
-                            return lockedContext.value.getExportingScript(trait) == m_compilation.currentScriptInfo;
+                        using var lockedContext = m_compilation.getContext();
+                        return lockedContext.value.getExportingScript(trait) == m_compilation.currentScriptInfo;
                     }
 
                     // If a class constant is being assigned to a different trait via initproperty,
@@ -2710,7 +2700,7 @@ namespace Mariana.AVM2.Compiler {
             switch (resolvedProp.propKind) {
                 case ResolvedPropertyKind.TRAIT: {
                     var resolvedTrait = (Trait)resolvedProp.propInfo;
-                    if (!_isTraitAssignmentValid(resolvedTrait, ref value, isInit))
+                    if (!_isTraitAssignmentValid(resolvedTrait, value, isInit))
                         resolvedProp.propKind = ResolvedPropertyKind.TRAIT_RT_INVOKE;
                     break;
                 }
@@ -2880,14 +2870,14 @@ namespace Mariana.AVM2.Compiler {
 
                 result.isNotNull = true;
 
-                if ((arg1.dataType == DataNodeType.INT || isConstantInt(ref arg1))
-                    && (arg2.dataType == DataNodeType.INT || isConstantInt(ref arg2)))
+                if ((arg1.dataType == DataNodeType.INT || isConstantInt(arg1))
+                    && (arg2.dataType == DataNodeType.INT || isConstantInt(arg2)))
                 {
                     result.dataType = DataNodeType.INT;
                     return (method == mathMinTrait) ? Intrinsic.MATH_MIN_2_I : Intrinsic.MATH_MAX_2_I;
                 }
-                else if ((arg1.dataType == DataNodeType.UINT || isConstantUint(ref arg1))
-                    && (arg2.dataType == DataNodeType.UINT || isConstantUint(ref arg2)))
+                else if ((arg1.dataType == DataNodeType.UINT || isConstantUint(arg1))
+                    && (arg2.dataType == DataNodeType.UINT || isConstantUint(arg2)))
                 {
                     result.dataType = DataNodeType.UINT;
                     return (method == mathMinTrait) ? Intrinsic.MATH_MIN_2_U : Intrinsic.MATH_MAX_2_U;
@@ -2938,8 +2928,8 @@ namespace Mariana.AVM2.Compiler {
         {
             int argCount = argsOnStackIds.Length;
 
-            void convertType(ref DataNode input, ref DataNode output, DataNodeType toType, ABCOp convertOpcode) {
-                bool isConst = tryEvalConstUnaryOp(ref input, ref output, convertOpcode);
+            static void convertType(ref DataNode input, ref DataNode output, DataNodeType toType, ABCOp convertOpcode) {
+                bool isConst = tryEvalConstUnaryOp(input, ref output, convertOpcode);
                 if (!isConst) {
                     output.dataType = toType;
                     output.isConstant = false;
@@ -3315,7 +3305,7 @@ namespace Mariana.AVM2.Compiler {
                     continue;
 
                 var nodeRef = DataNodeOrInstrRef.forDataNode(node.id);
-                var defs = m_compilation.getDataNodeDefs(ref node);
+                var defs = m_compilation.getDataNodeDefs(node);
 
                 for (int j = 0; j < defs.Length; j++) {
                     ref DataNode def = ref m_compilation.getDataNode(defs[j].instrOrNodeId);
@@ -3333,11 +3323,11 @@ namespace Mariana.AVM2.Compiler {
                     if (!node.isPhi)
                         continue;
 
-                    var defs = m_compilation.getDataNodeDefs(ref node);
+                    var defs = m_compilation.getDataNodeDefs(node);
                     for (int j = 0; j < defs.Length; j++) {
                         ref DataNode def = ref m_compilation.getDataNode(defs[j].instrOrNodeId);
                         if (def.dataType != node.dataType)
-                            _checkForSpecialObjectCoerce(ref def);
+                            _checkForSpecialObjectCoerce(def);
                     }
                 }
             }
@@ -3359,22 +3349,22 @@ namespace Mariana.AVM2.Compiler {
 
                 switch (node.onPushCoerceType) {
                     case DataNodeType.INT:
-                        isConstConverted = tryEvalConstUnaryOp(ref node, ref dummyOutput, ABCOp.convert_i);
+                        isConstConverted = tryEvalConstUnaryOp(node, ref dummyOutput, ABCOp.convert_i);
                         break;
                     case DataNodeType.UINT:
-                        isConstConverted = tryEvalConstUnaryOp(ref node, ref dummyOutput, ABCOp.convert_u);
+                        isConstConverted = tryEvalConstUnaryOp(node, ref dummyOutput, ABCOp.convert_u);
                         break;
                     case DataNodeType.NUMBER:
-                        isConstConverted = tryEvalConstUnaryOp(ref node, ref dummyOutput, ABCOp.convert_d);
+                        isConstConverted = tryEvalConstUnaryOp(node, ref dummyOutput, ABCOp.convert_d);
                         break;
                     case DataNodeType.STRING:
-                        isConstConverted = tryEvalConstUnaryOp(ref node, ref dummyOutput, ABCOp.coerce_s);
+                        isConstConverted = tryEvalConstUnaryOp(node, ref dummyOutput, ABCOp.coerce_s);
                         break;
                     case DataNodeType.BOOL:
-                        isConstConverted = tryEvalConstUnaryOp(ref node, ref dummyOutput, ABCOp.convert_b);
+                        isConstConverted = tryEvalConstUnaryOp(node, ref dummyOutput, ABCOp.convert_b);
                         break;
                     case DataNodeType.OBJECT:
-                        isConstConverted = tryEvalConstUnaryOp(ref node, ref dummyOutput, ABCOp.convert_o);
+                        isConstConverted = tryEvalConstUnaryOp(node, ref dummyOutput, ABCOp.convert_o);
                         break;
                 }
 
@@ -3641,7 +3631,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitIsAsType(ref Instruction instr) {
-            var inputIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var inputIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode objectNode = ref m_compilation.getDataNode(inputIds[0]);
 
             ABCMultiname multiname = m_compilation.abcFile.resolveMultiname(instr.data.coerceOrIsType.multinameId);
@@ -3657,7 +3647,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitIsAsTypeLate(ref Instruction instr) {
-            var inputIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var inputIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode objectNode = ref m_compilation.getDataNode(inputIds[0]);
             ref DataNode typeNode = ref m_compilation.getDataNode(inputIds[1]);
 
@@ -3682,7 +3672,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitUnaryIntegerOp(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
             if (output.isConstant)
@@ -3692,20 +3682,20 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitNot(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
             if (output.isConstant) {
                 _markStackNodeAsNoPush(ref input);
             }
             else {
-                _checkForSpecialObjectCoerce(ref input);
-                _checkForIntegerModuloCompareZero(ref input);
+                _checkForSpecialObjectCoerce(input);
+                _checkForIntegerModuloCompareZero(input);
             }
         }
 
         private void _visitUnaryNumberOp(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
             if (output.isConstant)
@@ -3715,7 +3705,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitBinaryIntegerOp(ref Instruction instr) {
-            var inputIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var inputIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode input1 = ref m_compilation.getDataNode(inputIds[0]);
             ref DataNode input2 = ref m_compilation.getDataNode(inputIds[1]);
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
@@ -3732,7 +3722,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitBinaryNumberOp(ref Instruction instr) {
-            var inputIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var inputIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode input1 = ref m_compilation.getDataNode(inputIds[0]);
             ref DataNode input2 = ref m_compilation.getDataNode(inputIds[1]);
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
@@ -3748,7 +3738,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitAdd(ref Instruction instr) {
-            var inputIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var inputIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode input1 = ref m_compilation.getDataNode(inputIds[0]);
             ref DataNode input2 = ref m_compilation.getDataNode(inputIds[1]);
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
@@ -3763,7 +3753,7 @@ namespace Mariana.AVM2.Compiler {
                 _requireStackNodeAsType(ref input2, inputType, instr.id);
 
                 if (inputType == DataNodeType.STRING) {
-                    _checkForStringConcatTree(ref instr, ref input1, ref input2);
+                    _checkForStringConcatTree(ref instr, input1, input2);
 
                     // If any string conversions were hoisted, set a flag to perform the conversions
                     // using convert_s semantics instead of coerce_s.
@@ -3778,13 +3768,13 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitNewArray(ref Instruction instr) {
-            var inputIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var inputIds = m_compilation.getInstructionStackPoppedNodes(instr);
             for (int i = 0; i < inputIds.Length; i++)
                 _requireStackNodeAsType(inputIds[i], DataNodeType.ANY, instr.id);
         }
 
         private void _visitNewObject(ref Instruction instr) {
-            var inputIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var inputIds = m_compilation.getInstructionStackPoppedNodes(instr);
 
             for (int i = 0; i < inputIds.Length; i++) {
                 _requireStackNodeAsType(
@@ -3796,12 +3786,12 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitEscapeXML(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
-            _checkForSpecialObjectCoerce(ref input);
+            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
+            _checkForSpecialObjectCoerce(input);
         }
 
         private void _visitCoerce(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
             if (output.isConstant || output.dataType == DataNodeType.THIS || output.dataType == DataNodeType.REST)
@@ -3811,7 +3801,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitDxnsLate(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
 
             if (input.isConstant && (input.dataType == DataNodeType.NAMESPACE || input.dataType == DataNodeType.STRING))
                 _markStackNodeAsNoPush(ref input);
@@ -3820,7 +3810,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitCoerceA(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
             if (output.isConstant || output.dataType == DataNodeType.THIS || output.dataType == DataNodeType.REST)
@@ -3828,26 +3818,26 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitConvertX(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
             if (output.isConstant || output.dataType == DataNodeType.THIS || output.dataType == DataNodeType.REST) {
                 _markStackNodeAsNoPush(ref input);
             }
             else {
-                _checkForSpecialObjectCoerce(ref input);
+                _checkForSpecialObjectCoerce(input);
 
                 if (instr.opcode == ABCOp.convert_i)
-                    _checkForFloatToIntegerOp(ref input, DataNodeType.INT);
+                    _checkForFloatToIntegerOp(input, DataNodeType.INT);
                 else if (instr.opcode == ABCOp.convert_u)
-                    _checkForFloatToIntegerOp(ref input, DataNodeType.UINT);
+                    _checkForFloatToIntegerOp(input, DataNodeType.UINT);
                 else if (instr.opcode == ABCOp.convert_b)
-                    _checkForIntegerModuloCompareZero(ref input);
+                    _checkForIntegerModuloCompareZero(input);
             }
         }
 
         private void _visitApplyType(ref Instruction instr) {
-            var inputIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var inputIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode resultNode = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
             if (resultNode.dataType == DataNodeType.CLASS) {
@@ -3861,7 +3851,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitBinaryCompareOp(ref Instruction instr) {
-            var inputIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var inputIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode input1 = ref m_compilation.getDataNode(inputIds[0]);
             ref DataNode input2 = ref m_compilation.getDataNode(inputIds[1]);
             ref DataNode output = ref m_compilation.getDataNode(instr.stackPushedNodeId);
@@ -3871,33 +3861,33 @@ namespace Mariana.AVM2.Compiler {
                 _markStackNodeAsNoPush(ref input2);
             }
             else {
-                instr.data.compare.compareType = _getComparisonType(ref input1, ref input2, instr.opcode);
+                instr.data.compare.compareType = _getComparisonType(input1, input2, instr.opcode);
                 _checkCompareOperation(ref input1, ref input2, instr.id, ref instr.data.compare.compareType);
             }
         }
 
         private void _visitBinaryCompareBranch(ref Instruction instr) {
-            var inputIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var inputIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode input1 = ref m_compilation.getDataNode(inputIds[0]);
             ref DataNode input2 = ref m_compilation.getDataNode(inputIds[1]);
 
-            instr.data.compareBranch.compareType = _getComparisonType(ref input1, ref input2, instr.opcode);
+            instr.data.compareBranch.compareType = _getComparisonType(input1, input2, instr.opcode);
             _checkCompareOperation(ref input1, ref input2, instr.id, ref instr.data.compareBranch.compareType);
         }
 
         private void _visitIfTrueFalse(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
-            _checkForSpecialObjectCoerce(ref input);
-            _checkForIntegerModuloCompareZero(ref input);
+            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
+            _checkForSpecialObjectCoerce(input);
+            _checkForIntegerModuloCompareZero(input);
         }
 
         private void _visitLookupSwitch(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
             _requireStackNodeAsType(ref input, DataNodeType.INT, instr.id);
         }
 
         private void _visitHasNextNameValue(ref Instruction instr) {
-            var inputIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var inputIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode input1 = ref m_compilation.getDataNode(inputIds[0]);
             ref DataNode input2 = ref m_compilation.getDataNode(inputIds[1]);
 
@@ -3910,17 +3900,17 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode oldObject = ref m_compilation.getDataNode(nodeIds[0]);
             ref DataNode oldIndex = ref m_compilation.getDataNode(nodeIds[1]);
 
-            _checkForSpecialObjectCoerce(ref oldObject);
-            _checkForSpecialObjectCoerce(ref oldIndex);
+            _checkForSpecialObjectCoerce(oldObject);
+            _checkForSpecialObjectCoerce(oldIndex);
         }
 
         private void _visitTypeof(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
             _requireStackNodeObjectOrAny(ref input, instr.id);
         }
 
         private void _visitInstanceof(ref Instruction instr) {
-            var inputIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var inputIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode input1 = ref m_compilation.getDataNode(inputIds[0]);
             ref DataNode input2 = ref m_compilation.getDataNode(inputIds[1]);
 
@@ -3929,7 +3919,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitPushScope(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
             ref DataNode scope = ref m_compilation.getDataNode(instr.data.pushScope.pushedNodeId);
 
             if (scope.dataType == DataNodeType.REST) {
@@ -3948,19 +3938,19 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitSetLocal(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
             if (input.isConstant || input.dataType == DataNodeType.THIS || input.dataType == DataNodeType.REST)
                 _markStackNodeAsNoPush(ref input);
         }
 
         private void _visitThrow(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
             _requireStackNodeAsType(ref input, DataNodeType.ANY, instr.id);
         }
 
         private void _visitReturn(ref Instruction instr) {
             if (instr.opcode == ABCOp.returnvalue) {
-                ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+                ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
 
                 var method = m_compilation.getCurrentMethod();
                 if (method != null && method.hasReturn) {
@@ -3981,13 +3971,13 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitPop(ref Instruction instr) {
-            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
             if (input.isConstant)
                 _markStackNodeAsNoPush(ref input);
         }
 
         private void _visitGetDescendants(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
 
             _requireStackNodeObjectOrAny(ref objectNode, instr.id);
@@ -4015,7 +4005,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitGetOrDeleteProperty(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.accessProperty.resolvedPropId);
 
@@ -4051,10 +4041,10 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitSetProperty(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
 
             ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
-            ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[stackPopIds.Length - 1]);
+            ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[^1]);
 
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.accessProperty.resolvedPropId);
 
@@ -4118,7 +4108,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitGetSlot(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.getSetSlot.resolvedPropId);
 
@@ -4129,8 +4119,8 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitSetSlot(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
-            ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[stackPopIds.Length - 1]);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
+            ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[^1]);
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.getSetSlot.resolvedPropId);
 
             var trait = (Trait)resolvedProp.propInfo;
@@ -4160,7 +4150,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitIn(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode nameNode = ref m_compilation.getDataNode(stackPopIds[0]);
             ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[1]);
 
@@ -4175,7 +4165,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitCallOrConstructProp(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             var argNodeIds = stackPopIds.Slice(stackPopIds.Length - instr.data.callProperty.argCount);
             bool isConstruct = instr.opcode == ABCOp.constructprop;
 
@@ -4222,7 +4212,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitCallMethodOrStatic(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             var argNodeIds = stackPopIds.Slice(stackPopIds.Length - instr.data.callMethod.argCount);
 
             ref DataNode objectNode = ref m_compilation.getDataNode(stackPopIds[0]);
@@ -4246,7 +4236,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitCallOrConstruct(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             var argNodeIds = stackPopIds.Slice(stackPopIds.Length - instr.data.callOrConstruct.argCount);
             bool isConstruct = instr.opcode == ABCOp.construct;
 
@@ -4306,7 +4296,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitConstructSuper(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             var argNodeIds = stackPopIds.Slice(stackPopIds.Length - instr.data.constructSuper.argCount);
 
             ClassConstructor ctor = m_compilation.declaringClass.parent.constructor;
@@ -4316,7 +4306,7 @@ namespace Mariana.AVM2.Compiler {
 
         private void _visitFindPropertyOrGetLex(ref Instruction instr) {
             if (instr.opcode != ABCOp.getlex) {
-                var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+                var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
                 ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.findProperty.resolvedPropId);
                 _checkRuntimeMultinameArgs(ref resolvedProp, stackPopIds, instr.id);
             }
@@ -4326,7 +4316,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitNewClass(ref Instruction instr) {
-            ref DataNode baseClassNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode baseClassNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
             _markStackNodeAsNoPush(ref baseClassNode);
 
             var capturedNodeIds = m_compilation.staticIntArrayPool.getSpan(instr.data.newClass.capturedScopeNodeIds);
@@ -4334,23 +4324,21 @@ namespace Mariana.AVM2.Compiler {
             bool captureDxns = m_compilation.isAnyFlagSet(MethodCompilationFlags.SETS_DXNS)
                 || (m_compilation.capturedScope != null && m_compilation.capturedScope.capturesDxns);
 
-            using (var lockedContext = m_compilation.getContext()) {
-                ScriptClass klass = lockedContext.value.getClassFromClassInfo(instr.data.newClass.classInfoId);
+            using var lockedContext = m_compilation.getContext();
+            ScriptClass klass = lockedContext.value.getClassFromClassInfo(instr.data.newClass.classInfoId);
 
-                if (!m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCRIPT_INIT)
-                    || lockedContext.value.getExportingScript(klass) != m_compilation.currentScriptInfo)
-                {
-                    throw m_compilation.createError(ErrorCode.MARIANA__ABC_NEWCLASS_SCRIPT_INIT, instr.id);
-                }
-
-                if (lockedContext.value.getClassCapturedScope(klass) != null) {
-                    // If a captured scope has already been set, it means that we are "creating"
-                    // the class a second time.
-                    throw m_compilation.createError(ErrorCode.MARIANA__ABC_NEWCLASS_ONCE, instr.id);
-                }
-
-                lockedContext.value.setClassCapturedScope(klass, _createCapturedScope(capturedNodeIds), captureDxns);
+            if (!m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCRIPT_INIT)
+                || lockedContext.value.getExportingScript(klass) != m_compilation.currentScriptInfo) {
+                throw m_compilation.createError(ErrorCode.MARIANA__ABC_NEWCLASS_SCRIPT_INIT, instr.id);
             }
+
+            if (lockedContext.value.getClassCapturedScope(klass) != null) {
+                // If a captured scope has already been set, it means that we are "creating"
+                // the class a second time.
+                throw m_compilation.createError(ErrorCode.MARIANA__ABC_NEWCLASS_ONCE, instr.id);
+            }
+
+            lockedContext.value.setClassCapturedScope(klass, _createCapturedScope(capturedNodeIds), captureDxns);
         }
 
         private void _visitNewFunction(ref Instruction instr) {
@@ -4360,24 +4348,23 @@ namespace Mariana.AVM2.Compiler {
             bool captureDxns = m_compilation.isAnyFlagSet(MethodCompilationFlags.SETS_DXNS)
                 || (m_compilation.capturedScope != null && m_compilation.capturedScope.capturesDxns);
 
-            using (var lockedContext = m_compilation.getContext()) {
-                lockedContext.value.createNewFunction(
-                    methodInfo,
-                    m_compilation.currentScriptInfo,
-                    _createCapturedScope(capturedNodeIds),
-                    captureDxns
-                );
-            }
+            using var lockedContext = m_compilation.getContext();
+            lockedContext.value.createNewFunction(
+                methodInfo,
+                m_compilation.currentScriptInfo,
+                _createCapturedScope(capturedNodeIds),
+                captureDxns
+            );
         }
 
         private void _visitGlobalMemoryLoad(ref Instruction instr) {
-            ref DataNode addressNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref instr));
+            ref DataNode addressNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
             _requireStackNodeAsType(ref addressNode, DataNodeType.INT, instr.id);
             m_compilation.setFlag(MethodCompilationFlags.READ_GLOBAL_MEMORY);
         }
 
         private void _visitGlobalMemoryStore(ref Instruction instr) {
-            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(ref instr);
+            var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
             ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[0]);
             ref DataNode addressNode = ref m_compilation.getDataNode(stackPopIds[1]);
 
@@ -4400,7 +4387,7 @@ namespace Mariana.AVM2.Compiler {
 
             for (int i = 0; i < innerCaptureIds.Length; i++) {
                 ref DataNode node = ref m_compilation.getDataNode(innerCaptureIds[i]);
-                _checkForSpecialObjectCoerce(ref node);
+                _checkForSpecialObjectCoerce(node);
 
                 DataNodeType nodeType = node.dataType;
                 Class nodeClass = null;
@@ -4451,9 +4438,9 @@ namespace Mariana.AVM2.Compiler {
             Debug.Assert(node.slot.kind == DataNodeSlotKind.STACK);
             node.onPushCoerceType = DataNodeType.UNKNOWN;
 
-            _checkForSpecialObjectCoerce(ref node);
+            _checkForSpecialObjectCoerce(node);
 
-            if (_checkForFloatToIntegerOp(ref node, toType))
+            if (_checkForFloatToIntegerOp(node, toType))
                 return;
 
             if (node.isPhi)
@@ -4473,7 +4460,7 @@ namespace Mariana.AVM2.Compiler {
                 return;
             }
 
-            if (m_compilation.getDataNodeDefCount(ref node) > 1)
+            if (m_compilation.getDataNodeDefCount(node) > 1)
                 return;
 
             // The conversion can be hoisted to the push site only if it never causes a
@@ -4495,7 +4482,7 @@ namespace Mariana.AVM2.Compiler {
             // instruction. An exception is for constants where the only other uses
             // are dup instructions. In this case, the onPushCoerceType set on the node
             // is checked by the code generator when emitting the IL for the dup instruction.
-            var nodeUses = m_compilation.getDataNodeUses(ref node);
+            var nodeUses = m_compilation.getDataNodeUses(node);
             for (int i = 0; i < nodeUses.Length; i++) {
                 var use = nodeUses[i];
                 if (use == consumer)
@@ -4514,7 +4501,7 @@ namespace Mariana.AVM2.Compiler {
                 m_dataNodeIdsWithConstPushConversions.add(node.id);
 
             if (toType == DataNodeType.BOOL)
-                _checkForIntegerModuloCompareZero(ref node);
+                _checkForIntegerModuloCompareZero(node);
         }
 
         private void _requireStackNodeObjectOrAny(ref DataNode node, int instrId) {
@@ -4543,7 +4530,7 @@ namespace Mariana.AVM2.Compiler {
                 var param = parameters[i];
 
                 _requireStackNodeAsType(ref arg, param.type, instrId);
-                if (param.isOptional && !param.hasDefault && m_compilation.getDataNodeUseCount(ref arg) == 1)
+                if (param.isOptional && !param.hasDefault && m_compilation.getDataNodeUseCount(arg) == 1)
                     arg.flags |= DataNodeFlags.PUSH_OPTIONAL_PARAM;
             }
 
@@ -4566,14 +4553,14 @@ namespace Mariana.AVM2.Compiler {
                 m_compilation.getDataNode(nodeSet[i]).isNotPushed = true;
 
             bool walk(ref DataNode _node, ref DynamicArray<int> _nodeSet) {
-                if (m_compilation.getDataNodeUseCount(ref _node) > 1) {
+                if (m_compilation.getDataNodeUseCount(_node) > 1) {
                     // In general, constants with more than one use cannot be elided because we
                     // do not know whether the other uses are elidable. However, dup and pop
                     // instructions are an exception because the code generator checks for the
                     // NO_PUSH flag when emitting IL for these instructions and handles
                     // these cases properly.
 
-                    var uses = m_compilation.getDataNodeUses(ref _node);
+                    var uses = m_compilation.getDataNodeUses(_node);
 
                     int nonDupOrPopUseCount = 0;
                     for (int i = 0; i < uses.Length && nonDupOrPopUseCount <= 1; i++) {
@@ -4597,7 +4584,7 @@ namespace Mariana.AVM2.Compiler {
                 }
 
                 if (_node.isPhi) {
-                    var defs = m_compilation.getDataNodeDefs(ref _node);
+                    var defs = m_compilation.getDataNodeDefs(_node);
                     for (int i = 0; i < defs.Length; i++) {
                         ref DataNode def = ref m_compilation.getDataNode(defs[i].instrOrNodeId);
                         if (!walk(ref def, ref _nodeSet))
@@ -4610,7 +4597,7 @@ namespace Mariana.AVM2.Compiler {
             }
         }
 
-        private bool _checkForSpecialObjectCoerce(ref DataNode node) {
+        private bool _checkForSpecialObjectCoerce(in DataNode node) {
             if (node.dataType == DataNodeType.REST) {
                 // If a rest argument is being coerced to another type, we can't use
                 // the RestParam directly, need to create an Array.
@@ -4621,7 +4608,7 @@ namespace Mariana.AVM2.Compiler {
             return false;
         }
 
-        private bool _checkForSpecialObjectTraitAccess(ref DataNode node, Trait trait, int instrId) {
+        private bool _checkForSpecialObjectTraitAccess(in DataNode node, Trait trait, int instrId) {
             if (node.dataType == DataNodeType.REST) {
                 // RestParam only supports getting the length property; for anything else we
                 // need to create the full array.
@@ -4640,10 +4627,10 @@ namespace Mariana.AVM2.Compiler {
         /// floating-point operation.</param>
         /// <param name="targetType">The target integer type.</param>
         /// <returns>True if any integer arithmetic optimization was made, otherwise false.</returns>
-        private bool _checkForFloatToIntegerOp(ref DataNode node, DataNodeType targetType) {
+        private bool _checkForFloatToIntegerOp(in DataNode node, DataNodeType targetType) {
             if (!isInteger(targetType)
                 || m_compilation.compileOptions.integerArithmeticMode == IntegerArithmeticMode.EXPLICIT_ONLY
-                || m_compilation.getDataNodeUseCount(ref node) > 1)
+                || m_compilation.getDataNodeUseCount(node) > 1)
             {
                 return false;
             }
@@ -4651,7 +4638,7 @@ namespace Mariana.AVM2.Compiler {
             ref var nodeSet = ref m_tempIntArray;
             nodeSet.clear();
 
-            if (!walk(ref node, isTopLevel: true, ref nodeSet))
+            if (!walk(node, isTopLevel: true, ref nodeSet))
                 return false;
 
             for (int i = 0; i < nodeSet.length; i++) {
@@ -4665,7 +4652,7 @@ namespace Mariana.AVM2.Compiler {
 
             return true;
 
-            bool walk(ref DataNode _node, bool isTopLevel, ref DynamicArray<int> _nodeSet) {
+            bool walk(in DataNode _node, bool isTopLevel, ref DynamicArray<int> _nodeSet) {
                 if (isInteger(_node.dataType)) {
                     if (_node.onPushCoerceType != DataNodeType.UNKNOWN)
                         _nodeSet.add(_node.id);
@@ -4679,13 +4666,13 @@ namespace Mariana.AVM2.Compiler {
                 Debug.Assert(_node.dataType == DataNodeType.NUMBER);
 
                 if (_node.isPhi) {
-                    var defs = m_compilation.getDataNodeDefs(ref _node);
+                    var defs = m_compilation.getDataNodeDefs(_node);
 
                     for (int i = 0; i < defs.Length; i++) {
                         ref DataNode def = ref m_compilation.getDataNode(defs[i].instrOrNodeId);
-                        if (m_compilation.getDataNodeUseCount(ref def) > 1)
+                        if (m_compilation.getDataNodeUseCount(def) > 1)
                             return false;
-                        if (!walk(ref def, isTopLevel, ref _nodeSet))
+                        if (!walk(def, isTopLevel, ref _nodeSet))
                             return false;
                     }
 
@@ -4694,7 +4681,7 @@ namespace Mariana.AVM2.Compiler {
                 }
 
 
-                int pushInstrId = m_compilation.getStackNodePushInstrId(ref _node);
+                int pushInstrId = m_compilation.getStackNodePushInstrId(_node);
                 if (pushInstrId == -1)
                     return false;
 
@@ -4707,7 +4694,7 @@ namespace Mariana.AVM2.Compiler {
                     case ABCOp.divide:
                     case ABCOp.modulo:
                     {
-                        var popped = m_compilation.getInstructionStackPoppedNodes(ref pushInstr);
+                        var popped = m_compilation.getInstructionStackPoppedNodes(pushInstr);
                         ref DataNode left = ref m_compilation.getDataNode(popped[0]);
                         ref DataNode right = ref m_compilation.getDataNode(popped[1]);
 
@@ -4732,15 +4719,15 @@ namespace Mariana.AVM2.Compiler {
                                 return false;
                         }
 
-                        if (!_areBinOpNodesUsedOnlyOnce(ref left, ref right, out bool isRightDupOfLeft)) {
+                        if (!_areBinOpNodesUsedOnlyOnce(left, right, out bool isRightDupOfLeft)) {
                             // We allow nodes to be used elsewhere if both of them are known to be of
                             // integral types, as they will be left unchanged.
                             if (!isInteger(left.dataType) && !isInteger(right.dataType))
                                 return false;
                         }
 
-                        if (!walk(ref left, isTopLevel: false, ref _nodeSet)
-                            || (!isRightDupOfLeft && !walk(ref right, isTopLevel: false, ref _nodeSet)))
+                        if (!walk(left, isTopLevel: false, ref _nodeSet)
+                            || (!isRightDupOfLeft && !walk(right, isTopLevel: false, ref _nodeSet)))
                         {
                             return false;
                         }
@@ -4756,12 +4743,12 @@ namespace Mariana.AVM2.Compiler {
                     case ABCOp.increment:
                     case ABCOp.decrement:
                     {
-                        ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref pushInstr));
+                        ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(pushInstr));
 
-                        if (!isInteger(input.dataType) && m_compilation.getDataNodeUseCount(ref input) > 1)
+                        if (!isInteger(input.dataType) && m_compilation.getDataNodeUseCount(input) > 1)
                             return false;
 
-                        if (!walk(ref input, isTopLevel: false, ref _nodeSet))
+                        if (!walk(input, isTopLevel: false, ref _nodeSet))
                             return false;
 
                         _nodeSet.add(_node.id);
@@ -4802,26 +4789,26 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="instr">The instruction performing the string concatenation.</param>
         /// <param name="leftInput">The left input node for the string concatenation.</param>
         /// <param name="rightInput">The right input node for the string concatenation.</param>
-        private void _checkForStringConcatTree(ref Instruction instr, ref DataNode leftInput, ref DataNode rightInput) {
+        private void _checkForStringConcatTree(ref Instruction instr, in DataNode leftInput, in DataNode rightInput) {
             // We can only create a concatenation tree if the two inputs are not used anywhere
             // else. An exception is if right is the result of dup'ing the left.
 
-            if (!_areBinOpNodesUsedOnlyOnce(ref leftInput, ref rightInput, out _)) {
+            if (!_areBinOpNodesUsedOnlyOnce(leftInput, rightInput, out _)) {
                 instr.data.add.isConcatTreeRoot = false;
                 instr.data.add.isConcatTreeInternalNode = false;
                 return;
             }
 
             instr.data.add.isConcatTreeRoot = true;
-            markInternalNode(ref leftInput);
-            markInternalNode(ref rightInput);
+            markInternalNode(leftInput);
+            markInternalNode(rightInput);
 
-            void markInternalNode(ref DataNode node) {
+            void markInternalNode(in DataNode node) {
                 // Constant nodes are always leaf nodes.
                 if (node.isConstant)
                     return;
 
-                int pushInstrId = m_compilation.getStackNodePushInstrId(ref node);
+                int pushInstrId = m_compilation.getStackNodePushInstrId(node);
                 if (pushInstrId == -1)
                     return;
 
@@ -4842,13 +4829,13 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="right">The right input to the binary operation.</param>
         /// <param name="isRightDupOfLeft">True if the right input is the result of duplicating the left one.</param>
         /// <returns>True if the inputs are consumed only by the binary operation and nowhere else, otherwise false.</returns>
-        private bool _areBinOpNodesUsedOnlyOnce(ref DataNode left, ref DataNode right, out bool isRightDupOfLeft) {
+        private bool _areBinOpNodesUsedOnlyOnce(in DataNode left, in DataNode right, out bool isRightDupOfLeft) {
             isRightDupOfLeft = false;
 
-            if (m_compilation.getDataNodeUseCount(ref right) > 1)
+            if (m_compilation.getDataNodeUseCount(right) > 1)
                 return false;
 
-            var leftUses = m_compilation.getDataNodeUses(ref left);
+            var leftUses = m_compilation.getDataNodeUses(left);
 
             if (leftUses.Length == 1)
                 return true;
@@ -4881,11 +4868,11 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         /// <param name="node">A node that is being coerced to the Boolean type or used in an equality
         /// comparison with zero.</param>
-        private void _checkForIntegerModuloCompareZero(ref DataNode node) {
-            if (node.isConstant || !isInteger(node.dataType) || node.isPhi || m_compilation.getDataNodeUseCount(ref node) > 1)
+        private void _checkForIntegerModuloCompareZero(in DataNode node) {
+            if (node.isConstant || !isInteger(node.dataType) || node.isPhi || m_compilation.getDataNodeUseCount(node) > 1)
                 return;
 
-            int pushInstrId = m_compilation.getStackNodePushInstrId(ref node);
+            int pushInstrId = m_compilation.getStackNodePushInstrId(node);
             if (pushInstrId == -1)
                 return;
 
@@ -4893,7 +4880,7 @@ namespace Mariana.AVM2.Compiler {
             if (pushInstr.opcode != ABCOp.modulo)
                 return;
 
-            var pushInstrPoppedIds = m_compilation.getInstructionStackPoppedNodes(ref pushInstr);
+            var pushInstrPoppedIds = m_compilation.getInstructionStackPoppedNodes(pushInstr);
             ref DataNode rightOperand = ref m_compilation.getDataNode(pushInstrPoppedIds[1]);
 
             Debug.Assert(isInteger(rightOperand.dataType));
@@ -4920,11 +4907,11 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="opcode">The opcode for the comparison instruction.</param>
         /// <returns>A value from the <see cref="ComparisonType"/> enumeration that represents
         /// the type of comparison (based on the input node types).</returns>
-        private ComparisonType _getComparisonType(ref DataNode input1, ref DataNode input2, ABCOp opcode) {
+        private ComparisonType _getComparisonType(in DataNode input1, in DataNode input2, ABCOp opcode) {
             bool isStrictEquals = false;
 
-            ref var inputVar = ref input1;
-            ref var inputConst = ref input2;
+            ref readonly DataNode inputVar = ref input1;
+            ref readonly DataNode inputConst = ref input2;
             bool isLeftConstant = false;
 
             if (input1.isConstant) {
@@ -4945,7 +4932,7 @@ namespace Mariana.AVM2.Compiler {
                 case ABCOp.ifne:
                 {
                     if (inputConst.isConstant) {
-                        if (isInteger(inputVar.dataType) && isConstantZero(ref inputConst))
+                        if (isInteger(inputVar.dataType) && isConstantZero(inputConst))
                             return isLeftConstant ? ComparisonType.INT_ZERO_L : ComparisonType.INT_ZERO_R;
 
                         if (isStrictEquals && inputConst.dataType == DataNodeType.UNDEFINED
@@ -4997,10 +4984,10 @@ namespace Mariana.AVM2.Compiler {
                     bool input2IsNumeric = isNumeric(input2Ty);
 
                     if (input1IsNumeric && input2IsNumeric) {
-                        if (inputVar.dataType == DataNodeType.INT && isConstantInt(ref inputConst))
+                        if (inputVar.dataType == DataNodeType.INT && isConstantInt(inputConst))
                             return ComparisonType.INT;
 
-                        if (inputVar.dataType == DataNodeType.UINT && isConstantUint(ref inputConst))
+                        if (inputVar.dataType == DataNodeType.UINT && isConstantUint(inputConst))
                             return ComparisonType.UINT;
 
                         return ComparisonType.NUMBER;
@@ -5037,14 +5024,14 @@ namespace Mariana.AVM2.Compiler {
                 case ABCOp.greaterthan:
                 case ABCOp.ifgt:
                 case ABCOp.ifnle:
-                    if (input1.dataType == DataNodeType.UINT && isConstantZero(ref input2))
+                    if (input1.dataType == DataNodeType.UINT && isConstantZero(input2))
                         return ComparisonType.INT_ZERO_R;
                     goto default;
 
                 case ABCOp.lessthan:
                 case ABCOp.iflt:
                 case ABCOp.ifnge:
-                    if (input2.dataType == DataNodeType.UINT && isConstantZero(ref input1))
+                    if (input2.dataType == DataNodeType.UINT && isConstantZero(input1))
                         return ComparisonType.INT_ZERO_L;
                     goto default;
 
@@ -5066,10 +5053,10 @@ namespace Mariana.AVM2.Compiler {
                     }
 
                     if (isNumeric(input1.dataType) || isNumeric(input2.dataType)) {
-                        if (inputVar.dataType == DataNodeType.INT && isConstantInt(ref inputConst))
+                        if (inputVar.dataType == DataNodeType.INT && isConstantInt(inputConst))
                             return ComparisonType.INT;
 
-                        if (inputVar.dataType == DataNodeType.UINT && isConstantUint(ref inputConst))
+                        if (inputVar.dataType == DataNodeType.UINT && isConstantUint(inputConst))
                             return ComparisonType.UINT;
 
                         return ComparisonType.NUMBER;
@@ -5139,13 +5126,13 @@ namespace Mariana.AVM2.Compiler {
                 case ComparisonType.INT_ZERO_L:
                     _requireStackNodeAsType(ref right, DataNodeType.INT, instrId);
                     _markStackNodeAsNoPush(ref left);
-                    _checkForIntegerModuloCompareZero(ref right);
+                    _checkForIntegerModuloCompareZero(right);
                     break;
 
                 case ComparisonType.INT_ZERO_R:
                     _requireStackNodeAsType(ref left, DataNodeType.INT, instrId);
                     _markStackNodeAsNoPush(ref right);
-                    _checkForIntegerModuloCompareZero(ref left);
+                    _checkForIntegerModuloCompareZero(left);
                     break;
 
                 case ComparisonType.ANY_UNDEF_L:
@@ -5194,7 +5181,7 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode comparandNode = ref (isLeftComparand ? ref left : ref right);
 
             // We don't want the indexOpNode to be used anywhere other than in the comparison.
-            if (m_compilation.getDataNodeUseCount(ref indexOpNode) > 1)
+            if (m_compilation.getDataNodeUseCount(indexOpNode) > 1)
                 return false;
 
             if (intrinsic == Intrinsic.STRING_CHARAT_I) {
@@ -5214,7 +5201,7 @@ namespace Mariana.AVM2.Compiler {
 
             if (intrinsic == Intrinsic.STRING_CCODEAT_I) {
                 // String.charCodeAt can be compared to an integer.
-                if (!isInteger(comparandNode.dataType) && !isConstantUint(ref comparandNode))
+                if (!isInteger(comparandNode.dataType) && !isConstantUint(comparandNode))
                     return false;
 
                 if (comparandNode.isConstant)
@@ -5228,7 +5215,7 @@ namespace Mariana.AVM2.Compiler {
             return false;
 
             Intrinsic checkResultOfStringCharAtIntrinsic(ref DataNode node) {
-                int pushInstrId = m_compilation.getStackNodePushInstrId(ref node);
+                int pushInstrId = m_compilation.getStackNodePushInstrId(node);
                 if (pushInstrId == -1)
                     return null;
 
@@ -5248,7 +5235,7 @@ namespace Mariana.AVM2.Compiler {
             }
 
             void markAsIntrinsicCompare(ref DataNode node) {
-                ref Instruction pushInstr = ref m_compilation.getInstruction(m_compilation.getStackNodePushInstrId(ref node));
+                ref Instruction pushInstr = ref m_compilation.getInstruction(m_compilation.getStackNodePushInstrId(node));
                 ref ResolvedProperty resProp = ref m_compilation.getResolvedProperty(pushInstr.data.callProperty.resolvedPropId);
 
                 if (resProp.propInfo == Intrinsic.STRING_CHARAT_I)
@@ -5340,10 +5327,10 @@ namespace Mariana.AVM2.Compiler {
         private bool _checkForVectorIndexExprOptimization(ref DataNode nameNode, out DataNodeType integerType) {
             integerType = DataNodeType.UNKNOWN;
 
-            if (m_compilation.getDataNodeUseCount(ref nameNode) > 1)
+            if (m_compilation.getDataNodeUseCount(nameNode) > 1)
                 return false;
 
-            int pushInstrId = m_compilation.getStackNodePushInstrId(ref nameNode);
+            int pushInstrId = m_compilation.getStackNodePushInstrId(nameNode);
             if (pushInstrId == -1)
                 return false;
 
@@ -5357,7 +5344,7 @@ namespace Mariana.AVM2.Compiler {
             // in the range [0, 2^31-2].
 
             if (pushInstr.opcode == ABCOp.add || pushInstr.opcode == ABCOp.subtract) {
-                var poppedNodeIds = m_compilation.getInstructionStackPoppedNodes(ref pushInstr);
+                var poppedNodeIds = m_compilation.getInstructionStackPoppedNodes(pushInstr);
 
                 ref DataNode left = ref m_compilation.getDataNode(poppedNodeIds[0]);
                 ref DataNode right = ref m_compilation.getDataNode(poppedNodeIds[1]);
@@ -5367,7 +5354,7 @@ namespace Mariana.AVM2.Compiler {
                 if (isInteger(left.dataType)
                     && right.isConstant
                     && isInteger(right.dataType)
-                    && tryGetConstant(ref right, out cval))
+                    && tryGetConstant(right, out cval))
                 {
                     (double minOffset, double maxOffset) =
                         (left.dataType == DataNodeType.UINT) ? (-2147483648d, 0d) : (-1d, 2147483647d);
@@ -5387,7 +5374,7 @@ namespace Mariana.AVM2.Compiler {
                     && pushInstr.opcode == ABCOp.add
                     && left.isConstant
                     && isInteger(left.dataType)
-                    && tryGetConstant(ref left, out cval))
+                    && tryGetConstant(left, out cval))
                 {
                     (double minOffset, double maxOffset) =
                         (right.dataType == DataNodeType.UINT) ? (-2147483648d, 0d) : (-1d, 2147483647d);
@@ -5402,7 +5389,7 @@ namespace Mariana.AVM2.Compiler {
                 }
             }
             else if (pushInstr.opcode == ABCOp.increment || pushInstr.opcode == ABCOp.decrement) {
-                ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(ref pushInstr));
+                ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(pushInstr));
                 if (input.dataType == DataNodeType.INT
                     || (input.dataType == DataNodeType.UINT && pushInstr.opcode == ABCOp.decrement))
                 {
@@ -5421,7 +5408,7 @@ namespace Mariana.AVM2.Compiler {
                 return;
             }
 
-            if (_checkForSpecialObjectTraitAccess(ref node, trait, instrId))
+            if (_checkForSpecialObjectTraitAccess(node, trait, instrId))
                 return;
 
             if (trait.declaringClass.isPrimitiveClass)
@@ -5468,8 +5455,8 @@ namespace Mariana.AVM2.Compiler {
                     }
                     else {
                         DataNodeType targetType = (intrinsic.name == IntrinsicName.UINT_NEW_1) ? DataNodeType.UINT : DataNodeType.INT;
-                        _checkForSpecialObjectCoerce(ref input);
-                        _checkForFloatToIntegerOp(ref input, targetType);
+                        _checkForSpecialObjectCoerce(input);
+                        _checkForFloatToIntegerOp(input, targetType);
                     }
                     break;
                 }
@@ -5481,7 +5468,7 @@ namespace Mariana.AVM2.Compiler {
                     if (resultIsConst)
                         _markStackNodeAsNoPush(ref input);
                     else
-                        _checkForSpecialObjectCoerce(ref input);
+                        _checkForSpecialObjectCoerce(input);
                     break;
                 }
 
@@ -5492,8 +5479,8 @@ namespace Mariana.AVM2.Compiler {
                         _markStackNodeAsNoPush(ref input);
                     }
                     else {
-                        _checkForSpecialObjectCoerce(ref input);
-                        _checkForIntegerModuloCompareZero(ref input);
+                        _checkForSpecialObjectCoerce(input);
+                        _checkForIntegerModuloCompareZero(input);
                     }
                     break;
                 }

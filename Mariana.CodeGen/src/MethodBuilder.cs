@@ -15,8 +15,8 @@ namespace Mariana.CodeGen {
 
         private struct _Param {
             public ParameterAttributes attrs;
-            public string name;
-            public object defaultValue;
+            public string? name;
+            public object? defaultValue;
         }
 
         private struct _GenParam {
@@ -41,21 +41,26 @@ namespace Mariana.CodeGen {
 
         private int m_paramCount;
 
-        private _Param[] m_params;
+        private _Param[]? m_params;
 
         private _GenParam[] m_genParams;
 
         private int m_ilStreamLocation = -1;
 
-        private object m_ilMethodBody;
+        private object? m_ilMethodBody;
 
-        private int[] m_ilCodeVirtualTokenLocations;
+        private int[]? m_ilCodeVirtualTokenLocations;
 
         internal MethodBuilder(
-            TypeBuilder declaringType, string name, MethodAttributes attrs,
-            EntityHandle handle, StringHandle nameHandle, BlobHandle sigHandle,
-            int paramCount, int genParamCount)
-        {
+            TypeBuilder declaringType,
+            string name,
+            MethodAttributes attrs,
+            EntityHandle handle,
+            StringHandle nameHandle,
+            BlobHandle sigHandle,
+            int paramCount,
+            int genParamCount
+        ) {
             m_declType = declaringType;
             m_name = name;
             m_attrs = attrs;
@@ -185,9 +190,9 @@ namespace Mariana.CodeGen {
         /// greater than or equal to the parameter count in the method's signature.</exception>
         public void defineParameter(
             int position,
-            string name = null,
+            string? name = null,
             ParameterAttributes attributes = ParameterAttributes.None,
-            object defaultValue = null
+            object? defaultValue = null
         ) {
             if ((uint)(position + 1) > (uint)m_paramCount)
                 throw new ArgumentOutOfRangeException(nameof(position));
@@ -310,18 +315,18 @@ namespace Mariana.CodeGen {
             if (m_ilMethodBody == null)
                 return currentAddress;
 
-            ILMethodBody mb = m_ilMethodBody as ILMethodBody;
-            byte[] byteArray = m_ilMethodBody as byte[];
+            ILMethodBody? mb = m_ilMethodBody as ILMethodBody;
+            byte[]? byteArray = m_ilMethodBody as byte[];
 
             if ((currentAddress & 3) != 0) {
                 // Fat method header must start on a 4-byte boundary.
-                bool hasFatHeader = (mb != null) ? mb.hasFatHeader : (byteArray[0] & 3) == 3;
+                bool hasFatHeader = (mb != null) ? mb.hasFatHeader : (byteArray![0] & 3) == 3;
                 if (hasFatHeader)
                     currentAddress = (currentAddress & ~3) + 4;
             }
 
             m_ilStreamLocation = currentAddress;
-            return currentAddress + ((mb != null) ? mb.byteLength : byteArray.Length);
+            return currentAddress + ((mb != null) ? mb.byteLength : byteArray!.Length);
         }
 
         /// <summary>

@@ -33,7 +33,7 @@ namespace Mariana.AVM2.Compiler {
         /// <summary>
         /// Returns the number of elements in the set.
         /// </summary>
-        public int count => m_count;
+        public readonly int count => m_count;
 
         /// <summary>
         /// Releases any memory being used by the set back to its array pool. Once this method
@@ -126,7 +126,7 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         /// <param name="value">The value to check for existence.</param>
         /// <returns>True if <paramref name="value"/> exists in this set, otherwise false.</returns>
-        public bool contains(int value) {
+        public readonly bool contains(int value) {
             Debug.Assert(value != EMPTY_SLOT);
 
             Span<int> slots = m_pool.getSpan(m_token);
@@ -152,7 +152,7 @@ namespace Mariana.AVM2.Compiler {
         /// Writes the values in this set to the given span.
         /// </summary>
         /// <param name="values">A span into which to write the values.</param>
-        public void writeValues(Span<int> values) {
+        public readonly void writeValues(Span<int> values) {
             Span<int> slots = m_pool.getSpan(m_token);
 
             int valCount = 0;
@@ -171,7 +171,7 @@ namespace Mariana.AVM2.Compiler {
         /// Returns an array containing the values in this set.
         /// </summary>
         /// <returns>An array containing the values in this set.</returns>
-        public int[] toArray() {
+        public readonly int[] toArray() {
             var arr = new int[count];
             writeValues(arr);
             return arr;
@@ -181,7 +181,7 @@ namespace Mariana.AVM2.Compiler {
         /// Returns a string representation of this set containing its elements.
         /// </summary>
         /// <returns>A string representation of this set.</returns>
-        public override string ToString() {
+        public readonly override string ToString() {
             var sb = new StringBuilder();
             sb.Append('{');
 
@@ -204,7 +204,7 @@ namespace Mariana.AVM2.Compiler {
         /// a foreach loop.
         /// </summary>
         /// <returns>An enumerator instance.</returns>
-        public Enumerator GetEnumerator() => new Enumerator(this);
+        public readonly Enumerator GetEnumerator() => new Enumerator(this);
 
         private static bool _putValueInSlot(int value, Span<int> slots) {
             Debug.Assert(value != EMPTY_SLOT);

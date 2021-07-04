@@ -120,10 +120,10 @@ namespace Mariana.AVM2.Core {
         /// <returns>The result of the concatenation of the four strings. If any of the strings is
         /// null, the string "null" is used in its place.</returns>
         public static string AS_add(string s1, string s2, string s3, string s4) {
-            s1 = s1 ?? "null";
-            s2 = s2 ?? "null";
-            s3 = s3 ?? "null";
-            s4 = s4 ?? "null";
+            s1 ??= "null";
+            s2 ??= "null";
+            s3 ??= "null";
+            s4 ??= "null";
 
             int totalLength = checked(s1.Length + s2.Length + s3.Length + s4.Length);
 
@@ -823,7 +823,7 @@ namespace Mariana.AVM2.Core {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
 
-            if (!(regExp.value is ASRegExp re))
+            if (regExp.value is not ASRegExp re)
                 re = new ASRegExp(ASAny.AS_convertString(regExp.value));
 
             if (re.global) {
@@ -899,7 +899,7 @@ namespace Mariana.AVM2.Core {
 
             if (replFunction != null) {
                 callbackArgs = new ASAny[3 + ((searchRegex != null) ? searchRegex.groupCount : 0)];
-                callbackArgs[callbackArgs.Length - 1] = input;
+                callbackArgs[^1] = input;
             }
 
             // Determine the index of the first match. If the first match has not been found, return the input
@@ -977,7 +977,7 @@ namespace Mariana.AVM2.Core {
                     for (int i = 0; i < groups.Count; i++)
                         callbackArgs[i] = groups[i].Success ? groups[i].Value : ASAny.undefined;
                 }
-                callbackArgs[callbackArgs.Length - 2] = matchIndex;
+                callbackArgs[^2] = matchIndex;
                 return ASAny.AS_convertString(replFunction.AS_invoke(ASAny.@null, callbackArgs));
             }
         }
@@ -1005,7 +1005,7 @@ namespace Mariana.AVM2.Core {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
 
-            if (!(regExp.value is ASRegExp re))
+            if (regExp.value is not ASRegExp re)
                 re = new ASRegExp(ASAny.AS_convertString(regExp));
 
             Match m = re.getInternalRegex().Match(s);

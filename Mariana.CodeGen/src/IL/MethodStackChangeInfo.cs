@@ -44,15 +44,11 @@ namespace Mariana.CodeGen.IL {
         /// or newobj.</param>
         /// <returns>The change in the stack size.</returns>
         public int getStackDelta(ILOp opcode) {
-            switch (opcode) {
-                case ILOp.call:
-                case ILOp.callvirt:
-                    return m_returnPushed - m_argsPopped - m_thisPopped;
-                case ILOp.newobj:
-                    return 1 - m_argsPopped;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(opcode));
-            }
+            return opcode switch {
+                ILOp.call or ILOp.callvirt => m_returnPushed - m_argsPopped - m_thisPopped,
+                ILOp.newobj => 1 - m_argsPopped,
+                _ => throw new ArgumentOutOfRangeException(nameof(opcode)),
+            };
         }
 
     }

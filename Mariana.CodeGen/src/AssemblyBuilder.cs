@@ -21,7 +21,7 @@ namespace Mariana.CodeGen {
 
         private object m_typeBuildersLock = new object();
 
-        private PEHeaderBuilder m_peHeader;
+        private PEHeaderBuilder? m_peHeader;
 
         private EntityHandle m_entryPoint;
 
@@ -45,18 +45,18 @@ namespace Mariana.CodeGen {
         /// the main module. If not specified, a random value is used.</param>
         public AssemblyBuilder(
             string name,
-            Version version = null,
-            string culture = null,
+            Version? version = null,
+            string? culture = null,
             AssemblyFlags flags = 0,
             AssemblyHashAlgorithm hashAlgorithm = AssemblyHashAlgorithm.None,
-            byte[] publicKey = null,
-            string mainModuleName = null,
-            Guid moduleVersionId = default)
-        {
+            byte[]? publicKey = null,
+            string? mainModuleName = null,
+            Guid moduleVersionId = default
+        ) {
             if (name == null || name.Length == 0)
                 throw new ArgumentException("Assembly name must not be null or empty.", nameof(name));
 
-            version = version ?? new Version(0, 0, 0, 0);
+            version ??= new Version(0, 0, 0, 0);
 
             var metadataBuilder = new MetadataBuilder();
             m_metadataContext = new MetadataContext(metadataBuilder);
@@ -286,18 +286,18 @@ namespace Mariana.CodeGen {
 
             Array.Sort(codedIndexKeys, entriesList.getUnderlyingArray(), 0, entriesList.length);
 
-            using (var mdBuilder = m_metadataContext.getMetadataBuilder()) {
-                for (int i = 0; i < entries.length; i++) {
-                    ref readonly var genParam = ref entries[i];
-                    StringHandle nameHandle = m_metadataContext.getStringHandle(genParam.name);
+            using var mdBuilder = m_metadataContext.getMetadataBuilder();
 
-                    var genParamHandle = mdBuilder.value.AddGenericParameter(
-                        genParam.ownerHandle, genParam.attributes, nameHandle, genParam.position);
+            for (int i = 0; i < entries.length; i++) {
+                ref readonly var genParam = ref entries[i];
+                StringHandle nameHandle = m_metadataContext.getStringHandle(genParam.name);
 
-                    ReadOnlySpan<EntityHandle> constraints = genParam.getConstraints().asSpan();
-                    for (int j = 0; j < constraints.Length; j++)
-                        mdBuilder.value.AddGenericParameterConstraint(genParamHandle, constraints[j]);
-                }
+                var genParamHandle = mdBuilder.value.AddGenericParameter(
+                    genParam.ownerHandle, genParam.attributes, nameHandle, genParam.position);
+
+                ReadOnlySpan<EntityHandle> constraints = genParam.getConstraints().asSpan();
+                for (int j = 0; j < constraints.Length; j++)
+                    mdBuilder.value.AddGenericParameterConstraint(genParamHandle, constraints[j]);
             }
         }
 
