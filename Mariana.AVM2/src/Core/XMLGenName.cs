@@ -12,19 +12,19 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// The namespace prefix, or null if no namespace prefix is present.
         /// </summary>
-        public readonly string prefix;
+        public readonly string? prefix;
 
         /// <summary>
         /// The namespace URI. If this is null, the namespace must be ignored for matching.
         /// If <see cref="isMultiname"/> is true and this is not null, this URI must be matched
         /// in addition to the namespace set.
         /// </summary>
-        public readonly string uri;
+        public readonly string? uri;
 
         /// <summary>
         /// The local name. If this is null, the local name must be ignored for matching.
         /// </summary>
-        public readonly string localName;
+        public readonly string? localName;
 
         /// <summary>
         /// The numeric index, if <see cref="isIndex"/> is true.
@@ -62,10 +62,16 @@ namespace Mariana.AVM2.Core {
         public readonly NamespaceSet nsSet;
 
         private XMLGenName(
-            string prefix = null, string uri = null, string localName = null, int index = -1,
-            bool isIndex = false, bool isMultiname = false, bool isAttr = false, bool isProcInstr = false,
-            NamespaceSet nsSet = default(NamespaceSet))
-        {
+            string? prefix = null,
+            string? uri = null,
+            string? localName = null,
+            int index = -1,
+            bool isIndex = false,
+            bool isMultiname = false,
+            bool isAttr = false, bool
+            isProcInstr = false,
+            NamespaceSet nsSet = default(NamespaceSet)
+        ) {
             this.prefix = prefix;
             this.uri = uri;
             this.localName = localName;
@@ -90,8 +96,8 @@ namespace Mariana.AVM2.Core {
         /// <see cref="BindOptions.ATTRIBUTE"/> and <see cref="BindOptions.RUNTIME_NAME"/>.</param>
         public static XMLGenName fromQName(QName qname, BindOptions bindOptions) {
             bool isAttr = (bindOptions & BindOptions.ATTRIBUTE) != 0;
-            string uri = qname.ns.uri;
-            string localName;
+            string? uri = qname.ns.uri;
+            string? localName;
 
             if ((bindOptions & BindOptions.RUNTIME_NAME) != 0)
                 localName = ASString.AS_convertString(qname.localName);
@@ -129,7 +135,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="bindOptions">The binding options used in the lookup for which a generalized
         /// name must be created. The following flags are used here:
         /// <see cref="BindOptions.ATTRIBUTE"/> and <see cref="BindOptions.RUNTIME_NAME"/>.</param>
-        public static XMLGenName fromMultiname(string localName, in NamespaceSet nsSet, BindOptions bindOptions) {
+        public static XMLGenName fromMultiname(string? localName, in NamespaceSet nsSet, BindOptions bindOptions) {
             bool isAttr = (bindOptions & BindOptions.ATTRIBUTE) != 0;
 
             if ((bindOptions & BindOptions.RUNTIME_NAME) != 0)
@@ -155,7 +161,7 @@ namespace Mariana.AVM2.Core {
             }
 
             bool isMultiname = true;
-            string uri;
+            string? uri;
 
             if (localName == null) {
                 // If the local name is the "any" name, Flash Player ignores the namespace set
@@ -189,9 +195,9 @@ namespace Mariana.AVM2.Core {
                     return new XMLGenName(index: index, isIndex: true, isAttr: isAttr);
             }
 
-            string uri, prefix, localName;
+            string? uri, prefix, localName;
 
-            ASQName qname = obj.value as ASQName;
+            ASQName? qname = obj.value as ASQName;
             if (qname != null)
                 (uri, prefix, localName) = (qname.uri, qname.prefix, qname.localName);
             else
@@ -243,10 +249,10 @@ namespace Mariana.AVM2.Core {
                     return new XMLGenName(index: index, isIndex: true, isAttr: isAttr);
             }
 
-            string localName, uri = null, prefix = null;
+            string? localName, uri = null, prefix = null;
             bool isMultiname;
 
-            ASQName qname = obj.value as ASQName;
+            ASQName? qname = obj.value as ASQName;
             if (qname != null) {
                 (uri, prefix, localName) = (qname.uri, qname.prefix, qname.localName);
                 isMultiname = false;
@@ -297,7 +303,7 @@ namespace Mariana.AVM2.Core {
         /// <returns>The created <see cref="XMLGenName"/> instance.</returns>
         /// <param name="obj">An <see cref="ASAny"/> instance.</param>
         public static XMLGenName fromObjectAttrName(ASAny obj) {
-            string prefix = null, uri, localName;
+            string? prefix = null, uri, localName;
 
             if (obj.value is ASQName qname) {
                 (uri, prefix, localName) = (qname.uri, qname.prefix, qname.localName);
@@ -319,7 +325,7 @@ namespace Mariana.AVM2.Core {
         /// <returns>The created <see cref="XMLGenName"/> instance.</returns>
         /// <param name="obj">An <see cref="ASAny"/> instance.</param>
         public static XMLGenName fromObjectProcInstrName(ASAny obj) {
-            string prefix = null, uri, localName;
+            string? prefix = null, uri, localName;
 
             if (obj.value is ASQName qname) {
                 (uri, prefix, localName) = (qname.uri, qname.prefix, qname.localName);
@@ -353,7 +359,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="uri">The namespace URI of the qualified name.</param>
         /// <param name="localName">The local name of the qualified name.</param>
         /// <param name="isAttr">Set to true for an attribute name, otherwise false.</param>
-        public static XMLGenName qualifiedName(string uri, string localName, bool isAttr) =>
+        public static XMLGenName qualifiedName(string? uri, string localName, bool isAttr) =>
             new XMLGenName(uri: uri, localName: localName, isAttr: isAttr);
 
     }

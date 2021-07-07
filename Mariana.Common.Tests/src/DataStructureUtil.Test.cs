@@ -262,7 +262,7 @@ namespace Mariana.Common.Tests {
             (Array.Empty<byte>(), 1),
             (null, 5),
             (Array.Empty<byte>(), 5),
-            (new byte[4], 0),
+            (new byte[4], 1),
             (new byte[4], 4),
             (new byte[4], 5),
             (new byte[4], 10),

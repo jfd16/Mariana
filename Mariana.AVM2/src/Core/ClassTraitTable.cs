@@ -21,12 +21,12 @@ namespace Mariana.AVM2.Core {
         private const int END_OF_CHAIN = -1;
         private const int HASH_CODE_MASK = 0x7FFFFFFF;
 
-        private Class m_class;
+        private Class? m_class;
         private Trait[] m_slots;
         private int m_count;
 
-        private Link[] m_linksForInstQualified;
-        private Link[] m_linksForInstUnqualified;
+        private Link[]? m_linksForInstQualified;
+        private Link[]? m_linksForInstUnqualified;
         private Link[] m_linksForStaticQualified;
         private Link[] m_linksForStaticUnqalified;
 
@@ -43,7 +43,7 @@ namespace Mariana.AVM2.Core {
         /// the global trait table of an application domain)</param>
         /// <param name="staticOnly">Set this to true if only static traits will be stored in this
         /// table.</param>
-        public ClassTraitTable(Class klass, bool staticOnly = false) {
+        public ClassTraitTable(Class? klass, bool staticOnly = false) {
             m_class = klass;
             m_slots = new Trait[INITIAL_SIZE];
 
@@ -81,7 +81,7 @@ namespace Mariana.AVM2.Core {
         /// <see cref="BindStatus.AMBIGUOUS" qualifyHint="true"/> (indicating an ambiguous match,
         /// only applicable to names in the any namespace).
         /// </returns>
-        public BindStatus tryGetTrait(in QName name, bool isStatic, out Trait trait) {
+        public BindStatus tryGetTrait(in QName name, bool isStatic, out Trait? trait) {
             if (m_isCorrupted)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__CLASS_TRAIT_TABLE_CORRUPTED);
 
@@ -96,7 +96,7 @@ namespace Mariana.AVM2.Core {
                 // Optimized case for public namespace, since it is so commonly used.
 
                 string localName = name.localName;
-                Link[] links = isStatic ? m_linksForStaticUnqalified : m_linksForInstUnqualified;
+                Link[] links = isStatic ? m_linksForStaticUnqalified : m_linksForInstUnqualified!;
 
                 int hash = localName.GetHashCode() & HASH_CODE_MASK;
                 trait = null;
@@ -128,11 +128,10 @@ namespace Mariana.AVM2.Core {
                 // traits with the same name but different namespaces declared on the same class.
 
                 string localName = name.localName;
-                bool found = false;
                 bool ambiguousMatch = false;
                 trait = null;
 
-                Link[] links = isStatic ? m_linksForStaticUnqalified : m_linksForInstUnqualified;
+                Link[] links = isStatic ? m_linksForStaticUnqalified : m_linksForInstUnqualified!;
                 int hash = localName.GetHashCode() & HASH_CODE_MASK;
 
                 int curIndex = links[hash % links.Length].chainHead;
@@ -150,7 +149,7 @@ namespace Mariana.AVM2.Core {
                         continue;
                     }
 
-                    if (found) {
+                    if (trait != null) {
                         // If two conflicting traits are declared on the same class it is definitely
                         // an ambiguous match. This is also true for global traits.
                         if (currentTrait.declaringClass == trait.declaringClass)
@@ -166,27 +165,26 @@ namespace Mariana.AVM2.Core {
                             // that `trait` derives from, in which case we terminate the search early and
                             // return `trait`.
 
-                            if (!currentTrait.declaringClass.isInterface)
+                            if (!currentTrait.declaringClass!.isInterface)
                                 break;
 
-                            if (!trait.declaringClass.canAssignTo(currentTrait.declaringClass))
+                            if (!trait.declaringClass!.canAssignTo(currentTrait.declaringClass!))
                                 return BindStatus.AMBIGUOUS;
                         }
                         else {
                             // For tables which are not sealed, if `currentTrait` is from a more derived
                             // class, set the result to that trait and reset the ambiguous match flag.
-                            if (currentTrait.declaringClass.canAssignTo(trait.declaringClass)) {
+                            if (currentTrait.declaringClass!.canAssignTo(trait.declaringClass)) {
                                 trait = currentTrait;
                                 ambiguousMatch = false;
                             }
-                            else if (!trait.declaringClass.canAssignTo(currentTrait.declaringClass)) {
+                            else if (!trait.declaringClass!.canAssignTo(currentTrait.declaringClass)) {
                                 ambiguousMatch = true;
                             }
                         }
                     }
                     else {
                         trait = currentTrait;
-                        found = true;
                     }
 
                     curIndex = link.next;
@@ -195,13 +193,13 @@ namespace Mariana.AVM2.Core {
                 if (ambiguousMatch)
                     return BindStatus.AMBIGUOUS;
 
-                return found ? BindStatus.SUCCESS : BindStatus.NOT_FOUND;
+                return (trait != null) ? BindStatus.SUCCESS : BindStatus.NOT_FOUND;
             }
             else {
                 // For namespaces other than the any and public namespaces, use the qualified name
                 // links for lookup and compare namespaces directly.
 
-                Link[] links = isStatic ? m_linksForStaticQualified : m_linksForInstQualified;
+                Link[] links = isStatic ? m_linksForStaticQualified : m_linksForInstQualified!;
                 int hash = name.GetHashCode() & HASH_CODE_MASK;
 
                 int curIndex = links[hash % links.Length].chainHead;
@@ -255,7 +253,7 @@ namespace Mariana.AVM2.Core {
         /// this method on an unsealed table when there is no inheritance involved (for example, in
         /// the global trait table of an application domain).
         /// </remarks>
-        public BindStatus tryGetTrait(string localName, in NamespaceSet nsSet, bool isStatic, out Trait trait) {
+        public BindStatus tryGetTrait(string localName, in NamespaceSet nsSet, bool isStatic, out Trait? trait) {
             if (m_isCorrupted)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__CLASS_TRAIT_TABLE_CORRUPTED);
 
@@ -264,13 +262,12 @@ namespace Mariana.AVM2.Core {
                 return BindStatus.NOT_FOUND;
             }
 
-            bool found = false;
             bool ambiguousMatch = false;
             trait = null;
 
             int hash = localName.GetHashCode() & HASH_CODE_MASK;
             Trait[] slots = m_slots;
-            Link[] links = isStatic ? m_linksForStaticUnqalified : m_linksForInstUnqualified;
+            Link[] links = isStatic ? m_linksForStaticUnqalified : m_linksForInstUnqualified!;
 
             int curIndex = links[hash % links.Length].chainHead;
 
@@ -290,7 +287,7 @@ namespace Mariana.AVM2.Core {
                     continue;
                 }
 
-                if (found) {
+                if (trait != null) {
                     // If two conflicting traits are declared on the same class it is definitely
                     // an ambiguous match. This is also true for global traits.
                     if (currentTrait.declaringClass == trait.declaringClass)
@@ -306,27 +303,26 @@ namespace Mariana.AVM2.Core {
                         // that `trait` derives from, in which case we terminate the search early and
                         // return `trait`.
 
-                        if (!currentTrait.declaringClass.isInterface)
+                        if (!currentTrait.declaringClass!.isInterface)
                             break;
 
-                        if (!trait.declaringClass.canAssignTo(currentTrait.declaringClass))
+                        if (!trait.declaringClass!.canAssignTo(currentTrait.declaringClass))
                             return BindStatus.AMBIGUOUS;
                     }
                     else {
                         // For tables which are not sealed, if `currentTrait` is from a more derived
                         // class, set the result to that trait and reset the ambiguous match flag.
-                        if (currentTrait.declaringClass.canAssignTo(trait.declaringClass)) {
+                        if (currentTrait.declaringClass!.canAssignTo(trait.declaringClass)) {
                             trait = currentTrait;
                             ambiguousMatch = false;
                         }
-                        else if (!trait.declaringClass.canAssignTo(currentTrait.declaringClass)) {
+                        else if (!trait.declaringClass!.canAssignTo(currentTrait.declaringClass)) {
                             ambiguousMatch = true;
                         }
                     }
                 }
                 else {
                     trait = currentTrait;
-                    found = true;
                 }
 
                 curIndex = link.next;
@@ -335,7 +331,7 @@ namespace Mariana.AVM2.Core {
             if (ambiguousMatch)
                 return BindStatus.AMBIGUOUS;
 
-            return found ? BindStatus.SUCCESS : BindStatus.NOT_FOUND;
+            return (trait != null) ? BindStatus.SUCCESS : BindStatus.NOT_FOUND;
         }
 
         /// <summary>
@@ -358,7 +354,7 @@ namespace Mariana.AVM2.Core {
             int hash = name.GetHashCode() & HASH_CODE_MASK;
             bool isStatic = trait.isStatic;
 
-            Link[] links = isStatic ? m_linksForStaticQualified : m_linksForInstQualified;
+            Link[]? links = isStatic ? m_linksForStaticQualified : m_linksForInstQualified;
             if (links == null)
                 return false;
 
@@ -381,7 +377,8 @@ namespace Mariana.AVM2.Core {
 
                 if (!allowMergeProperties
                     || trait.traitType != TraitType.PROPERTY
-                    || currentTrait.traitType != TraitType.PROPERTY)
+                    || currentTrait.traitType != TraitType.PROPERTY
+                    || m_class == null)
                 {
                     return false;
                 }
@@ -391,7 +388,7 @@ namespace Mariana.AVM2.Core {
                 // one accessor of a property and the other accessor is supplied by a subclass, or a derived
                 // class overrides one of the accessors of a property defined on a base class).
 
-                PropertyTrait mergedProp = PropertyTrait.tryMerge((PropertyTrait)currentTrait, (PropertyTrait)trait, m_class);
+                PropertyTrait? mergedProp = PropertyTrait.tryMerge((PropertyTrait)currentTrait, (PropertyTrait)trait, m_class);
 
                 if (mergedProp == null)
                     return false;
@@ -405,7 +402,7 @@ namespace Mariana.AVM2.Core {
 
             if (m_count == m_slots.Length) {
                 _expandTable();
-                links = isStatic ? m_linksForStaticQualified : m_linksForInstQualified;
+                links = isStatic ? m_linksForStaticQualified : m_linksForInstQualified!;
                 chain = hash % links.Length;
             }
 
@@ -419,8 +416,8 @@ namespace Mariana.AVM2.Core {
 
             // Update the links for unqualified lookup.
 
-            links = isStatic ? m_linksForStaticUnqalified : m_linksForInstUnqualified;
-            hash = name.localName.GetHashCode() & 0x7FFFFFFF;
+            links = isStatic ? m_linksForStaticUnqalified : m_linksForInstUnqualified!;
+            hash = name.localName!.GetHashCode() & 0x7FFFFFFF;
             chain = hash % links.Length;
 
             links[newIndex].hash = hash;
@@ -444,7 +441,7 @@ namespace Mariana.AVM2.Core {
             int hash = name.GetHashCode() & HASH_CODE_MASK;
             bool isStatic = oldTrait.isStatic;
 
-            Link[] links = isStatic ? m_linksForStaticQualified : m_linksForInstQualified;
+            Link[]? links = isStatic ? m_linksForStaticQualified : m_linksForInstQualified;
             if (links == null)
                 return;
 
@@ -490,8 +487,8 @@ namespace Mariana.AVM2.Core {
 
             Link[] newLinksForStaticQualified = new Link[length];
             Link[] newLinksForStaticUnqualified = new Link[length];
-            Link[] newLinksForInstQualified = null;
-            Link[] newLinksForInstUnqualified = null;
+            Link[]? newLinksForInstQualified = null;
+            Link[]? newLinksForInstUnqualified = null;
 
             newLinksForStaticQualified.AsSpan().Fill(defaultLink);
             newLinksForStaticUnqualified.AsSpan().Fill(defaultLink);
@@ -514,15 +511,15 @@ namespace Mariana.AVM2.Core {
 
                 if (recalculateHashes) {
                     qualifiedHash = slots[i].name.GetHashCode() & HASH_CODE_MASK;
-                    unqualifiedHash = slots[i].name.localName.GetHashCode() & HASH_CODE_MASK;
+                    unqualifiedHash = slots[i].name.localName!.GetHashCode() & HASH_CODE_MASK;
                 }
                 else if (traitIsStatic) {
                     qualifiedHash = m_linksForStaticQualified[i].hash;
                     unqualifiedHash = m_linksForStaticUnqalified[i].hash;
                 }
                 else {
-                    qualifiedHash = m_linksForInstQualified[i].hash;
-                    unqualifiedHash = m_linksForInstUnqualified[i].hash;
+                    qualifiedHash = m_linksForInstQualified![i].hash;
+                    unqualifiedHash = m_linksForInstUnqualified![i].hash;
                 }
 
                 int qualifiedChain = qualifiedHash % length;
@@ -539,14 +536,14 @@ namespace Mariana.AVM2.Core {
                     newLinksForStaticUnqualified[unqualifiedChain].chainHead = i;
                 }
                 else {
-                    newLinksForInstQualified[i].hash = qualifiedHash;
-                    newLinksForInstUnqualified[i].hash = unqualifiedHash;
+                    newLinksForInstQualified![i].hash = qualifiedHash;
+                    newLinksForInstUnqualified![i].hash = unqualifiedHash;
 
-                    newLinksForInstQualified[i].next = newLinksForInstQualified[qualifiedChain].chainHead;
-                    newLinksForInstUnqualified[i].next = newLinksForInstUnqualified[unqualifiedChain].chainHead;
+                    newLinksForInstQualified![i].next = newLinksForInstQualified[qualifiedChain].chainHead;
+                    newLinksForInstUnqualified![i].next = newLinksForInstUnqualified[unqualifiedChain].chainHead;
 
-                    newLinksForInstQualified[qualifiedChain].chainHead = i;
-                    newLinksForInstUnqualified[unqualifiedChain].chainHead = i;
+                    newLinksForInstQualified![qualifiedChain].chainHead = i;
+                    newLinksForInstUnqualified![unqualifiedChain].chainHead = i;
                 }
             }
 
@@ -576,7 +573,9 @@ namespace Mariana.AVM2.Core {
                 if (tryAddTrait(parentTrait, allowMergeProperties: true))
                     continue;
 
-                tryGetTrait(parentTrait.name, isStatic: false, out Trait conflictingTrait);
+                tryGetTrait(parentTrait.name, isStatic: false, out Trait? conflictingTrait);
+                if (conflictingTrait == null)
+                    continue;
 
                 if (allowHiding) {
                     if (conflictingTrait.traitType != parentTrait.traitType
@@ -600,7 +599,7 @@ namespace Mariana.AVM2.Core {
 
                     var newProp = new PropertyTrait(
                         conflictProp.name, m_class,
-                        m_class.applicationDomain,
+                        m_class!.applicationDomain,
                         isStatic: false,
                         conflictProp.getter ?? parentProp.getter,
                         conflictProp.setter ?? parentProp.setter
@@ -624,7 +623,7 @@ namespace Mariana.AVM2.Core {
                 throw ErrorHelper.createError(
                     ErrorCode.MARIANA__CLASS_TRAIT_HIDES_INHERITED,
                     conflictingTrait.name.ToString(),
-                    m_class.name.ToString()
+                    m_class!.name.ToString()
                 );
             }
         }
@@ -691,7 +690,9 @@ namespace Mariana.AVM2.Core {
                 if (tryAddTrait(parentTrait, allowMergeProperties: true))
                     continue;
 
-                tryGetTrait(parentTrait.name, isStatic: false, out Trait conflictingTrait);
+                tryGetTrait(parentTrait.name, isStatic: false, out Trait? conflictingTrait);
+                if (conflictingTrait == null)
+                    continue;
 
                 if (!_canMergeConflictingInterfaceTraits(parentTrait, conflictingTrait)) {
                     m_isCorrupted = true;
@@ -699,9 +700,9 @@ namespace Mariana.AVM2.Core {
                     throw ErrorHelper.createError(
                         ErrorCode.MARIANA__INTERFACE_COMMON_TRAIT_SIG_MISMATCH,
                         conflictingTrait.name.ToString(),
-                        m_class.name.ToString(),
-                        parentTrait.declaringClass.name.ToString(),
-                        conflictingTrait.declaringClass.name.ToString()
+                        m_class!.name.ToString(),
+                        parentTrait.declaringClass!.name.ToString(),
+                        conflictingTrait.declaringClass!.name.ToString()
                     );
                 }
             }
@@ -715,7 +716,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="secondTrait">The second conflicting trait.</param>
         /// <returns>True if the conflict can be ignored (one of the traits stays in the derived
         /// interface table), false if this is a name conflict error.</returns>
-        private bool _canMergeConflictingInterfaceTraits(Trait firstTrait, Trait secondTrait) {
+        private bool _canMergeConflictingInterfaceTraits(Trait? firstTrait, Trait? secondTrait) {
             if (firstTrait == null || secondTrait == null)
                 return true;
 
@@ -803,7 +804,7 @@ namespace Mariana.AVM2.Core {
 
             DataStructureUtil.sortSpan(
                 newTraitList.asSpan(0, instanceTraitsEndIndex),
-                (t1, t2) => classOrderMap[t1.declaringClass] - classOrderMap[t2.declaringClass]
+                (t1, t2) => classOrderMap[t1.declaringClass!] - classOrderMap[t2.declaringClass!]
             );
 
             int declInstTraitsBeginIndex = staticTraitsBeginIndex;
@@ -833,11 +834,11 @@ namespace Mariana.AVM2.Core {
         private ReferenceDictionary<Class, int> _computeClassTopologicalOrdering() {
             var dict = new ReferenceDictionary<Class, int>();
 
-            if (!m_class.isInterface) {
+            if (!m_class!.isInterface) {
                 // If this is not an interface then the inheritance dag is a linear chain and
                 // the computation of the order numbers is trivial.
 
-                Class currentClass = m_class;
+                Class? currentClass = m_class;
                 int chainDepth = 0;
 
                 while (currentClass != null) {
@@ -997,7 +998,7 @@ namespace Mariana.AVM2.Core {
         /// function returns false for all the traits in the table. If there is more than one trait in
         /// the table for which the <paramref name="filter"/> returns true, any one of them is
         /// returned. (Which one is unspecified.)</returns>
-        public Trait getTraitByFilter(Predicate<Trait> filter) {
+        public Trait? getTraitByFilter(Predicate<Trait> filter) {
             Trait[] slots = m_slots;
             for (int i = m_count - 1; i >= 0; i--) {
                 if (filter(slots[i]))

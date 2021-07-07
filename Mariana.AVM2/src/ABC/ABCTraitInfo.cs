@@ -1,6 +1,5 @@
 ﻿using System;
 using Mariana.AVM2.Core;
-using Mariana.Common;
 
 namespace Mariana.AVM2.ABC {
 
@@ -9,7 +8,7 @@ namespace Mariana.AVM2.ABC {
     /// </summary>
     public sealed class ABCTraitInfo {
 
-        private class _Field {
+        private sealed class _Field {
             public ABCMultiname typeName;
             public bool hasDefault;
             public ASAny defaultVal;
@@ -46,16 +45,54 @@ namespace Mariana.AVM2.ABC {
         public ABCTraitFlags kind => m_flags & ABCTraitFlags.KIND_MASK;
 
         /// <summary>
+        /// Returns a value indicating whether this <see cref="ABCTraitInfo"/> represents a field trait
+        /// (that is, its kind is <see cref="ABCTraitFlags.Slot"/> or <see cref="ABCTraitFlags.Const"/>)
+        /// </summary>
+        public bool isField {
+            get {
+                var kind = m_flags & ABCTraitFlags.KIND_MASK;
+                return kind == ABCTraitFlags.Slot || kind == ABCTraitFlags.Const;
+            }
+        }
+
+        /// <summary>
+        /// Returns a value indicating whether this <see cref="ABCTraitInfo"/> represents a
+        /// class trait.
+        /// </summary>
+        public bool isClass => kind == ABCTraitFlags.Class;
+
+        /// <summary>
+        /// Returns a value indicating whether this <see cref="ABCTraitInfo"/> represents a
+        /// function trait (that is, its kind is <see cref="ABCTraitFlags.Function"/>).
+        /// </summary>
+        public bool isFunction => kind == ABCTraitFlags.Function;
+
+
+        /// <summary>
+        /// Returns a value indicating whether this <see cref="ABCTraitInfo"/> represents a method,
+        /// getter or setter trait.
+        /// </summary>
+        public bool isMethod {
+            get {
+                var kind = m_flags & ABCTraitFlags.KIND_MASK;
+                return kind >= ABCTraitFlags.Method && kind <= ABCTraitFlags.Setter;
+            }
+        }
+
+        /// <summary>
         /// Gets the <see cref="ABCClassInfo"/> instance representing the class definition
         /// for a class trait.
         /// </summary>
-        /// <value>The <see cref="ABCClassInfo"/> instance representing the class definition.
-        /// If this trait is not a class trait, this value is null.</value>
+        /// <value>The <see cref="ABCClassInfo"/> instance representing the class definition.</value>
+        /// <exception cref="AVM2Exception">Error #10332: This <see cref="ABCTraitInfo"/> does not
+        /// represent a class trait.</exception>
         public ABCClassInfo classInfo {
             get {
-                if ((m_flags & ABCTraitFlags.KIND_MASK) == ABCTraitFlags.Class)
+                if (isClass)
                     return (ABCClassInfo)m_obj;
-                return null;
+
+                throw ErrorHelper.createError(
+                    ErrorCode.MARIANA__ABC_TRAIT_INFO_UNSUPPORTED_PROPERTY, nameof(classInfo), kind);
             }
         }
 
@@ -63,46 +100,50 @@ namespace Mariana.AVM2.ABC {
         /// Gets the <see cref="ABCMethodInfo"/> instance representing the method definition
         /// for a method, function, getter or setter trait.
         /// </summary>
-        /// <value>The <see cref="ABCMethodInfo"/> instance representing the method definition.
-        /// If this trait is not a method, function, getter or setter trait, this value is null.</value>
+        /// <value>The <see cref="ABCMethodInfo"/> instance representing the method definition.</value>
+        /// <exception cref="AVM2Exception">Error #10332: This <see cref="ABCTraitInfo"/> does not
+        /// represent a method, function, getter or setter trait.</exception>
         public ABCMethodInfo methodInfo {
             get {
-                ABCTraitFlags kind = (m_flags & ABCTraitFlags.KIND_MASK);
-                if ((kind >= ABCTraitFlags.Method && kind <= ABCTraitFlags.Setter) || kind == ABCTraitFlags.Function)
+                if (isMethod || isFunction)
                     return (ABCMethodInfo)m_obj;
-                return null;
+
+                throw ErrorHelper.createError(
+                    ErrorCode.MARIANA__ABC_TRAIT_INFO_UNSUPPORTED_PROPERTY, nameof(methodInfo), kind);
             }
         }
 
         /// <summary>
         /// Gets a multiname representing the name of the field type for a field trait.
         /// </summary>
-        /// <value>A multiname representing the name of the field type for a field trait.
-        /// If this trait is not a field trait (<see cref="kind"/> is not equal to
-        /// <see cref="ABCTraitFlags.Slot"/> or <see cref="ABCTraitFlags.Const"/>),
-        /// this value is the default value of <see cref="ABCMultiname"/>.</value>
+        /// <value>A multiname representing the name of the field type for a field trait.</value>
+        /// <exception cref="AVM2Exception">Error #10332: This <see cref="ABCTraitInfo"/> does not
+        /// represent a field trait (<see cref="ABCTraitFlags.Slot"/> or
+        /// <see cref="ABCTraitFlags.Const"/>).</exception>
         public ABCMultiname fieldTypeName {
             get {
-                ABCTraitFlags kind = m_flags & ABCTraitFlags.KIND_MASK;
-                if (kind == ABCTraitFlags.Slot || kind == ABCTraitFlags.Const)
+                if (isField)
                     return ((_Field)m_obj).typeName;
-                return default(ABCMultiname);
+
+                throw ErrorHelper.createError(
+                    ErrorCode.MARIANA__ABC_TRAIT_INFO_UNSUPPORTED_PROPERTY, nameof(fieldTypeName), kind);
             }
         }
 
         /// <summary>
         /// Gets a value indicating whether a field trait has a default value associated with it.
         /// </summary>
-        /// <value>True if this instance represents a field trait with a default value. If this
-        /// trait is not a field trait (<see cref="kind"/> is not equal to
-        /// <see cref="ABCTraitFlags.Slot"/> or <see cref="ABCTraitFlags.Const"/>), or the
-        /// field does not have an associated default value, this value is false.</value>
+        /// <value>True if this instance represents a field trait with a default value, false otherwise.</value>
+        /// <exception cref="AVM2Exception">Error #10332: This <see cref="ABCTraitInfo"/> does not
+        /// represent a field trait (<see cref="ABCTraitFlags.Slot"/> or
+        /// <see cref="ABCTraitFlags.Const"/>).</exception>
         public bool fieldHasDefault {
             get {
-                ABCTraitFlags kind = m_flags & ABCTraitFlags.KIND_MASK;
-                if (kind == ABCTraitFlags.Slot || kind == ABCTraitFlags.Const)
+                if (isField)
                     return ((_Field)m_obj).hasDefault;
-                return false;
+
+                throw ErrorHelper.createError(
+                    ErrorCode.MARIANA__ABC_TRAIT_INFO_UNSUPPORTED_PROPERTY, nameof(fieldHasDefault), kind);
             }
         }
 
@@ -110,45 +151,52 @@ namespace Mariana.AVM2.ABC {
         /// Gets the default value of a field trait.
         /// </summary>
         /// <value>The default value, if this instance represents a field trait with a
-        /// default value. If this trait is not a field trait (<see cref="kind"/> is not equal to
-        /// <see cref="ABCTraitFlags.Slot"/> or <see cref="ABCTraitFlags.Const"/>), or the
-        /// field does not have an associated default value, this value is undefined.</value>
+        /// default value. If the field does not have an associated default value, the value of
+        /// this property is undefined.</value>
+        /// <exception cref="AVM2Exception">Error #10332: This <see cref="ABCTraitInfo"/> does not
+        /// represent a field trait (<see cref="ABCTraitFlags.Slot"/> or
+        /// <see cref="ABCTraitFlags.Const"/>).</exception>
         public ASAny fieldDefaultValue {
             get {
-                ABCTraitFlags kind = m_flags & ABCTraitFlags.KIND_MASK;
-                if (kind == ABCTraitFlags.Slot || kind == ABCTraitFlags.Const)
+                if (isField)
                     return ((_Field)m_obj).defaultVal;
-                return ASAny.undefined;
+
+                throw ErrorHelper.createError(
+                    ErrorCode.MARIANA__ABC_TRAIT_INFO_UNSUPPORTED_PROPERTY, nameof(fieldDefaultValue), kind);
             }
         }
 
         /// <summary>
         /// Gets the slot index of this trait, as defined in the ABC file metadata.
         /// </summary>
-        /// <value>The slot index of this trait. If this is a method, getter or setter
-        /// trait, this value is -1. A value of 0 indicates that the trait does not have
-        /// an explicit slot index.</value>
+        /// <value>The slot index of this field, class or function trait. A value of 0
+        /// indicates that the trait does not have an explicit slot index.</value>
+        /// <exception cref="AVM2Exception">Error #10332: This <see cref="ABCTraitInfo"/>
+        /// represents a method, function, getter or setter trait.</exception>
         public int slotId {
             get {
-                ABCTraitFlags kind = m_flags & ABCTraitFlags.KIND_MASK;
-                if (kind >= ABCTraitFlags.Method && kind <= ABCTraitFlags.Setter)
-                    return -1;
-                return m_slotOrDispId;
+                if (!isMethod)
+                    return m_slotOrDispId;
+
+                throw ErrorHelper.createError(
+                    ErrorCode.MARIANA__ABC_TRAIT_INFO_UNSUPPORTED_PROPERTY, nameof(slotId), kind);
             }
         }
 
         /// <summary>
         /// Gets the method dispatch index of this trait, as defined in the ABC file metadata.
         /// </summary>
-        /// <value>The method dispatch index (<c>disp_id</c>) of this trait. If this is not a
-        /// method, getter or setter trait, this value is -1. A value of 0 indicates that the
+        /// <value>The method dispatch index (<c>disp_id</c>) of this trait. A value of 0 indicates that the
         /// method does not have an explicit dispatch index assigned.</value>
+        /// <exception cref="AVM2Exception">Error #10332: This <see cref="ABCTraitInfo"/> does not
+        /// represent a method, function, getter or setter trait.</exception>
         public int methodDispId {
             get {
-                ABCTraitFlags kind = m_flags & ABCTraitFlags.KIND_MASK;
-                if (kind >= ABCTraitFlags.Method && kind <= ABCTraitFlags.Setter)
+                if (isMethod)
                     return m_slotOrDispId;
-                return -1;
+
+                throw ErrorHelper.createError(
+                    ErrorCode.MARIANA__ABC_TRAIT_INFO_UNSUPPORTED_PROPERTY, nameof(methodDispId), kind);
             }
         }
 
@@ -159,18 +207,22 @@ namespace Mariana.AVM2.ABC {
         /// defined for this trait.</returns>
         public MetadataTagCollection metadata => m_metadata;
 
-        internal ABCTraitInfo(in QName name, ABCTraitFlags flags, int slotOrDispId, object classOrMthdInfo) {
+        internal ABCTraitInfo(in QName name, ABCTraitFlags flags, int slotOrDispId, object classOrMethodInfo) {
             m_name = name;
             m_flags = flags;
             m_slotOrDispId = slotOrDispId;
             m_metadata = MetadataTagCollection.empty;
-            m_obj = classOrMthdInfo;
+            m_obj = classOrMethodInfo;
         }
 
         internal ABCTraitInfo(
-            in QName name, ABCTraitFlags flags, int slotId,
-            ABCMultiname fieldTypeName, bool fieldHasDefault, ASAny fieldDefaultVal)
-        {
+            in QName name,
+            ABCTraitFlags flags,
+            int slotId,
+            ABCMultiname fieldTypeName,
+            bool fieldHasDefault,
+            ASAny fieldDefaultVal
+        ) {
             m_name = name;
             m_flags = flags;
             m_slotOrDispId = slotId;

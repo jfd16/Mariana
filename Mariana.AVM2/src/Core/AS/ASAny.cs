@@ -45,21 +45,19 @@ namespace Mariana.AVM2.Core {
         /// represent undefined so that variables and/or array elements of the <see cref="ASAny"/>
         /// type are initialized to undefined (and not null) by default.
         /// </remarks>
-        private readonly ASObject m_internalValue;
+        private readonly ASObject? m_internalValue;
 
         /// <summary>
         /// Creates a new instance of the <see cref="ASAny"/> struct with a defined value.
         /// </summary>
         /// <param name="value">The object value (which may be null).</param>
-        public ASAny(ASObject value) {
-            m_internalValue = value ?? s_internalNull;
-        }
+        public ASAny(ASObject? value) => m_internalValue = value ?? s_internalNull;
 
         /// <summary>
         /// Gets the object value of the <see cref="ASAny"/> instance. If this instance is the
         /// undefined or null value, returns null.
         /// </summary>
-        public ASObject value => (m_internalValue == s_internalNull) ? null : m_internalValue;
+        public ASObject? value => (m_internalValue == s_internalNull) ? null : m_internalValue;
 
         /// <summary>
         /// Gets a Boolean value indicating whether the <see cref="ASAny"/> instance is not
@@ -89,9 +87,20 @@ namespace Mariana.AVM2.Core {
         /// Gets the <see cref="Class"/> instance representing the object's class. If this
         /// <see cref="ASAny"/> instance is null or undefined, returns null.
         /// </summary>
-        public Class AS_class => (m_internalValue == null || m_internalValue == s_internalNull) ? null : m_internalValue.AS_class;
+        public Class? AS_class => (m_internalValue == null || m_internalValue == s_internalNull) ? null : m_internalValue.AS_class;
 
         #region PropertyBinding
+
+        /// <summary>
+        /// Throws an error when attempting to lookup a property on a null or undefined value.
+        /// </summary>
+        private void _checkNullOrUndefinedReference() {
+            if (m_internalValue == null)
+                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
+
+            if (m_internalValue == s_internalNull)
+                throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
+        }
 
         /// <summary>
         /// Returns true if a property with the given name exists.
@@ -104,9 +113,8 @@ namespace Mariana.AVM2.Core {
             in QName name,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return value.AS_hasProperty(name, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_hasProperty(name, options);
         }
 
         /// <summary>
@@ -122,9 +130,8 @@ namespace Mariana.AVM2.Core {
             string name, in NamespaceSet nsSet,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return value.AS_hasProperty(name, nsSet, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_hasProperty(name, nsSet, options);
         }
 
         /// <summary>
@@ -140,9 +147,8 @@ namespace Mariana.AVM2.Core {
             in QName name, out ASAny value,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_tryGetProperty(name, out value, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_tryGetProperty(name, out value, options);
         }
 
         /// <summary>
@@ -162,9 +168,8 @@ namespace Mariana.AVM2.Core {
             string name, in NamespaceSet nsSet, out ASAny value,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_tryGetProperty(name, nsSet, out value, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_tryGetProperty(name, nsSet, out value, options);
         }
 
         /// <summary>
@@ -180,9 +185,8 @@ namespace Mariana.AVM2.Core {
             in QName name, ASAny value,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_trySetProperty(name, value, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_trySetProperty(name, value, options);
         }
 
         /// <summary>
@@ -202,9 +206,8 @@ namespace Mariana.AVM2.Core {
             string name, in NamespaceSet nsSet, ASAny value,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_trySetProperty(name, nsSet, value, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_trySetProperty(name, nsSet, value, options);
         }
 
         /// <summary>
@@ -223,9 +226,8 @@ namespace Mariana.AVM2.Core {
             in QName name, ReadOnlySpan<ASAny> args, out ASAny result,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_tryCallProperty(name, args, out result, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_tryCallProperty(name, args, out result, options);
         }
 
         /// <summary>
@@ -246,9 +248,8 @@ namespace Mariana.AVM2.Core {
             string name, in NamespaceSet nsSet, ReadOnlySpan<ASAny> args, out ASAny result,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_tryCallProperty(name, nsSet, args, out result, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_tryCallProperty(name, nsSet, args, out result, options);
         }
 
         /// <summary>
@@ -267,9 +268,8 @@ namespace Mariana.AVM2.Core {
             in QName name, ReadOnlySpan<ASAny> args, out ASAny result,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_tryConstructProperty(name, args, out result, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_tryConstructProperty(name, args, out result, options);
         }
 
         /// <summary>
@@ -290,9 +290,8 @@ namespace Mariana.AVM2.Core {
             string name, in NamespaceSet nsSet, ReadOnlySpan<ASAny> args, out ASAny result,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_tryConstructProperty(name, nsSet, args, out result, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_tryConstructProperty(name, nsSet, args, out result, options);
         }
 
         /// <summary>
@@ -306,9 +305,8 @@ namespace Mariana.AVM2.Core {
             in QName name,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_deleteProperty(name, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_deleteProperty(name, options);
         }
 
         /// <summary>
@@ -330,9 +328,8 @@ namespace Mariana.AVM2.Core {
             string name, in NamespaceSet nsSet,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_deleteProperty(name, nsSet, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_deleteProperty(name, nsSet, options);
         }
 
         /// <summary>
@@ -350,9 +347,8 @@ namespace Mariana.AVM2.Core {
         public BindStatus AS_tryGetDescendants(
             in QName name, out ASAny result, BindOptions options = BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_tryGetDescendants(name, out result, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_tryGetDescendants(name, out result, options);
         }
 
         /// <summary>
@@ -372,9 +368,8 @@ namespace Mariana.AVM2.Core {
         public BindStatus AS_tryGetDescendants(
             string name, in NamespaceSet nsSet, out ASAny result, BindOptions options = BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_tryGetDescendants(name, nsSet, out result, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_tryGetDescendants(name, nsSet, out result, options);
         }
 
         /// <summary>
@@ -392,9 +387,8 @@ namespace Mariana.AVM2.Core {
             in QName name,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_getProperty(name, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_getProperty(name, options);
         }
 
         /// <summary>
@@ -413,9 +407,8 @@ namespace Mariana.AVM2.Core {
             string name, in NamespaceSet nsSet,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_getProperty(name, nsSet, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_getProperty(name, nsSet, options);
         }
 
         /// <summary>
@@ -433,9 +426,8 @@ namespace Mariana.AVM2.Core {
             in QName name, ASAny value,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            this.value.AS_setProperty(name, value, options);
+            _checkNullOrUndefinedReference();
+            m_internalValue!.AS_setProperty(name, value, options);
         }
 
         /// <summary>
@@ -456,9 +448,8 @@ namespace Mariana.AVM2.Core {
             string name, in NamespaceSet nsSet,
             ASAny value, BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            this.value.AS_setProperty(name, nsSet, value, options);
+            _checkNullOrUndefinedReference();
+            m_internalValue!.AS_setProperty(name, nsSet, value, options);
         }
 
         /// <summary>
@@ -477,9 +468,8 @@ namespace Mariana.AVM2.Core {
             in QName name, ReadOnlySpan<ASAny> args,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_callProperty(name, args, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_callProperty(name, args, options);
         }
 
         /// <summary>
@@ -502,9 +492,8 @@ namespace Mariana.AVM2.Core {
             string name, in NamespaceSet nsSet, ReadOnlySpan<ASAny> args,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_callProperty(name, nsSet, args, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_callProperty(name, nsSet, args, options);
         }
 
         /// <summary>
@@ -523,9 +512,8 @@ namespace Mariana.AVM2.Core {
             in QName name, ReadOnlySpan<ASAny> args,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_constructProperty(name, args, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_constructProperty(name, args, options);
         }
 
         /// <summary>
@@ -548,9 +536,8 @@ namespace Mariana.AVM2.Core {
             string name, in NamespaceSet nsSet, ReadOnlySpan<ASAny> args,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_constructProperty(name, nsSet, args, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_constructProperty(name, nsSet, args, options);
         }
 
         /// <summary>
@@ -567,9 +554,8 @@ namespace Mariana.AVM2.Core {
         /// </list>
         /// </exception>
         public ASAny AS_getDescendants(in QName name, BindOptions options = 0) {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_getDescendants(name, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_getDescendants(name, options);
         }
 
         /// <summary>
@@ -588,9 +574,8 @@ namespace Mariana.AVM2.Core {
         /// </list>
         /// </exception>
         public ASAny AS_getDescendants(string name, in NamespaceSet nsSet, BindOptions options = 0) {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_getDescendants(name, nsSet, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_getDescendants(name, nsSet, options);
         }
 
         /// <summary>
@@ -604,9 +589,8 @@ namespace Mariana.AVM2.Core {
             ASAny key,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_hasPropertyObj(key, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_hasPropertyObj(key, options);
         }
 
         /// <summary>
@@ -621,9 +605,8 @@ namespace Mariana.AVM2.Core {
             ASAny key, in NamespaceSet nsSet,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_hasPropertyObj(key, nsSet, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_hasPropertyObj(key, nsSet, options);
         }
 
         /// <summary>
@@ -639,9 +622,8 @@ namespace Mariana.AVM2.Core {
             ASAny key, out ASAny value,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_tryGetPropertyObj(key, out value, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_tryGetPropertyObj(key, out value, options);
         }
 
         /// <summary>
@@ -660,9 +642,8 @@ namespace Mariana.AVM2.Core {
             ASAny key, in NamespaceSet nsSet, out ASAny value,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_tryGetPropertyObj(key, nsSet, out value, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_tryGetPropertyObj(key, nsSet, out value, options);
         }
 
         /// <summary>
@@ -678,9 +659,8 @@ namespace Mariana.AVM2.Core {
             ASAny key, ASAny value,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_trySetPropertyObj(key, value, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_trySetPropertyObj(key, value, options);
         }
 
         /// <summary>
@@ -699,9 +679,8 @@ namespace Mariana.AVM2.Core {
             ASAny key, in NamespaceSet nsSet, ASAny value,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_trySetPropertyObj(key, nsSet, value, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_trySetPropertyObj(key, nsSet, value, options);
         }
 
         /// <summary>
@@ -720,9 +699,8 @@ namespace Mariana.AVM2.Core {
             ASAny key, ReadOnlySpan<ASAny> args, out ASAny result,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_tryCallPropertyObj(key, args, out result, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_tryCallPropertyObj(key, args, out result, options);
         }
 
         /// <summary>
@@ -743,9 +721,8 @@ namespace Mariana.AVM2.Core {
             ASAny key, in NamespaceSet nsSet, ReadOnlySpan<ASAny> args, out ASAny result,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_tryCallPropertyObj(key, nsSet, args, out result, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_tryCallPropertyObj(key, nsSet, args, out result, options);
         }
 
         /// <summary>
@@ -764,9 +741,8 @@ namespace Mariana.AVM2.Core {
             ASAny key, ReadOnlySpan<ASAny> args, out ASAny result,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_tryConstructPropertyObj(key, args, out result, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_tryConstructPropertyObj(key, args, out result, options);
         }
 
         /// <summary>
@@ -787,9 +763,8 @@ namespace Mariana.AVM2.Core {
             ASAny key, in NamespaceSet nsSet, ReadOnlySpan<ASAny> args, out ASAny result,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_tryConstructPropertyObj(key, nsSet, args, out result, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_tryConstructPropertyObj(key, nsSet, args, out result, options);
         }
 
         /// <summary>
@@ -803,9 +778,8 @@ namespace Mariana.AVM2.Core {
             ASAny key,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_deletePropertyObj(key, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_deletePropertyObj(key, options);
         }
 
         /// <summary>
@@ -820,9 +794,8 @@ namespace Mariana.AVM2.Core {
             ASAny key, in NamespaceSet nsSet,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_deletePropertyObj(key, nsSet, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_deletePropertyObj(key, nsSet, options);
         }
 
         /// <summary>
@@ -840,9 +813,8 @@ namespace Mariana.AVM2.Core {
         public BindStatus AS_tryGetDescendantsObj(
             ASAny key, out ASAny result, BindOptions options = BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_tryGetDescendantsObj(key, out result, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_tryGetDescendantsObj(key, out result, options);
         }
 
         /// <summary>
@@ -862,9 +834,8 @@ namespace Mariana.AVM2.Core {
         public BindStatus AS_tryGetDescendantsObj(
             ASAny key, in NamespaceSet nsSet, out ASAny result, BindOptions options = BindOptions.SEARCH_DYNAMIC)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_tryGetDescendantsObj(key, nsSet, out result, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_tryGetDescendantsObj(key, nsSet, out result, options);
         }
 
         /// <summary>
@@ -882,9 +853,8 @@ namespace Mariana.AVM2.Core {
             ASAny key,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_getPropertyObj(key, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_getPropertyObj(key, options);
         }
 
         /// <summary>
@@ -903,9 +873,8 @@ namespace Mariana.AVM2.Core {
             ASAny key, in NamespaceSet nsSet,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_getPropertyObj(key, nsSet, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_getPropertyObj(key, nsSet, options);
         }
 
         /// <summary>
@@ -923,9 +892,8 @@ namespace Mariana.AVM2.Core {
             ASAny key, ASAny value,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            this.value.AS_setPropertyObj(key, value, options);
+            _checkNullOrUndefinedReference();
+            m_internalValue!.AS_setPropertyObj(key, value, options);
         }
 
         /// <summary>
@@ -946,9 +914,8 @@ namespace Mariana.AVM2.Core {
             ASAny key, in NamespaceSet nsSet, ASAny value,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            this.value.AS_setPropertyObj(key, nsSet, value, options);
+            _checkNullOrUndefinedReference();
+            m_internalValue!.AS_setPropertyObj(key, nsSet, value, options);
         }
 
         /// <summary>
@@ -967,9 +934,8 @@ namespace Mariana.AVM2.Core {
             ASAny key, ReadOnlySpan<ASAny> args,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_callPropertyObj(key, args, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_callPropertyObj(key, args, options);
         }
 
         /// <summary>
@@ -991,9 +957,8 @@ namespace Mariana.AVM2.Core {
             ASAny key, in NamespaceSet nsSet, ReadOnlySpan<ASAny> args,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_callPropertyObj(key, nsSet, args, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_callPropertyObj(key, nsSet, args, options);
         }
 
         /// <summary>
@@ -1012,9 +977,8 @@ namespace Mariana.AVM2.Core {
             ASAny key, ReadOnlySpan<ASAny> args,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_constructPropertyObj(key, args, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_constructPropertyObj(key, args, options);
         }
 
         /// <summary>
@@ -1036,9 +1000,8 @@ namespace Mariana.AVM2.Core {
             ASAny key, in NamespaceSet nsSet, ReadOnlySpan<ASAny> args,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_constructPropertyObj(key, nsSet, args, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_constructPropertyObj(key, nsSet, args, options);
         }
 
         /// <summary>
@@ -1055,9 +1018,8 @@ namespace Mariana.AVM2.Core {
         /// </list>
         /// </exception>
         public ASAny AS_getDescendantsObj(ASAny key, BindOptions options = 0) {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_getDescendantsObj(key, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_getDescendantsObj(key, options);
         }
 
         /// <summary>
@@ -1076,9 +1038,8 @@ namespace Mariana.AVM2.Core {
         /// </list>
         /// </exception>
         public ASAny AS_getDescendantsObj(ASAny key, in NamespaceSet nsSet, BindOptions options = 0) {
-            if(m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_getDescendantsObj(key, nsSet, options);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_getDescendantsObj(key, nsSet, options);
         }
 
         /// <summary>
@@ -1087,11 +1048,12 @@ namespace Mariana.AVM2.Core {
         /// <param name="index">The index of the property from where to search for the next property.
         /// A value of 0 will return the index of the first enumerable property.</param>
         /// <returns>The one-based index of the next enumerable property, or 0 if there are no more
-        /// enumerable properties.</returns>
+        /// enumerable properties or this <see cref="ASAny"/> represents the null or undefined value.</returns>
         public int AS_nextIndex(int index) {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_nextIndex(index);
+            if (isUndefinedOrNull)
+                return 0;
+
+            return m_internalValue!.AS_nextIndex(index);
         }
 
         /// <summary>
@@ -1108,9 +1070,8 @@ namespace Mariana.AVM2.Core {
         /// for custom for-in loop behaviour.
         /// </remarks>
         public ASAny AS_nameAtIndex(int index) {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_nameAtIndex(index);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_nameAtIndex(index);
         }
 
         /// <summary>
@@ -1127,9 +1088,8 @@ namespace Mariana.AVM2.Core {
         /// for custom for-in loop behaviour.
         /// </remarks>
         public ASAny AS_valueAtIndex(int index) {
-            if (m_internalValue == null)
-                throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
-            return this.value.AS_valueAtIndex(index);
+            _checkNullOrUndefinedReference();
+            return m_internalValue!.AS_valueAtIndex(index);
         }
 
         /// <summary>
@@ -1144,7 +1104,7 @@ namespace Mariana.AVM2.Core {
                 result = default(ASAny);
                 return false;
             }
-            return m_internalValue.AS_tryInvoke(receiver, args, out result);
+            return m_internalValue!.AS_tryInvoke(receiver, args, out result);
         }
 
         /// <summary>
@@ -1158,7 +1118,7 @@ namespace Mariana.AVM2.Core {
                 result = default(ASAny);
                 return false;
             }
-            return m_internalValue.AS_tryConstruct(args, out result);
+            return m_internalValue!.AS_tryConstruct(args, out result);
         }
 
         /// <summary>
@@ -1179,6 +1139,7 @@ namespace Mariana.AVM2.Core {
         public ASAny AS_invoke(ASAny receiver, ReadOnlySpan<ASAny> args) {
             if (AS_tryInvoke(receiver, args, out ASAny returnValue))
                 return returnValue;
+
             throw ErrorHelper.createError(ErrorCode.INVOKE_NON_FUNCTION, "value");
         }
 
@@ -1199,6 +1160,7 @@ namespace Mariana.AVM2.Core {
         public ASAny AS_construct(ReadOnlySpan<ASAny> args) {
             if (AS_tryConstruct(args, out ASAny returnValue))
                 return returnValue;
+
             throw ErrorHelper.createError(ErrorCode.INSTANTIATE_NON_CONSTRUCTOR);
         }
 
@@ -1212,9 +1174,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="x">The object.</param>
         /// <returns>A <see cref="ASAny"/> wrapping the object.</returns>
-        public static implicit operator ASAny(ASObject x) {
-            return new ASAny(x);
-        }
+        public static implicit operator ASAny(ASObject? x) => new ASAny(x);
 
         /// <summary>
         /// Converts a <see cref="ASAny"/> structure into a plain Object. All undefined values will
@@ -1224,9 +1184,8 @@ namespace Mariana.AVM2.Core {
         ///
         /// <param name="x">The <see cref="ASAny"/> to be converted to an object.</param>
         /// <returns>The object wrapped by <paramref name="x"/>.</returns>
-        public static explicit operator ASObject(ASAny x) {
-            return (x.m_internalValue == s_internalNull) ? null : x.m_internalValue;
-        }
+        public static explicit operator ASObject?(ASAny x) =>
+            (x.m_internalValue == s_internalNull) ? null : x.m_internalValue;
 
         /// <summary>
         /// Converts a Boolean value to a boxed object wrapped in a <see cref="ASAny"/>.
@@ -1289,14 +1248,14 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="x">The string to convert.</param>
         /// <returns>A <see cref="ASAny"/> wrapping the boxed object.</returns>
-        public static implicit operator ASAny(string x) => new ASAny(ASString.box(x));
+        public static implicit operator ASAny(string? x) => new ASAny(ASString.box(x));
 
         /// <summary>
         /// Converts a string to a boxed object wrapped in a <see cref="ASAny"/>.
         /// </summary>
         /// <param name="x">The string to convert.</param>
         /// <returns>A <see cref="ASAny"/> wrapping the boxed object.</returns>
-        public static ASAny AS_fromString(string x) => new ASAny(ASString.box(x));
+        public static ASAny AS_fromString(string? x) => new ASAny(ASString.box(x));
 
         /// <summary>
         /// Converts a <see cref="ASAny"/> to a Boolean value.
@@ -1360,11 +1319,8 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="x">The <see cref="ASAny"/> to convert.</param>
         /// <returns>The string value.</returns>
-        public static explicit operator string(ASAny x) {
-            if (x.m_internalValue == null || x.m_internalValue == s_internalNull)
-                return null;
-            return ASObject.AS_coerceString(x.m_internalValue);
-        }
+        public static explicit operator string?(ASAny x) =>
+            x.isUndefinedOrNull ? null : ASObject.AS_coerceString(x.m_internalValue);
 
         /// <summary>
         /// Converts a <see cref="ASAny"/> to a string value. Null and undefined are converted to
@@ -1373,11 +1329,14 @@ namespace Mariana.AVM2.Core {
         /// <param name="x">The <see cref="ASAny"/> to convert.</param>
         /// <returns>The string value.</returns>
         public static string AS_convertString(ASAny x) {
-            ASObject v = x.m_internalValue;
+            ASObject? v = x.m_internalValue;
+
             if (v == null)
                 return "undefined";
+
             if (v == s_internalNull)
                 return "null";
+
             return ASObject.AS_convertString(v);
         }
 
@@ -1389,9 +1348,10 @@ namespace Mariana.AVM2.Core {
         ///
         /// <param name="x">The <see cref="ASAny"/> to convert.</param>
         /// <returns>The string value.</returns>
-        public static string AS_coerceString(ASAny x) {
-            if (x.m_internalValue == null || x.m_internalValue == s_internalNull)
+        public static string? AS_coerceString(ASAny x) {
+            if (x.isUndefinedOrNull)
                 return null;
+
             return ASObject.AS_coerceString(x.m_internalValue);
         }
 
@@ -1421,8 +1381,8 @@ namespace Mariana.AVM2.Core {
         /// </item>
         /// </list>
         /// </exception>
-        public static ASAny AS_fromBoxed(object obj) {
-            ASObject convertedObject = ASObject.AS_fromBoxed(obj);
+        public static ASAny AS_fromBoxed(object? obj) {
+            ASObject? convertedObject = ASObject.AS_fromBoxed(obj);
 
             if (convertedObject == null && obj is ASAny objAsAny && objAsAny.isUndefined)
                 return undefined;
@@ -1438,12 +1398,14 @@ namespace Mariana.AVM2.Core {
         /// <typeparam name="T">The type to cast the object to.</typeparam>
         /// <returns><paramref name="obj"/> cast to type <typeparamref name="T"/>, or null if
         /// <paramref name="obj"/> is undefined or null.</returns>
-        public static T AS_cast<T>(ASAny obj) where T : class {
+        public static T? AS_cast<T>(ASAny obj) where T : class {
             if (obj.m_internalValue == s_internalNull)
                 return null;
-            T x = obj.m_internalValue as T;
+
+            T? x = obj.m_internalValue as T;
             if (x == null && obj.m_internalValue != null)
                 throw ErrorHelper.createCastError(obj.m_internalValue, typeof(T));
+
             return x;
         }
 
@@ -1461,11 +1423,11 @@ namespace Mariana.AVM2.Core {
         /// <item><description>TypeError #1034: The type conversion is unsuccessful.</description></item>
         /// </list>
         /// </exception>
-        public static ASAny AS_coerceType(ASAny obj, Class toClass) {
+        public static ASAny AS_coerceType(ASAny obj, Class? toClass) {
             if (toClass == null)
                 return obj;
 
-            ASObject v = obj.m_internalValue;
+            ASObject? v = obj.m_internalValue;
             if (v != null && v != s_internalNull && v.AS_class == toClass)
                 return obj;
 
@@ -1479,7 +1441,7 @@ namespace Mariana.AVM2.Core {
                 case ClassTag.BOOLEAN:
                     return (bool)obj;
                 case ClassTag.STRING:
-                    return (string)obj;
+                    return (string?)obj;
 
                 default: {
                     if (v == null) {
@@ -1574,7 +1536,7 @@ namespace Mariana.AVM2.Core {
         /// </list>
         /// </remarks>
         public static bool AS_weakEq(ASAny x, ASAny y) {
-            ASObject vx = x.value, vy = y.value;
+            ASObject? vx = x.value, vy = y.value;
 
             if (vx == vy) {
                 // Equal by reference, or both null/undefined. NaN is an exception!
@@ -1726,9 +1688,9 @@ namespace Mariana.AVM2.Core {
             ClassTagSet tagSet = default;
 
             if (!x.isUndefinedOrNull)
-                tagSet = tagSet.add(x.AS_class.tag);
+                tagSet = tagSet.add(x.AS_class!.tag);
             if (!y.isUndefinedOrNull)
-                tagSet = tagSet.add(y.AS_class.tag);
+                tagSet = tagSet.add(y.AS_class!.tag);
 
             if (ClassTagSet.numericOrBool.containsAll(tagSet))
                 return (double)x + (double)y;
@@ -1737,7 +1699,7 @@ namespace Mariana.AVM2.Core {
                 return AS_convertString(x) + AS_convertString(y);
 
             if (ClassTagSet.xmlOrXmlList.containsAll(tagSet) && !x.isUndefinedOrNull && !y.isUndefinedOrNull)
-                return XMLHelper.concatenateXMLObjects(x.value, y.value);
+                return XMLHelper.concatenateXMLObjects(x.value!, y.value!);
 
             ASAny prim1 = x.isUndefined ? default : ASObject.AS_toPrimitive(x.value);
             ASAny prim2 = y.isUndefined ? default : ASObject.AS_toPrimitive(y.value);
@@ -1745,9 +1707,9 @@ namespace Mariana.AVM2.Core {
             tagSet = default;
 
             if (!prim1.isUndefinedOrNull)
-                tagSet = tagSet.add(prim1.AS_class.tag);
+                tagSet = tagSet.add(prim1.AS_class!.tag);
             if (!prim2.isUndefinedOrNull)
-                tagSet = tagSet.add(prim2.AS_class.tag);
+                tagSet = tagSet.add(prim2.AS_class!.tag);
 
             if (ClassTagSet.numericOrBool.containsAll(tagSet))
                 return (double)prim1 + (double)prim2;

@@ -30,7 +30,7 @@ namespace Mariana.AVM2.Compiler {
         private const int ARG_ARRAY_HELPER_MAX_SIZE = 32;
 
         private AssemblyBuilder m_assemblyBuilder;
-        private TypeBuilder m_containerType;
+        private TypeBuilder? m_containerType;
         private ILBuilder m_ilBuilder;
 
         private MethodBuilder[] m_newArrayHelperMethods = new MethodBuilder[NEWARRAY_HELPER_MAX_SIZE + 1];
@@ -82,7 +82,7 @@ namespace Mariana.AVM2.Compiler {
 
             string methodName = "newarray" + size.ToString(CultureInfo.InvariantCulture);
 
-            var methodBuilder = m_containerType.defineMethod(
+            var methodBuilder = m_containerType!.defineMethod(
                 methodName,
                 MethodAttributes.Public | MethodAttributes.Static,
                 m_assemblyBuilder.metadataContext.getTypeSignature(typeof(ASArray)),
@@ -147,7 +147,7 @@ namespace Mariana.AVM2.Compiler {
 
             string methodName = "newobject" + size.ToString(CultureInfo.InvariantCulture);
 
-            var methodBuilder = m_containerType.defineMethod(
+            var methodBuilder = m_containerType!.defineMethod(
                 methodName,
                 MethodAttributes.Public | MethodAttributes.Static,
                 m_assemblyBuilder.metadataContext.getTypeSignature(typeof(ASObject)),
@@ -216,7 +216,7 @@ namespace Mariana.AVM2.Compiler {
 
             string methodName = "argarray" + size.ToString(CultureInfo.InvariantCulture);
 
-            var methodBuilder = m_containerType.defineMethod(
+            var methodBuilder = m_containerType!.defineMethod(
                 methodName,
                 MethodAttributes.Public | MethodAttributes.Static,
                 m_assemblyBuilder.metadataContext.getTypeSignature(typeof(ASAny[])),

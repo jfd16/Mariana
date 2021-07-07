@@ -107,7 +107,7 @@ namespace Mariana.AVM2.Compiler {
                 node.dataType = DataNodeType.NULL;
             }
             else {
-                switch (constantValue.AS_class.tag) {
+                switch (constantValue.AS_class!.tag) {
                     case ClassTag.INT:
                         node.dataType = DataNodeType.INT;
                         node.constant = new DataNodeConstant((int)constantValue.value);
@@ -121,7 +121,7 @@ namespace Mariana.AVM2.Compiler {
                         break;
                     case ClassTag.STRING:
                         node.dataType = DataNodeType.STRING;
-                        node.constant = new DataNodeConstant((string)constantValue.value);
+                        node.constant = new DataNodeConstant((string)constantValue.value!);
                         break;
                     case ClassTag.BOOLEAN:
                         node.dataType = DataNodeType.BOOL;
@@ -129,11 +129,11 @@ namespace Mariana.AVM2.Compiler {
                         break;
                     case ClassTag.NAMESPACE:
                         node.dataType = DataNodeType.NAMESPACE;
-                        node.constant = new DataNodeConstant(Namespace.fromASNamespace((ASNamespace)constantValue.value));
+                        node.constant = new DataNodeConstant(Namespace.fromASNamespace((ASNamespace)constantValue.value!));
                         break;
                     case ClassTag.QNAME:
                         node.dataType = DataNodeType.QNAME;
-                        node.constant = new DataNodeConstant(QName.fromASQName((ASQName)constantValue.value));
+                        node.constant = new DataNodeConstant(QName.fromASQName((ASQName)constantValue.value!));
                         break;
                 }
             }

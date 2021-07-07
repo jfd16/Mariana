@@ -23,7 +23,7 @@ namespace Mariana.AVM2.Core {
         /// that take a namespace set parameter.
         /// </summary>
         [ThreadStatic]
-        private static ASNamespace s_defaultNS;
+        private static ASNamespace? s_defaultNS;
 
         /// <summary>
         /// The <see cref="ASNamespace"/> instance representing the public namespace.
@@ -53,7 +53,7 @@ namespace Mariana.AVM2.Core {
         /// a special namespace which cannot have any prefix other than the empty string assigned to
         /// it.
         /// </remarks>
-        public readonly string prefix;
+        public readonly string? prefix;
 
         /// <summary>
         /// Creates a new <see cref="ASNamespace"/> with a URI and no prefix.
@@ -103,7 +103,7 @@ namespace Mariana.AVM2.Core {
             }
         }
 
-        private ASNamespace(string prefix, string uri, bool _unsafeMarker) =>
+        private ASNamespace(string? prefix, string uri, bool _unsafeMarker) =>
             (this.prefix, this.uri) = (prefix, uri);
 
         /// <summary>
@@ -113,7 +113,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="prefix">The namespace prefix.</param>
         /// <param name="uri">The namespace URI.</param>
         /// <returns>The created <see cref="ASNamespace"/> instance.</returns>
-        internal static ASNamespace unsafeCreate(string prefix, string uri) => new ASNamespace(prefix, uri, _unsafeMarker: true);
+        internal static ASNamespace unsafeCreate(string? prefix, string uri) => new ASNamespace(prefix, uri, _unsafeMarker: true);
 
         /// <summary>
         /// Returns the prefix of this namespace, or undefined if the namespace has no prefix.
@@ -226,7 +226,7 @@ namespace Mariana.AVM2.Core {
         /// namespace set arguments.
         /// </remarks>
         public static void setDefault(ASNamespace ns, out ASNamespace oldDefault) {
-            ref ASNamespace defaultNS = ref s_defaultNS;
+            ref ASNamespace? defaultNS = ref s_defaultNS;
             oldDefault = defaultNS ?? @public;
 
             if (ns == null)
@@ -264,7 +264,7 @@ namespace Mariana.AVM2.Core {
             if (args.Length == 1)
                 return XMLHelper.objectToNamespace(args[0]);
 
-            string prefix = ASAny.AS_coerceString(args[0]);
+            string? prefix = ASAny.AS_coerceString(args[0]);
             string uri;
 
             if (args[1].value is ASQName qname && qname.uri != null)

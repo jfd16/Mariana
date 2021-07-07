@@ -47,7 +47,7 @@ namespace Mariana.AVM2.Core {
 
         private static ApplicationDomain s_systemDomain = new ApplicationDomain(null, isSystem: true);
 
-        private ApplicationDomain m_parent;
+        private ApplicationDomain? m_parent;
 
         private ClassTraitTable m_globalTraitTable = new ClassTraitTable(null, staticOnly: true);
 
@@ -62,14 +62,14 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="parent">The parent of the application domain. If this is null, the system
         /// domain is used as the parent.</param>
-        public ApplicationDomain(ApplicationDomain parent = null) : this(parent, isSystem: false) {}
+        public ApplicationDomain(ApplicationDomain? parent = null) : this(parent, isSystem: false) {}
 
         /// <summary>
         /// Creates a new AVM2 application domain.
         /// </summary>
         /// <param name="parent">The parent of the application domain.</param>
         /// <param name="isSystem">This is true for the system domain, and false otherwise.</param>
-        private ApplicationDomain(ApplicationDomain parent, bool isSystem) {
+        private ApplicationDomain(ApplicationDomain? parent, bool isSystem) {
             if (parent == null && !isSystem)
                 parent = s_systemDomain;
 
@@ -100,12 +100,12 @@ namespace Mariana.AVM2.Core {
         /// <remarks>
         /// This method involves a call stack walk which may be expensive.
         /// </remarks>
-        public static ApplicationDomain getCurrentDomain(bool nonSystemOnly = false) {
+        public static ApplicationDomain? getCurrentDomain(bool nonSystemOnly = false) {
             StackTrace stackTrace = new StackTrace(1);
 
             for (int i = 0, n = stackTrace.FrameCount; i < n; i++) {
                 StackFrame frame = stackTrace.GetFrame(i);
-                ApplicationDomain domainOfFrameMethod = getDomainFromMember(frame.GetMethod());
+                ApplicationDomain? domainOfFrameMethod = getDomainFromMember(frame.GetMethod());
                 if (domainOfFrameMethod != null && !(nonSystemOnly && domainOfFrameMethod == s_systemDomain))
                     return domainOfFrameMethod;
             }
@@ -121,12 +121,12 @@ namespace Mariana.AVM2.Core {
         /// application domain.</param>
         /// <returns>The <see cref="ApplicationDomain"/> associated with
         /// <paramref name="memberInfo"/>, or null if no associated domain was found.</returns>
-        public static ApplicationDomain getDomainFromMember(MemberInfo memberInfo) {
-            Type type = memberInfo as Type;
+        public static ApplicationDomain? getDomainFromMember(MemberInfo memberInfo) {
+            Type? type = memberInfo as Type;
             if (type == null)
                 type = memberInfo.DeclaringType;
 
-            Class klass = Class.fromType(type);
+            Class? klass = Class.fromType(type);
             if (klass != null)
                 return klass.applicationDomain;
 
@@ -140,7 +140,7 @@ namespace Mariana.AVM2.Core {
         /// which the module is imported, or null if the module has not been registered using
         /// <see cref="registerModule"/>.</returns>
         /// <param name="moduleType">The <see cref="Type"/> representing the module class.</param>
-        internal static ApplicationDomain getDomainOfModule(Type moduleType) {
+        internal static ApplicationDomain? getDomainOfModule(Type moduleType) {
             s_moduleToDomainMap.TryGetValue(moduleType, out var domain);
             return domain;
         }
@@ -148,7 +148,7 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Gets the parent application domain of this domain.
         /// </summary>
-        public ApplicationDomain parent => m_parent;
+        public ApplicationDomain? parent => m_parent;
 
         /// <summary>
         /// Gets the global object for this application domain.
@@ -220,8 +220,8 @@ namespace Mariana.AVM2.Core {
         /// application domain hierarchy). The search stops whenever a trait is found or it results in
         /// an ambiguous match, on any domain in the inheritance chain.
         /// </remarks>
-        public BindStatus lookupGlobalTrait(in QName name, bool noInherited, out Trait trait) {
-            ApplicationDomain curDomain = this;
+        public BindStatus lookupGlobalTrait(in QName name, bool noInherited, out Trait? trait) {
+            ApplicationDomain? curDomain = this;
 
             while (curDomain != null) {
                 if (curDomain == s_systemDomain)
@@ -267,10 +267,13 @@ namespace Mariana.AVM2.Core {
         /// application domain hierarchy). The search stops whenever a trait is found or it results in
         /// an ambiguous match, on any domain in the inheritance chain.
         /// </remarks>
-        public BindStatus lookupGlobalTrait(string name, in NamespaceSet nsSet, bool noInherited, out Trait trait) {
-            ApplicationDomain curDomain = this;
+        public BindStatus lookupGlobalTrait(string name, in NamespaceSet nsSet, bool noInherited, out Trait? trait) {
+            ApplicationDomain? curDomain = this;
 
             while (curDomain != null) {
+                if (curDomain == s_systemDomain)
+                    CoreClasses.ensureGlobalsLoaded();
+
                 BindStatus bindStatus = curDomain.m_globalTraitTable.tryGetTrait(name, nsSet, isStatic: true, out trait);
                 if (bindStatus != BindStatus.NOT_FOUND)
                     return bindStatus;
@@ -311,12 +314,15 @@ namespace Mariana.AVM2.Core {
         /// application domain hierarchy). The search stops whenever a trait is found or it results in
         /// an ambiguous match, on any domain in the inheritance chain.
         /// </remarks>
-        public Trait getGlobalTrait(in QName name, bool noInherited = false) {
-            BindStatus bindStatus = lookupGlobalTrait(name, noInherited, out Trait trait);
+        public Trait? getGlobalTrait(in QName name, bool noInherited = false) {
+            BindStatus bindStatus = lookupGlobalTrait(name, noInherited, out Trait? trait);
+
             if (bindStatus == BindStatus.SUCCESS)
                 return trait;
+
             if (bindStatus == BindStatus.AMBIGUOUS)
                 throw ErrorHelper.createBindingError("global", name.ToString(), bindStatus);
+
             return null;
         }
 
@@ -347,12 +353,15 @@ namespace Mariana.AVM2.Core {
         /// application domain hierarchy). The search stops whenever a trait is found or it results in
         /// an ambiguous match, on any domain in the inheritance chain.
         /// </remarks>
-        public Trait getGlobalTrait(string name, in NamespaceSet nsSet, bool noInherited = false) {
-            BindStatus bindStatus = lookupGlobalTrait(name, nsSet, noInherited, out Trait trait);
+        public Trait? getGlobalTrait(string name, in NamespaceSet nsSet, bool noInherited = false) {
+            BindStatus bindStatus = lookupGlobalTrait(name, nsSet, noInherited, out Trait? trait);
+
             if (bindStatus == BindStatus.SUCCESS)
                 return trait;
+
             if (bindStatus == BindStatus.AMBIGUOUS)
                 throw ErrorHelper.createBindingError("global", name.ToString(), bindStatus);
+
             return null;
         }
 
@@ -382,7 +391,7 @@ namespace Mariana.AVM2.Core {
         /// application domain hierarchy). The search stops whenever a trait is found or it results in
         /// an ambiguous match, on any domain in the inheritance chain.
         /// </remarks>
-        public Class getGlobalClass(in QName name, bool noInherited = false) =>
+        public Class? getGlobalClass(in QName name, bool noInherited = false) =>
             getGlobalTrait(name, noInherited) as Class;
 
         /// <summary>
@@ -411,7 +420,7 @@ namespace Mariana.AVM2.Core {
         /// application domain hierarchy). The search stops whenever a trait is found or it results in
         /// an ambiguous match, on any domain in the inheritance chain.
         /// </remarks>
-        public MethodTrait getGlobalMethod(in QName name, bool noInherited = false) =>
+        public MethodTrait? getGlobalMethod(in QName name, bool noInherited = false) =>
             getGlobalTrait(name, noInherited) as MethodTrait;
 
         /// <summary>
@@ -440,7 +449,7 @@ namespace Mariana.AVM2.Core {
         /// application domain hierarchy). The search stops whenever a trait is found or it results in
         /// an ambiguous match, on any domain in the inheritance chain.
         /// </remarks>
-        public FieldTrait getGlobalField(in QName name, bool noInherited = false) =>
+        public FieldTrait? getGlobalField(in QName name, bool noInherited = false) =>
             getGlobalTrait(name, noInherited) as FieldTrait;
 
         /// <summary>
@@ -469,7 +478,7 @@ namespace Mariana.AVM2.Core {
         /// application domain hierarchy). The search stops whenever a trait is found or it results in
         /// an ambiguous match, on any domain in the inheritance chain.
         /// </remarks>
-        public PropertyTrait getGlobalProperty(in QName name, bool noInherited = false) =>
+        public PropertyTrait? getGlobalProperty(in QName name, bool noInherited = false) =>
             getGlobalTrait(name, noInherited) as PropertyTrait;
 
         /// <summary>
@@ -498,7 +507,7 @@ namespace Mariana.AVM2.Core {
         /// application domain hierarchy). The search stops whenever a trait is found or it results in
         /// an ambiguous match, on any domain in the inheritance chain.
         /// </remarks>
-        public ConstantTrait getGlobalConstant(in QName name, bool noInherited = false) =>
+        public ConstantTrait? getGlobalConstant(in QName name, bool noInherited = false) =>
             getGlobalTrait(name, noInherited) as ConstantTrait;
 
         /// <summary>
@@ -606,7 +615,7 @@ namespace Mariana.AVM2.Core {
         private T[] _getGlobalTraitsInternal<T>(TraitType types, bool noInherited = false) where T : Trait {
             DynamicArray<T> traitList = new DynamicArray<T>();
 
-            ApplicationDomain curDomain = this;
+            ApplicationDomain? curDomain = this;
             while (curDomain != null) {
                 if (curDomain == s_systemDomain)
                     CoreClasses.ensureGlobalsLoaded();
@@ -640,16 +649,16 @@ namespace Mariana.AVM2.Core {
         /// <item><description>ArgumentError #10060: <paramref name="filter"/> is null.</description></item>
         /// </list>
         /// </exception>
-        public Trait getGlobalTraitByFilter(Predicate<Trait> filter, bool noInherited = false) {
+        public Trait? getGlobalTraitByFilter(Predicate<Trait> filter, bool noInherited = false) {
             if (filter == null)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(filter));
 
-            ApplicationDomain curDomain = this;
+            ApplicationDomain? curDomain = this;
             while (curDomain != null) {
                 if (curDomain == s_systemDomain)
                     CoreClasses.ensureGlobalsLoaded();
 
-                Trait trait = curDomain.m_globalTraitTable.getTraitByFilter(filter);
+                Trait? trait = curDomain.m_globalTraitTable.getTraitByFilter(filter);
                 if (trait != null)
                     return trait;
 
@@ -688,7 +697,7 @@ namespace Mariana.AVM2.Core {
 
             DynamicArray<Trait> traitList = new DynamicArray<Trait>();
 
-            ApplicationDomain curDomain = this;
+            ApplicationDomain? curDomain = this;
             while (curDomain != null) {
                 if (curDomain == s_systemDomain)
                     CoreClasses.ensureGlobalsLoaded();
@@ -696,6 +705,7 @@ namespace Mariana.AVM2.Core {
                 curDomain.m_globalTraitTable.getTraitsByFilter(filter, ref traitList);
                 if (noInherited)
                     break;
+
                 curDomain = curDomain.m_parent;
             }
 
@@ -854,9 +864,10 @@ namespace Mariana.AVM2.Core {
         /// <item><description>Error #10070: This method is called on the system domain.</description></item>
         /// </list>
         /// </exception>
-        public ScriptLoader createScriptLoader(ScriptCompileOptions compileOptions = null) {
+        public ScriptLoader createScriptLoader(ScriptCompileOptions? compileOptions = null) {
             if (this == s_systemDomain)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__LOAD_ABC_SYSTEM_DOMAIN);
+
             return new ScriptLoader(this, compileOptions ?? new ScriptCompileOptions());
         }
 

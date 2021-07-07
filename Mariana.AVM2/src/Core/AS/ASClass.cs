@@ -44,7 +44,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="trait">The trait with the name <paramref name="name"/>, if one
         /// exists.</param>
         /// <returns>A <see cref="BindStatus"/> indicating the result of the lookup.</returns>
-        internal override BindStatus AS_lookupTrait(in QName name, out Trait trait) {
+        internal override BindStatus AS_lookupTrait(in QName name, out Trait? trait) {
             BindStatus bindStatus = m_internalClass.lookupTrait(name, isStatic: true, out trait);
             if (bindStatus != BindStatus.NOT_FOUND)
                 return bindStatus;
@@ -60,7 +60,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="trait">The trait with the name <paramref name="name"/> in a namespace of
         /// <paramref name="nsSet"/>, if one exists.</param>
         /// <returns>A <see cref="BindStatus"/> indicating the result of the lookup.</returns>
-        internal override BindStatus AS_lookupTrait(string name, in NamespaceSet nsSet, out Trait trait) {
+        internal override BindStatus AS_lookupTrait(string name, in NamespaceSet nsSet, out Trait? trait) {
             BindStatus bindStatus = m_internalClass.lookupTrait(name, nsSet, isStatic: true, out trait);
             if (bindStatus != BindStatus.NOT_FOUND)
                 return bindStatus;

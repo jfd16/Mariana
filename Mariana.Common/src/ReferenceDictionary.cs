@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 namespace Mariana.Common {
@@ -79,7 +80,7 @@ namespace Mariana.Common {
         /// <param name="value">The value of the entry with the given key, or the default value of
         /// the value type if no entry with that key exists.</param>
         /// <returns>True if an entry exists with the given key, false otherwise.</returns>
-        public bool tryGetValue(TKey key, out TValue? value) {
+        public bool tryGetValue(TKey key, [MaybeNullWhen(false)] out TValue value) {
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 

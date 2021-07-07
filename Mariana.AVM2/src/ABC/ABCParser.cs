@@ -29,27 +29,29 @@ namespace Mariana.AVM2.ABC {
 
         private UTF8Encoding m_utf8Encoding;
 
-        public ABCFile parse(Stream stream, ABCParseOptions options) {
+        public void parse(Stream stream, ABCParseOptions options, ABCFile outFile) {
             _init(stream, options);
 
-            ushort majorVersion = _readU16();
-            ushort minorVersion = _readU16();
+            m_abcFile = outFile;
+            try {
+                ushort majorVersion = _readU16();
+                ushort minorVersion = _readU16();
+                m_abcFile.setVersion(majorVersion, minorVersion);
 
-            m_abcFile.setVersion(majorVersion, minorVersion);
-
-            _readConstantPools();
-            _readMethodInfo();
-            _readMetadata();
-            _readClassInfo();
-            _readScriptInfo();
-            _readMethodBodies();
-
-            return m_abcFile;
+                _readConstantPools();
+                _readMethodInfo();
+                _readMetadata();
+                _readClassInfo();
+                _readScriptInfo();
+                _readMethodBodies();
+            }
+            finally {
+                m_abcFile = null!;
+            }
         }
 
         private void _init(Stream stream, ABCParseOptions options) {
             m_stream = stream;
-            m_abcFile = new ABCFile();
             m_genArgLists.clear();
 
             m_utf8Encoding = ((options & ABCParseOptions.NO_FAIL_INVALID_UTF8) != 0)
@@ -154,7 +156,7 @@ namespace Mariana.AVM2.ABC {
                 return Namespace.createPrivate();
             }
 
-            string name = m_abcFile.resolveString(nameIndex);
+            string uri = m_abcFile.resolveString(nameIndex) ?? "";
             var kind = constKind switch {
                 ABCConstKind.Namespace => NamespaceKind.NAMESPACE,
                 ABCConstKind.PackageNamespace => NamespaceKind.NAMESPACE,
@@ -165,7 +167,7 @@ namespace Mariana.AVM2.ABC {
                 _ => throw ErrorHelper.createError(ErrorCode.ILLEGAL_NAMESPACE_VALUE),
             };
 
-            return new Namespace(kind, name);
+            return new Namespace(kind, uri);
         }
 
         private ABCMultiname _readMultiname() {
@@ -262,7 +264,7 @@ namespace Mariana.AVM2.ABC {
             if (stringPoolSize != 0)
                 stringPoolSize--;
 
-            string[] stringPool = new string[stringPoolSize + 1];
+            string?[] stringPool = new string?[stringPoolSize + 1];
             for (int i = 1; i < stringPool.Length; i++)
                 stringPool[i] = _readString();
 
@@ -348,8 +350,8 @@ namespace Mariana.AVM2.ABC {
                 ABCMultiname retTypeName = m_abcFile.resolveMultiname(_readU30());
 
                 ABCMultiname[] paramTypeNames = Array.Empty<ABCMultiname>();
-                ASAny[] defaultValues = null;
-                string[] paramNames = null;
+                ASAny[]? defaultValues = null;
+                string?[]? paramNames = null;
 
                 if (paramCount != 0) {
                     paramTypeNames = new ABCMultiname[paramCount];
@@ -357,18 +359,18 @@ namespace Mariana.AVM2.ABC {
                         paramTypeNames[j] = m_abcFile.resolveMultiname(_readU30());
                 }
 
-                string mthdName = m_abcFile.resolveString(_readU30());
-                ABCMethodFlags mthdFlags = (ABCMethodFlags)_readU8();
+                string methodName = m_abcFile.resolveString(_readU30()) ?? "";
+                ABCMethodFlags methodFlags = (ABCMethodFlags)_readU8();
 
-                if ((mthdFlags & ~validMethodFlags) != 0)
-                    throw ErrorHelper.createError(ErrorCode.METHOD_INFO_INVALID_FLAGS, i, (int)mthdFlags);
+                if ((methodFlags & ~validMethodFlags) != 0)
+                    throw ErrorHelper.createError(ErrorCode.METHOD_INFO_INVALID_FLAGS, i, (int)methodFlags);
 
                 // NEED_ARGUMENTS and NEED_REST cannot be set together.
                 const ABCMethodFlags needArgumentsOrRest = ABCMethodFlags.NEED_ARGUMENTS | ABCMethodFlags.NEED_REST;
-                if ((mthdFlags & needArgumentsOrRest) == needArgumentsOrRest)
-                    throw ErrorHelper.createError(ErrorCode.METHOD_INFO_INVALID_FLAGS, i, (int)mthdFlags);
+                if ((methodFlags & needArgumentsOrRest) == needArgumentsOrRest)
+                    throw ErrorHelper.createError(ErrorCode.METHOD_INFO_INVALID_FLAGS, i, (int)methodFlags);
 
-                if ((mthdFlags & ABCMethodFlags.HAS_OPTIONAL) != 0) {
+                if ((methodFlags & ABCMethodFlags.HAS_OPTIONAL) != 0) {
                     int optionCount = _readU30();
 
                     if (optionCount > paramCount)
@@ -382,14 +384,14 @@ namespace Mariana.AVM2.ABC {
                     }
                 }
 
-                if ((mthdFlags & ABCMethodFlags.HAS_PARAM_NAMES) != 0) {
-                    paramNames = new string[paramCount];
+                if ((methodFlags & ABCMethodFlags.HAS_PARAM_NAMES) != 0) {
+                    paramNames = new string?[paramCount];
                     for (int j = 0; j < paramNames.Length; j++)
                         paramNames[j] = m_abcFile.resolveString(_readU30());
                 }
 
                 methodInfoArr[i] = new ABCMethodInfo(
-                    i, retTypeName, mthdName, mthdFlags, paramTypeNames, paramNames, defaultValues);
+                    i, retTypeName, methodName, methodFlags, paramTypeNames, paramNames, defaultValues);
             }
 
             m_abcFile.setMethodInfo(methodInfoArr);
@@ -400,11 +402,11 @@ namespace Mariana.AVM2.ABC {
 
             int tagCount = _readU30();
             var metadata = new MetadataTag[tagCount];
-            var keys = new DynamicArray<string>();
+            var keys = new DynamicArray<string?>();
             var values = new DynamicArray<string>();
 
             for (int i = 0; i < metadata.Length; i++) {
-                string tagName = m_abcFile.resolveString(_readU30());
+                string tagName = m_abcFile.resolveString(_readU30()) ?? "";
                 int valueCount = _readU30();
 
                 keys.ensureCapacity(valueCount);
@@ -413,7 +415,7 @@ namespace Mariana.AVM2.ABC {
                 for (int j = 0; j < valueCount; j++)
                     keys.add(m_abcFile.resolveString(_readU30()));
                 for (int j = 0; j < valueCount; j++)
-                    values.add(m_abcFile.resolveString(_readU30()));
+                    values.add(m_abcFile.resolveString(_readU30()) ?? "");
 
                 metadata[i] = new MetadataTag(tagName, keys.asSpan(), values.asSpan());
                 keys.clear();
@@ -529,6 +531,7 @@ namespace Mariana.AVM2.ABC {
                     ABCMultiname typeName = m_abcFile.resolveMultiname(_readU30());
                     ASAny defaultVal = ASAny.undefined;
                     int defaultValIndex = _readU30();
+
                     if (defaultValIndex != 0)
                         defaultVal = m_abcFile.resolveConstant((ABCConstKind)_readU8(), defaultValIndex);
 

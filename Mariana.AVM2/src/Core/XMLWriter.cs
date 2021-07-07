@@ -11,13 +11,13 @@ namespace Mariana.AVM2.Core {
         private struct TagStackItem {
             public string prefix;
             public string localName;
-            public int nsDeclStart;
-            public uint tmpPrefixIdStart;
+            public int nsDeclBeginIndex;
+            public uint tempPrefixIdStart;
         }
 
         private bool m_prettyPrint;
 
-        private string m_indent1, m_indent2, m_indent4;
+        private string? m_indent1, m_indent2, m_indent4;
 
         private ASXML.DescendantEnumerator m_iterator;
 
@@ -29,7 +29,7 @@ namespace Mariana.AVM2.Core {
 
         private uint m_nextTempPrefixId;
 
-        private char[] m_escBuffer;
+        private char[]? m_escBuffer;
 
         internal string makeString(ASXML node) {
             _init();
@@ -80,7 +80,7 @@ namespace Mariana.AVM2.Core {
             if (node.nodeType != XMLNodeType.ELEMENT)
                 return;
 
-            for (ASXML cur = node.parent(); cur != null; cur = cur.parent())
+            for (ASXML? cur = node.parent(); cur != null; cur = cur.parent())
                 cur.internalGetNamespaceDecls(ref m_nsInScope);
 
             if (m_nsInScope.length != 0)
@@ -105,25 +105,25 @@ namespace Mariana.AVM2.Core {
                 switch (cur.nodeType) {
                     case XMLNodeType.TEXT:
                     case XMLNodeType.ATTRIBUTE:
-                        _writeText(cur.nodeText);
+                        _writeText(cur.nodeText!);
                         break;
 
                     case XMLNodeType.COMMENT:
                         m_parts.add("<!--");
-                        m_parts.add(cur.nodeText);
+                        m_parts.add(cur.nodeText!);
                         m_parts.add("-->");
                         break;
 
                     case XMLNodeType.PROCESSING_INSTRUCTION:
                         m_parts.add("<?");
-                        m_parts.add(cur.name().localName);
+                        m_parts.add(cur.name()!.localName);
                         m_parts.add(" ");
-                        m_parts.add(cur.nodeText);
+                        m_parts.add(cur.nodeText!);
                         m_parts.add("?>");
                         break;
 
                     case XMLNodeType.CDATA: {
-                        string text = cur.nodeText;
+                        string text = cur.nodeText!;
                         if (text.IndexOf("]]>", StringComparison.Ordinal) != -1) {
                             // If a CDATA node contains "]]>", it would be invalid XML when output as CDATA.
                             // So output it as an ordinary text node with proper escaping.
@@ -187,37 +187,37 @@ namespace Mariana.AVM2.Core {
             int curDepth = m_tagStack.length;
 
             while (curDepth >= 4) {
-                m_parts.add(m_indent4);
+                m_parts.add(m_indent4!);
                 curDepth -= 4;
             }
             if (curDepth >= 2) {
-                m_parts.add(m_indent2);
+                m_parts.add(m_indent2!);
                 curDepth -= 2;
             }
             if (curDepth >= 1) {
-                m_parts.add(m_indent1);
+                m_parts.add(m_indent1!);
             }
         }
 
         private void _enterElement(ASXML elem) {
             _writeIndent();
 
-            ASQName elemName = elem.internalGetName();
-            TagStackItem stackItem = new TagStackItem();
+            ASQName elemName = elem.internalGetName()!;
+            var stackItem = new TagStackItem {
+                tempPrefixIdStart = m_nextTempPrefixId,
+                nsDeclBeginIndex = m_nsInScope.length,
+                localName = elemName.localName,
+                prefix = _getPrefix(elemName, isAttr: false)
+            };
 
-            stackItem.tmpPrefixIdStart = m_nextTempPrefixId;
-            stackItem.nsDeclStart = m_nsInScope.length;
             elem.internalGetNamespaceDecls(ref m_nsInScope);
-
-            stackItem.localName = elemName.localName;
-            stackItem.prefix = _getPrefix(elemName, isAttr: false);
 
             m_parts.add("<");
             _writeName(stackItem.prefix, stackItem.localName);
 
             foreach (ASXML attr in elem.getAttributeEnumerator()) {
-                ASQName attrName = attr.internalGetName();
-                string attrValue = attr.nodeText;
+                ASQName attrName = attr.internalGetName()!;
+                string attrValue = attr.nodeText!;
 
                 m_parts.add(" ");
                 _writeName(_getPrefix(attrName, isAttr: true), attrName.localName);
@@ -227,44 +227,46 @@ namespace Mariana.AVM2.Core {
             }
 
             // If this is the root we must include the ancestor namespaces as well.
-            int outNsDeclStart = (m_tagStack.length == 0) ? 0 : stackItem.nsDeclStart;
-            for (int i = outNsDeclStart, n = m_nsInScope.length; i < n; i++) {
-                ASNamespace nsdecl = m_nsInScope[i];
+            int nsDeclStart = (m_tagStack.length == 0) ? 0 : stackItem.nsDeclBeginIndex;
 
-                if (nsdecl.prefix.Length != 0) {
+            for (int i = nsDeclStart, n = m_nsInScope.length; i < n; i++) {
+                ASNamespace nsDecl = m_nsInScope[i];
+
+                if (nsDecl.prefix!.Length != 0) {
                     m_parts.add(" xmlns:");
-                    m_parts.add(nsdecl.prefix);
+                    m_parts.add(nsDecl.prefix);
                     m_parts.add("=\"");
                 }
                 else {
                     m_parts.add(" xmlns=\"");
                 }
 
-                m_parts.add(XMLHelper.escape(nsdecl.uri, 0, nsdecl.uri.Length, ref m_escBuffer, isAttr: true));
+                m_parts.add(XMLHelper.escape(nsDecl.uri, 0, nsDecl.uri.Length, ref m_escBuffer, isAttr: true));
                 m_parts.add("\"");
             }
 
-            ASXML firstChild = elem.getChildAtIndex(0);
+            ASXML? firstChild = elem.getChildAtIndex(0);
 
             if (firstChild == null) {
                 // No children, so self close.
                 m_parts.add("/>");
-                m_nsInScope.removeRange(stackItem.nsDeclStart, m_nsInScope.length - stackItem.nsDeclStart);
-                return;
+                m_nsInScope.removeRange(stackItem.nsDeclBeginIndex, m_nsInScope.length - stackItem.nsDeclBeginIndex);
             }
+            else if (firstChild.isTextOrCDATA && elem.getChildAtIndex(1) == null) {
+                // If there is only one child that is a text or CDATA node, write the opening
+                // tag, text and closing tag on the same line.
 
-            if (firstChild.isTextOrCDATA && elem.getChildAtIndex(1) == null) {
                 m_parts.add(">");
-                _writeText(firstChild.nodeText);
+                _writeText(firstChild.nodeText!);
                 m_parts.add("</");
                 _writeName(stackItem.prefix, stackItem.localName);
                 m_parts.add(">");
                 m_iterator.stepOverCurrentNode();
-                return;
             }
-
-            m_parts.add(">");
-            m_tagStack.add(stackItem);
+            else {
+                m_parts.add(">");
+                m_tagStack.add(stackItem);
+            }
         }
 
         private void _exitCurrentElement() {
@@ -276,7 +278,7 @@ namespace Mariana.AVM2.Core {
             _writeName(stackItem.prefix, stackItem.localName);
             m_parts.add(">");
 
-            m_nextTempPrefixId = stackItem.tmpPrefixIdStart;
+            m_nextTempPrefixId = stackItem.tempPrefixIdStart;
         }
 
         /// <summary>
@@ -291,9 +293,10 @@ namespace Mariana.AVM2.Core {
                 return qname.prefix;
 
             for (int i = m_nsInScope.length - 1; i >= 0; i--) {
-                ASNamespace match = m_nsInScope[i];
+                ASNamespace nsDecl = m_nsInScope[i];
+                string nsDeclPrefix = nsDecl.prefix!;
 
-                if (match.uri != qname.uri || (match.prefix.Length == 0 && isAttr))
+                if (nsDecl.uri != qname.uri || (nsDeclPrefix.Length == 0 && isAttr))
                     continue;
 
                 // Found a candidate prefix, check if it is hidden by another one declared
@@ -301,10 +304,10 @@ namespace Mariana.AVM2.Core {
 
                 bool isHidden = false;
                 for (int j = m_nsInScope.length - 1; j > i; j--) {
-                    if (match.prefix != m_nsInScope[j].prefix)
+                    if (nsDeclPrefix != m_nsInScope[j].prefix)
                         continue;
 
-                    if (match.uri != m_nsInScope[j].uri) {
+                    if (nsDecl.uri != m_nsInScope[j].uri) {
                         isHidden = true;
                         break;
                     }
@@ -313,7 +316,7 @@ namespace Mariana.AVM2.Core {
                 if (isHidden)
                     continue;
 
-                return match.prefix;
+                return nsDeclPrefix;
             }
 
             // No prefixes are available, so generate a temporary one.
@@ -330,7 +333,7 @@ namespace Mariana.AVM2.Core {
                 if (mayConflict)
                     continue;
 
-                m_nsInScope.add(ASNamespace.unsafeCreate(tmpPrefix, qname.uri));
+                m_nsInScope.add(ASNamespace.unsafeCreate(tmpPrefix, qname.uri!));
                 return tmpPrefix;
             }
         }

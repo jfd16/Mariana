@@ -148,14 +148,13 @@ namespace Mariana.AVM2.Tests {
         private static string indexToString(uint index) => index.ToString(CultureInfo.InvariantCulture);
 
         /// <summary>
-        ///
+        /// Runs the given function in an isolated zone with the Array prototype populated with
+        /// the given properties.
         /// </summary>
         ///
         /// <param name="propDict">A dictionary containing the properties to be set to the Array
         /// prototype.</param>
         private static void runInZoneWithArrayPrototype(Dictionary<uint, ASAny> propDict, Action func) {
-            propDict = propDict ?? new Dictionary<uint, ASAny>();
-
             using (StaticZone zone = new StaticZone()) {
                 zone.enterAndRun(() => {
                     ASObject proto = s_arrayClass.prototypeObject;

@@ -302,7 +302,12 @@ namespace Mariana.AVM2.Compiler {
             return sb.ToString();
         }
 
-        private static void _escapeStringForOutput(string str, StringBuilder outSb) {
+        private static void _escapeStringForOutput(string? str, StringBuilder outSb) {
+            if (str == null) {
+                outSb.Append("null");
+                return;
+            }
+
             outSb.Append('"');
             for (int i = 0; i < str.Length; i++) {
                 switch (str[i]) {
@@ -525,7 +530,7 @@ namespace Mariana.AVM2.Compiler {
                 case ResolvedPropertyKind.TRAIT:
                 case ResolvedPropertyKind.TRAIT_RT_INVOKE:
                 {
-                    var trait = (Trait)prop.propInfo;
+                    var trait = (Trait)prop.propInfo!;
                     sb.Append(' ');
                     sb.Append((trait.declaringClass != null) ? trait.declaringClass.name.ToString() : "global");
                     sb.Append('/');
@@ -534,11 +539,11 @@ namespace Mariana.AVM2.Compiler {
                 }
 
                 case ResolvedPropertyKind.INTRINSIC:
-                    sb.Append(' ').Append(((Intrinsic)prop.propInfo).name);
+                    sb.Append(' ').Append(((Intrinsic)prop.propInfo!).name);
                     break;
 
                 case ResolvedPropertyKind.INDEX: {
-                    var valueType = ((IndexProperty)prop.propInfo).valueType;
+                    var valueType = ((IndexProperty)prop.propInfo!).valueType;
                     sb.Append(" [").Append((valueType != null) ? valueType.name.ToString() : "*").Append(']');
                     break;
                 }
@@ -686,13 +691,13 @@ namespace Mariana.AVM2.Compiler {
             var sb = new StringBuilder();
             string className, methodName;
 
-            ScriptMethod method = getCurrentMethod();
+            ScriptMethod? method = getCurrentMethod();
             if (method != null) {
                 className = (method.declaringClass == null) ? "global" : method.declaringClass.name.ToString();
                 methodName = method.name.ToString();
             }
             else {
-                ScriptClassConstructor ctor = getCurrentConstructor();
+                ScriptClassConstructor ctor = getCurrentConstructor()!;
                 className = ctor.declaringClass.name.ToString();
                 methodName = "constructor";
             }

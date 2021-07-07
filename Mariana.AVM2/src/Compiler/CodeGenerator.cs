@@ -16,10 +16,10 @@ namespace Mariana.AVM2.Compiler {
     internal sealed class CodeGenerator {
 
         private readonly struct LocalVarWithClass {
-            public readonly Class type;
+            public readonly Class? type;
             public readonly ILBuilder.Local local;
 
-            public LocalVarWithClass(Class type, ILBuilder.Local local) =>
+            public LocalVarWithClass(Class? type, ILBuilder.Local local) =>
                 (this.type, this.local) = (type, local);
         }
 
@@ -47,18 +47,18 @@ namespace Mariana.AVM2.Compiler {
             public bool trueIsFallThrough;
         }
 
-        private static readonly Class s_objectClass = Class.fromType<ASObject>();
-        private static readonly Class s_numberClass = Class.fromType<double>();
-        private static readonly Class s_arrayClass = Class.fromType<ASArray>();
+        private static readonly Class s_objectClass = Class.fromType(typeof(ASObject))!;
+        private static readonly Class s_numberClass = Class.fromType(typeof(double))!;
+        private static readonly Class s_arrayClass = Class.fromType(typeof(ASArray))!;
 
         private static readonly MethodTraitParameter[] s_dateCtorComponentsParams = {
-            new MethodTraitParameter("y", s_numberClass, false, false, default),
-            new MethodTraitParameter("m", s_numberClass, false, false, default),
-            new MethodTraitParameter("d", s_numberClass, true, true, 1d),
-            new MethodTraitParameter("hr", s_numberClass, true, true, 0d),
-            new MethodTraitParameter("min", s_numberClass, true, true, 0d),
-            new MethodTraitParameter("sec", s_numberClass, true, true, 0d),
-            new MethodTraitParameter("ms", s_numberClass, true, true, 0d),
+            new("y", s_numberClass, false, false, default),
+            new("m", s_numberClass, false, false, default),
+            new("d", s_numberClass, true, true, 1d),
+            new("hr", s_numberClass, true, true, 0d),
+            new("min", s_numberClass, true, true, 0d),
+            new("sec", s_numberClass, true, true, 0d),
+            new("ms", s_numberClass, true, true, 0d),
         };
 
         private static readonly ReferenceDictionary<MethodTrait, MethodInfo> s_primitiveTypeMethodMap = _initPrimitiveTypeMethodMap();
@@ -67,9 +67,9 @@ namespace Mariana.AVM2.Compiler {
 
         private ILBuilder m_ilBuilder;
 
-        private StaticArrayPool<ILBuilder.Local> m_localVarArrayPool = new StaticArrayPool<ILBuilder.Local>(32);
+        private StaticArrayPool<ILBuilder.Local> m_localVarArrayPool = new(32);
 
-        private DynamicArrayPool<LocalVarWithClass> m_localVarWithClassArrayPool = new DynamicArrayPool<LocalVarWithClass>();
+        private DynamicArrayPool<LocalVarWithClass> m_localVarWithClassArrayPool = new();
 
         private DynamicArray<DynamicArrayPoolToken<LocalVarWithClass>> m_scopeVars;
 
@@ -79,7 +79,7 @@ namespace Mariana.AVM2.Compiler {
 
         private DynamicArray<ILBuilder.Local> m_catchLocalVarSyncTable;
 
-        private ReferenceDictionary<FieldTrait, int> m_fieldInitInstructionIds = new ReferenceDictionary<FieldTrait, int>();
+        private ReferenceDictionary<FieldTrait, int> m_fieldInitInstructionIds = new();
 
         private bool m_hasExceptionHandling;
 
@@ -106,34 +106,35 @@ namespace Mariana.AVM2.Compiler {
 
         public CodeGenerator(MethodCompilation compilation) {
             m_compilation = compilation;
+            m_ilBuilder = null!;
         }
 
         private static ReferenceDictionary<MethodTrait, MethodInfo> _initPrimitiveTypeMethodMap() {
             var map = new ReferenceDictionary<MethodTrait, MethodInfo>();
 
-            Class intClass = Class.fromType(typeof(int)),
-                  uintClass = Class.fromType(typeof(uint)),
-                  numberClass = Class.fromType(typeof(double)),
-                  boolClass = Class.fromType(typeof(bool)),
-                  stringClass = Class.fromType(typeof(string));
+            Class intClass = Class.fromType(typeof(int))!,
+                  uintClass = Class.fromType(typeof(uint))!,
+                  numberClass = Class.fromType(typeof(double))!,
+                  boolClass = Class.fromType(typeof(bool))!,
+                  stringClass = Class.fromType(typeof(string))!;
 
             // toString, valueOf are special cases.
 
             QName toStringName = new QName(Namespace.AS3, "toString"),
                   valueOfName = new QName(Namespace.AS3, "valueOf");
 
-            map[intClass.getMethod(toStringName)] = KnownMembers.intToStringWithRadix;
-            map[intClass.getMethod(valueOfName)] = KnownMembers.intValueOf;
-            map[uintClass.getMethod(toStringName)] = KnownMembers.uintToStringWithRadix;
-            map[uintClass.getMethod(valueOfName)] = KnownMembers.uintValueOf;
-            map[numberClass.getMethod(toStringName)] = KnownMembers.numberToStringWithRadix;
-            map[numberClass.getMethod(valueOfName)] = KnownMembers.numberValueOf;
-            map[boolClass.getMethod(toStringName)] = KnownMembers.boolToString;
-            map[boolClass.getMethod(valueOfName)] = KnownMembers.boolValueOf;
-            map[stringClass.getMethod(toStringName)] = KnownMembers.strToString;
-            map[stringClass.getMethod(valueOfName)] = KnownMembers.strValueOf;
+            map[intClass.getMethod(toStringName)!] = KnownMembers.intToStringWithRadix;
+            map[intClass.getMethod(valueOfName)!] = KnownMembers.intValueOf;
+            map[uintClass.getMethod(toStringName)!] = KnownMembers.uintToStringWithRadix;
+            map[uintClass.getMethod(valueOfName)!] = KnownMembers.uintValueOf;
+            map[numberClass.getMethod(toStringName)!] = KnownMembers.numberToStringWithRadix;
+            map[numberClass.getMethod(valueOfName)!] = KnownMembers.numberValueOf;
+            map[boolClass.getMethod(toStringName)!] = KnownMembers.boolToString;
+            map[boolClass.getMethod(valueOfName)!] = KnownMembers.boolValueOf;
+            map[stringClass.getMethod(toStringName)!] = KnownMembers.strToString;
+            map[stringClass.getMethod(valueOfName)!] = KnownMembers.strValueOf;
 
-            map[stringClass.getProperty("length").getter] = KnownMembers.strGetLength;
+            map[stringClass.getProperty("length")!.getter!] = KnownMembers.strGetLength;
 
             load(intClass);
             load(uintClass);
@@ -257,7 +258,7 @@ namespace Mariana.AVM2.Compiler {
                     if (node.isNotPushed || node.dataType == DataNodeType.THIS || node.dataType == DataNodeType.REST)
                         continue;
 
-                    Class nodeClass = _getPushedClassOfNode(node);
+                    Class? nodeClass = _getPushedClassOfNode(node);
                     vars[i] = m_ilBuilder.acquireTempLocal(lockedContext.value.getTypeSignature(nodeClass));
                 }
             }
@@ -364,7 +365,7 @@ namespace Mariana.AVM2.Compiler {
 
                 if (m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_RETURN_VALUE)) {
                     using var lockedContext = m_compilation.getContext();
-                    var retTypeSig = lockedContext.value.getTypeSignature(m_compilation.getCurrentMethod().returnType);
+                    var retTypeSig = lockedContext.value.getTypeSignature(m_compilation.getCurrentMethod()!.returnType);
                     m_excReturnValueLocal = m_ilBuilder.declareLocal(retTypeSig);
                 }
             }
@@ -375,7 +376,8 @@ namespace Mariana.AVM2.Compiler {
             }
 
             if (m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCOPED_FUNCTION)) {
-                var containerTypeHandle = m_compilation.capturedScope.container.typeHandle;
+                var containerTypeHandle = m_compilation.capturedScope!.container.typeHandle;
+
                 m_scopedFuncThisLocal = m_ilBuilder.declareLocal(typeof(ASObject));
                 m_scopedFuncScopeLocal = m_ilBuilder.declareLocal(TypeSignature.forClassType(containerTypeHandle));
 
@@ -450,18 +452,22 @@ namespace Mariana.AVM2.Compiler {
 
             // Get the runtime scope stack for the captured scope.
             if (m_compilation.declaringClass != null) {
-                CapturedScope classScope;
-                EntityHandle classScopeField;
-                using (var lockedContext = m_compilation.getContext()) {
-                    classScope = lockedContext.value.getClassCapturedScope(m_compilation.declaringClass);
-                    classScopeField = lockedContext.value.getClassCapturedScopeFieldHandle(m_compilation.declaringClass);
-                }
+                using var lockedContext = m_compilation.getContext();
 
-                m_ilBuilder.emit(ILOp.ldsfld, classScopeField);
-                m_ilBuilder.emit(ILOp.call, classScope.container.rtStackGetMethodHandle, 0);
+                CapturedScope? classScope = lockedContext.value.getClassCapturedScope(m_compilation.declaringClass);
+                if (classScope != null) {
+                    EntityHandle classScopeField =
+                        lockedContext.value.getClassCapturedScopeFieldHandle(m_compilation.declaringClass);
+
+                    m_ilBuilder.emit(ILOp.ldsfld, classScopeField);
+                    m_ilBuilder.emit(ILOp.call, classScope.container.rtStackGetMethodHandle, 0);
+                }
+                else {
+                    m_ilBuilder.emit(ILOp.ldnull);
+                }
             }
             else if (m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCOPED_FUNCTION)) {
-                var funcScope = m_compilation.capturedScope;
+                CapturedScope funcScope = m_compilation.capturedScope!;
 
                 m_ilBuilder.emit(ILOp.ldloc, m_scopedFuncScopeLocal);
                 m_ilBuilder.emit(ILOp.call, funcScope.container.rtStackGetMethodHandle, 0);
@@ -480,7 +486,7 @@ namespace Mariana.AVM2.Compiler {
                 // be used by static methods)
 
                 m_ilBuilder.emit(ILOp.ldloc, m_rtScopeStackLocal);
-                _emitPushTraitConstant(m_compilation.declaringClass);
+                _emitPushTraitConstant(m_compilation.declaringClass!);
                 m_ilBuilder.emit(ILOp.callvirt, KnownMembers.classGetClassObj, 0);
                 m_ilBuilder.emit(ILOp.ldc_i4, (int)BindOptions.SEARCH_TRAITS);
                 m_ilBuilder.emit(ILOp.call, KnownMembers.rtScopeStackPush, -3);
@@ -564,7 +570,7 @@ namespace Mariana.AVM2.Compiler {
             // Initialize the arguments.callee property.
             // This is not supported for instance constructors as we cannot create Function objects for them.
 
-            MethodTrait currentMethod = m_compilation.getCurrentMethod();
+            MethodTrait? currentMethod = m_compilation.getCurrentMethod();
 
             if (currentMethod != null) {
                 m_ilBuilder.emit(ILOp.ldloc, arrLocal);
@@ -604,16 +610,16 @@ namespace Mariana.AVM2.Compiler {
         private void _emitInitFieldsToDefaultValues() {
             ReadOnlyArrayView<Trait> traits = default;
 
-            ClassConstructor ctor = m_compilation.getCurrentConstructor();
+            ClassConstructor? ctor = m_compilation.getCurrentConstructor();
             if (ctor != null) {
-                traits = m_compilation.declaringClass.getTraits(TraitType.ALL, TraitScope.INSTANCE_DECLARED);
+                traits = m_compilation.declaringClass!.getTraits(TraitType.ALL, TraitScope.INSTANCE_DECLARED);
             }
             else if (m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_STATIC_INIT)) {
-                traits = m_compilation.declaringClass.getTraits(TraitType.ALL, TraitScope.STATIC);
+                traits = m_compilation.declaringClass!.getTraits(TraitType.ALL, TraitScope.STATIC);
             }
             else if (m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCRIPT_INIT)) {
                 using var lockedContext = m_compilation.getContext();
-                traits = lockedContext.value.getScriptTraits(m_compilation.currentScriptInfo);
+                traits = lockedContext.value.getScriptTraits(m_compilation.currentScriptInfo!);
             }
 
             if (traits.length == 0)
@@ -710,7 +716,7 @@ namespace Mariana.AVM2.Compiler {
                     // allow arbitrary base classes because their constructors may read derived
                     // class fields through late binding.)
                     if (useInstr.opcode == ABCOp.constructsuper
-                        && m_compilation.declaringClass.parent.isObjectClass
+                        && m_compilation.declaringClass!.parent!.isObjectClass
                         && useInstr.data.constructSuper.argCount == 0)
                     {
                         continue;
@@ -1365,9 +1371,9 @@ namespace Mariana.AVM2.Compiler {
                 _emitDiscardTopOfStack(excessStack[i]);
 
             if (m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_RETURN_VALUE)) {
-                var returnType = m_compilation.getCurrentMethod().returnType;
+                Class? returnType = m_compilation.getCurrentMethod()!.returnType;
 
-                if (returnType != null && returnType.underlyingType == null) {
+                if (returnType != null && !returnType.getClassImpl().isUnderlyingTypeAvailable) {
                     // Classes without an underlying type (i.e. those currently being compiled)
                     // are always reference types, so the default value is always null.
                     m_ilBuilder.emit(ILOp.ldnull);
@@ -1422,7 +1428,7 @@ namespace Mariana.AVM2.Compiler {
             }
 
             if (m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_RETURN_VALUE)) {
-                Class returnType = m_compilation.getCurrentMethod().returnType;
+                Class? returnType = m_compilation.getCurrentMethod()!.returnType;
                 _emitTypeCoerceForTopOfStack(popped, returnType);
 
                 if (m_hasExceptionHandling)
@@ -1579,7 +1585,8 @@ namespace Mariana.AVM2.Compiler {
                     break;
 
                 case DataNodeType.OBJECT: {
-                    if (!_getPushedClassOfNode(inputNode).isObjectClass) {
+                    if (!_getPushedClassOfNode(inputNode)!.isObjectClass) {
+                        // If the input cannot be a boxed primitive then this is a simple null check.
                         m_ilBuilder.emit(ILOp.ldnull);
                         m_ilBuilder.emit(ILOp.ceq);
                         break;
@@ -2214,7 +2221,7 @@ namespace Mariana.AVM2.Compiler {
 
             Class klass;
             using (var lockedContext = m_compilation.getContext())
-                klass = lockedContext.value.getClassByMultiname(multiname);
+                klass = lockedContext.value.getClassByMultiname(multiname)!;
 
             if (ClassTagSet.numeric.contains(klass.tag) || !isObjectType(inputNode.dataType))
                 _emitTypeCoerceForTopOfStack(inputNode, DataNodeType.OBJECT);
@@ -2229,9 +2236,9 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode typeNode = ref m_compilation.getDataNode(stackPopIds[1]);
             ref DataNode outputNode = ref m_compilation.getDataNode(instr.stackPushedNodeId);
 
-            Class klass = (typeNode.dataType == DataNodeType.CLASS) ? typeNode.constant.classValue : null;
+            Class? klass = (typeNode.dataType == DataNodeType.CLASS) ? typeNode.constant.classValue : null;
 
-            if (klass != null && klass.underlyingType != typeof(ASVector<>)) {
+            if (klass != null && !klass.hasUnderlyingType(typeof(ASVector<>))) {
                 _emitDiscardTopOfStack(typeNode);
 
                 if (ClassTagSet.numeric.contains(klass.tag) || !isObjectType(objectNode.dataType))
@@ -2269,7 +2276,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitDxns(ref Instruction instr) {
-            string uri = m_compilation.abcFile.resolveString(instr.data.dxns.uriId);
+            string uri = m_compilation.abcFile.resolveString(instr.data.dxns.uriId) ?? "";
             _emitPushXmlNamespaceConstant(new Namespace(uri));
             m_ilBuilder.emit(ILOp.call, KnownMembers.setDxns, -1);
         }
@@ -2407,7 +2414,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitNewActivation(ref Instruction instr) {
-            var klass = m_compilation.getClassForActivation();
+            var klass = m_compilation.getClassForActivation()!;
             using var lockedContext = m_compilation.getContext();
             m_ilBuilder.emit(ILOp.newobj, lockedContext.value.getEntityHandleForCtor(klass), 1);
         }
@@ -2426,7 +2433,7 @@ namespace Mariana.AVM2.Compiler {
             ILBuilder.Local objLocal;
 
             var bindOpts = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_PROTOTYPE | BindOptions.SEARCH_DYNAMIC;
-            Class objClass = _getPushedClassOfNode(objectNode);
+            Class? objClass = _getPushedClassOfNode(objectNode);
 
             if (objClass == null) {
                 objLocal = m_ilBuilder.acquireTempLocal(typeof(ASAny));
@@ -2533,13 +2540,13 @@ namespace Mariana.AVM2.Compiler {
                     _emitPushConstantNode(resultNode);
                 }
                 else {
-                    _emitGetPropertyTrait((Trait)resolvedProp.propInfo, objectNode, isSuper);
+                    _emitGetPropertyTrait((Trait)resolvedProp.propInfo!, objectNode, isSuper);
                 }
             }
             else if (resolvedProp.propKind == ResolvedPropertyKind.INDEX) {
                 ref DataNode nameNode = ref m_compilation.getDataNode(rtNameNodeId);
                 Debug.Assert(rtNsNodeId == -1 || m_compilation.getDataNode(rtNsNodeId).isNotPushed);
-                _emitGetPropertyIndex((IndexProperty)resolvedProp.propInfo, objectNode, nameNode);
+                _emitGetPropertyIndex((IndexProperty)resolvedProp.propInfo!, objectNode, nameNode);
             }
             else if (resolvedProp.propKind == ResolvedPropertyKind.RUNTIME) {
                 Debug.Assert(!objectNode.isNotPushed);
@@ -2565,7 +2572,7 @@ namespace Mariana.AVM2.Compiler {
                 Debug.Assert(rtNsNodeId == -1 || m_compilation.getDataNode(rtNsNodeId).isNotPushed);
                 Debug.Assert(rtNameNodeId == -1 || m_compilation.getDataNode(rtNameNodeId).isNotPushed);
 
-                var trait = (Trait)resolvedProp.propInfo;
+                var trait = (Trait)resolvedProp.propInfo!;
                 bool isRtInvoke = resolvedProp.propKind == ResolvedPropertyKind.TRAIT_RT_INVOKE;
 
                 _emitSetPropertyTrait(trait, objectNode, valueNode, isSuper, isRtInvoke);
@@ -2574,9 +2581,10 @@ namespace Mariana.AVM2.Compiler {
                 ref DataNode nameNode = ref m_compilation.getDataNode(rtNameNodeId);
                 Debug.Assert(rtNsNodeId == -1 || m_compilation.getDataNode(rtNsNodeId).isNotPushed);
 
-                var indexProp = (IndexProperty)resolvedProp.propInfo;
+                var indexProp = (IndexProperty)resolvedProp.propInfo!;
                 Span<int> argIds = stackalloc int[] {rtNameNodeId, valueNode.id};
-                _emitCallToMethod(indexProp.setMethod, _getPushedClassOfNode(objectNode), argIds, noReturn: true);
+
+                _emitCallToMethod(indexProp.setMethod!, _getPushedClassOfNode(objectNode), argIds, noReturn: true);
             }
             else if (resolvedProp.propKind == ResolvedPropertyKind.RUNTIME) {
                 Debug.Assert(!objectNode.isNotPushed);
@@ -2633,9 +2641,10 @@ namespace Mariana.AVM2.Compiler {
                 ref DataNode nameNode = ref m_compilation.getDataNode(rtNameNodeId);
                 Debug.Assert(rtNsNodeId == -1 || m_compilation.getDataNode(rtNsNodeId).isNotPushed);
 
-                var indexProp = (IndexProperty)resolvedProp.propInfo;
+                var indexProp = (IndexProperty)resolvedProp.propInfo!;
                 Span<int> argIds = stackalloc int[] {rtNameNodeId};
-                _emitCallToMethod(indexProp.deleteMethod, _getPushedClassOfNode(objectNode), argIds);
+
+                _emitCallToMethod(indexProp.deleteMethod!, _getPushedClassOfNode(objectNode), argIds);
             }
             else if (resolvedProp.propKind == ResolvedPropertyKind.RUNTIME) {
                 Debug.Assert(!objectNode.isNotPushed);
@@ -2680,7 +2689,7 @@ namespace Mariana.AVM2.Compiler {
                 _emitPushConstantNode(resultNode);
             }
             else {
-                _emitGetPropertyTrait((Trait)resolvedProp.propInfo, objectNode, isSuper: false);
+                _emitGetPropertyTrait((Trait)resolvedProp.propInfo!, objectNode, isSuper: false);
             }
         }
 
@@ -2693,7 +2702,7 @@ namespace Mariana.AVM2.Compiler {
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.getSetSlot.resolvedPropId);
             bool isRtInvoke = resolvedProp.propKind == ResolvedPropertyKind.TRAIT_RT_INVOKE;
 
-            _emitSetPropertyTrait((Trait)resolvedProp.propInfo, objectNode, valueNode, isSuper: false, isRtInvoke);
+            _emitSetPropertyTrait((Trait)resolvedProp.propInfo!, objectNode, valueNode, isSuper: false, isRtInvoke);
         }
 
         private void _visitGetGlobalScope(ref Instruction instr) {
@@ -2704,7 +2713,8 @@ namespace Mariana.AVM2.Compiler {
 
         private void _visitGetGlobalSlot(ref Instruction instr) {
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.getSetSlot.resolvedPropId);
-            var trait = (Trait)resolvedProp.propInfo;
+            var trait = (Trait)resolvedProp.propInfo!;
+
             Debug.Assert(trait.isStatic);
 
             ref DataNode result = ref m_compilation.getDataNode(instr.stackPushedNodeId);
@@ -2727,7 +2737,8 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode valueNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
 
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.getSetSlot.resolvedPropId);
-            var trait = (Trait)resolvedProp.propInfo;
+
+            var trait = (Trait)resolvedProp.propInfo!;
             bool isRtInvoke = resolvedProp.propKind == ResolvedPropertyKind.TRAIT_RT_INVOKE;
 
             Debug.Assert(trait.isStatic);
@@ -2777,7 +2788,7 @@ namespace Mariana.AVM2.Compiler {
                 Debug.Assert(rtNsNodeId == -1 || m_compilation.getDataNode(rtNsNodeId).isNotPushed);
                 Debug.Assert(rtNameNodeId == -1 || m_compilation.getDataNode(rtNameNodeId).isNotPushed);
 
-                var trait = (Trait)resolvedProp.propInfo;
+                var trait = (Trait)resolvedProp.propInfo!;
 
                 if (resolvedProp.propKind == ResolvedPropertyKind.TRAIT)
                     _emitCallOrConstructTrait(trait, objectNode.id, argNodeIds, isConstruct, isSuper, resultId);
@@ -2788,14 +2799,14 @@ namespace Mariana.AVM2.Compiler {
                 Debug.Assert(rtNsNodeId == -1 || m_compilation.getDataNode(rtNsNodeId).isNotPushed);
                 Debug.Assert(rtNameNodeId == -1 || m_compilation.getDataNode(rtNameNodeId).isNotPushed);
 
-                var intrinsic = (Intrinsic)resolvedProp.propInfo;
+                var intrinsic = (Intrinsic)resolvedProp.propInfo!;
                 _emitInvokeIntrinsic(intrinsic, objectNode.id, argNodeIds, isConstruct, resultId);
             }
             else if (resolvedProp.propKind == ResolvedPropertyKind.INDEX) {
                 Debug.Assert(rtNsNodeId == -1 || m_compilation.getDataNode(rtNsNodeId).isNotPushed);
                 ref DataNode nameNode = ref m_compilation.getDataNode(rtNameNodeId);
 
-                var indexProp = (IndexProperty)resolvedProp.propInfo;
+                var indexProp = (IndexProperty)resolvedProp.propInfo!;
                 _emitCallOrConstructIndexProp(
                     indexProp, objectNode, nameNode, argNodeIds, isConstruct, isLex, noReturn: resultId == -1);
             }
@@ -2934,7 +2945,7 @@ namespace Mariana.AVM2.Compiler {
             if (resolvedProp.propKind == ResolvedPropertyKind.TRAIT
                 || resolvedProp.propKind == ResolvedPropertyKind.TRAIT_RT_INVOKE)
             {
-                var trait = (Trait)resolvedProp.propInfo;
+                var trait = (Trait)resolvedProp.propInfo!;
 
                 if (resolvedProp.propKind == ResolvedPropertyKind.TRAIT) {
                     _emitCallOrConstructTrait(trait, receiverId, argIds, isConstruct, isSuper: false, resultId);
@@ -2945,7 +2956,7 @@ namespace Mariana.AVM2.Compiler {
                 }
             }
             else if (resolvedProp.propKind == ResolvedPropertyKind.INTRINSIC) {
-                var intrinsic = (Intrinsic)resolvedProp.propInfo;
+                var intrinsic = (Intrinsic)resolvedProp.propInfo!;
                 _emitInvokeIntrinsic(intrinsic, receiverId, argIds, isConstruct, resultId);
             }
 
@@ -2971,7 +2982,7 @@ namespace Mariana.AVM2.Compiler {
                 resultId = -1;
 
             ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.callOrConstruct.resolvedPropId);
-            var trait = (Trait)resolvedProp.propInfo;
+            var trait = (Trait)resolvedProp.propInfo!;
 
             if (resolvedProp.propKind == ResolvedPropertyKind.TRAIT) {
                 _emitCallOrConstructTrait(trait, receiverId, argIds, isConstruct: false, isSuper: false, resultId);
@@ -2983,7 +2994,8 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitConstructSuper(ref Instruction instr) {
-            Class parentClass = m_compilation.declaringClass.parent;
+            Class parentClass = m_compilation.declaringClass!.parent!;
+
             int argCount = instr.data.constructSuper.argCount;
             var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
 
@@ -3008,13 +3020,15 @@ namespace Mariana.AVM2.Compiler {
             }
 
             bool checkArgCountValidAndEmitError() {
-                ClassConstructor ctor = parentClass.constructor;
-                if (ctor == null && !parentClass.isObjectClass)
-                    return true;
+                ClassConstructor? ctor = parentClass.constructor;
 
-                var (requiredParamCount, paramCount) = parentClass.isObjectClass
-                    ? (0, 0)
-                    : (ctor.requiredParamCount, ctor.paramCount);
+                if (ctor == null && !parentClass.isObjectClass) {
+                    // The parent constructor does not exist and a different kind of error will be emitted.
+                    // No checking the argument count in this case.
+                    return true;
+                }
+
+                var (requiredParamCount, paramCount) = (ctor != null) ? (ctor.requiredParamCount, ctor.paramCount) : (0, 0);
 
                 if (argCount >= requiredParamCount && (argCount <= paramCount || (ctor != null && ctor.hasRest)))
                     return true;
@@ -3158,11 +3172,11 @@ namespace Mariana.AVM2.Compiler {
                     return;
                 }
 
-                Trait trait = null;
+                Trait? trait = null;
                 bool mustPushObject;
 
                 if (resolvedProp.propKind == ResolvedPropertyKind.TRAIT) {
-                    trait = (Trait)resolvedProp.propInfo;
+                    trait = (Trait)resolvedProp.propInfo!;
                     mustPushObject = !trait.isStatic;
                 }
                 else {
@@ -3213,7 +3227,7 @@ namespace Mariana.AVM2.Compiler {
 
             using (var lockedContext = m_compilation.getContext()) {
                 ScriptClass klass = lockedContext.value.getClassFromClassInfo(instr.data.newClass.classInfoId);
-                CapturedScope classCapturedScope = lockedContext.value.getClassCapturedScope(klass);
+                CapturedScope? classCapturedScope = lockedContext.value.getClassCapturedScope(klass);
 
                 if (classCapturedScope != null) {
                     EntityHandle classCapturedScopeField = lockedContext.value.getClassCapturedScopeFieldHandle(klass);
@@ -3226,7 +3240,7 @@ namespace Mariana.AVM2.Compiler {
                     m_ilBuilder.releaseTempLocal(capturedScopeLocal);
                 }
 
-                MethodTrait staticInit = lockedContext.value.getClassStaticInitMethod(klass);
+                MethodTrait? staticInit = lockedContext.value.getClassStaticInitMethod(klass);
                 if (staticInit != null)
                     _emitCallToMethod(staticInit, null, ReadOnlySpan<int>.Empty, noReturn: true);
             }
@@ -3240,8 +3254,8 @@ namespace Mariana.AVM2.Compiler {
             CapturedScope funcCapturedScope;
 
             using (var lockedContext = m_compilation.getContext()) {
-                func = (ScriptMethod)lockedContext.value.getMethodOrCtorForMethodInfo(instr.data.newFunction.methodInfoId);
-                funcCapturedScope = lockedContext.value.getFunctionCapturedScope(func);
+                func = (ScriptMethod)lockedContext.value.getMethodOrCtorForMethodInfo(instr.data.newFunction.methodInfoId)!;
+                funcCapturedScope = lockedContext.value.getFunctionCapturedScope(func)!;
             }
 
             Span<int> localScopeNodeIds = m_compilation.staticIntArrayPool.getSpan(instr.data.newFunction.capturedScopeNodeIds);
@@ -3258,7 +3272,7 @@ namespace Mariana.AVM2.Compiler {
         private void _visitIfTrueFalse(ref Instruction instr) {
             ref DataNode inputNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
 
-            Class inputClass = _getPushedClassOfNode(inputNode);
+            Class? inputClass = _getPushedClassOfNode(inputNode);
 
             if (inputClass == null || inputClass.isObjectClass
                 || inputClass.tag == ClassTag.NUMBER || inputClass.tag == ClassTag.STRING)
@@ -3534,28 +3548,14 @@ namespace Mariana.AVM2.Compiler {
             m_ilBuilder.emit(ILOp.ldloc, addrTemp);
             m_ilBuilder.emit(ILOp.call, KnownMembers.roSpanOfByteSliceIndex, -1);
 
-            ILBuilder.Local valueTemp = default;
-            MethodInfo readMethod = null;
+            (Type valueTempType, MethodInfo readMethod) = instr.opcode switch {
+                ABCOp.li16 => (typeof(ushort), KnownMembers.tryReadUint16LittleEndian),
+                ABCOp.lix16 => (typeof(short), KnownMembers.tryReadInt16LittleEndian),
+                ABCOp.li32 or ABCOp.lf32 => (typeof(int), KnownMembers.tryReadInt32LittleEndian),
+                ABCOp.lf64 => (typeof(long), KnownMembers.tryReadInt64LittleEndian)
+            };
 
-            switch (instr.opcode) {
-                case ABCOp.li16:
-                    valueTemp = m_ilBuilder.acquireTempLocal(typeof(ushort));
-                    readMethod = KnownMembers.tryReadUint16LittleEndian;
-                    break;
-                case ABCOp.lix16:
-                    valueTemp = m_ilBuilder.acquireTempLocal(typeof(short));
-                    readMethod = KnownMembers.tryReadInt16LittleEndian;
-                    break;
-                case ABCOp.li32:
-                case ABCOp.lf32:
-                    valueTemp = m_ilBuilder.acquireTempLocal(typeof(int));
-                    readMethod = KnownMembers.tryReadInt32LittleEndian;
-                    break;
-                case ABCOp.lf64:
-                    valueTemp = m_ilBuilder.acquireTempLocal(typeof(long));
-                    readMethod = KnownMembers.tryReadInt64LittleEndian;
-                    break;
-            }
+            var valueTemp = m_ilBuilder.acquireTempLocal(valueTempType);
 
             m_ilBuilder.emit(ILOp.ldloca, valueTemp);
             m_ilBuilder.emit(ILOp.call, readMethod, -1);
@@ -3581,15 +3581,11 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode valueNode = ref m_compilation.getDataNode(stackPopIds[0]);
             ref DataNode addressNode = ref m_compilation.getDataNode(stackPopIds[1]);
 
-            DataNodeType valueType;
-            Type valueTempType;
-
-            if (instr.opcode == ABCOp.sf32)
-                (valueType, valueTempType) = (DataNodeType.NUMBER, typeof(float));
-            else if (instr.opcode == ABCOp.sf64)
-                (valueType, valueTempType) = (DataNodeType.NUMBER, typeof(double));
-            else
-                (valueType, valueTempType) = (DataNodeType.INT, typeof(int));
+            (DataNodeType valueType, Type valueTempType) = instr.opcode switch {
+                ABCOp.sf32 => (DataNodeType.NUMBER, typeof(float)),
+                ABCOp.sf64 => (DataNodeType.NUMBER, typeof(double)),
+                _ => (DataNodeType.INT, typeof(int))
+            };
 
             var addrTemp = m_ilBuilder.acquireTempLocal(typeof(int));
             var valueTemp = m_ilBuilder.acquireTempLocal(valueTempType);
@@ -3660,7 +3656,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="node">A reference to a <see cref="DataNode"/> instance.</param>
         /// <returns>A <see cref="Class"/> representing the data type of <paramref name="node"/>
         /// after it has been pushed onto the stack.</returns>
-        private Class _getPushedClassOfNode(in DataNode node) {
+        private Class? _getPushedClassOfNode(in DataNode node) {
             return (node.onPushCoerceType != DataNodeType.UNKNOWN)
                 ? getClass(node.onPushCoerceType)
                 : m_compilation.getDataNodeClass(node);
@@ -3731,7 +3727,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="toClass">The type to which the value must be coerced to.</param>
         /// <returns>True if the conversion from <paramref name="fromClass"/> to
         /// <paramref name="toClass"/> is trivial, otherwise false.</returns>
-        private static bool _isTrivialTypeConversion(Class fromClass, Class toClass) {
+        private static bool _isTrivialTypeConversion(Class? fromClass, Class? toClass) {
             if (fromClass == toClass)
                 return true;
 
@@ -3761,7 +3757,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="toClass">The type to which the value must be coerced to.</param>
         /// <returns>True if the conversion from the type of <paramref name="node"/> to
         /// <paramref name="toClass"/> is trivial, otherwise false.</returns>
-        private bool _isTrivialTypeConversion(in DataNode node, Class toClass) {
+        private bool _isTrivialTypeConversion(in DataNode node, Class? toClass) {
             if (_getPushedTypeOfNode(node) == DataNodeType.NULL)
                 return toClass != null && !ClassTagSet.numericOrBool.contains(toClass.tag);
 
@@ -3822,7 +3818,7 @@ namespace Mariana.AVM2.Compiler {
             if (nodeType == toType && toType != DataNodeType.OBJECT && !needsStringConv)
                 return;
 
-            Class currentClass = usePrePushType ? m_compilation.getDataNodeClass(node) : _getPushedClassOfNode(node);
+            Class? currentClass = usePrePushType ? m_compilation.getDataNodeClass(node) : _getPushedClassOfNode(node);
 
             switch (toType) {
                 case DataNodeType.INT:
@@ -3858,7 +3854,7 @@ namespace Mariana.AVM2.Compiler {
                         break;
 
                     using var lockedContext = m_compilation.getContext();
-                    Class toClass = getClass(toType);
+                    Class toClass = getClass(toType)!;
 
                     if (currentClass == null) {
                         m_ilBuilder.emit(ILOp.call, lockedContext.value.getEntityHandleForAnyCast(toClass), 0);
@@ -3880,13 +3876,13 @@ namespace Mariana.AVM2.Compiler {
         /// the value represented by <paramref name="node"/> is to be coerced.</param>
         /// <param name="isForcePushed">Set to true if <paramref name="node"/> may have been force
         /// pushed onto the stack after being marked as no-push.</param>
-        private void _emitTypeCoerceForTopOfStack(in DataNode node, Class toClass, bool isForcePushed = false) {
+        private void _emitTypeCoerceForTopOfStack(in DataNode node, Class? toClass, bool isForcePushed = false) {
             Debug.Assert(isForcePushed || !node.isNotPushed);
 
             DataNodeType nodeType = _getPushedTypeOfNode(node);
             DataNodeType nodeTypeForClass = getDataTypeOfClass(toClass);
 
-            if (nodeTypeForClass != DataNodeType.OBJECT || toClass.isObjectClass) {
+            if (nodeTypeForClass != DataNodeType.OBJECT || toClass!.isObjectClass) {
                 _emitTypeCoerceForTopOfStack(node, nodeTypeForClass, isForcePushed: isForcePushed);
             }
             else if (isAnyOrUndefined(nodeType)) {
@@ -3899,7 +3895,7 @@ namespace Mariana.AVM2.Compiler {
 
                 Class nodeClass;
                 if (isObjectType(nodeType)) {
-                    nodeClass = _getPushedClassOfNode(node);
+                    nodeClass = _getPushedClassOfNode(node)!;
                 }
                 else if (nodeType == DataNodeType.REST) {
                     Debug.Assert(m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_REST_ARRAY));
@@ -3924,14 +3920,16 @@ namespace Mariana.AVM2.Compiler {
         /// currently at the top of the stack.</param>
         /// <param name="toClass">The <see cref="Class"/> representing the type to which
         /// the value of type <paramref name="fromClass"/> is to be coerced.</param>
-        private void _emitTypeCoerceForTopOfStack(Class fromClass, Class toClass) {
+        private void _emitTypeCoerceForTopOfStack(Class? fromClass, Class? toClass) {
             if (fromClass == toClass)
                 return;
 
             if (toClass == null || toClass.isPrimitiveClass) {
-                ILEmitHelper.emitTypeCoerce(m_ilBuilder, fromClass, toClass, m_compilation.compileOptions.useNativeDoubleToIntegerConversions);
+                ILEmitHelper.emitTypeCoerce(
+                    m_ilBuilder, fromClass, toClass, m_compilation.compileOptions.useNativeDoubleToIntegerConversions);
                 return;
             }
+
             if (toClass.isObjectClass) {
                 ILEmitHelper.emitTypeCoerceToObject(m_ilBuilder, fromClass);
                 return;
@@ -4231,7 +4229,7 @@ namespace Mariana.AVM2.Compiler {
 
         private void _emitPushCapturedScopeItem(int height) {
             _emitPushCapturedScope();
-            m_ilBuilder.emit(ILOp.ldfld, m_compilation.capturedScope.container.getFieldHandle(height));
+            m_ilBuilder.emit(ILOp.ldfld, m_compilation.capturedScope!.container.getFieldHandle(height));
         }
 
         private void _emitLoadScopeOrLocalNode(in DataNode node) {
@@ -4609,7 +4607,7 @@ namespace Mariana.AVM2.Compiler {
             in ABCMultiname multiname,
             int rtNsNodeId,
             int rtNameNodeId,
-            Class objectType,
+            Class? objectType,
             bool isOnRuntimeScopeStack,
             out RuntimeBindingKind bindingKind
         ) {
@@ -4625,7 +4623,7 @@ namespace Mariana.AVM2.Compiler {
                 case ABCConstKind.QNameA:
                 {
                     Namespace ns = abc.resolveNamespace(multiname.namespaceIndex);
-                    string localName = abc.resolveString(multiname.localNameIndex);
+                    string? localName = abc.resolveString(multiname.localNameIndex);
 
                     if (needToPrepareObject)
                         emitPrepareObject(objectType, isOnRuntimeScopeStack);
@@ -4644,7 +4642,7 @@ namespace Mariana.AVM2.Compiler {
                 case ABCConstKind.Multiname:
                 case ABCConstKind.MultinameA:
                 {
-                    string localName = abc.resolveString(multiname.localNameIndex);
+                    string? localName = abc.resolveString(multiname.localNameIndex);
 
                     if (needToPrepareObject)
                         emitPrepareObject(objectType, isOnRuntimeScopeStack);
@@ -4659,7 +4657,7 @@ namespace Mariana.AVM2.Compiler {
                 case ABCConstKind.RTQName:
                 case ABCConstKind.RTQNameA:
                 {
-                    string localName = abc.resolveString(multiname.localNameIndex);
+                    string? localName = abc.resolveString(multiname.localNameIndex);
 
                     ref DataNode nsNode = ref m_compilation.getDataNode(rtNsNodeId);
                     Debug.Assert(nsNode.dataType == DataNodeType.NAMESPACE && !nsNode.isNotPushed);
@@ -4774,7 +4772,7 @@ namespace Mariana.AVM2.Compiler {
                 }
             }
 
-            void emitPrepareObject(Class type, bool isRtScopeStack) {
+            void emitPrepareObject(Class? type, bool isRtScopeStack) {
                 if (isRtScopeStack) {
                     m_ilBuilder.emit(ILOp.ldloc, m_rtScopeStackLocal);
                     return;
@@ -4833,7 +4831,7 @@ namespace Mariana.AVM2.Compiler {
             if (objectNode.dataType == DataNodeType.REST
                 && !m_compilation.isAnyFlagSet(MethodCompilationFlags.HAS_REST_ARRAY))
             {
-                Debug.Assert(trait.name == QName.publicName("length") && trait.declaringClass.tag == ClassTag.ARRAY);
+                Debug.Assert(trait.name == QName.publicName("length") && trait.declaringClass!.tag == ClassTag.ARRAY);
                 m_ilBuilder.emit(ILOp.call, KnownMembers.restParamGetLength);
                 return;
             }
@@ -4849,7 +4847,7 @@ namespace Mariana.AVM2.Compiler {
             }
             else if (traitType == TraitType.PROPERTY) {
                 _emitCallToMethod(
-                    ((PropertyTrait)trait).getter, _getPushedClassOfNode(objectNode), ReadOnlySpan<int>.Empty, isSuper);
+                    ((PropertyTrait)trait).getter!, _getPushedClassOfNode(objectNode), ReadOnlySpan<int>.Empty, isSuper);
             }
             else if (traitType == TraitType.CONSTANT) {
                 ILEmitHelper.emitPushConstant(m_ilBuilder, ((ConstantTrait)trait).constantValue);
@@ -4901,7 +4899,7 @@ namespace Mariana.AVM2.Compiler {
             }
 
             Span<int> argIds = stackalloc int[] {indexNode.id};
-            _emitCallToMethod(indexProp.getMethod, _getPushedClassOfNode(objectNode), argIds);
+            _emitCallToMethod(indexProp.getMethod!, _getPushedClassOfNode(objectNode), argIds);
         }
 
         /// <summary>
@@ -4970,7 +4968,7 @@ namespace Mariana.AVM2.Compiler {
             else if (traitType == TraitType.PROPERTY) {
                 Span<int> argIds = stackalloc int[] {valueNode.id};
                 _emitCallToMethod(
-                    ((PropertyTrait)trait).setter, _getPushedClassOfNode(objectNode), argIds, isSuper, noReturn: true);
+                    ((PropertyTrait)trait).setter!, _getPushedClassOfNode(objectNode), argIds, isSuper, noReturn: true);
             }
 
             if (trait.isStatic)
@@ -5016,14 +5014,14 @@ namespace Mariana.AVM2.Compiler {
             if (traitType == TraitType.METHOD) {
                 Debug.Assert(!isConstruct);
 
-                Class objectType = (objectId == -1) ? null : _getPushedClassOfNode(m_compilation.getDataNode(objectId));
+                Class? objectType = (objectId == -1) ? null : _getPushedClassOfNode(m_compilation.getDataNode(objectId));
                 _emitCallToMethod((MethodTrait)trait, objectType, argIds, isSuper, resultId == -1);
             }
             else if (traitType == TraitType.CLASS) {
                 var klass = (Class)trait;
 
                 if (isConstruct) {
-                    ClassConstructor ctor = klass.constructor;
+                    ClassConstructor ctor = klass.constructor!;
                     _emitPrepareMethodCallArguments(ctor.getParameters().asSpan(), ctor.hasRest, argIds, null, null);
 
                     EntityHandle ctorHandle;
@@ -5090,8 +5088,8 @@ namespace Mariana.AVM2.Compiler {
                     ILEmitHelper.emitTypeCoerceToAny(m_ilBuilder, field.fieldType);
                 }
                 else {
-                    var propGetter = ((PropertyTrait)trait).getter;
-                    Class objectType = (objectId == -1) ? null : _getPushedClassOfNode(m_compilation.getDataNode(objectId));
+                    var propGetter = ((PropertyTrait)trait).getter!;
+                    Class? objectType = (objectId == -1) ? null : _getPushedClassOfNode(m_compilation.getDataNode(objectId));
 
                     _emitCallToMethod(propGetter, objectType, ReadOnlySpan<int>.Empty);
                     if (propGetter.hasReturn)
@@ -5194,8 +5192,9 @@ namespace Mariana.AVM2.Compiler {
                 _emitUnstash(indexLocal);
             }
 
-            MethodTrait getter = indexProperty.getMethod;
+            MethodTrait getter = indexProperty.getMethod!;
             Span<int> getterArgs = stackalloc int[] {nameNode.id};
+
             _emitCallToMethod(getter, _getPushedClassOfNode(objectNode), getterArgs);
 
             if (getter.hasReturn)
@@ -5248,7 +5247,7 @@ namespace Mariana.AVM2.Compiler {
         /// a value, undefined is pushed.</param>
         private void _emitCallToMethod(
             MethodTrait method,
-            Class receiverType,
+            Class? receiverType,
             ReadOnlySpan<int> argsOnStack,
             bool isCallSuper = false,
             bool noReturn = false
@@ -5261,8 +5260,8 @@ namespace Mariana.AVM2.Compiler {
                 method.declaringClass
             );
 
-            if (!method.isStatic && method.declaringClass.isPrimitiveClass
-                && s_primitiveTypeMethodMap.tryGetValue(method, out MethodInfo primitiveMethod))
+            if (!method.isStatic && method.declaringClass!.isPrimitiveClass
+                && s_primitiveTypeMethodMap.tryGetValue(method, out MethodInfo? primitiveMethod))
             {
                 ILOp callOp = primitiveMethod.IsStatic ? ILOp.call : ILOp.callvirt;
                 m_ilBuilder.emit(callOp, primitiveMethod);
@@ -5293,8 +5292,8 @@ namespace Mariana.AVM2.Compiler {
             ReadOnlySpan<MethodTraitParameter> parameters,
             bool hasRest,
             ReadOnlySpan<int> argsOnStack,
-            Class receiverType,
-            Class receiverExpectedType
+            Class? receiverType,
+            Class? receiverExpectedType
         ) {
             // Ensures that:
             // - All arguments on the stack (including the receiver for an instance method, if any)
@@ -5371,8 +5370,8 @@ namespace Mariana.AVM2.Compiler {
             void emitPrepareArgs(
                 ReadOnlySpan<int> argsToPrepare,
                 ReadOnlySpan<MethodTraitParameter> paramsForPrepArgs,
-                Class recvType,
-                Class recvExpectedType
+                Class? recvType,
+                Class? recvExpectedType
             ) {
                 Span<ILBuilder.Local> argStashLocals = m_tempLocalArray.clearAndAddDefault(argsToPrepare.Length);
 
@@ -5874,7 +5873,7 @@ namespace Mariana.AVM2.Compiler {
                 Debug.Assert(objectId != -1 && !isConstruct);
 
                 var mdContext = m_compilation.metadataContext;
-                var vectorClass = (Class)intrinsic.arg;
+                var vectorClass = (Class)intrinsic.arg!;
 
                 EntityHandle vectorTypeHandle;
                 using (var lockedContext = m_compilation.getContext())
@@ -6154,7 +6153,7 @@ namespace Mariana.AVM2.Compiler {
                     MetadataContext mdContext = m_compilation.metadataContext;
                     EntityHandle vectorTypeHandle;
                     using (var lockedContext = m_compilation.getContext())
-                        vectorTypeHandle = lockedContext.value.getEntityHandle((Class)intrinsic.arg);
+                        vectorTypeHandle = lockedContext.value.getEntityHandle((Class)intrinsic.arg!);
 
                     m_ilBuilder.emit(ILOp.call, mdContext.getMemberHandle(KnownMembers.vectorFromObject, vectorTypeHandle), 0);
 
@@ -6626,7 +6625,7 @@ namespace Mariana.AVM2.Compiler {
             var stashVars = m_tempLocalArray.clearAndAddDefault(exitStackForFixing.Length);
 
             for (int i = exitStackForFixing.Length - 1; i >= 0; i--) {
-                Class entryNodeClass = m_compilation.getDataNodeClass(entryStack[i]);
+                Class? entryNodeClass = m_compilation.getDataNodeClass(entryStack[i]);
 
                 if (exitStackForFixing[i] != -1)
                     _emitTypeCoerceForTopOfStack(m_compilation.getDataNode(exitStackForFixing[i]), entryNodeClass);
@@ -6681,7 +6680,7 @@ namespace Mariana.AVM2.Compiler {
                     continue;
                 }
 
-                Class entryNodeClass = m_compilation.getDataNodeClass(entryStack[i]);
+                Class? entryNodeClass = m_compilation.getDataNodeClass(entryStack[i]);
 
                 using (var lockedContext = m_compilation.getContext())
                     convertVars[i] = m_ilBuilder.acquireTempLocal(lockedContext.value.getTypeSignature(entryNodeClass));
@@ -6735,8 +6734,10 @@ namespace Mariana.AVM2.Compiler {
             if (isObjectType(pushedNodeType)) {
                 if (!isObjectType(phiNode.dataType))
                     return false;
-                if (_getPushedClassOfNode(node).isInterface)
-                    return m_compilation.getDataNodeClass(phiNode).isInterface;
+
+                if (_getPushedClassOfNode(node)!.isInterface)
+                    return m_compilation.getDataNodeClass(phiNode)!.isInterface;
+
                 return true;
             }
 
@@ -6860,7 +6861,7 @@ namespace Mariana.AVM2.Compiler {
                 m_ilBuilder.markLabel(labels[i]);
 
                 ref ExceptionHandler handler = ref handlers[i];
-                Class errorType = handler.errorType;
+                Class? errorType = handler.errorType;
 
                 if (errorType == null) {
                     // A catch type of "any" will catch all exceptions, including null and undefined.
@@ -6931,7 +6932,7 @@ namespace Mariana.AVM2.Compiler {
                     m_compilation.staticIntArrayPool.getSpan(m_compilation.getBasicBlock(targetBlockId).stackAtEntry);
 
                 ref DataNode targetStackNode = ref m_compilation.getDataNode(targetBlockStackAtEntry[0]);
-                Class targetStackNodeClass = _getPushedClassOfNode(targetStackNode);
+                Class? targetStackNodeClass = _getPushedClassOfNode(targetStackNode);
 
                 if (targetStackNodeClass == null) {
                     m_ilBuilder.emit(ILOp.ldloc, m_excThrownValueLocal);

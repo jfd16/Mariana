@@ -23,18 +23,18 @@ namespace Mariana.AVM2.Core {
         /// If this name for matching XML elements or attributes, it specifies that all elements or
         /// attributes must match irrespective of their name.
         /// </remarks>
-        public static readonly ASQName any = new ASQName((ASNamespace)null, "*");
+        public static readonly ASQName any = new ASQName((ASNamespace?)null, "*");
 
         /// <summary>
         /// The URI of the namespace of the XML name.
         /// </summary>
         [AVM2ExportTrait]
-        public readonly string uri;
+        public readonly string? uri;
 
         /// <summary>
         /// The namespace prefix of the XML name.
         /// </summary>
-        public readonly string prefix;
+        public readonly string? prefix;
 
         /// <summary>
         /// The local name of the XML name. This is the name of the XML element or attribute without
@@ -51,7 +51,7 @@ namespace Mariana.AVM2.Core {
         /// element or attribute without the namespace. If this is the string "*", the QName will
         /// match XML elements and attributes with any name in any namespace. Otherwise, its namespace
         /// will be set to the default XML namespace.</param>
-        public ASQName(string localName) {
+        public ASQName(string? localName) {
             if (localName != null && localName.Length == 1 && localName[0] == '*') {
                 (uri, prefix) = (null, null);
             }
@@ -70,7 +70,7 @@ namespace Mariana.AVM2.Core {
         /// XML elements and attributes in any namespace.</param>
         /// <param name="localName">The local name of the XML name. If this is the string "*",
         /// the QName will match XML elements and attributes with any local name.</param>
-        public ASQName(ASNamespace ns, string localName) {
+        public ASQName(ASNamespace? ns, string localName) {
             if (ns != null)
                 (uri, prefix) = (ns.uri, ns.prefix);
 
@@ -86,7 +86,7 @@ namespace Mariana.AVM2.Core {
         /// will match XML elements and attributes in any namespace.</param>
         /// <param name="localName">The local name of the XML name. If this is the string "*",
         /// the QName will match XML elements and attributes with any local name.</param>
-        public ASQName(string uri, string localName) {
+        public ASQName(string? uri, string localName) {
             this.prefix = (uri != null && uri.Length == 0) ? "" : null;
             this.uri = uri;
             this.localName = ASString.AS_convertString(localName);
@@ -118,7 +118,7 @@ namespace Mariana.AVM2.Core {
         /// the behaviour of the <see cref="ASNamespace(String,String)"/> constructor, which converts
         /// a null prefix to the string "null".
         /// </remarks>
-        public ASQName(string prefix, string uri, string localName) {
+        public ASQName(string? prefix, string? uri, string localName) {
             if (uri == null) {
                 (this.uri, this.prefix) = (null, null);
             }
@@ -135,7 +135,7 @@ namespace Mariana.AVM2.Core {
             this.localName = ASString.AS_convertString(localName);
         }
 
-        private ASQName(string prefix, string uri, string localName, bool _unsafeMarker) =>
+        private ASQName(string? prefix, string? uri, string localName, bool _unsafeMarker) =>
             (this.prefix, this.uri, this.localName) = (prefix, uri, localName);
 
         /// <summary>
@@ -146,7 +146,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="uri">The namespace URI.</param>
         /// <param name="localName">The local name.</param>
         /// <returns>The created <see cref="ASQName"/> instance.</returns>
-        internal static ASQName unsafeCreate(string prefix, string uri, string localName) =>
+        internal static ASQName unsafeCreate(string? prefix, string? uri, string localName) =>
             new ASQName(prefix, uri, localName, _unsafeMarker: true);
 
         /// <summary>
@@ -217,7 +217,7 @@ namespace Mariana.AVM2.Core {
         /// Two QName instances are equal if their namespace URIs and local names are equal. Prefixes
         /// are ignored.
         /// </remarks>
-        public static bool AS_equals(ASQName qname1, ASQName qname2) {
+        public static bool AS_equals(ASQName? qname1, ASQName? qname2) {
             if (qname1 == qname2)
                 return true;
             if (qname1 == null || qname2 == null)
@@ -236,7 +236,7 @@ namespace Mariana.AVM2.Core {
         /// of this QName can also be accessed directly, without allocating a new object, through the
         /// <see cref="prefix"/> and <see cref="uri"/> fields.
         /// </remarks>
-        public ASNamespace getNamespace() => (uri == null) ? null : ASNamespace.unsafeCreate(prefix, uri);
+        public ASNamespace? getNamespace() => (uri == null) ? null : ASNamespace.unsafeCreate(prefix, uri);
 
         /// <summary>
         /// Parses a string into an <see cref="ASQName"/> object.
@@ -251,13 +251,14 @@ namespace Mariana.AVM2.Core {
         /// is "*", <see cref="ASQName.any"/> is returned. Otherwise, the entire string is taken as
         /// the local name, with the namespace being set to the default namespace.
         /// </remarks>
-        public static ASQName parse(string s) {
+        public static ASQName parse(string? s) {
             if (s == null || (s.Length == 1 && s[0] == '*'))
                 return any;
 
             int separatorPos = s.LastIndexOf("::", StringComparison.Ordinal);
+
             if (separatorPos != -1) {
-                string uri = s.Substring(0, separatorPos);
+                string? uri = s.Substring(0, separatorPos);
                 string localName = s.Substring(separatorPos + 2);
 
                 if (uri.Length == 1 && uri[0] == '*')
@@ -276,7 +277,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="localName">The local name of the XML name. If this is the string "*", the
         /// QName will match elements and attributes with any local name.</param>
         /// <returns>An <see cref="ASQName"/> instance.</returns>
-        public static ASQName anyNamespace(string localName) => new ASQName((ASNamespace)null, localName);
+        public static ASQName anyNamespace(string localName) => new ASQName((ASNamespace?)null, localName);
 
         /// <exclude/>
         ///
@@ -304,7 +305,7 @@ namespace Mariana.AVM2.Core {
                 return XMLHelper.objectToQName(args[0], isAttr: false);
 
             string localName;
-            ASNamespace ns;
+            ASNamespace? ns;
 
             if (args[1].value is ASQName qname)
                 localName = qname.localName;

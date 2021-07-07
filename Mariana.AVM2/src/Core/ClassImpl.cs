@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using Mariana.AVM2.Native;
 using Mariana.Common;
 
@@ -9,11 +10,11 @@ namespace Mariana.AVM2.Core {
     /// </summary>
     internal abstract class ClassImpl : Class {
 
-        private Type m_underlyingType;
+        private Type? m_underlyingType;
 
-        private ClassImpl m_parent;
+        private ClassImpl? m_parent;
 
-        private Class[] m_interfaces;
+        private Class[] m_interfaces = Array.Empty<Class>();
 
         private bool m_isDynamic;
 
@@ -25,11 +26,11 @@ namespace Mariana.AVM2.Core {
 
         private ZoneStaticData<ASObject> m_prototypeObject;
 
-        private ClassSpecials m_specials;
+        private ClassSpecials? m_specials;
 
         private ClassTraitTable m_traitTable;
 
-        private ClassConstructor m_constructor;
+        private ClassConstructor? m_constructor;
 
         internal ClassImpl(in QName name, ApplicationDomain appDomain, ClassTag tag = ClassTag.OBJECT)
             : base(name, declClass: null, appDomain, tag)
@@ -52,29 +53,45 @@ namespace Mariana.AVM2.Core {
 
             m_prototypeObject = new ZoneStaticData<ASObject>(() => {
                 var prototype = ASObject.AS_createWithPrototype(this.parent?.prototypeObject);
-                prototype.AS_dynamicProps.setValue("constructor", this.classObject, isEnum: false);
+                prototype.AS_dynamicProps!.setValue("constructor", this.classObject, isEnum: false);
                 initPrototypeObject(prototype);
                 return prototype;
             });
+
+            m_traitTable = new ClassTraitTable(this, staticOnly: false);
         }
 
-        public sealed override Type underlyingType => m_underlyingType;
+        public sealed override Type underlyingType {
+            get {
+                Debug.Assert(m_underlyingType != null);
+                return m_underlyingType!;
+            }
+        }
+
+        /// <summary>
+        /// Checks if this <see cref="ClassImpl"/> has an underlying <see cref="Type"/>
+        /// available. This is used internally by the compiler to represent classes that
+        /// are being compiled.
+        /// </summary>
+        internal bool isUnderlyingTypeAvailable => m_underlyingType != null;
+
+        public sealed override bool hasUnderlyingType(Type type) => m_underlyingType == type;
 
         public sealed override bool isDynamic => m_isDynamic;
 
-        public sealed override Class parent => m_parent;
+        public sealed override Class? parent => m_parent;
 
         internal sealed override ClassImpl getClassImpl() => this;
 
         public override bool isVectorInstantiation => false;
 
-        public override Class vectorElementType => null;
+        public override Class? vectorElementType => null;
 
         public override bool isObjectClass => m_underlyingType == typeof(ASObject);
 
         protected private override Class createVectorClass() {
             Type vecType = typeof(ASVector<>).MakeGenericType(getUnderlyingOrPrimitiveType(this));
-            Class klass = ClassTypeMap.getClass(vecType);
+            Class? klass = ClassTypeMap.getClass(vecType);
 
             if (klass == null) {
                 // This will add the created class to ClassTypeMap, but we don't have to
@@ -87,14 +104,14 @@ namespace Mariana.AVM2.Core {
             return klass;
         }
 
-        internal sealed override ClassSpecials classSpecials {
+        internal sealed override ClassSpecials? classSpecials {
             get {
                 _ = m_lazyClassInit.value;
                 return m_specials;
             }
         }
 
-        public sealed override ClassConstructor constructor {
+        public sealed override ClassConstructor? constructor {
             get {
                 _ = m_lazyClassInit.value;
                 return m_constructor;
@@ -115,15 +132,14 @@ namespace Mariana.AVM2.Core {
             }
         }
 
-        public sealed override bool canAssignTo(Class klass) {
+        public sealed override bool canAssignTo(Class? klass) {
             if (klass == null || klass == this)
                 return true;
 
-            Type fromUnderlyingType = this.underlyingType;
-            Type toUnderlyingType = klass.underlyingType;
+            ClassImpl toClassImpl = klass.getClassImpl();
 
-            if (fromUnderlyingType != null && toUnderlyingType != null)
-                return toUnderlyingType.IsAssignableFrom(fromUnderlyingType);
+            if (m_underlyingType != null && toClassImpl.m_underlyingType != null)
+                return toClassImpl.m_underlyingType.IsAssignableFrom(m_underlyingType);
 
             if (klass.isInterface) {
                 ReadOnlySpan<Class> ifaces = getImplementedInterfaces().asSpan();
@@ -136,13 +152,23 @@ namespace Mariana.AVM2.Core {
                 return klass.parent == null;    // klass is Object
             }
             else {
-                for (Class p = this; p != null; p = p.parent) {
+                for (Class? p = this; p != null; p = p.parent) {
                     if (p == klass)
                         return true;
                 }
             }
 
             return false;
+        }
+
+        public sealed override bool isInstance(ASObject? obj) {
+            if (obj == null)
+                return false;
+
+            if (m_underlyingType != null)
+                return m_underlyingType.IsInstanceOfType(obj);
+
+            return obj.AS_class.getClassImpl().canAssignTo(this);
         }
 
         /// <summary>
@@ -283,12 +309,8 @@ namespace Mariana.AVM2.Core {
         /// <remarks>
         /// Do not add inherited traits with this method. They are added automatically.
         /// </remarks>
-        protected private bool tryDefineTrait(Trait trait) {
-            if (m_traitTable == null)
-                m_traitTable = new ClassTraitTable(this);
-
-            return m_traitTable.tryAddTrait(trait, allowMergeProperties: false);
-        }
+        protected private bool tryDefineTrait(Trait trait) =>
+            m_traitTable.tryAddTrait(trait, allowMergeProperties: false);
 
         /// <summary>
         /// Returns the prototype object that must be used for instances of this class.
@@ -307,7 +329,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         private void _internalInitClass() {
             // Ensure that this method is called on the parent and interfaces first.
-            ClassImpl parent = m_parent;
+            ClassImpl? parent = m_parent;
             if (parent != null)
                 _ = parent.m_lazyClassInit.value;
 
@@ -315,9 +337,6 @@ namespace Mariana.AVM2.Core {
 
             for (int i = 0; i < interfaces.Length; i++)
                 _ = ((ClassImpl)interfaces[i]).m_lazyClassInit.value;
-
-            if (m_traitTable == null)
-                m_traitTable = new ClassTraitTable(this, staticOnly: false);
 
             initClass();
 
@@ -337,10 +356,10 @@ namespace Mariana.AVM2.Core {
 
         public sealed override ReadOnlyArrayView<Class> getImplementedInterfaces() => new ReadOnlyArrayView<Class>(m_interfaces);
 
-        public sealed override Trait getTrait(in QName name) {
+        public sealed override Trait? getTrait(in QName name) {
             _ = m_lazyClassInit.value;
 
-            BindStatus bindStatus = m_traitTable.tryGetTrait(name, isStatic: false, out Trait trait);
+            BindStatus bindStatus = m_traitTable.tryGetTrait(name, isStatic: false, out Trait? trait);
 
             if (bindStatus == BindStatus.NOT_FOUND)
                 bindStatus = m_traitTable.tryGetTrait(name, isStatic: true, out trait);
@@ -351,44 +370,44 @@ namespace Mariana.AVM2.Core {
             return trait;
         }
 
-        public sealed override Trait getTrait(in QName name, TraitType kinds, TraitScope scopes) {
+        public sealed override Trait? getTrait(in QName name, TraitType kinds, TraitScope scopes) {
             _ = m_lazyClassInit.value;
 
-            Trait value = null;
+            Trait? trait = null;
             BindStatus bindStatus = BindStatus.NOT_FOUND;
 
             if ((scopes & TraitScope.INSTANCE) != 0)
-                bindStatus = m_traitTable.tryGetTrait(name, isStatic: false, out value);
+                bindStatus = m_traitTable.tryGetTrait(name, isStatic: false, out trait);
 
             if ((scopes & TraitScope.STATIC) != 0 && bindStatus == BindStatus.NOT_FOUND)
-                bindStatus = m_traitTable.tryGetTrait(name, isStatic: true, out value);
+                bindStatus = m_traitTable.tryGetTrait(name, isStatic: true, out trait);
 
             if (bindStatus == BindStatus.AMBIGUOUS)
                 throw ErrorHelper.createBindingError(this.name, name, bindStatus);
 
-            if (value == null)
+            if (trait == null)
                 return null;
 
-            if ((value.traitType & kinds) == 0
-                || ((scopes & TraitScope.INSTANCE_INHERITED) == 0 && value.declaringClass != this))
+            if ((trait.traitType & kinds) == 0
+                || ((scopes & TraitScope.INSTANCE_INHERITED) == 0 && trait.declaringClass != this))
             {
                 return null;
             }
 
-            return value;
+            return trait;
         }
 
         public sealed override bool hasTrait(in QName name, TraitScope scopes) {
             _ = m_lazyClassInit.value;
 
-            Trait trait = null;
+            Trait? trait = null;
             BindStatus bindStatus = BindStatus.NOT_FOUND;
 
             if ((scopes & TraitScope.INSTANCE) != 0)
                 bindStatus = m_traitTable.tryGetTrait(name, isStatic: false, out trait);
 
             if (bindStatus == BindStatus.SUCCESS
-                && ((scopes & TraitScope.INSTANCE_INHERITED) != 0 || trait.declaringClass == this))
+                && ((scopes & TraitScope.INSTANCE_INHERITED) != 0 || trait!.declaringClass == this))
             {
                 return true;
             }
@@ -399,7 +418,7 @@ namespace Mariana.AVM2.Core {
             return bindStatus == BindStatus.SUCCESS;
         }
 
-        public sealed override Trait getTraitByFilter(Predicate<Trait> filter) {
+        public sealed override Trait? getTraitByFilter(Predicate<Trait> filter) {
             if (filter == null)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(filter));
 
@@ -463,12 +482,12 @@ namespace Mariana.AVM2.Core {
             return traitList.asReadOnlyArrayView();
         }
 
-        public sealed override BindStatus lookupTrait(in QName name, bool isStatic, out Trait trait) {
+        public sealed override BindStatus lookupTrait(in QName name, bool isStatic, out Trait? trait) {
             _ = m_lazyClassInit.value;
             return m_traitTable.tryGetTrait(name, isStatic, out trait);
         }
 
-        public sealed override BindStatus lookupTrait(string name, in NamespaceSet nsSet, bool isStatic, out Trait trait) {
+        public sealed override BindStatus lookupTrait(string name, in NamespaceSet nsSet, bool isStatic, out Trait? trait) {
             _ = m_lazyClassInit.value;
             return m_traitTable.tryGetTrait(name, nsSet, isStatic, out trait);
         }
@@ -496,16 +515,8 @@ namespace Mariana.AVM2.Core {
                 throw ErrorHelper.createError(ErrorCode.CLASS_COERCE_ARG_COUNT_MISMATCH, args.Length);
 
             ASAny obj = args[0];
-            bool isInstanceOfClass;
 
-            if (obj.isUndefinedOrNull)
-                isInstanceOfClass = true;
-            else if (m_underlyingType != null)
-                isInstanceOfClass = m_underlyingType.IsInstanceOfType(obj.value);
-            else
-                isInstanceOfClass = obj.AS_class.canAssignTo(this);
-
-            if (isInstanceOfClass) {
+            if (obj.isUndefinedOrNull || isInstance(obj.value)) {
                 result = obj.isUndefined ? ASAny.@null : obj;
                 return BindStatus.SUCCESS;
             }
@@ -520,7 +531,7 @@ namespace Mariana.AVM2.Core {
                 return BindStatus.SUCCESS;
             }
 
-            ClassConstructor constructor = this.constructor;
+            ClassConstructor? constructor = this.constructor;
             if (constructor == null)
                 throw ErrorHelper.createError(ErrorCode.CLASS_CANNOT_BE_INSTANTIATED, name.ToString());
 

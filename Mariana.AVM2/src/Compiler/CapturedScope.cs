@@ -31,12 +31,12 @@ namespace Mariana.AVM2.Compiler {
         /// creating a captured scope for a function.</param>
         /// <param name="container">A <see cref="CapturedScopeContainerType"/> representing the
         /// container class used for holding the captured values.</param>
-        public CapturedScope(CapturedScopeItems items, Class klass, CapturedScopeContainerType container) {
+        public CapturedScope(CapturedScopeItems items, Class? klass, CapturedScopeContainerType container) {
             _initItems(items, klass);
             m_containerType = container;
         }
 
-        private void _initItems(CapturedScopeItems items, Class klass) {
+        private void _initItems(CapturedScopeItems items, Class? klass) {
             if (klass == null) {
                 m_items = items;
                 m_hasClass = false;
@@ -105,7 +105,7 @@ namespace Mariana.AVM2.Compiler {
         /// is <see cref="DataNodeType.OBJECT"/>) or the value of a class constant (if
         /// <see cref="dataType"/> is <see cref="DataNodeType.CLASS"/>).
         /// </summary>
-        public readonly Class objClass;
+        public readonly Class? objClass;
 
         /// <summary>
         /// Creates a new instance of <see cref="CapturedScopeItem"/>.
@@ -119,7 +119,7 @@ namespace Mariana.AVM2.Compiler {
         /// stack as a "with" scope.</param>
         /// <param name="lateMultinameBinding">True if multiname-based property binding on the captured
         /// scope object must always be done at runtime.</param>
-        public CapturedScopeItem(DataNodeType dataType, Class objClass, bool isWithScope = false, bool lateMultinameBinding = false) {
+        public CapturedScopeItem(DataNodeType dataType, Class? objClass, bool isWithScope = false, bool lateMultinameBinding = false) {
             this.dataType = dataType;
             this.isWithScope = isWithScope;
             this.objClass = objClass;
@@ -137,8 +137,8 @@ namespace Mariana.AVM2.Compiler {
                 DataNodeType.NUMBER => "[N]",
                 DataNodeType.STRING => "[S]",
                 DataNodeType.BOOL => "[B]",
-                DataNodeType.OBJECT => "[O " + objClass.name.ToString() + "]",
-                DataNodeType.CLASS => "[C " + objClass.name.ToString() + "]",
+                DataNodeType.OBJECT => "[O " + objClass!.name.ToString() + "]",
+                DataNodeType.CLASS => "[C " + objClass!.name.ToString() + "]",
                 DataNodeType.GLOBAL => "[global]"
             };
         }
@@ -344,7 +344,7 @@ namespace Mariana.AVM2.Compiler {
                 if (item.dataType == DataNodeType.CLASS || item.dataType == DataNodeType.GLOBAL)
                     continue;
 
-                Class fieldType = (item.dataType == DataNodeType.OBJECT)
+                Class? fieldType = (item.dataType == DataNodeType.OBJECT)
                     ? item.objClass
                     : DataNodeTypeHelper.getClass(item.dataType);
 
@@ -359,51 +359,51 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _emitGetRuntimeStackMethod(
-            MethodBuilder method, in CapturedScopeItems items, ScriptCompileContext context, ILBuilder il)
+            MethodBuilder method, in CapturedScopeItems items, ScriptCompileContext context, ILBuilder ilBuilder)
         {
-            var label = il.createLabel();
-            var local = il.declareLocal(typeof(RuntimeScopeStack));
+            var label = ilBuilder.createLabel();
+            var local = ilBuilder.declareLocal(typeof(RuntimeScopeStack));
 
-            il.emit(ILOp.ldarg_0);
-            il.emit(ILOp.volatile_);
-            il.emit(ILOp.ldfld, m_rtStackFieldHandle);
-            il.emit(ILOp.dup);
-            il.emit(ILOp.brfalse, label);
-            il.emit(ILOp.ret);
+            ilBuilder.emit(ILOp.ldarg_0);
+            ilBuilder.emit(ILOp.volatile_);
+            ilBuilder.emit(ILOp.ldfld, m_rtStackFieldHandle);
+            ilBuilder.emit(ILOp.dup);
+            ilBuilder.emit(ILOp.brfalse, label);
+            ilBuilder.emit(ILOp.ret);
 
-            il.markLabel(label);
-            il.emit(ILOp.pop);
+            ilBuilder.markLabel(label);
+            ilBuilder.emit(ILOp.pop);
 
-            il.emit(ILOp.ldc_i4, items.length);
-            il.emit(ILOp.ldnull);
-            il.emit(ILOp.newobj, KnownMembers.rtScopeStackNew, -1);
-            il.emit(ILOp.stloc, local);
+            ilBuilder.emit(ILOp.ldc_i4, items.length);
+            ilBuilder.emit(ILOp.ldnull);
+            ilBuilder.emit(ILOp.newobj, KnownMembers.rtScopeStackNew, -1);
+            ilBuilder.emit(ILOp.stloc, local);
 
             for (int i = 0; i < items.length; i++) {
-                il.emit(ILOp.ldloc, local);
+                ilBuilder.emit(ILOp.ldloc, local);
 
                 ref readonly var item = ref items[i];
 
                 if (item.dataType == DataNodeType.GLOBAL) {
-                    il.emit(ILOp.ldsfld, context.emitConstData.globalObjFieldHandle);
+                    ilBuilder.emit(ILOp.ldsfld, context.emitConstData.globalObjFieldHandle);
                 }
                 else if (item.dataType == DataNodeType.CLASS) {
-                    int classId = context.emitConstData.getClassIndex(item.objClass);
+                    int classId = context.emitConstData.getClassIndex(item.objClass!);
 
-                    il.emit(ILOp.ldsfld, context.emitConstData.classesArrayFieldHandle);
-                    il.emit(ILOp.ldc_i4, classId);
-                    il.emit(ILOp.ldelem_ref);
-                    il.emit(ILOp.callvirt, KnownMembers.classGetClassObj, 0);
+                    ilBuilder.emit(ILOp.ldsfld, context.emitConstData.classesArrayFieldHandle);
+                    ilBuilder.emit(ILOp.ldc_i4, classId);
+                    ilBuilder.emit(ILOp.ldelem_ref);
+                    ilBuilder.emit(ILOp.callvirt, KnownMembers.classGetClassObj, 0);
                 }
                 else {
-                    il.emit(ILOp.ldarg_0);
-                    il.emit(ILOp.ldfld, m_fieldHandles[i]);
+                    ilBuilder.emit(ILOp.ldarg_0);
+                    ilBuilder.emit(ILOp.ldfld, m_fieldHandles[i]);
 
-                    Class fieldType = (item.dataType == DataNodeType.OBJECT)
+                    Class? fieldType = (item.dataType == DataNodeType.OBJECT)
                         ? item.objClass
                         : DataNodeTypeHelper.getClass(item.dataType);
 
-                    ILEmitHelper.emitTypeCoerceToObject(il, fieldType);
+                    ILEmitHelper.emitTypeCoerceToObject(ilBuilder, fieldType);
                 }
 
                 BindOptions bindOpts = BindOptions.SEARCH_TRAITS;
@@ -412,18 +412,18 @@ namespace Mariana.AVM2.Compiler {
                 else if (item.isWithScope)
                     bindOpts |= BindOptions.SEARCH_DYNAMIC;
 
-                il.emit(ILOp.ldc_i4, (int)bindOpts);
-                il.emit(ILOp.call, KnownMembers.rtScopeStackPush, -3);
+                ilBuilder.emit(ILOp.ldc_i4, (int)bindOpts);
+                ilBuilder.emit(ILOp.call, KnownMembers.rtScopeStackPush, -3);
             }
 
-            il.emit(ILOp.ldarg_0);
-            il.emit(ILOp.ldloc, local);
-            il.emit(ILOp.volatile_);
-            il.emit(ILOp.stfld, m_rtStackFieldHandle);
-            il.emit(ILOp.ldloc, local);
-            il.emit(ILOp.ret);
+            ilBuilder.emit(ILOp.ldarg_0);
+            ilBuilder.emit(ILOp.ldloc, local);
+            ilBuilder.emit(ILOp.volatile_);
+            ilBuilder.emit(ILOp.stfld, m_rtStackFieldHandle);
+            ilBuilder.emit(ILOp.ldloc, local);
+            ilBuilder.emit(ILOp.ret);
 
-            method.setMethodBody(il.createMethodBody());
+            method.setMethodBody(ilBuilder.createMethodBody());
         }
 
     }

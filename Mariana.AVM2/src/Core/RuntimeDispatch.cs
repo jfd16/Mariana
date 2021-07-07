@@ -37,13 +37,13 @@ namespace Mariana.AVM2.Core {
         private static readonly IncrementCounter s_counter = new IncrementCounter();
 
         [ThreadStatic]
-        private static DynamicMethodTokenProvider s_threadTokenProvider;
+        private static DynamicMethodTokenProvider? s_threadTokenProvider;
 
         [ThreadStatic]
-        private static ILBuilder s_threadIlBuilder;
+        private static ILBuilder? s_threadIlBuilder;
 
         private static ILBuilder _getILBuilder(DynamicILInfo dynamicILInfo, int paramCount = 0) {
-            ref DynamicMethodTokenProvider tokenProvider = ref s_threadTokenProvider;
+            ref DynamicMethodTokenProvider? tokenProvider = ref s_threadTokenProvider;
 
             if (tokenProvider == null)
                 tokenProvider = new DynamicMethodTokenProvider(dynamicILInfo);
@@ -58,7 +58,7 @@ namespace Mariana.AVM2.Core {
                 return new ILBuilder(tokenProvider);
             }
 
-            ref ILBuilder builder = ref s_threadIlBuilder;
+            ref ILBuilder? builder = ref s_threadIlBuilder;
             if (builder == null)
                 builder = new ILBuilder(tokenProvider);
 
@@ -130,7 +130,7 @@ namespace Mariana.AVM2.Core {
             var dynILInfo = dynMethod.GetDynamicILInfo();
             var ilBuilder = _getILBuilder(dynILInfo, method.paramCount);
 
-            Class recvType = method.isStatic ? null : method.declaringClass;
+            Class? recvType = method.isStatic ? null : method.declaringClass;
 
             _generateMethodStubInternal(
                 method.underlyingMethodInfo,
@@ -171,9 +171,9 @@ namespace Mariana.AVM2.Core {
 
         private static void _generateMethodStubInternal(
             MethodBase methodOrCtor,
-            Class receiverType,
+            Class? receiverType,
             bool hasReturn,
-            Class returnType,
+            Class? returnType,
             ReadOnlyArrayView<MethodTraitParameter> parameters,
             bool hasRest,
             ILBuilder builder
@@ -271,7 +271,7 @@ namespace Mariana.AVM2.Core {
             builder.emit(ILOp.ret);
         }
 
-        private static string _createStubName(QName traitName, Class declClass) {
+        private static string _createStubName(QName traitName, Class? declClass) {
             return "RuntimeDispatchStub"
                 + s_counter.atomicNext().ToString(CultureInfo.InvariantCulture)
                 + "{"

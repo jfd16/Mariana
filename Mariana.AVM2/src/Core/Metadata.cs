@@ -5,7 +5,7 @@ using Mariana.Common;
 
 namespace Mariana.AVM2.Core {
 
-    using KVPair = KeyValuePair<string, string>;
+    using KVPair = KeyValuePair<string?, string>;
 
     /// <summary>
     /// Represents additional metadata associated with an AVM2 trait.
@@ -28,7 +28,7 @@ namespace Mariana.AVM2.Core {
         /// with null for each indexed value.</param>
         /// <param name="values">A span containing each value for the key at the corresponding
         /// index in the <paramref name="keys"/> array.</param>
-        internal MetadataTag(string name, ReadOnlySpan<string> keys, ReadOnlySpan<string> values) {
+        internal MetadataTag(string name, ReadOnlySpan<string?> keys, ReadOnlySpan<string> values) {
             m_name = name;
             m_keyvalues = (keys.Length != 0) ? new KVPair[keys.Length] : Array.Empty<KVPair>();
 
@@ -69,7 +69,7 @@ namespace Mariana.AVM2.Core {
         /// returns the value of the last such pair.</returns>
         /// <param name="key">The key. This must not be null.</param>
         /// <exception cref="AVM2Exception">ArgumentError #10060: <paramref name="key"/> is null.</exception>
-        public string this[string key] {
+        public string? this[string key] {
             get {
                 if (key == null)
                     throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(key));
@@ -104,14 +104,17 @@ namespace Mariana.AVM2.Core {
 
             if (keyvalues.Length > 0) {
                 sb.Append('(');
+
                 for (int i = 0; i < keyvalues.Length; i++) {
                     if (i != 0)
                         sb.Append(',').Append(' ');
 
-                    if (keyvalues[i].Key != null) {
-                        appendEscaped(keyvalues[i].Key);
+                    string? key = keyvalues[i].Key;
+                    if (key != null) {
+                        appendEscaped(key);
                         sb.Append(" = ");
                     }
+
                     appendEscaped(keyvalues[i].Value);
                 }
                 sb.Append(')');
@@ -195,7 +198,7 @@ namespace Mariana.AVM2.Core {
         /// <item><description>ArgumentError #10060: <paramref name="name"/> is null.</description></item>
         /// </list>
         /// </exception>
-        public MetadataTag getTag(string name) {
+        public MetadataTag? getTag(string name) {
             if (name == null)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(name));
 

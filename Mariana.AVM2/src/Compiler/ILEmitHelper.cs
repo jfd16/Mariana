@@ -29,7 +29,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="toType">The type to convert the value to.</param>
         /// <param name="useNativeDoubleToIntConv">Set to true to use native conversions when converting from
         /// Number to int/uint.</param>
-        public static void emitTypeCoerce(ILBuilder builder, Class fromType, Class toType, bool useNativeDoubleToIntConv = false) {
+        public static void emitTypeCoerce(ILBuilder builder, Class? fromType, Class? toType, bool useNativeDoubleToIntConv = false) {
             if (fromType == toType)
                 return;
 
@@ -83,7 +83,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="builder">The <see cref="ILBuilder"/> instance in which to emit the
         /// code.</param>
         /// <param name="fromType">The type of the value on top of the stack.</param>
-        public static void emitTypeCoerceToAny(ILBuilder builder, Class fromType) {
+        public static void emitTypeCoerceToAny(ILBuilder builder, Class? fromType) {
             if (fromType == null)   // No-op
                 return;
 
@@ -119,7 +119,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="fromType">The type of the value on top of the stack.</param>
         /// <param name="useNativeDoubleToIntConv">Set to true to use native conversions when converting from
         /// Number to int/uint.</param>
-        public static void emitTypeCoerceToInt(ILBuilder builder, Class fromType, bool useNativeDoubleToIntConv = false) {
+        public static void emitTypeCoerceToInt(ILBuilder builder, Class? fromType, bool useNativeDoubleToIntConv = false) {
             if (fromType == null) {
                 builder.emit(ILOp.call, KnownMembers.anyToInt, 0);
                 return;
@@ -163,7 +163,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="fromType">The type of the value on top of the stack.</param>
         /// <param name="useNativeDoubleToIntConv">Set to true to use native conversions when converting from
         /// Number to int/uint.</param>
-        public static void emitTypeCoerceToUint(ILBuilder builder, Class fromType, bool useNativeDoubleToIntConv = false) {
+        public static void emitTypeCoerceToUint(ILBuilder builder, Class? fromType, bool useNativeDoubleToIntConv = false) {
             if (fromType == null) {
                 builder.emit(ILOp.call, KnownMembers.anyToUint, 0);
                 return;
@@ -205,7 +205,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="builder">The <see cref="ILBuilder"/> instance in which to emit the
         /// code.</param>
         /// <param name="fromType">The type of the value on top of the stack.</param>
-        public static void emitTypeCoerceToNumber(ILBuilder builder, Class fromType) {
+        public static void emitTypeCoerceToNumber(ILBuilder builder, Class? fromType) {
             if (fromType == null) {
                 builder.emit(ILOp.call, KnownMembers.anyToNumber, 0);
                 return;
@@ -247,7 +247,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="fromType">The type of the value on top of the stack.</param>
         /// <param name="convert">If this is true, convert null and undefined to their string
         /// representations "null" and "undefined" respectively (instead of the null string).</param>
-        public static void emitTypeCoerceToString(ILBuilder builder, Class fromType, bool convert = false) {
+        public static void emitTypeCoerceToString(ILBuilder builder, Class? fromType, bool convert = false) {
             if (fromType == null) {
                 builder.emit(ILOp.call, convert ? KnownMembers.anyToStringConvert : KnownMembers.anyToStringCoerce, 0);
                 return;
@@ -266,6 +266,7 @@ namespace Mariana.AVM2.Compiler {
                 case ClassTag.NUMBER:
                     builder.emit(ILOp.call, KnownMembers.numberToString, 0);
                     break;
+
                 case ClassTag.STRING:
                     if (convert) {
                         var label = builder.createLabel();
@@ -276,6 +277,7 @@ namespace Mariana.AVM2.Compiler {
                         builder.markLabel(label);
                     }
                     break;
+
                 default:
                     // Object type.
                     if (fromType.isInterface)
@@ -291,7 +293,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="builder">The <see cref="ILBuilder"/> instance in which to emit the
         /// code.</param>
         /// <param name="fromType">The type of the value on top of the stack.</param>
-        public static void emitTypeCoerceToBoolean(ILBuilder builder, Class fromType) {
+        public static void emitTypeCoerceToBoolean(ILBuilder builder, Class? fromType) {
             if (fromType == null) {
                 builder.emit(ILOp.call, KnownMembers.anyToBool, 0);
                 return;
@@ -314,7 +316,7 @@ namespace Mariana.AVM2.Compiler {
                     break;
                 default:
                     // Object type.
-                    if (fromType.underlyingType == (object)typeof(ASObject)) {
+                    if (fromType.isObjectClass) {
                         builder.emit(ILOp.call, KnownMembers.objectToBool, 0);
                     }
                     else {
@@ -331,7 +333,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="builder">The <see cref="ILBuilder"/> instance in which to emit the
         /// code.</param>
         /// <param name="fromType">The type of the value on top of the stack.</param>
-        public static void emitTypeCoerceToObject(ILBuilder builder, Class fromType) {
+        public static void emitTypeCoerceToObject(ILBuilder builder, Class? fromType) {
             if (fromType == null) {
                 // anyToObject requires an address, so use a temporary variable.
                 var tempvar = builder.acquireTempLocal(typeof(ASAny));
@@ -399,7 +401,7 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         /// <param name="type">The type argument for the <see cref="OptionalParam{T}"/> instance.</param>
         /// <returns>A <see cref="ConstructorInfo"/> representing the constructor.</returns>
-        public static ConstructorInfo getOptionalParamCtor(Class type) {
+        public static ConstructorInfo getOptionalParamCtor(Class? type) {
             return s_optionalParamCtors.GetValue(
                 Class.getUnderlyingOrPrimitiveType(type),
                 x => {
@@ -418,7 +420,7 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         /// <param name="type">The type argument for <see cref="OptionalParam{T}"/>.</param>
         /// <returns>A <see cref="FieldInfo"/> representing the field.</returns>
-        public static FieldInfo getOptionalParamMissingField(Class type) {
+        public static FieldInfo getOptionalParamMissingField(Class? type) {
             return s_optionalParamMissing.GetValue(
                 Class.getUnderlyingOrPrimitiveType(type),
                 x => {
@@ -514,7 +516,7 @@ namespace Mariana.AVM2.Compiler {
                 return;
             }
 
-            switch (value.AS_class.tag) {
+            switch (value.AS_class!.tag) {
                 case ClassTag.INT:
                 case ClassTag.UINT:
                     builder.emit(ILOp.ldc_i4, (int)value);
@@ -526,10 +528,10 @@ namespace Mariana.AVM2.Compiler {
                     builder.emit(ILOp.ldc_i4, (bool)value ? 1 : 0);
                     break;
                 case ClassTag.STRING:
-                    builder.emit(ILOp.ldstr, (string)value);
+                    builder.emit(ILOp.ldstr, ((string)value)!);
                     break;
                 case ClassTag.NAMESPACE:
-                    builder.emit(ILOp.ldstr, ((ASNamespace)value).uri);
+                    builder.emit(ILOp.ldstr, ((ASNamespace)value)!.uri);
                     builder.emit(ILOp.newobj, KnownMembers.xmlNsCtorFromURI, 0);
                     break;
                 default:
@@ -546,14 +548,14 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="value">The constant. This must be of one of the following types: int, uint,
         /// Number, String, Boolean or Namespace, or the value null or undefined.</param>
         /// <param name="type">The type to coerce the constant value to.</param>
-        public static void emitPushConstantAsType(ILBuilder builder, ASAny value, Class type) {
+        public static void emitPushConstantAsType(ILBuilder builder, ASAny value, Class? type) {
             if (type == null) {
                 emitPushConstant(builder, value);
 
                 if (value.isUndefined)
                     return;
 
-                if (value.isNull || !value.AS_class.isPrimitiveClass)
+                if (value.isNull || !value.AS_class!.isPrimitiveClass)
                     builder.emit(ILOp.call, KnownMembers.anyFromObject, 0);
                 else
                     emitTypeCoerce(builder, value.AS_class, type);
@@ -572,7 +574,7 @@ namespace Mariana.AVM2.Compiler {
             }
             else {
                 emitPushConstant(builder, value);
-                Class valueType = value.AS_class;
+                Class valueType = value.AS_class!;
                 if (valueType != type)
                     emitTypeCoerce(builder, valueType, type);
             }
@@ -628,7 +630,7 @@ namespace Mariana.AVM2.Compiler {
         /// initialized to the value <paramref name="value"/>, otherwise false.</returns>
         /// <param name="value">The value to check if it is the default for <paramref name="type"/>.</param>
         /// <param name="type">The type of the field or variable.</param>
-        public static bool isImplicitDefault(ASAny value, Class type) {
+        public static bool isImplicitDefault(ASAny value, Class? type) {
             if (type == null)
                 return value.isUndefined;
 
@@ -648,9 +650,9 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="type">The type of the error to throw.</param>
         /// <param name="code">The error code.</param>
         /// <param name="message">The error message.</param>
-        internal static void emitThrowError(ILBuilder builder, Type type, ErrorCode code, string message) {
+        internal static void emitThrowError(ILBuilder builder, Type type, ErrorCode code, ASAny message) {
             builder.emit(ILOp.ldtoken, type);
-            builder.emit(ILOp.ldstr, message);
+            builder.emit(ILOp.ldstr, message.ToString());
             builder.emit(ILOp.ldc_i4, (int)code);
             builder.emit(ILOp.call, KnownMembers.createExceptionFromCodeAndMsg, -2);
             builder.emit(ILOp.@throw);

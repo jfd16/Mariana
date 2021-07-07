@@ -60,7 +60,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="isStatic">Set to true for static or global traits, false for instance traits.</param>
         /// <returns>A <see cref="Trait"/> instance representing the trait at <paramref name="slotId"/>,
         /// or null if no trait is mapped to that slot index.</returns>
-        public Trait getSlot(int slotId, bool isStatic) {
+        public Trait? getSlot(int slotId, bool isStatic) {
             m_dict.TryGetValue(_keyForSlotId(slotId, isStatic), out Trait trait);
             return trait;
         }
@@ -72,7 +72,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="isStatic">Set to true for static or global methods, false for instance methods.</param>
         /// <returns>A <see cref="MethodTrait"/> instance representing the method whose disp_id is,
         /// given, or null if no method is associated with that disp_id.</returns>
-        public MethodTrait getMethodByDispId(int dispId, bool isStatic) {
+        public MethodTrait? getMethodByDispId(int dispId, bool isStatic) {
             m_dict.TryGetValue(_keyForSlotId(dispId, isStatic), out Trait trait);
             return trait as MethodTrait;
         }

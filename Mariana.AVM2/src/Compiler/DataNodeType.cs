@@ -138,23 +138,23 @@ namespace Mariana.AVM2.Compiler {
         private const int STRING_NULL_MASK =
             (1 << (int)DataNodeType.STRING) | (1 << (int)DataNodeType.NULL);
 
-        private static DynamicArray<Class> s_elementTypeToClassMap = new DynamicArray<Class>(32, true) {
+        private static DynamicArray<Class?> s_elementTypeToClassMap = new DynamicArray<Class?>(32, true) {
             [(int)DataNodeType.ANY] = null,
             [(int)DataNodeType.UNDEFINED] = null,
-            [(int)DataNodeType.NULL] = Class.fromType<ASObject>(),
-            [(int)DataNodeType.OBJECT] = Class.fromType<ASObject>(),
-            [(int)DataNodeType.BOOL] = Class.fromType<bool>(),
-            [(int)DataNodeType.INT] = Class.fromType<int>(),
-            [(int)DataNodeType.UINT] = Class.fromType<uint>(),
-            [(int)DataNodeType.NUMBER] = Class.fromType<double>(),
-            [(int)DataNodeType.STRING] = Class.fromType<string>(),
-            [(int)DataNodeType.NAMESPACE] = Class.fromType<ASNamespace>(),
-            [(int)DataNodeType.QNAME] = Class.fromType<ASQName>(),
-            [(int)DataNodeType.CLASS] = Class.fromType<ASClass>(),
-            [(int)DataNodeType.FUNCTION] = Class.fromType<ASFunction>(),
-            [(int)DataNodeType.GLOBAL] = Class.fromType<ASObject>(),
-            [(int)DataNodeType.THIS] = Class.fromType<ASObject>(),
-            [(int)DataNodeType.REST] = Class.fromType<ASArray>(),
+            [(int)DataNodeType.NULL] = Class.fromType(typeof(ASObject)),
+            [(int)DataNodeType.OBJECT] = Class.fromType(typeof(ASObject)),
+            [(int)DataNodeType.BOOL] = Class.fromType(typeof(bool)),
+            [(int)DataNodeType.INT] = Class.fromType(typeof(int)),
+            [(int)DataNodeType.UINT] = Class.fromType(typeof(uint)),
+            [(int)DataNodeType.NUMBER] = Class.fromType(typeof(double)),
+            [(int)DataNodeType.STRING] = Class.fromType(typeof(string)),
+            [(int)DataNodeType.NAMESPACE] = Class.fromType(typeof(ASNamespace)),
+            [(int)DataNodeType.QNAME] = Class.fromType(typeof(ASQName)),
+            [(int)DataNodeType.CLASS] = Class.fromType(typeof(ASClass)),
+            [(int)DataNodeType.FUNCTION] = Class.fromType(typeof(ASFunction)),
+            [(int)DataNodeType.GLOBAL] = Class.fromType(typeof(ASObject)),
+            [(int)DataNodeType.THIS] = Class.fromType(typeof(ASObject)),
+            [(int)DataNodeType.REST] = Class.fromType(typeof(ASArray)),
         };
 
         /// <summary>
@@ -224,7 +224,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="type">A value from the <see cref="DataNodeType"/> enumeration.</param>
         /// <returns>A <see cref="Class"/> instance representing the class corresponding to <paramref name="type"/>,
         /// or null if there is no corresponding class.</returns>
-        public static Class getClass(DataNodeType type) =>
+        public static Class? getClass(DataNodeType type) =>
             ((uint)type < (uint)s_elementTypeToClassMap.length) ? s_elementTypeToClassMap[(int)type] : null;
 
         /// <summary>
@@ -233,7 +233,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="klass">A <see cref="Class"/> instance representing the class.</param>
         /// <returns>A value from the <see cref="DataNodeType"/> enumeration that corresponds to
         /// the class represented by <paramref name="klass"/>.</returns>
-        public static DataNodeType getDataTypeOfClass(Class klass) {
+        public static DataNodeType getDataTypeOfClass(Class? klass) {
             if (klass == null)
                 return DataNodeType.ANY;
 

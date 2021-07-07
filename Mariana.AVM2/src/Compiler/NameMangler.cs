@@ -16,7 +16,7 @@ namespace Mariana.AVM2.Compiler {
         private static char[] s_localNameSpecialChars = {'.', ':', '{', '\0', ESCAPE_CHAR};
         private static char[] s_namesapceSpecialChars = {'{', '\0', ESCAPE_CHAR};
 
-        private StringBuilder m_stringBuilder;
+        private StringBuilder? m_stringBuilder;
 
         /// <summary>
         /// A namespace that can be used for the emitted type names for compiler-generated types.
@@ -34,7 +34,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="name">The qualified name from which to create a mangled name.</param>
         public string createName(in QName name) {
             string nsStr = _mangleNamespace(name.ns);
-            string localStr = _mangleLocalName(name.localName);
+            string localStr = _mangleLocalName(name.localName!);
             return (nsStr.Length == 0) ? localStr : nsStr + localStr;
         }
 
@@ -52,7 +52,7 @@ namespace Mariana.AVM2.Compiler {
                 localStr = ESCAPE_CHAR + "<Module" + ESCAPE_CHAR + ">";
             }
             else {
-                localStr = _mangleLocalName(name.localName);
+                localStr = _mangleLocalName(name.localName!);
             }
 
             return (nsStr.Length == 0) ? new TypeName(localStr) : new TypeName(nsStr, localStr);
@@ -66,7 +66,7 @@ namespace Mariana.AVM2.Compiler {
         /// mangled name for the getter.</param>
         public string createGetterName(QName propName) {
             string nsStr = _mangleNamespace(propName.ns);
-            string localStr = "get{" + _mangleLocalName(propName.localName) + "}";
+            string localStr = "get{" + _mangleLocalName(propName.localName!) + "}";
             return (nsStr.Length == 0) ? localStr : nsStr + localStr;
         }
 
@@ -78,7 +78,7 @@ namespace Mariana.AVM2.Compiler {
         /// mangled name for the setter.</param>
         public string createSetterName(QName propName) {
             string nsstr = _mangleNamespace(propName.ns);
-            string localStr = "set{" + _mangleLocalName(propName.localName) + "}";
+            string localStr = "set{" + _mangleLocalName(propName.localName!) + "}";
             return (nsstr.Length == 0) ? localStr : nsstr + localStr;
         }
 
@@ -89,7 +89,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="propName">The qualified name of the property from which to create a
         /// mangled name for the getter.</param>
         public QName createGetterQualifiedName(QName propName) {
-            string localStr = "get{" + _mangleLocalName(propName.localName) + "}";
+            string localStr = "get{" + _mangleLocalName(propName.localName!) + "}";
             return new QName(propName.ns, localStr);
         }
 
@@ -100,7 +100,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="propName">The qualified name of the property from which to create a
         /// mangled name for the setter.</param>
         public QName createSetterQualifiedName(QName propName) {
-            string localStr = "set{" + _mangleLocalName(propName.localName) + "}";
+            string localStr = "set{" + _mangleLocalName(propName.localName!) + "}";
             return new QName(propName.ns, localStr);
         }
 
@@ -149,7 +149,7 @@ namespace Mariana.AVM2.Compiler {
 
             int curIndex = 0;
             bool usesStringBuilder = false;
-            StringBuilder sb = m_stringBuilder;
+            StringBuilder? sb = m_stringBuilder;
 
             while (curIndex < str.Length) {
                 int index = str.IndexOfAny(s_localNameSpecialChars, curIndex);
@@ -159,26 +159,27 @@ namespace Mariana.AVM2.Compiler {
                 if (!usesStringBuilder) {
                     if (sb == null)
                         sb = m_stringBuilder = new StringBuilder();
+
                     sb.Clear();
                     usesStringBuilder = true;
                 }
 
-                sb.Append(str, curIndex, index - curIndex);
-                sb.Append(ESCAPE_CHAR);
-                sb.Append((str[index] == '\0') ? '0' : str[index]);
+                sb!.Append(str, curIndex, index - curIndex);
+                sb!.Append(ESCAPE_CHAR);
+                sb!.Append((str[index] == '\0') ? '0' : str[index]);
                 curIndex = index + 1;
             }
 
             if (usesStringBuilder) {
-                sb.Append(str, curIndex, str.Length - curIndex);
-                return sb.ToString();
+                sb!.Append(str, curIndex, str.Length - curIndex);
+                return sb!.ToString();
             }
 
             return str;
         }
 
         private string _mangleNamespace(Namespace ns, bool noNameSeparator = false) {
-            string str = (ns.kind == NamespaceKind.PRIVATE)
+            string? str = (ns.kind == NamespaceKind.PRIVATE)
                 ? ns.privateNamespaceId.ToString(CultureInfo.InvariantCulture)
                 : ns.uri;
 
@@ -190,7 +191,7 @@ namespace Mariana.AVM2.Compiler {
 
             int curIndex = 0;
             bool usesStringBuilder = false;
-            StringBuilder sb = m_stringBuilder;
+            StringBuilder? sb = m_stringBuilder;
 
             while (curIndex < str.Length) {
                 int index = str.IndexOfAny(s_namesapceSpecialChars, curIndex);
@@ -200,49 +201,38 @@ namespace Mariana.AVM2.Compiler {
                 if (!usesStringBuilder) {
                     if (sb == null)
                         sb = m_stringBuilder = new StringBuilder();
+
                     sb.Clear();
                     usesStringBuilder = true;
                 }
 
-                sb.Append(str, curIndex, index - curIndex);
-                sb.Append(ESCAPE_CHAR);
-                sb.Append((str[index] == '\0') ? '0' : str[index]);
+                sb!.Append(str, curIndex, index - curIndex);
+                sb!.Append(ESCAPE_CHAR);
+                sb!.Append((str[index] == '\0') ? '0' : str[index]);
                 curIndex = index + 1;
             }
 
             if (usesStringBuilder) {
-                sb.Append(str, curIndex, str.Length - curIndex);
+                sb!.Append(str, curIndex, str.Length - curIndex);
                 str = sb.ToString();
             }
 
-            switch (ns.kind) {
-                case NamespaceKind.NAMESPACE:
-                    if (noNameSeparator)
-                        return str;
-                    if (str.IndexOf(':') == -1)
-                        return str + ".";
-                    return str + "::";
-
-                case NamespaceKind.ANY:
-                    return noNameSeparator ? "A{}" : "A{}::";
-
-                case NamespaceKind.EXPLICIT:
-                    return "E{" + str + (noNameSeparator ? "}" : "}::");
-
-                case NamespaceKind.PRIVATE:
-                    return "P{" + str + (noNameSeparator ? "}" : "}::");
-
-                case NamespaceKind.PROTECTED:
-                    return "Q{" + str + (noNameSeparator ? "}" : "}::");
-
-                case NamespaceKind.STATIC_PROTECTED:
-                    return "S{" + str + (noNameSeparator ? "}" : "}::");
-
-                case NamespaceKind.PACKAGE_INTERNAL:
-                    return "I{" + str + (noNameSeparator ? "}" : "}::");
-            }
-
-            return null;
+            return (ns.kind, noNameSeparator) switch {
+                (NamespaceKind.NAMESPACE, false) => str + (str.Contains(':') ? "::" : "."),
+                (NamespaceKind.NAMESPACE, true) => str,
+                (NamespaceKind.ANY, false) => "A{}::",
+                (NamespaceKind.ANY, true) => "A{}",
+                (NamespaceKind.EXPLICIT, false) => "E{" + str + "}::",
+                (NamespaceKind.EXPLICIT, true) => "E{" + str + "}",
+                (NamespaceKind.PRIVATE, false) => "P{" + str + "}::",
+                (NamespaceKind.PRIVATE, true) => "P{" + str + "}",
+                (NamespaceKind.PROTECTED, false) => "Q{" + str + "}::",
+                (NamespaceKind.PROTECTED, true) => "Q{" + str + "}",
+                (NamespaceKind.STATIC_PROTECTED, false) => "S{" + str + "}::",
+                (NamespaceKind.STATIC_PROTECTED, true) => "S{" + str + "}",
+                (NamespaceKind.PACKAGE_INTERNAL, false) => "I{" + str + "}::",
+                (NamespaceKind.PACKAGE_INTERNAL, true) => "I{" + str + "}"
+            };
         }
 
     }

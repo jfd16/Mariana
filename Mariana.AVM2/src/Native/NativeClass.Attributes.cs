@@ -23,7 +23,7 @@ namespace Mariana.AVM2.Native {
         /// The local name for the class. This does not include the namespace. If this is omitted, the
         /// name of the exported type is used.
         /// </summary>
-        public string name;
+        public string? name;
 
         /// <summary>
         /// The namespace kind for the name of the class.
@@ -41,7 +41,7 @@ namespace Mariana.AVM2.Native {
         /// The name or URI of the namespace for the name of the class. If this is omitted or null,
         /// the public namespace is used, and the <see cref="nsKind"/> field is ignored.
         /// </summary>
-        public string nsUri;
+        public string? nsUri;
 
         /// <summary>
         /// If this is true, the class is dynamic (instances can have dynamic properties). This cannot
@@ -121,7 +121,7 @@ namespace Mariana.AVM2.Native {
         /// The local name for the trait. This does not include the namespace. If this is omitted, the
         /// declared name of the member is used.
         /// </summary>
-        public string name;
+        public string? name;
 
         /// <summary>
         /// The kind of namespace for the name of the trait.
@@ -138,7 +138,7 @@ namespace Mariana.AVM2.Native {
         /// The name or URI of the namespace for the name of the trait. If this is omitted or set to null,
         /// the public namespace is used, and the <see cref="nsKind"/> field is ignored.
         /// </summary>
-        public string nsUri;
+        public string? nsUri;
 
     }
 
@@ -169,14 +169,14 @@ namespace Mariana.AVM2.Native {
         /// <summary>
         /// The value of the optional parameter.
         /// </summary>
-        internal readonly object m_value;
+        internal readonly object? m_value;
 
         /// <summary>
         /// Creates a new instance of the <see cref="ParamDefaultValueAttribute"/> class.
         /// </summary>
         /// <param name="value">The value of the optional parameter. For a parameter of type
         /// Namespace, set this to the URI of the default Namespace value as a string.</param>
-        public ParamDefaultValueAttribute(object value) {
+        public ParamDefaultValueAttribute(object? value) {
             m_value = value;
         }
 
@@ -210,7 +210,7 @@ namespace Mariana.AVM2.Native {
         /// The name of the method in the prototype object. If this is omitted or null, the declared
         /// name of the method is used.
         /// </summary>
-        public string name;
+        public string? name;
 
     }
 
@@ -291,7 +291,7 @@ namespace Mariana.AVM2.Native {
         /// <summary>
         /// The primitive type associated with the class.
         /// </summary>
-        public Type primitiveType;
+        public Type? primitiveType;
 
         /// <summary>
         /// Set this to true if the class defines exported traits (other than overridden methods)
@@ -304,7 +304,7 @@ namespace Mariana.AVM2.Native {
         /// instances of the exported class. If this is not specified, the prototype of the
         /// exported class itself is used.
         /// </summary>
-        public Type usePrototypeOf;
+        public Type? usePrototypeOf;
 
     }
 

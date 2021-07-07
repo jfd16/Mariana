@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 
 namespace Mariana.AVM2.Core {
 
@@ -7,8 +8,8 @@ namespace Mariana.AVM2.Core {
     /// </summary>
     public sealed class MethodTraitParameter {
 
-        private readonly string m_name;
-        private readonly Class m_type;
+        private readonly string? m_name;
+        private readonly Class? m_type;
         private readonly bool m_isOptional;
         private readonly bool m_hasDefault;
         private readonly ASAny m_defaultValue;
@@ -16,12 +17,12 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// The name of the parameter. If this is null, the parameter's name is not specified.
         /// </summary>
-        public string name => m_name;
+        public string? name => m_name;
 
         /// <summary>
         /// The type of the parameter. A null value is used for the any (*) type.
         /// </summary>
-        public Class type => m_type;
+        public Class? type => m_type;
 
         /// <summary>
         /// A Boolean value indicating whether the parameter is an optional parameter,
@@ -38,7 +39,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         public ASAny defaultValue => m_defaultValue;
 
-        internal MethodTraitParameter(string name, Class type, bool isOptional, bool hasDefault, ASAny defaultValue) {
+        internal MethodTraitParameter(string? name, Class? type, bool isOptional, bool hasDefault, ASAny defaultValue) {
             m_name = name;
             m_type = type;
             m_isOptional = isOptional;
@@ -46,39 +47,40 @@ namespace Mariana.AVM2.Core {
             m_defaultValue = defaultValue;
         }
 
-        internal static void paramListToString(MethodTraitParameter[] paramList, System.Text.StringBuilder sb) {
+        internal static void paramListToString(MethodTraitParameter[] paramList, StringBuilder outStringBuilder) {
             for (int i = 0; i < paramList.Length; i++) {
                 if (i != 0)
-                    sb.Append(", ");
+                    outStringBuilder.Append(", ");
 
                 MethodTraitParameter p = paramList[i];
-                sb.Append(p.name ?? "param" + ASint.AS_convertString(i));
+                outStringBuilder.Append(p.name ?? "param" + ASint.AS_convertString(i));
                 if (p.isOptional && !p.hasDefault)
-                    sb.Append('?');
+                    outStringBuilder.Append('?');
 
-                sb.Append(':').Append(' ');
-                sb.Append((p.type == null) ? "*" : p.type.name.ToString());
+                outStringBuilder.Append(':').Append(' ');
+                outStringBuilder.Append((p.type == null) ? "*" : p.type.name.ToString());
 
                 if (!p.hasDefault)
                     continue;
 
                 if (p.defaultValue.isUndefined) {
-                    sb.Append(" = undefined");
+                    outStringBuilder.Append(" = undefined");
                 }
                 else if (p.defaultValue.isNull) {
-                    sb.Append(" = null");
+                    outStringBuilder.Append(" = null");
                 }
                 else {
-                    Class valType = p.defaultValue.AS_class;
-                    sb.Append(" = ");
+                    Class valType = p.defaultValue.AS_class!;
+                    outStringBuilder.Append(" = ");
+
                     if (valType.tag == ClassTag.STRING) {
                         string strval = p.defaultValue.ToString().Replace("\\", "\\\\").Replace("\"", "\\\"");
-                        sb.Append('"');
-                        sb.Append(strval);
-                        sb.Append('"');
+                        outStringBuilder.Append('"');
+                        outStringBuilder.Append(strval);
+                        outStringBuilder.Append('"');
                     }
                     else {
-                        sb.Append(p.defaultValue.ToString());
+                        outStringBuilder.Append(p.defaultValue.ToString());
                     }
                 }
             }

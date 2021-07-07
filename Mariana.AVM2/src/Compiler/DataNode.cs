@@ -132,11 +132,11 @@ namespace Mariana.AVM2.Compiler {
         /// This method will also set or unset the <see cref="DataNodeFlags.NOT_NULL"/> flag depending
         /// on whether null or undefined is representable by <paramref name="klass"/>.
         /// </remarks>
-        public void setDataTypeFromClass(Class klass) {
+        public void setDataTypeFromClass(Class? klass) {
             dataType = DataNodeTypeHelper.getDataTypeOfClass(klass);
 
             if (dataType == DataNodeType.OBJECT)
-                constant = new DataNodeConstant(klass);
+                constant = new DataNodeConstant(klass!);
 
             isNotNull = DataNodeTypeHelper.isNonNullable(dataType);
         }
@@ -441,7 +441,7 @@ namespace Mariana.AVM2.Compiler {
         private readonly double m_double;
 
         [FieldOffset(8)]
-        private readonly object m_object;
+        private readonly object? m_object;
 
         /// <summary>
         /// Creates a new instance of <see cref="DataNodeConstant"/> having an integer value.
@@ -517,31 +517,31 @@ namespace Mariana.AVM2.Compiler {
         /// Gets or sets the string value of the constant data.
         /// </summary>
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public string stringValue => (string)m_object;
+        public string stringValue => (string)m_object!;
 
         /// <summary>
         /// Gets or sets the <see cref="Namespace"/> value of the constant data.
         /// </summary>
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public Namespace namespaceValue => (Namespace)m_object;
+        public Namespace namespaceValue => (Namespace)m_object!;
 
         /// <summary>
         /// Gets or sets the <see cref="QName"/> value of the constant data.
         /// </summary>
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public QName qnameValue => (QName)m_object;
+        public QName qnameValue => (QName)m_object!;
 
         /// <summary>
         /// Gets or sets the <see cref="Class"/> value of the constant data.
         /// </summary>
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public Class classValue => (Class)m_object;
+        public Class classValue => (Class)m_object!;
 
         /// <summary>
         /// Gets or sets the <see cref="MethodTrait"/> value of the constant data.
         /// </summary>
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public MethodTrait methodValue => (MethodTrait)m_object;
+        public MethodTrait methodValue => (MethodTrait)m_object!;
 
         /// <summary>
         /// Returns a value indicating whether this <see cref="DataNodeConstant"/> instance is
@@ -574,7 +574,7 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         /// <returns>A hash code for this <see cref="DataNodeConstant"/> instance.</returns>
         public override int GetHashCode() =>
-            m_int64.GetHashCode() ^ ((m_object != null) ? RuntimeHelpers.GetHashCode(m_object) : 0);
+            m_int64.GetHashCode() ^  RuntimeHelpers.GetHashCode(m_object);
 
         /// <summary>
         /// Returns a value indicating whether two <see cref="DataNodeConstant"/> instances are

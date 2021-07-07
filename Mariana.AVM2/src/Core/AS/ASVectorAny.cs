@@ -183,7 +183,7 @@ namespace Mariana.AVM2.Core {
         /// </item>
         /// </list>
         /// </exception>
-        public void AS_setElement(uint index, ASObject value) => _VA_setElement(index, value);
+        public void AS_setElement(uint index, ASObject? value) => _VA_setElement(index, value);
 
         /// <summary>
         /// Deletes the value of the element at the given index. For Vectors, this method has no
@@ -278,9 +278,9 @@ namespace Mariana.AVM2.Core {
         protected private virtual ASObject _VA_getElement(int index) => throw new NotImplementedException();
         protected private virtual ASObject _VA_getElement(uint index) => throw new NotImplementedException();
         protected private virtual ASObject _VA_getElement(double index) => throw new NotImplementedException();
-        protected private virtual void _VA_setElement(int index, ASObject value) => throw new NotImplementedException();
-        protected private virtual void _VA_setElement(uint index, ASObject value) => throw new NotImplementedException();
-        protected private virtual void _VA_setElement(double index, ASObject value) => throw new NotImplementedException();
+        protected private virtual void _VA_setElement(int index, ASObject? value) => throw new NotImplementedException();
+        protected private virtual void _VA_setElement(uint index, ASObject? value) => throw new NotImplementedException();
+        protected private virtual void _VA_setElement(double index, ASObject? value) => throw new NotImplementedException();
         protected private virtual bool _VA_deleteElement(int index) => throw new NotImplementedException();
         protected private virtual bool _VA_deleteElement(uint index) => throw new NotImplementedException();
         protected private virtual bool _VA_deleteElement(double index) => throw new NotImplementedException();
@@ -615,9 +615,9 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
-        public bool every(ASFunction callback, ASObject thisObject = null) => _VA_every(callback, thisObject);
+        public bool every(ASFunction callback, ASObject? thisObject = null) => _VA_every(callback, thisObject);
 
-        protected private virtual bool _VA_every(ASFunction callback, ASObject thisObject) =>
+        protected private virtual bool _VA_every(ASFunction callback, ASObject? thisObject) =>
             throw new NotImplementedException();
 
         /// <summary>
@@ -653,9 +653,9 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
-        public ASVectorAny filter(ASFunction callback, ASObject thisObject = null) => _VA_filter(callback, thisObject);
+        public ASVectorAny filter(ASFunction callback, ASObject? thisObject = null) => _VA_filter(callback, thisObject);
 
-        protected private virtual ASVectorAny _VA_filter(ASFunction callback, ASObject thisObject) =>
+        protected private virtual ASVectorAny _VA_filter(ASFunction callback, ASObject? thisObject) =>
             throw new NotImplementedException();
 
         /// <summary>
@@ -688,9 +688,9 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
-        public void forEach(ASFunction callback, ASObject thisObject = null) => _VA_forEach(callback, thisObject);
+        public void forEach(ASFunction callback, ASObject? thisObject = null) => _VA_forEach(callback, thisObject);
 
-        protected private virtual void _VA_forEach(ASFunction callback, ASObject thisObject) =>
+        protected private virtual void _VA_forEach(ASFunction callback, ASObject? thisObject) =>
             throw new NotImplementedException();
 
         /// <summary>
@@ -791,9 +791,9 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
-        public ASVectorAny map(ASFunction callback, ASObject thisObject = null) => _VA_map(callback, thisObject);
+        public ASVectorAny map(ASFunction callback, ASObject? thisObject = null) => _VA_map(callback, thisObject);
 
-        protected private virtual ASVectorAny _VA_map(ASFunction callback, ASObject thisObject) =>
+        protected private virtual ASVectorAny _VA_map(ASFunction callback, ASObject? thisObject) =>
             throw new NotImplementedException();
 
         /// <summary>
@@ -926,9 +926,9 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
-        public bool some(ASFunction callback, ASObject thisObject = null) => _VA_some(callback, thisObject);
+        public bool some(ASFunction callback, ASObject? thisObject = null) => _VA_some(callback, thisObject);
 
-        protected private virtual bool _VA_some(ASFunction callback, ASObject thisObject) =>
+        protected private virtual bool _VA_some(ASFunction callback, ASObject? thisObject) =>
             throw new NotImplementedException();
 
         /// <summary>
@@ -953,9 +953,9 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
-        public ASVectorAny sort(ASObject sortComparer = null) => _VA_sort(sortComparer);
+        public ASVectorAny sort(ASObject? sortComparer = null) => _VA_sort(sortComparer);
 
-        protected private virtual ASVectorAny _VA_sort(ASObject sortComparer) => throw new NotImplementedException();
+        protected private virtual ASVectorAny _VA_sort(ASObject? sortComparer) => throw new NotImplementedException();
 
         /// <summary>
         /// Replaces the specified number of elements in the Vector, starting at a given index with
@@ -1059,8 +1059,7 @@ namespace Mariana.AVM2.Core {
             if (ASObject.AS_isUint(name.value))
                 return (uint)name < (uint)length;
 
-            string str = (string)name;
-            if (NumberFormatHelper.parseArrayIndex(str, allowLeadingZeroes: true, out uint index))
+            if (NumberFormatHelper.parseArrayIndex((string?)name, allowLeadingZeroes: true, out uint index))
                 return index < (uint)length;
 
             return false;
@@ -1073,7 +1072,8 @@ namespace Mariana.AVM2.Core {
         internal static new ASAny __AS_INVOKE(ReadOnlySpan<ASAny> args) {
             if (args.Length != 1)
                 throw ErrorHelper.createError(ErrorCode.CLASS_COERCE_ARG_COUNT_MISMATCH, args.Length);
-            return fromObject(args[0].value);
+
+            return fromObject(args[0].value!);
         }
 
         /// <exclude/>

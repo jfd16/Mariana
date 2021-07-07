@@ -39,7 +39,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="message">The error message.</param>
         /// <param name="id">The error code.</param>
         [AVM2ExportTrait]
-        public ASVerifyError(string message = "", int id = 0) : base(message, id) {
+        public ASVerifyError([ParamDefaultValue("")] ASAny message, int id = 0) : base(message, id) {
             name = "VerifyError";
         }
 

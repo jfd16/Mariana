@@ -10,7 +10,7 @@ namespace Mariana.AVM2.Core {
     public sealed class DynamicPropertyCollection {
 
         private struct Slot {
-            internal string name;
+            internal string? name;
             internal int next;
             internal int hash;
             internal ASAny value;
@@ -225,7 +225,7 @@ namespace Mariana.AVM2.Core {
         /// <remarks>
         /// This method is used to implement ActionScript 3's for-in loops.
         /// </remarks>
-        public string getNameFromIndex(int i) => ((uint)i < (uint)m_count) ? m_slots[i].name : null;
+        public string? getNameFromIndex(int i) => ((uint)i < (uint)m_count) ? m_slots[i].name : null;
 
         /// <summary>
         /// Gets the value of the property at the specified index.
@@ -317,19 +317,19 @@ namespace Mariana.AVM2.Core {
         /// <returns>True, if a property was found; false otherwise.</returns>
         ///
         /// <exception cref="AVM2Exception">ArgumentError #10061: <paramref name="name"/> is null.</exception>
-        internal static bool searchPrototypeChain(ASObject obj, string name, out ASAny value) {
+        internal static bool searchPrototypeChain(ASObject? obj, string name, out ASAny value) {
             if (name == null)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(name));
 
             int hash = name.GetHashCode();    // Compute the hash code only once.
 
             for (; obj != null; obj = obj.AS_proto) {
-                DynamicPropertyCollection table = obj.AS_dynamicProps;
+                DynamicPropertyCollection? table = obj.AS_dynamicProps;
                 if (table == null)
                     continue;
 
-                Slot[] slots = obj.AS_dynamicProps.m_slots;
-                int[] chainHeads = obj.AS_dynamicProps.m_chainHeads;
+                Slot[] slots = table.m_slots;
+                int[] chainHeads = table.m_chainHeads;
 
                 int i = chainHeads[(hash & 0x7FFFFFFF) % chainHeads.Length];
 

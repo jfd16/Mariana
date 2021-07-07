@@ -11,10 +11,10 @@ namespace Mariana.AVM2.Core {
 
         internal ClassAlias(
             in QName name,
-            Class declClass,
+            Class? declClass,
             ApplicationDomain appDomain,
             ClassImpl impl,
-            MetadataTagCollection metadata
+            MetadataTagCollection? metadata
         )
             : base(name, declClass, appDomain, impl.tag)
         {

@@ -103,6 +103,12 @@ namespace Mariana.AVM2.ABC {
             m_ifaceNames = ifaceNames;
             m_protectedNs = protectedNs;
             m_flags = flags;
+
+            // These will be set from setInstanceInfo and setStaticInfo
+            m_instanceInit = null!;
+            m_instanceTraits = null!;
+            m_staticInit = null!;
+            m_staticTraits = null!;
         }
 
         internal void setInstanceInfo(ABCMethodInfo instanceInit, ABCTraitInfo[] instanceTraits) {

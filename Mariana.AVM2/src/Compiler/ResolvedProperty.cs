@@ -43,13 +43,13 @@ namespace Mariana.AVM2.Compiler {
         /// The class of the object on which the property is resolved, if <see cref="objectType"/>
         /// is <see cref="DataNodeType.OBJECT"/> or <see cref="DataNodeType.CLASS"/>.
         /// </summary>
-        public Class objectClass;
+        public Class? objectClass;
 
         /// <summary>
         /// An object representing the resolved property. The type of this object depends
         /// on the value of <see cref="propKind"/>.
         /// </summary>
-        public object propInfo;
+        public object? propInfo;
 
     }
 

@@ -13,14 +13,14 @@ namespace Mariana.AVM2.Compiler {
     /// </summary>
     internal sealed class VectorInstFromScriptClass : ClassImpl {
 
-        private static readonly Class s_vecAnyClass = Class.fromType(typeof(ASVectorAny));
+        private static readonly Class s_vecAnyClass = Class.fromType(typeof(ASVectorAny))!;
 
         // We use this class as a "marker" to identify the type argument of Vector in
         // field and method signatures so they can be substituted with the actual class.
         // The type T used as the marker must be chosen such that T or Vector<T> does
         // not appear in any field or method signature other than as the type argument
         // or a type dependent on it.
-        private static readonly Class s_markerElement = Class.fromType(typeof(ASVector<ASVectorAny>));
+        private static readonly Class s_markerElement = Class.fromType(typeof(ASVector<ASVectorAny>))!;
 
         /// <summary>
         /// Contains the Vector instantiations that use classes not yet fully compiled in
@@ -47,12 +47,13 @@ namespace Mariana.AVM2.Compiler {
                 ClassTag.VECTOR
             )
         {
-            Debug.Assert(elementType.underlyingType == null);
+            Debug.Assert(!elementType.getClassImpl().isUnderlyingTypeAvailable);
 
             m_elementType = elementType;
             setParent(s_vecAnyClass);
             setIsHidingAllowed(true);
 
+            m_incompleteTraitsByToken = new Dictionary<int, Trait>();
             s_incompleteInstances.Add(this);
         }
 
@@ -65,25 +66,26 @@ namespace Mariana.AVM2.Compiler {
         public override Class vectorElementType => m_elementType;
 
         protected private override Class createVectorClass() =>
-            (underlyingType != null) ? base.createVectorClass() : new VectorInstFromScriptClass(this);
+            isUnderlyingTypeAvailable ? base.createVectorClass() : new VectorInstFromScriptClass(this);
 
-        private Class _substituteElement(Class type) {
+        private Class? _substituteElement(Class? type) {
+            if (type == null)
+                return null;
+
             if (type == s_markerElement)
                 return m_elementType;
 
             if (type.isVectorInstantiation)
-                return _substituteElement(type.vectorElementType).getVectorClass();
+                return _substituteElement(type.vectorElementType)!.getVectorClass();
 
             return type;
         }
 
         protected private override void initClass() {
-            m_incompleteTraitsByToken = new Dictionary<int, Trait>();
-
             Class markerVector = s_markerElement.getVectorClass();
 
-            setConstructor(new _Ctor(markerVector.constructor, this));
-            m_constructorToken = constructor.underlyingConstructorInfo.MetadataToken;
+            setConstructor(new _Ctor(markerVector.constructor!, this));
+            m_constructorToken = constructor!.underlyingConstructorInfo.MetadataToken;
 
             var traits = s_markerElement.getVectorClass().getTraits(TraitType.ALL, TraitScope.DECLARED);
 
@@ -100,7 +102,7 @@ namespace Mariana.AVM2.Compiler {
                     tryDefineTrait(new ConstantTrait(constant.name, this, applicationDomain, constant.constantValue));
             }
 
-            var specials = markerVector.classSpecials;
+            ClassSpecials specials = markerVector.classSpecials!;
 
             setClassSpecials(new ClassSpecials(
                 // specialInvoke and specialConstruct are never used during compilation
@@ -110,25 +112,28 @@ namespace Mariana.AVM2.Compiler {
                 specialConstruct: specials.specialConstruct,
 
                 intIndexProperty: new IndexProperty(
+                    specials.intIndexProperty!.indexType,
                     m_elementType,
-                    new _Method(specials.intIndexProperty.getMethod, this),
-                    new _Method(specials.intIndexProperty.setMethod, this),
-                    new _Method(specials.intIndexProperty.hasMethod, this),
-                    new _Method(specials.intIndexProperty.deleteMethod, this)
+                    new _Method(specials.intIndexProperty!.getMethod!, this),
+                    new _Method(specials.intIndexProperty!.setMethod!, this),
+                    new _Method(specials.intIndexProperty!.hasMethod!, this),
+                    new _Method(specials.intIndexProperty!.deleteMethod!, this)
                 ),
                 uintIndexProperty: new IndexProperty(
+                    specials.uintIndexProperty!.indexType,
                     m_elementType,
-                    new _Method(specials.uintIndexProperty.getMethod, this),
-                    new _Method(specials.uintIndexProperty.setMethod, this),
-                    new _Method(specials.uintIndexProperty.hasMethod, this),
-                    new _Method(specials.uintIndexProperty.deleteMethod, this)
+                    new _Method(specials.uintIndexProperty!.getMethod!, this),
+                    new _Method(specials.uintIndexProperty!.setMethod!, this),
+                    new _Method(specials.uintIndexProperty!.hasMethod!, this),
+                    new _Method(specials.uintIndexProperty!.deleteMethod!, this)
                 ),
                 numberIndexProperty: new IndexProperty(
+                    specials.numberIndexProperty!.indexType,
                     m_elementType,
-                    new _Method(specials.numberIndexProperty.getMethod, this),
-                    new _Method(specials.numberIndexProperty.setMethod, this),
-                    new _Method(specials.numberIndexProperty.hasMethod, this),
-                    new _Method(specials.numberIndexProperty.deleteMethod, this)
+                    new _Method(specials.numberIndexProperty!.getMethod!, this),
+                    new _Method(specials.numberIndexProperty!.setMethod!, this),
+                    new _Method(specials.numberIndexProperty!.hasMethod!, this),
+                    new _Method(specials.numberIndexProperty!.deleteMethod!, this)
                 )
             ));
 
@@ -151,27 +156,26 @@ namespace Mariana.AVM2.Compiler {
             s_incompleteInstances.Clear();
 
             static void complete(VectorInstFromScriptClass inst) {
-                if (inst.underlyingType != null)
+                if (inst.isUnderlyingTypeAvailable)
                     return;
 
                 if (inst.m_elementType is VectorInstFromScriptClass elementVecInst)
                     complete(elementVecInst);
-
-                Debug.Assert(inst.m_elementType.underlyingType != null);
 
                 Type underlyingType = typeof(ASVector<>).MakeGenericType(new Type[] {inst.m_elementType.underlyingType});
 
                 inst.setUnderlyingType(underlyingType);
                 ClassTypeMap.addClass(underlyingType, inst);
 
-                MethodInfo instSpecialInvoke = null, instSpecialConstruct = null;
-                if (inst.classSpecials.specialInvoke != null) {
+                MethodInfo? instSpecialInvoke = null, instSpecialConstruct = null;
+
+                if (inst.classSpecials!.specialInvoke != null) {
                     instSpecialInvoke = underlyingType.GetMethod(
                         inst.classSpecials.specialInvoke.Name,
                         BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly
                     );
                 }
-                if (inst.classSpecials.specialConstruct != null) {
+                if (inst.classSpecials!.specialConstruct != null) {
                     instSpecialConstruct = underlyingType.GetMethod(
                         inst.classSpecials.specialConstruct.Name,
                         BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly
@@ -181,9 +185,9 @@ namespace Mariana.AVM2.Compiler {
                 var newSpecials = new ClassSpecials(
                     specialInvoke: instSpecialInvoke,
                     specialConstruct: instSpecialConstruct,
-                    intIndexProperty: inst.classSpecials.intIndexProperty,
-                    uintIndexProperty: inst.classSpecials.uintIndexProperty,
-                    numberIndexProperty: inst.classSpecials.numberIndexProperty
+                    intIndexProperty: inst.classSpecials!.intIndexProperty,
+                    uintIndexProperty: inst.classSpecials!.uintIndexProperty,
+                    numberIndexProperty: inst.classSpecials!.numberIndexProperty
                 );
 
                 inst.setClassSpecials(newSpecials);
@@ -195,7 +199,7 @@ namespace Mariana.AVM2.Compiler {
                     int token = members[i].MetadataToken;
 
                     if (token == inst.m_constructorToken)
-                        ((_Ctor)inst.constructor).setUnderlyingCtorInfo((ConstructorInfo)members[i]);
+                        ((_Ctor)inst.constructor!).setUnderlyingCtorInfo((ConstructorInfo)members[i]);
 
                     if (!inst.m_incompleteTraitsByToken.TryGetValue(members[i].MetadataToken, out Trait trait))
                         continue;
@@ -230,6 +234,7 @@ namespace Mariana.AVM2.Compiler {
                 : base(def.name, inst, inst.applicationDomain, def.isStatic)
             {
                 var defParams = def.getParameters();
+
                 var instParams = (defParams.length == 0)
                     ? Array.Empty<MethodTraitParameter>()
                     : new MethodTraitParameter[defParams.length];
@@ -268,6 +273,7 @@ namespace Mariana.AVM2.Compiler {
         private sealed class _Ctor : ClassConstructor {
             public _Ctor(ClassConstructor def, VectorInstFromScriptClass inst) : base(inst) {
                 var defParams = def.getParameters();
+
                 var instParams = (defParams.length == 0)
                     ? Array.Empty<MethodTraitParameter>()
                     : new MethodTraitParameter[defParams.length];

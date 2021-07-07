@@ -37,7 +37,7 @@ namespace Mariana.AVM2.Compiler {
         internal new bool tryDefineTrait(Trait trait) => base.tryDefineTrait(trait);
 
         protected private override Class createVectorClass() =>
-            (underlyingType != null) ? base.createVectorClass() : new VectorInstFromScriptClass(this);
+            isUnderlyingTypeAvailable ? base.createVectorClass() : new VectorInstFromScriptClass(this);
 
         /// <summary>
         /// Gets the trait of this class at the given slot index.
@@ -46,7 +46,7 @@ namespace Mariana.AVM2.Compiler {
         /// If no slot exists at that index, returns null.</returns>
         /// <param name="index">The slot index.</param>
         /// <param name="isStatic">Set to true for static traits, false for instance traits.</param>
-        internal Trait getTraitAtSlot(int index, bool isStatic) => m_slotMap.getSlot(index, isStatic);
+        internal Trait? getTraitAtSlot(int index, bool isStatic) => m_slotMap.getSlot(index, isStatic);
 
         /// <summary>
         /// Gets the method of this class with the given dispatch index.
@@ -55,7 +55,7 @@ namespace Mariana.AVM2.Compiler {
         /// If no method exists with that index, returns null.</returns>
         /// <param name="dispId">A dispatch index.</param>
         /// <param name="isStatic">Set to true for static methods, false for instance methods.</param>
-        internal MethodTrait getMethodByDispId(int dispId, bool isStatic) => m_slotMap.getMethodByDispId(dispId, isStatic);
+        internal MethodTrait? getMethodByDispId(int dispId, bool isStatic) => m_slotMap.getMethodByDispId(dispId, isStatic);
 
         /// <summary>
         /// Defines the slot index of a trait in this class.
@@ -89,7 +89,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         protected private override void initClass() {
-            SlotMap parentSlotMap = (parent is ScriptClass parentScriptClass) ? parentScriptClass.m_slotMap : null;
+            SlotMap? parentSlotMap = (parent is ScriptClass parentScriptClass) ? parentScriptClass.m_slotMap : null;
             if (parentSlotMap != null)
                 m_slotMap.addParentSlots(parentSlotMap);
         }

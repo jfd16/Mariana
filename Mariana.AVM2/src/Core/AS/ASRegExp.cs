@@ -24,11 +24,13 @@ namespace Mariana.AVM2.Core {
         private const int AUX_FLAG_EXTENDED = 4;
         private const int AUX_FLAG_MULTILINE = 8;
 
-        private Regex m_internalRegex;
-        private string m_source;
+        // These are set to non-null values by _init
+        private Regex m_internalRegex = null!;
+        private string m_source = null!;
+
         private int m_auxFlags;
         private int m_lastIndex;
-        private string[] m_groupNames;
+        private string[]? m_groupNames;
         private int m_groupCount;
 
         /// <summary>
@@ -114,7 +116,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="pattern">The regular expression pattern string.</param>
         /// <param name="flags">The flags string of the regular expression.</param>
-        private void _init(string pattern, string flags) {
+        private void _init(string? pattern, string? flags) {
             pattern = ASString.AS_convertString(pattern);
             flags = ASString.AS_convertString(flags);
 
@@ -202,9 +204,10 @@ namespace Mariana.AVM2.Core {
         /// the opening parentheses of all capturing groups.</param>
         /// <returns>The name of the group, of null if the group with the given index does not exist
         /// or has no name.</returns>
-        public string getGroupName(int index) {
+        public string? getGroupName(int index) {
             if (m_groupNames == null || index == 0 || (uint)index > (uint)m_groupCount)
                 return null;
+
             return m_groupNames[index - 1];
         }
 
@@ -385,20 +388,20 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
-        public virtual ASObject exec(string str = "") {
+        public virtual ASObject? exec(string str = "") {
             str = ASString.AS_convertString(str);
 
             bool global = this.global;
             int startIndex = global ? m_lastIndex : 0;
 
-            execInternal(str, startIndex, out ASArray result, out int newLastIndex);
+            execInternal(str, startIndex, out ASArray? result, out int newLastIndex);
 
             if (global)
                 m_lastIndex = newLastIndex;
 
             return result;
 
-            void execInternal(string s, int start, out ASArray _result, out int _newLastIndex) {
+            void execInternal(string s, int start, out ASArray? _result, out int _newLastIndex) {
                 _result = null;
                 _newLastIndex = 0;
 
@@ -414,7 +417,7 @@ namespace Mariana.AVM2.Core {
                 // Create the group array
                 GroupCollection groups = match.Groups;
                 ASArray groupArray = new ASArray(groups.Count);
-                DynamicPropertyCollection namedProps = groupArray.AS_dynamicProps;
+                DynamicPropertyCollection namedProps = groupArray.AS_dynamicProps!;
 
                 for (int i = 0, n = groups.Count; i < n; i++) {
                     ASAny capturedValue = groups[i].Success ? (ASAny)groups[i].Value : ASAny.undefined;

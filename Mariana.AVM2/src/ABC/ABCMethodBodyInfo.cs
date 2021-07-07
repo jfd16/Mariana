@@ -83,9 +83,16 @@ namespace Mariana.AVM2.ABC {
         public ReadOnlyArrayView<ABCTraitInfo> getActivationTraits() => new ReadOnlyArrayView<ABCTraitInfo>(m_activation);
 
         internal ABCMethodBodyInfo(
-            int abcIndex, ABCMethodInfo methodInfo, int maxStack, int initScopeDepth, int maxScopeDepth, int localCount,
-            byte[] code, ABCExceptionInfo[] exceptions, ABCTraitInfo[] activation)
-        {
+            int abcIndex,
+            ABCMethodInfo methodInfo,
+            int maxStack,
+            int initScopeDepth,
+            int maxScopeDepth,
+            int localCount,
+            byte[] code,
+            ABCExceptionInfo[] exceptions,
+            ABCTraitInfo[] activation
+        ) {
             m_abcIndex = abcIndex;
             m_methodInfo = methodInfo;
             m_maxStack = maxStack;

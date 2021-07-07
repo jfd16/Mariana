@@ -38,7 +38,7 @@ namespace Mariana.AVM2.Core {
         [AVM2ExportTrait(name = "length")]
         public new const int AS_length = 1;
 
-        private ASObject m_prototype;
+        private ASObject? m_prototype;
 
         protected private ASFunction() { }
 
@@ -60,7 +60,7 @@ namespace Mariana.AVM2.Core {
         /// cannot have prototypes and cannot be used as constructors.</para>
         /// </remarks>
         [AVM2ExportTrait]
-        public virtual ASObject prototype {
+        public virtual ASObject? prototype {
             get => m_prototype;
             set => m_prototype = value;
         }
@@ -68,7 +68,7 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Gets the underlying method of the Function object.
         /// </summary>
-        public virtual MethodTrait method => null;
+        public virtual MethodTrait? method => null;
 
         /// <summary>
         /// Returns true if this <see cref="ASFunction"/> instance is a method closure, otherwise false.
@@ -80,7 +80,7 @@ namespace Mariana.AVM2.Core {
         /// <see cref="ASFunction"/> instance is not a method closure or a method closure of a static
         /// or global method, the value of this property is null.
         /// </summary>
-        public virtual ASObject storedReceiver => null;
+        public virtual ASObject? storedReceiver => null;
 
         /// <summary>
         /// Creates a delegate from the underlying method of the Function object with the given
@@ -98,7 +98,7 @@ namespace Mariana.AVM2.Core {
         /// <returns>The created delegate; null if the signature of <typeparamref name="T"/>
         /// is not compatible with that of the underlying method of the Function object, or if
         /// <paramref name="receiver"/> is not of the correct type.</returns>
-        public virtual T createDelegate<T>(ASObject receiver = null) where T : Delegate => null;
+        public virtual T? createDelegate<T>(ASObject? receiver = null) where T : Delegate => null;
 
         /// <summary>
         /// Invokes the object as a function.
@@ -190,7 +190,7 @@ namespace Mariana.AVM2.Core {
             var func = new ASFunction();
 
             func.m_prototype = new ASObject();
-            func.m_prototype.AS_dynamicProps.setValue("constructor", func, isEnum: false);
+            func.m_prototype.AS_dynamicProps!.setValue("constructor", func, isEnum: false);
 
             return func;
         }
@@ -260,15 +260,15 @@ namespace Mariana.AVM2.Core {
     /// </remarks>
     internal sealed class ASMethodClosure : ASFunction {
 
-        private readonly ASObject m_receiver;
+        private readonly ASObject? m_receiver;
         private readonly MethodTrait m_method;
 
-        internal ASMethodClosure(MethodTrait method, ASObject receiver) {
+        internal ASMethodClosure(MethodTrait method, ASObject? receiver) {
             m_receiver = receiver;
             m_method = method;
         }
 
-        public override ASObject storedReceiver => m_receiver;
+        public override ASObject? storedReceiver => m_receiver;
 
         public override MethodTrait method => m_method;
 
@@ -276,7 +276,7 @@ namespace Mariana.AVM2.Core {
 
         public override bool isMethodClosure => true;
 
-        public override ASObject prototype {
+        public override ASObject? prototype {
             get => base.prototype;
             set => throw ErrorHelper.createError(ErrorCode.ILLEGAL_WRITE_READONLY, "prototype", "MethodClosure");
         }
@@ -289,7 +289,7 @@ namespace Mariana.AVM2.Core {
             return false;
         }
 
-        public override T createDelegate<T>(ASObject receiver = null) => method.createDelegate<T>(m_receiver);
+        public override T? createDelegate<T>(ASObject? receiver = null) where T : class => method.createDelegate<T>(m_receiver);
 
     }
 
@@ -309,14 +309,14 @@ namespace Mariana.AVM2.Core {
     internal sealed class ASFunctionClosure : ASFunction {
 
         private readonly MethodTrait m_method;
-        private object m_scope;
+        private object? m_scope;
 
-        internal ASFunctionClosure(MethodTrait method, object scope) {
+        internal ASFunctionClosure(MethodTrait method, object? scope) {
             m_method = method;
             m_scope = scope;
 
             var protoObject = new ASObject();
-            protoObject.AS_dynamicProps.setValue("constructor", this, isEnum: false);
+            protoObject.AS_dynamicProps!.setValue("constructor", this, isEnum: false);
 
             this.prototype = protoObject;
         }
@@ -352,7 +352,7 @@ namespace Mariana.AVM2.Core {
 
             if (m_method.isStatic) {
                 if (m_scope != null)
-                    receiver = new ScopedClosureReceiver(receiver.value, m_scope, this);
+                    receiver = new ScopedClosureReceiver(receiver.value!, m_scope, this);
 
                 newArgsSpan[0] = receiver;
                 newArgsSpan = newArgsSpan.Slice(1);
@@ -396,11 +396,11 @@ namespace Mariana.AVM2.Core {
                 return false;
             }
 
-            result = returnValue.isDefined ? returnValue : (ASAny)newObj;
+            result = returnValue.isDefined ? returnValue : newObj;
             return true;
         }
 
-        public override T createDelegate<T>(ASObject receiver = null) {
+        public override T? createDelegate<T>(ASObject? receiver = null) where T : class {
             receiver ??= m_method.applicationDomain.globalObject;
             if (m_scope != null)
                 receiver = new ScopedClosureReceiver(receiver, m_scope, this);

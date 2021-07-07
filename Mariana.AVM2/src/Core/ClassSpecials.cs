@@ -11,61 +11,64 @@ namespace Mariana.AVM2.Core {
 
         public delegate ASAny SpecialInvoke(ReadOnlySpan<ASAny> args);
 
-        private MethodInfo m_specialInvoke;
-        private MethodInfo m_specialConstruct;
-        private SpecialInvoke m_specialInvokeDelegate;
-        private SpecialInvoke m_specialConstructDelegate;
-        private IndexProperty m_intIndexProperty;
-        private IndexProperty m_uintIndexProperty;
-        private IndexProperty m_numberIndexProperty;
+        private MethodInfo? m_specialInvoke;
+        private MethodInfo? m_specialConstruct;
+        private SpecialInvoke? m_specialInvokeDelegate;
+        private SpecialInvoke? m_specialConstructDelegate;
+        private IndexProperty? m_intIndexProperty;
+        private IndexProperty? m_uintIndexProperty;
+        private IndexProperty? m_numberIndexProperty;
 
         /// <summary>
         /// The method that is called when the class is invoked as a function.
         /// This overrides the default behaviour (type casting).
         /// </summary>
-        public MethodInfo specialInvoke => m_specialInvoke;
+        public MethodInfo? specialInvoke => m_specialInvoke;
 
         /// <summary>
         /// The method that is called when the class is invoked as a constructor.
         /// This overrides the default behaviour (call the class constructor).
         /// </summary>
-        public MethodInfo specialConstruct => m_specialConstruct;
+        public MethodInfo? specialConstruct => m_specialConstruct;
 
         /// <summary>
         /// A delegate for the <see cref="specialInvoke"/> method.
         /// </summary>
-        public SpecialInvoke specialInvokeDelegate => m_specialInvokeDelegate;
+        public SpecialInvoke? specialInvokeDelegate => m_specialInvokeDelegate;
 
         /// <summary>
         /// A delegate for the <see cref="specialConstruct"/> method.
         /// </summary>
-        public SpecialInvoke specialConstructDelegate => m_specialConstructDelegate;
+        public SpecialInvoke? specialConstructDelegate => m_specialConstructDelegate;
 
         /// <summary>
         /// An <see cref="IndexProperty"/> describing any custom behaviour for an instance
         /// of the class on a property lookup with an integer key. Null if there is no special
         /// behaviour.
         /// </summary>
-        public IndexProperty intIndexProperty => m_intIndexProperty;
+        public IndexProperty? intIndexProperty => m_intIndexProperty;
 
         /// <summary>
         /// An <see cref="IndexProperty"/> describing any custom behaviour for an instance
         /// of the class on a property lookup with an unsigned integer key. Null if there is no special
         /// behaviour.
         /// </summary>
-        public IndexProperty uintIndexProperty => m_uintIndexProperty;
+        public IndexProperty? uintIndexProperty => m_uintIndexProperty;
 
         /// <summary>
         /// An <see cref="IndexProperty"/> describing any custom behaviour for an instance
         /// of the class on a property lookup with a Number key. Null if there is no special
         /// behaviour.
         /// </summary>
-        public IndexProperty numberIndexProperty => m_numberIndexProperty;
+        public IndexProperty? numberIndexProperty => m_numberIndexProperty;
 
         public ClassSpecials(
-            MethodInfo specialInvoke, MethodInfo specialConstruct,
-            IndexProperty intIndexProperty, IndexProperty uintIndexProperty, IndexProperty numberIndexProperty)
-        {
+            MethodInfo? specialInvoke,
+            MethodInfo? specialConstruct,
+            IndexProperty? intIndexProperty,
+            IndexProperty? uintIndexProperty,
+            IndexProperty? numberIndexProperty
+        ) {
             m_specialInvoke = specialInvoke;
             m_specialConstruct = specialConstruct;
             m_intIndexProperty = intIndexProperty;
@@ -93,7 +96,7 @@ namespace Mariana.AVM2.Core {
         /// (any inherited properties will be added to it), otherwise returns a <see cref="ClassSpecials"/>
         /// containing the properties that the child class should inherit from the parent (which
         /// may be null, if the child class does not inherit anything).</returns>
-        public static ClassSpecials mergeWithParent(ClassSpecials child, ClassSpecials parent) {
+        public static ClassSpecials? mergeWithParent(ClassSpecials? child, ClassSpecials? parent) {
             if (parent == null)
                 return child;
 

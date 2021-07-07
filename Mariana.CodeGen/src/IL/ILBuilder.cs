@@ -1814,7 +1814,7 @@ namespace Mariana.CodeGen.IL {
         /// <remarks>
         /// Only the ldstr instruction can be emitted using this overload of the emit method.
         /// </remarks>
-        public void emit(ILOp opcode, string arg) {
+        public void emit(ILOp opcode, string? arg) {
             if (opcode != ILOp.ldstr)
                 throw new ArgumentException("Opcode '" + opcode + "' cannot be used with a string argument.", nameof(opcode));
 

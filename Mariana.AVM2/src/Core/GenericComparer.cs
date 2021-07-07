@@ -154,7 +154,7 @@ namespace Mariana.AVM2.Core {
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(compareFunc));
 
             if (createDelegateComparer) {
-                Comparison<T> del = compareFunc.createDelegate<Comparison<T>>();
+                Comparison<T>? del = compareFunc.createDelegate<Comparison<T>>();
                 if (del != null)
                     return new InternalGenericComparers.Delegate<T>(del);
             }
@@ -655,7 +655,7 @@ namespace Mariana.AVM2.Core {
 
             public override int indexOf(ReadOnlySpan<ASAny> span, ASAny item) {
                 if (item.isUndefinedOrNull
-                    || !ClassTagSet.specialStrictEquality.contains(item.AS_class.tag))
+                    || !ClassTagSet.specialStrictEquality.contains(item.AS_class!.tag))
                 {
                     for (int i = 0; i < span.Length; i++) {
                         if (span[i] == item)
@@ -672,7 +672,7 @@ namespace Mariana.AVM2.Core {
                 else if (item.value is ASString) {
                     string itemVal = (string)item.value;
                     for (int i = 0; i < span.Length; i++) {
-                        if (span[i].value is ASString && (string)span[i] == itemVal)
+                        if (span[i].value is ASString && (string?)span[i] == itemVal)
                             return i;
                     }
                 }
@@ -687,7 +687,7 @@ namespace Mariana.AVM2.Core {
 
             public override int lastIndexOf(ReadOnlySpan<ASAny> span, ASAny item) {
                 if (item.isUndefinedOrNull
-                    || !ClassTagSet.specialStrictEquality.contains(item.AS_class.tag))
+                    || !ClassTagSet.specialStrictEquality.contains(item.AS_class!.tag))
                 {
                     for (int i = span.Length - 1; i >= 0; i--) {
                         if (span[i] == item)
@@ -704,7 +704,7 @@ namespace Mariana.AVM2.Core {
                 else if (item.value is ASString) {
                     string itemVal = (string)item.value;
                     for (int i = span.Length - 1; i >= 0; i--) {
-                        if (span[i].value is ASString && (string)span[i] == itemVal)
+                        if (span[i].value is ASString && (string?)span[i] == itemVal)
                             return i;
                     }
                 }
@@ -738,9 +738,7 @@ namespace Mariana.AVM2.Core {
 
             private readonly Comparison<T> m_delegate;
 
-            internal Delegate(Comparison<T> del) {
-                m_delegate = del;
-            }
+            internal Delegate(Comparison<T> del) => m_delegate = del;
 
             public override bool Equals(T x, T y) => m_delegate(x, y) == 0;
             public override int Compare(T x, T y) => m_delegate(x, y);

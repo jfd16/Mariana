@@ -12,9 +12,9 @@ namespace Mariana.AVM2.ABC {
 
         private ABCMultiname[] m_paramTypeNames;
 
-        private string[] m_paramNames;
+        private string?[]? m_paramNames;
 
-        private ASAny[] m_optionals;
+        private ASAny[]? m_paramDefaultValues;
 
         private ABCMultiname m_returnTypeName;
 
@@ -68,7 +68,7 @@ namespace Mariana.AVM2.ABC {
         /// <returns>The name of the parameter at index <paramref name="index"/>, or null if
         /// this method does not define parameter names.</returns>
         /// <param name="index">The zero-based index of the parameter.</param>
-        public string getParamName(int index) {
+        public string? getParamName(int index) {
             if (m_paramNames == null)
                 return null;
 
@@ -87,10 +87,10 @@ namespace Mariana.AVM2.ABC {
             if ((uint)index >= (uint)m_paramTypeNames.Length)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_OUT_OF_RANGE, nameof(index));
 
-            if (m_optionals == null)
+            if (m_paramDefaultValues == null)
                 return false;
 
-            return index >= m_paramTypeNames.Length - m_optionals.Length;
+            return index >= m_paramTypeNames.Length - m_paramDefaultValues.Length;
         }
 
         /// <summary>
@@ -104,24 +104,29 @@ namespace Mariana.AVM2.ABC {
             if ((uint)index >= (uint)m_paramTypeNames.Length)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_OUT_OF_RANGE, nameof(index));
 
-            if (m_optionals == null)
+            if (m_paramDefaultValues == null)
                 return ASAny.undefined;
 
-            int optIndex = index - (m_paramTypeNames.Length - m_optionals.Length);
+            int optIndex = index - (m_paramTypeNames.Length - m_paramDefaultValues.Length);
             if (optIndex < 0)
                 return ASAny.undefined;
 
-            return m_optionals[optIndex];
+            return m_paramDefaultValues[optIndex];
         }
 
         internal ABCMethodInfo(
-            int abcIndex, ABCMultiname returnTypeName, string methodName, ABCMethodFlags flags,
-            ABCMultiname[] paramTypeNames, string[] paramNames, ASAny[] optionals)
-        {
+            int abcIndex,
+            ABCMultiname returnTypeName,
+            string methodName,
+            ABCMethodFlags flags,
+            ABCMultiname[] paramTypeNames,
+            string?[]? paramNames,
+            ASAny[]? paramDefaultValues
+        ) {
             m_abcIndex = abcIndex;
             m_paramTypeNames = paramTypeNames;
             m_paramNames = paramNames;
-            m_optionals = optionals;
+            m_paramDefaultValues = paramDefaultValues;
             m_returnTypeName = returnTypeName;
             m_methodName = methodName;
             m_flags = flags;

@@ -12,7 +12,7 @@ namespace Mariana.AVM2.Core {
 
         private LazyInitObject<Class> m_lazyVectorClass;
 
-        internal Class(in QName name, Class declClass, ApplicationDomain appDomain, ClassTag tag = ClassTag.OBJECT)
+        internal Class(in QName name, Class? declClass, ApplicationDomain appDomain, ClassTag tag = ClassTag.OBJECT)
             : base(name, declClass, appDomain, isStatic: true)
         {
             m_tag = tag;
@@ -32,7 +32,7 @@ namespace Mariana.AVM2.Core {
         /// <see cref="Int32"/> type in case of the <c>int</c> class). If
         /// <paramref name="klass"/> is null, the <see cref="ASAny"/> type is returned.
         /// </returns>
-        public static Type getUnderlyingOrPrimitiveType(Class klass) {
+        public static Type getUnderlyingOrPrimitiveType(Class? klass) {
             if (klass == null)
                 return typeof(ASAny);
 
@@ -69,7 +69,7 @@ namespace Mariana.AVM2.Core {
         /// </item>
         /// </list>
         /// </exception>
-        public static Class fromType(Type type, bool throwIfNotExists = false) {
+        public static Class? fromType(Type type, bool throwIfNotExists = false) {
             if (type == null)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(type));
 
@@ -78,12 +78,17 @@ namespace Mariana.AVM2.Core {
 
             CoreClasses.ensureClassesLoaded();
 
-            Class klass = ClassTypeMap.getClass(type);
+            Class? klass = ClassTypeMap.getClass(type);
             if (klass != null)
                 return klass;
 
-            if (type.IsConstructedGenericType && type.GetGenericTypeDefinition() == typeof(ASVector<>))
-                klass = fromType(type.GetGenericArguments()[0]).getVectorClass();
+            if (type.IsConstructedGenericType && type.GetGenericTypeDefinition() == typeof(ASVector<>)) {
+                Class? elementClass = fromType(type.GetGenericArguments()[0]);
+                if (elementClass == null)
+                    throw ErrorHelper.createError(ErrorCode.MARIANA__NATIVE_CLASS_LOAD_VECTOR_ANY);
+
+                klass = elementClass.getVectorClass();
+            }
 
             if (klass == null && throwIfNotExists)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__NO_CLASS_WITH_UNDERLYING_TYPE, ReflectUtil.getFullTypeName(type));
@@ -114,13 +119,12 @@ namespace Mariana.AVM2.Core {
         /// </item>
         /// </list>
         /// </exception>
-        public static Class fromType<T>(bool throwIfNotExists = false) => fromType(typeof(T), throwIfNotExists);
+        public static Class? fromType<T>(bool throwIfNotExists = false) => fromType(typeof(T), throwIfNotExists);
 
         /// <summary>
-        /// Returns the implementation of an alias class.
+        /// Returns the <see cref="ClassImpl"/> that represents this class.
         /// </summary>
-        /// <returns>The implementation of an alias class. If this is not an alias class, this instance
-        /// itself is returned.</returns>
+        /// <returns>The <see cref="ClassImpl"/> that represents this class.</returns>
         internal abstract ClassImpl getClassImpl();
 
         /// <inheritdoc/>
@@ -130,6 +134,15 @@ namespace Mariana.AVM2.Core {
         /// Gets the underlying .NET type of the class.
         /// </summary>
         public virtual Type underlyingType => getClassImpl().underlyingType;
+
+        /// <summary>
+        /// Returns a value indicating whether this class uses the given .NET type as its
+        /// underlying type.
+        /// </summary>
+        /// <param name="type">A <see cref="Type"/> instance.</param>
+        /// <returns>True if the underlying type of this class is <paramref name="type"/>, otherwise
+        /// false.</returns>
+        public virtual bool hasUnderlyingType(Type type) => getClassImpl().hasUnderlyingType(type);
 
         /// <summary>
         /// Gets a Boolean value indicating whether the class is an interface.
@@ -159,7 +172,7 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Gets the base class of the class.
         /// </summary>
-        public virtual Class parent => getClassImpl().parent;
+        public virtual Class? parent => getClassImpl().parent;
 
         /// <summary>
         /// Gets a value indicating whether this <see cref="Class"/> instance represents the
@@ -189,7 +202,7 @@ namespace Mariana.AVM2.Core {
         /// <c>String</c>. These classes, however, can still be constructed by calling methods
         /// such as <see cref="tryConstruct"/> on the respective <see cref="Class"/> instance.
         /// </remarks>
-        public virtual ClassConstructor constructor => getClassImpl().constructor;
+        public virtual ClassConstructor? constructor => getClassImpl().constructor;
 
         /// <summary>
         /// Gets the prototype object for this class.
@@ -217,14 +230,14 @@ namespace Mariana.AVM2.Core {
         /// Gets the element type, if this <see cref="Class"/> object represents an instantiation of
         /// the AS3 Vector class. For any other class, the value of this property is null.
         /// </summary>
-        public virtual Class vectorElementType => getClassImpl().vectorElementType;
+        public virtual Class? vectorElementType => getClassImpl().vectorElementType;
 
         /// <summary>
         /// Gets a <see cref="ClassSpecials"/> instance containing certain special properties
         /// of the class used internally by the AVM2 runtime (such as for array indexing).
         /// For classes without special internal properties, returns null.
         /// </summary>
-        internal virtual ClassSpecials classSpecials => getClassImpl().classSpecials;
+        internal virtual ClassSpecials? classSpecials => getClassImpl().classSpecials;
 
         /// <summary>
         /// Gets an array containing the interfaces implemented by a class or extended by an
@@ -245,9 +258,20 @@ namespace Mariana.AVM2.Core {
         /// <param name="klass">The type of the variable that an instance of this class is to be
         /// assigned to. If this is null, this method always returns true as null represents the "any"
         /// type which can be assigned from any other type.</param>
+        ///
         /// <returns>True if an instance of this class can be assigned to a variable of type
         /// <paramref name="klass"/>, otherwise false.</returns>
-        public virtual bool canAssignTo(Class klass) => getClassImpl().canAssignTo(klass);
+        public virtual bool canAssignTo(Class? klass) => getClassImpl().canAssignTo(klass);
+
+        /// <summary>
+        /// Gets a Boolean value indicating whether the given object is an instance of this class.
+        /// </summary>
+        /// <param name="obj">An object.</param>
+        ///
+        /// <returns>True if <paramref name="obj"/> is not null and it is an instance of this
+        /// class (or a subclass of it). If this class is an interface, returns true if the
+        /// class of <paramref name="obj"/> implements the interface.</returns>
+        public virtual bool isInstance(ASObject? obj) => getClassImpl().isInstance(obj);
 
         /// <summary>
         /// Returns the <see cref="Class"/> object representing the instantiation of the Vector
@@ -291,7 +315,7 @@ namespace Mariana.AVM2.Core {
         /// This method searches the instance traits first, and then the static traits. So it both an
         /// instance trait and a static trait have the same name, the instance trait will be returned.
         /// </remarks>
-        public virtual Trait getTrait(in QName name) => getClassImpl().getTrait(name);
+        public virtual Trait? getTrait(in QName name) => getClassImpl().getTrait(name);
 
         /// <summary>
         /// Gets the <see cref="Trait"/> object representing the trait in the class with the given
@@ -321,7 +345,7 @@ namespace Mariana.AVM2.Core {
         /// If <paramref name="scopes"/> has both the INSTANCE and STATIC fields set, and an instance
         /// trait and a static trait have the same name, the instance trait will be returned.
         /// </remarks>
-        public virtual Trait getTrait(in QName name, TraitType kinds, TraitScope scopes = TraitScope.ALL)
+        public virtual Trait? getTrait(in QName name, TraitType kinds, TraitScope scopes = TraitScope.ALL)
             => getClassImpl().getTrait(name, kinds, scopes);
 
         /// <summary>
@@ -347,7 +371,7 @@ namespace Mariana.AVM2.Core {
         /// This method searches the instance traits first, and then the static traits. So if an
         /// instance trait and a static trait have the same name, the instance trait will be returned.
         /// </remarks>
-        public FieldTrait getField(in QName name) => getTrait(name) as FieldTrait;
+        public FieldTrait? getField(in QName name) => getTrait(name) as FieldTrait;
 
         /// <summary>
         /// Gets the <see cref="FieldTrait"/> object representing the field in the class with the
@@ -375,7 +399,7 @@ namespace Mariana.AVM2.Core {
         /// instance trait and a static trait have the same name and <paramref name="scopes"/>
         /// contains both instance and static scopes, the instance trait will be returned.
         /// </remarks>
-        public FieldTrait getField(in QName name, TraitScope scopes) => getTrait(name, TraitType.FIELD, scopes) as FieldTrait;
+        public FieldTrait? getField(in QName name, TraitScope scopes) => getTrait(name, TraitType.FIELD, scopes) as FieldTrait;
 
         /// <summary>
         /// Gets the <see cref="MethodTrait"/> object representing the method in the class with the
@@ -400,7 +424,7 @@ namespace Mariana.AVM2.Core {
         /// This method searches the instance traits first, and then the static traits. So if an
         /// instance trait and a static trait have the same name, the instance trait will be returned.
         /// </remarks>
-        public MethodTrait getMethod(in QName name) => getTrait(name) as MethodTrait;
+        public MethodTrait? getMethod(in QName name) => getTrait(name) as MethodTrait;
 
         /// <summary>
         /// Gets the <see cref="MethodTrait"/> object representing the method in the class with the
@@ -428,7 +452,7 @@ namespace Mariana.AVM2.Core {
         /// instance trait and a static trait have the same name and <paramref name="scopes"/>
         /// contains both instance and static scopes, the instance trait will be returned.
         /// </remarks>
-        public MethodTrait getMethod(in QName name, TraitScope scopes) => getTrait(name, TraitType.METHOD, scopes) as MethodTrait;
+        public MethodTrait? getMethod(in QName name, TraitScope scopes) => getTrait(name, TraitType.METHOD, scopes) as MethodTrait;
 
         /// <summary>
         /// Gets the <see cref="PropertyTrait"/> object representing the property in the class with
@@ -453,7 +477,7 @@ namespace Mariana.AVM2.Core {
         /// This method searches the instance traits first, and then the static traits. So if an
         /// instance trait and a static trait have the same name, the instance trait will be returned.
         /// </remarks>
-        public PropertyTrait getProperty(in QName name) => getTrait(name) as PropertyTrait;
+        public PropertyTrait? getProperty(in QName name) => getTrait(name) as PropertyTrait;
 
         /// <summary>
         /// Gets the <see cref="PropertyTrait"/> object representing the property in the class with
@@ -481,7 +505,7 @@ namespace Mariana.AVM2.Core {
         /// instance trait and a static trait have the same name and <paramref name="scopes"/>
         /// contains both instance and static scopes, the instance trait will be returned.
         /// </remarks>
-        public PropertyTrait getProperty(in QName name, TraitScope scopes) => getTrait(name, TraitType.PROPERTY, scopes) as PropertyTrait;
+        public PropertyTrait? getProperty(in QName name, TraitScope scopes) => getTrait(name, TraitType.PROPERTY, scopes) as PropertyTrait;
 
         /// <summary>
         /// Gets the <see cref="ConstantTrait"/> object representing the constant in the class with
@@ -501,7 +525,7 @@ namespace Mariana.AVM2.Core {
         /// </item>
         /// </list>
         /// </exception>
-        public ConstantTrait getConstant(in QName name) =>
+        public ConstantTrait? getConstant(in QName name) =>
             getTrait(name, TraitType.CONSTANT, TraitScope.STATIC) as ConstantTrait;
 
         /// <summary>
@@ -534,7 +558,7 @@ namespace Mariana.AVM2.Core {
         /// them is returned (which one is unspecified). If no trait passed to the filter function
         /// returns true, this method returns null.
         /// </remarks>
-        public virtual Trait getTraitByFilter(Predicate<Trait> filter) => getClassImpl().getTraitByFilter(filter);
+        public virtual Trait? getTraitByFilter(Predicate<Trait> filter) => getClassImpl().getTraitByFilter(filter);
 
         /// <summary>
         /// Gets all the traits in the class.
@@ -606,7 +630,7 @@ namespace Mariana.AVM2.Core {
         /// this argument.</param>
         ///
         /// <returns>A <see cref="BindStatus"/> indicating the result of the lookup.</returns>
-        public virtual BindStatus lookupTrait(in QName name, bool isStatic, out Trait trait)
+        public virtual BindStatus lookupTrait(in QName name, bool isStatic, out Trait? trait)
             => getClassImpl().lookupTrait(name, isStatic, out trait);
 
         /// <summary>
@@ -621,7 +645,7 @@ namespace Mariana.AVM2.Core {
         /// this argument.</param>
         ///
         /// <returns>A <see cref="BindStatus"/> indicating the result of the lookup.</returns>
-        public virtual BindStatus lookupTrait(string name, in NamespaceSet nsSet, bool isStatic, out Trait trait)
+        public virtual BindStatus lookupTrait(string name, in NamespaceSet nsSet, bool isStatic, out Trait? trait)
             => getClassImpl().lookupTrait(name, nsSet, isStatic, out trait);
 
         /// <summary>

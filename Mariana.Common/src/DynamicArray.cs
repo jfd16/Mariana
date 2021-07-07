@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 namespace Mariana.Common {
@@ -378,7 +379,12 @@ namespace Mariana.Common {
         /// <para>If <paramref name="index"/> is out of bounds, this indexer may or may not throw
         /// an exception.</para>
         /// </remarks>
-        public readonly ref T this[int index] => ref m_array![index];
+        public readonly ref T this[int index] {
+            get {
+                Debug.Assert((uint)index < (uint)m_length);
+                return ref m_array![index];
+            }
+        }
 
         /// <summary>
         /// The current size of the array.

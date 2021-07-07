@@ -54,13 +54,13 @@ namespace Mariana.Common {
         /// <exception cref="ArgumentException">The signature of <paramref name="method"/> is not
         /// compatible with the delegate type <typeparamref name="T"/>, and <paramref name="throwOnFail"/>
         /// is true.</exception>
-        public static T makeDelegate<T>(
+        public static T? makeDelegate<T>(
             MethodInfo method, object? target = null, bool throwOnFail = false) where T : Delegate
         {
             if (target == null)
-                return (T)Delegate.CreateDelegate(typeof(T), method, throwOnFail);
+                return (T?)Delegate.CreateDelegate(typeof(T), method, throwOnFail);
 
-            return (T)Delegate.CreateDelegate(typeof(T), target, method, throwOnFail);
+            return (T?)Delegate.CreateDelegate(typeof(T), target, method, throwOnFail);
         }
 
         /// <summary>

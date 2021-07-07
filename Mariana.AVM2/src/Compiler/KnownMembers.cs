@@ -97,7 +97,7 @@ namespace Mariana.AVM2.Compiler {
             getMemberFromExpr<Func<ASObject, string>, MI>(x => ASObject.AS_convertString(x));
 
         public static readonly MI anyToStringCoerce =
-            getMemberFromExpr<Func<ASAny, string>, MI>(x => ASAny.AS_coerceString(x));
+            getMemberFromExpr<Func<ASAny, string>, MI>(x => ASAny.AS_coerceString(x)!);
 
         public static readonly MI anyToStringConvert =
             getMemberFromExpr<Func<ASAny, string>, MI>(x => ASAny.AS_convertString(x));
@@ -130,7 +130,7 @@ namespace Mariana.AVM2.Compiler {
             getMemberFromExpr<Func<string, ASObject>, MI>(x => x);
 
         public static readonly MI anyGetObject =
-            getMemberFromExpr<Func<ASAny, ASObject>, PI>(x => x.value).GetGetMethod();
+            getMemberFromExpr<Func<ASAny, ASObject>, PI>(x => x.value!).GetGetMethod();
 
         public static readonly MI anyGetIsDefined =
             getMemberFromExpr<Func<ASAny, bool>, PI>(x => x.isDefined).GetGetMethod();
@@ -139,7 +139,7 @@ namespace Mariana.AVM2.Compiler {
             getMemberFromExpr<Func<ASObject, ASObject>, MI>(x => ASObject.AS_cast<ASObject>(x), stripTypeArgs: true);
 
         public static readonly MI anyCast =
-            getMemberFromExpr<Func<ASAny, ASObject>, MI>(x => ASAny.AS_cast<ASObject>(x), stripTypeArgs: true);
+            getMemberFromExpr<Func<ASAny, ASObject>, MI>(x => ASAny.AS_cast<ASObject>(x)!, stripTypeArgs: true);
 
         #endregion
 
@@ -224,7 +224,7 @@ namespace Mariana.AVM2.Compiler {
             getMemberFromExpr<Func<ASObject, ASObject, bool>, MI>((x, y) => ASObject.AS_isType(x, y));
 
         public static readonly MI objAsType =
-            getMemberFromExpr<Func<ASObject, ASObject, ASObject>, MI>((x, y) => ASObject.AS_asType(x, y));
+            getMemberFromExpr<Func<ASObject, ASObject, ASObject>, MI>((x, y) => ASObject.AS_asType(x, y)!);
 
         public static readonly MI objIsInt =
             getMemberFromExpr<Func<ASObject, bool>, MI>(x => ASObject.AS_isInt(x));
@@ -535,7 +535,7 @@ namespace Mariana.AVM2.Compiler {
             getMemberFromExpr<Func<string, string, ASNamespace>, CI>((p, u) => new ASNamespace(p, u));
 
         public static readonly MI xmlNsFromQname =
-            getMemberFromExpr<Func<ASQName, ASNamespace>, MI>(q => q.getNamespace());
+            getMemberFromExpr<Func<ASQName, ASNamespace>, MI>(q => q.getNamespace()!);
 
         public static readonly CI xmlQnameCtorFromLocalName =
             getMemberFromExpr<Func<string, ASQName>, CI>(s => new ASQName(s));
@@ -707,22 +707,22 @@ namespace Mariana.AVM2.Compiler {
 
         public static readonly MI rtScopeStackFindQname =
             getMemberFromExpr<Func<RuntimeScopeStack, QName, int, bool, bool, ASObject>, MI>(
-                (scope, q, start, attr, strict) => scope.findProperty(q, start, attr, strict)
+                (scope, q, start, attr, strict) => scope.findProperty(q, start, attr, strict)!
             );
 
         public static readonly MI rtScopeStackFindNsSet =
             getMemberFromExpr<Func<RuntimeScopeStack, string, NamespaceSet, int, bool, bool, ASObject>, MI>(
-                (scope, name, ns, start, attr, strict) => scope.findProperty(name, ns, start, attr, strict)
+                (scope, name, ns, start, attr, strict) => scope.findProperty(name, ns, start, attr, strict)!
             );
 
         public static readonly MI rtScopeStackFindKey =
             getMemberFromExpr<Func<RuntimeScopeStack, ASAny, int, bool, bool, ASObject>, MI>(
-                (scope, k, start, attr, strict) => scope.findPropertyObj(k, start, attr, strict)
+                (scope, k, start, attr, strict) => scope.findPropertyObj(k, start, attr, strict)!
             );
 
         public static readonly MI rtScopeStackFindKeyNsSet =
             getMemberFromExpr<Func<RuntimeScopeStack, string, NamespaceSet, int, bool, bool, ASObject>, MI>(
-                (scope, k, ns, start, attr, strict) => scope.findPropertyObj(k, ns, start, attr, strict)
+                (scope, k, ns, start, attr, strict) => scope.findPropertyObj(k, ns, start, attr, strict)!
             );
 
         public static readonly MI rtScopeStackGetQname =
@@ -746,7 +746,7 @@ namespace Mariana.AVM2.Compiler {
             );
 
         public static readonly MI getObjectDynamicPropCollection =
-            getMemberFromExpr<Func<ASObject, DynamicPropertyCollection>, PI>(obj => obj.AS_dynamicProps).GetMethod;
+            getMemberFromExpr<Func<ASObject, DynamicPropertyCollection>, PI>(obj => obj.AS_dynamicProps!).GetMethod;
 
         public static readonly MI dynamicPropCollectionSet =
             getMemberFromExpr<Action<DynamicPropertyCollection, string, ASAny, bool>, MI>(
@@ -763,13 +763,13 @@ namespace Mariana.AVM2.Compiler {
             getMemberFromExpr<Func<MethodTrait, object, ASFunction>, MI>((m, s) => m.createFunctionClosure(s));
 
         public static readonly FI scopedClosureReceiverObj =
-            getMemberFromExpr<Func<ScopedClosureReceiver, ASObject>, FI>(x => x.receiver);
+            getMemberFromExpr<Func<ScopedClosureReceiver, ASObject>, FI>(x => x.receiver!);
 
         public static readonly FI scopedClosureReceiverScope =
             getMemberFromExpr<Func<ScopedClosureReceiver, object>, FI>(x => x.scope);
 
         public static readonly FI scopedClosureReceiverCallee =
-            getMemberFromExpr<Func<ScopedClosureReceiver, ASFunction>, FI>(x => x.callee);
+            getMemberFromExpr<Func<ScopedClosureReceiver, ASFunction>, FI>(x => x.callee!);
 
         public static readonly CI newException =
             getMemberFromExpr<Func<ASAny, AVM2Exception>, CI>(x => new AVM2Exception(x));

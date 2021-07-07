@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Reflection;
 using Mariana.AVM2.Native;
 using Mariana.Common;
@@ -11,7 +12,7 @@ namespace Mariana.AVM2.Core {
     /// </summary>
     public class MethodTrait : Trait {
 
-        private MethodInfo m_underlyingMethodInfo;
+        private MethodInfo? m_underlyingMethodInfo;
 
         private bool m_hasReturn;
 
@@ -25,13 +26,13 @@ namespace Mariana.AVM2.Core {
 
         private int m_requiredArgCount;
 
-        private Class m_returnType;
+        private Class? m_returnType;
 
-        private MethodTraitParameter[] m_params;
+        private MethodTraitParameter[]? m_params;
 
         private LazyInitObject<RuntimeDispatch.MethodStub> m_lazyRuntimeDispatch;
 
-        protected private MethodTrait(in QName name, Class declaringClass, ApplicationDomain appDomain, bool isStatic)
+        protected private MethodTrait(in QName name, Class? declaringClass, ApplicationDomain appDomain, bool isStatic)
             : base(name, declaringClass, appDomain, isStatic)
         {
             m_lazyRuntimeDispatch = new LazyInitObject<RuntimeDispatch.MethodStub>(
@@ -45,7 +46,19 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Gets the underlying <see cref="MethodInfo"/> of this method trait.
         /// </summary>
-        public MethodInfo underlyingMethodInfo => m_underlyingMethodInfo;
+        public MethodInfo underlyingMethodInfo {
+            get {
+                Debug.Assert(m_underlyingMethodInfo != null);
+                return m_underlyingMethodInfo!;
+            }
+        }
+
+        /// <summary>
+        /// Checks if this <see cref="MethodTrait"/> has an underlying <see cref="MethodInfo"/>
+        /// available. This is used internally by the compiler to represent methods that
+        /// are being compiled.
+        /// </summary>
+        internal bool isUnderlyingMethodInfoAvailable => m_underlyingMethodInfo != null;
 
         /// <summary>
         /// Gets a Boolean value indicating whether this method has a return value.
@@ -57,14 +70,14 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <value>The return type of the method. If this method does not return a value, the
         /// value of this property is null.</value>
-        public Class returnType => m_returnType;
+        public Class? returnType => m_returnType;
 
         /// <summary>
         /// Gets a Boolean value indicating whether this method is final (cannot be overridden).
         /// </summary>
         public virtual bool isFinal {
             get {
-                var attrs = m_underlyingMethodInfo.Attributes;
+                var attrs = m_underlyingMethodInfo!.Attributes;
                 return (attrs & (MethodAttributes.Final | MethodAttributes.Virtual)) != MethodAttributes.Virtual;
             }
         }
@@ -83,7 +96,7 @@ namespace Mariana.AVM2.Core {
         /// Gets the number of formal parameters (required and optional) declared by this method,
         /// excluding the "rest" parameter (if any).
         /// </summary>
-        public int paramCount => m_params.Length;
+        public int paramCount => m_params!.Length;
 
         /// <summary>
         /// Gets the number of required formal parameters declared by this method.
@@ -125,7 +138,7 @@ namespace Mariana.AVM2.Core {
         /// representing the method's formal parameters.</param>
         /// <param name="hasRest">True if the method accepts a "rest" parameter.</param>
         protected private void setSignature(
-            bool hasReturn, Class returnType, MethodTraitParameter[] parameters, bool hasRest)
+            bool hasReturn, Class? returnType, MethodTraitParameter[] parameters, bool hasRest)
         {
             m_hasReturn = hasReturn;
             m_returnType = returnType;
@@ -146,8 +159,10 @@ namespace Mariana.AVM2.Core {
             m_hasAllParamsUntyped = areAllParamsUntyped;
             m_requiredArgCount = requiredArgCount;
 
-            m_hasScope = isStatic && m_params.Length > 0
-                && m_params[0].type?.underlyingType == typeof(ScopedClosureReceiver);
+            if (isStatic && m_params.Length > 0) {
+                var firstParam = m_params[0];
+                m_hasScope = firstParam.type != null && firstParam.type.hasUnderlyingType(typeof(ScopedClosureReceiver));
+            }
         }
 
         /// <summary>
@@ -205,7 +220,7 @@ namespace Mariana.AVM2.Core {
             if (target.isUndefined && !isStatic)
                 throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
 
-            if (args.Length < m_requiredArgCount || (!m_hasRest && args.Length > m_params.Length))
+            if (args.Length < m_requiredArgCount || (!m_hasRest && args.Length > m_params!.Length))
                 throw ErrorHelper.createArgCountMismatchError(this, args.Length);
 
             result = m_lazyRuntimeDispatch.value(target, args);
@@ -259,7 +274,7 @@ namespace Mariana.AVM2.Core {
         /// </item>
         /// </list>
         /// </exception>
-        public TDelegate createDelegate<TDelegate>(ASObject receiver = null, ASObject scope = null) where TDelegate : Delegate {
+        public TDelegate? createDelegate<TDelegate>(ASObject? receiver = null, ASObject? scope = null) where TDelegate : Delegate {
             if (m_hasScope) {
                 if (scope == null)
                     throw ErrorHelper.createError(ErrorCode.MARIANA__METHOD_SCOPE_ARG_REQUIRED, name.ToString());
@@ -293,7 +308,7 @@ namespace Mariana.AVM2.Core {
         /// </item>
         /// </list>
         /// </exception>
-        public ASFunction createMethodClosure(ASObject receiver = null) {
+        public ASFunction createMethodClosure(ASObject? receiver = null) {
             if (m_hasScope)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__METHOD_CLOSURE_SCOPE_ARG, name.ToString());
             if (!isStatic && receiver == null)
@@ -323,7 +338,7 @@ namespace Mariana.AVM2.Core {
         /// of the scope argument accepted by the method, an invalid cast exception will be thrown
         /// when the method is called.</para>
         /// </remarks>
-        public ASFunction createFunctionClosure(object scope = null) {
+        public ASFunction createFunctionClosure(object? scope = null) {
             if (m_hasScope && scope == null)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__METHOD_SCOPE_ARG_REQUIRED, name.ToString());
 
@@ -348,7 +363,7 @@ namespace Mariana.AVM2.Core {
             sb.Append(name.ToString());
 
             sb.Append('(');
-            MethodTraitParameter.paramListToString(m_params, sb);
+            MethodTraitParameter.paramListToString(m_params!, sb);
 
             if (hasRest) {
                 if (paramCount != 0)

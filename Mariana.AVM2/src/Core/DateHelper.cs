@@ -20,7 +20,7 @@ namespace Mariana.AVM2.Core {
 
         private static int s_baseTimezoneOffset = checked((int)TimeZoneInfo.Local.BaseUtcOffset.TotalMilliseconds);
 
-        private static DSTRule[] s_daylightRules = _importRulesFromCurrentTimeZone();
+        private static DSTRule[]? s_daylightRules = _importRulesFromCurrentTimeZone();
 
         public const int MS_PER_SEC = 1000;
         public const int MS_PER_MIN = MS_PER_SEC * 60;
@@ -353,7 +353,7 @@ namespace Mariana.AVM2.Core {
         /// <returns>A <see cref="DSTRule"/> representing the rule applicable to
         /// the time represented by <paramref name="localTimestamp"/>, or null if
         /// no daylight savings rule applies.</returns>
-        public static DSTRule getDaylightSavingsRule(long localTimestamp) {
+        public static DSTRule? getDaylightSavingsRule(long localTimestamp) {
             if (s_daylightRules == null)
                 return null;
 
@@ -489,7 +489,7 @@ namespace Mariana.AVM2.Core {
         /// Creates the daylight savings rules from the current local time zone.
         /// </summary>
         /// <returns>An array of <see cref="DSTRule"/> instances.</returns>
-        private static DSTRule[] _importRulesFromCurrentTimeZone() {
+        private static DSTRule[]? _importRulesFromCurrentTimeZone() {
             var tzInfo = TimeZoneInfo.Local;
             if (!tzInfo.SupportsDaylightSavingTime)
                 return null;

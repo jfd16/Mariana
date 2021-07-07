@@ -225,7 +225,7 @@ namespace Mariana.Common {
         /// </para>
         /// </remarks>
         public static T[] volatileEnsureArraySize<T>(ref T[]? array, int minLength) {
-            if (minLength < 0)
+            if (minLength <= 0)
                 throw new ArgumentOutOfRangeException(nameof(minLength));
 
             T[]? currentArray = Volatile.Read(ref array);
@@ -289,7 +289,7 @@ namespace Mariana.Common {
         /// starts at the same location as <paramref name="span"/>.</returns>
         /// <param name="span">The span to be compacted.</param>
         /// <typeparam name="T">The element type of the span. This must be a class type.</typeparam>
-        public static Span<T> compactNulls<T>(Span<T> span) where T : class {
+        public static Span<T> compactNulls<T>(Span<T?> span) where T : class {
             int newCount = 0;
 
             for (int i = 0; i < span.Length; i++) {
@@ -301,7 +301,7 @@ namespace Mariana.Common {
             }
 
             span.Slice(newCount).Clear();
-            return span.Slice(0, newCount);
+            return span.Slice(0, newCount)!;
         }
 
         /// <summary>

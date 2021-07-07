@@ -46,7 +46,7 @@ namespace Mariana.AVM2.Core {
             m_flags = 0;
 
             if (span.IsEmpty) {
-                m_namespaces = null;
+                m_namespaces = Array.Empty<Namespace>();
                 return;
             }
 
@@ -103,9 +103,10 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="nsUri">The namespace URI to check.</param>
         /// <returns>True if the namespace set contains a namespace whose URI is <paramref name="nsUri"/>,
-        /// and whose kind is <see cref="NamespaceKind.NAMESPACE"/>, otherwise false.</returns>
-        public bool contains(string nsUri) {
-            if ((m_flags & (1 << (int)NamespaceKind.NAMESPACE)) == 0)
+        /// and whose kind is <see cref="NamespaceKind.NAMESPACE"/>, otherwise false. Returns false if
+        /// <paramref name="nsUri"/> is null.</returns>
+        public bool contains(string? nsUri) {
+            if (nsUri == null || (m_flags & (1 << (int)NamespaceKind.NAMESPACE)) == 0)
                 return false;
 
             var namespaces = m_namespaces;

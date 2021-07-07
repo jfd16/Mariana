@@ -10,7 +10,7 @@ namespace Mariana.AVM2.Core {
 
         private readonly QName m_name;
 
-        private Class m_declaringClass;
+        private Class? m_declaringClass;
 
         private ApplicationDomain m_appDomain;
 
@@ -28,7 +28,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="appDomain">The application domain in which the trait is declared.</param>
         /// <param name="isStatic">Set this to true for static and global traits, and false for
         /// instance traits.</param>
-        internal Trait(in QName name, Class declaringClass, ApplicationDomain appDomain, bool isStatic) {
+        internal Trait(in QName name, Class? declaringClass, ApplicationDomain appDomain, bool isStatic) {
             m_name = name;
             m_declaringClass = declaringClass;
             m_appDomain = appDomain;
@@ -51,7 +51,7 @@ namespace Mariana.AVM2.Core {
         /// <see cref="MethodTrait.createNativeMethod" qualifyHint="true"/>), this value is
         /// null.
         /// </remarks>
-        public Class declaringClass => m_declaringClass;
+        public Class? declaringClass => m_declaringClass;
 
         /// <summary>
         /// A value indicating whether this trait is a static trait (a trait not associated with an
@@ -293,7 +293,7 @@ namespace Mariana.AVM2.Core {
         /// Sets the metadata of this trait.
         /// </summary>
         /// <param name="metadata">A <see cref="MetadataTagCollection"/> containing the metadata of the trait.</param>
-        protected private void setMetadata(MetadataTagCollection metadata) {
+        protected private void setMetadata(MetadataTagCollection? metadata) {
             m_metadata = metadata ?? MetadataTagCollection.empty;
         }
 

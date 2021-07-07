@@ -978,8 +978,8 @@ namespace Mariana.AVM2.Tests {
                 typeof(bool),
                 typeof(ASAny),
                 typeof(ASObject),
-                typeof(ASArrayTest_ClassA),
-                typeof(ASArrayTest_IA),
+                typeof(GenericTypeConvertersTest_CA),
+                typeof(GenericTypeConvertersTest_IA),
             };
 
             for (int i = 0; i < legalTypes.Length; i++) {

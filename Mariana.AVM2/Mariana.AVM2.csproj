@@ -22,7 +22,7 @@
     <WarningLevel>5</WarningLevel>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <NoWarn>8509,8524</NoWarn>
-    <!-- <Nullable>enable</Nullable> -->
+    <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">

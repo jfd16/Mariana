@@ -4,58 +4,64 @@ using System.Runtime.CompilerServices;
 using Mariana.AVM2.Core;
 using Mariana.AVM2.Native;
 using Mariana.AVM2.Tests.Helpers;
+using Mariana.Common;
 using Xunit;
 
 namespace Mariana.AVM2.Tests {
 
     public class ASErrorTest {
 
-        public static IEnumerable<object[]> namePropertyTest_data = TupleHelper.toArrays(
-            (new ASError(), "Error"),
+        internal static ZoneStaticData<ASError> stackTraceTestError = new ZoneStaticData<ASError>();
+
+        public static IEnumerable<object[]> namePropertyTest_noNameProvided_data = TupleHelper.toArrays<ASError, ASAny>(
+            (new ASError(""), "Error"),
             (new ASError("Hello"), "Error"),
             (new ASError("Hello", 123), "Error"),
             (new ASErrorTest_DerivedError(), "Error"),
 
-            (new ASArgumentError(), "ArgumentError"),
-            (new ASDefinitionError(), "DefinitionError"),
-            (new ASEvalError(), "EvalError"),
-            (new ASRangeError(), "RangeError"),
-            (new ASReferenceError(), "ReferenceError"),
-            (new ASSecurityError(), "SecurityError"),
-            (new ASSyntaxError(), "SyntaxError"),
-            (new ASTypeError(), "TypeError"),
-            (new ASURIError(), "URIError"),
-            (new ASVerifyError(), "VerifyError")
+            (new ASArgumentError(""), "ArgumentError"),
+            (new ASDefinitionError(""), "DefinitionError"),
+            (new ASEvalError(""), "EvalError"),
+            (new ASRangeError(""), "RangeError"),
+            (new ASReferenceError(""), "ReferenceError"),
+            (new ASSecurityError(""), "SecurityError"),
+            (new ASSyntaxError(""), "SyntaxError"),
+            (new ASTypeError(""), "TypeError"),
+            (new ASURIError(""), "URIError"),
+            (new ASVerifyError(""), "VerifyError")
         );
 
         [Theory]
-        [MemberData(nameof(namePropertyTest_data))]
-        public void namePropertyTest_noNameProvided(ASError obj, string expectedName) {
+        [MemberData(nameof(namePropertyTest_noNameProvided_data))]
+        public void namePropertyTest_noNameProvided(ASError obj, ASAny expectedName) {
             Assert.Equal(expectedName, obj.name);
         }
 
-        public static IEnumerable<object[]> messagePropertyTest_data = TupleHelper.toArrays(
-            (new ASError(), ""),
+        public static IEnumerable<object[]> messagePropertyTest_data = TupleHelper.toArrays<ASError, ASAny>(
+            (new ASError(""), ""),
             (new ASError("Hello"), "Hello"),
             (new ASErrorTest_DerivedError(), ""),
             (new ASError("Hello", 1234), "Hello"),
-            (new ASError(null), null),
-            (new ASError(null, 1234), null)
+
+            (new ASError(ASAny.@null), ASAny.@null),
+            (new ASError(ASAny.@null, 1234), ASAny.@null),
+            (new ASError(ASAny.undefined), ASAny.undefined),
+            (new ASError(ASAny.undefined, 1234), ASAny.undefined),
+            (new ASError(1344), 1344),
+            (new ASError(true), true)
         );
 
         [Theory]
         [MemberData(nameof(messagePropertyTest_data))]
-        public void messagePropertyTest(ASError obj, string message) {
-            Assert.Equal(message, obj.message);
+        public void messagePropertyTest(ASError obj, ASAny message) {
+            AssertHelper.valueIdentical(message, obj.message);
         }
 
         public static IEnumerable<object[]> errorIDPropertyTest_data = TupleHelper.toArrays(
-            (new ASError(), 0),
+            (new ASError(""), 0),
             (new ASError("Hello"), 0),
             (new ASErrorTest_DerivedError(), 0),
-            (new ASError("Hello", 1234), 1234),
-            (new ASError(null), 0),
-            (new ASError(null, 1234), 1234)
+            (new ASError("Hello", 1234), 1234)
         );
 
         [Theory]
@@ -65,26 +71,34 @@ namespace Mariana.AVM2.Tests {
         }
 
         public static IEnumerable<object[]> toStringMethodTest_data = TupleHelper.toArrays(
-            (new ASError(), "Error"),
-            (new ASError(null), "Error: null"),
+            (new ASError(""), "Error"),
+            (new ASError(ASAny.@null), "Error: null"),
             (new ASError("Hello"), "Error: Hello"),
 
             (new ASError("Hello", 1234), "Error: Hello"),
-            (new ASError(null, 1234), "Error: null"),
+            (new ASError(ASAny.undefined, 1234), "Error: undefined"),
             (new ASError("", 1234), "Error"),
 
-            (new ASError() {name = null}, "null"),
-            (new ASError(null) {name = null}, "null: null"),
-            (new ASError("Hello") {name = null}, "null: Hello"),
+            (new ASError("") {name = ASAny.@null}, "null"),
+            (new ASError(ASAny.@null) {name = ASAny.undefined}, "undefined: null"),
+            (new ASError("Hello") {name = ASAny.@null}, "null: Hello"),
+            (new ASError(ASAny.undefined) {name = 1354.8}, "1354.8: undefined"),
 
-            (new ASError() {name = "Foo"}, "Foo"),
-            (new ASError(null) {name = "Foo"}, "Foo: null"),
+            (new ASError("") {name = "Foo"}, "Foo"),
+            (new ASError(ASAny.@null) {name = "Foo"}, "Foo: null"),
             (new ASError("Hello") {name = "Foo"}, "Foo: Hello"),
+            (new ASError(16533) {name = "Foo"}, "Foo: 16533"),
+
+            (new ASError("") {name = new ConvertibleMockObject(stringValue: "Foo")}, "Foo"),
+            (new ASError(ASAny.@null) {name = new ConvertibleMockObject(stringValue: "Foo")}, "Foo: null"),
+            (new ASError("Hello") {name = new ConvertibleMockObject(stringValue: "Foo")}, "Foo: Hello"),
+            (new ASError(new ConvertibleMockObject(stringValue: "Hello")) {name = new ConvertibleMockObject(stringValue: "Foo")}, "Foo: Hello"),
 
             (new ASErrorTest_DerivedError(), "Error"),
-            (new ASErrorTest_DerivedError() {message = null}, "Error: null"),
+            (new ASErrorTest_DerivedError() {message = ASAny.undefined}, "Error: undefined"),
             (new ASErrorTest_DerivedError() {message = "Hello"}, "Error: Hello"),
-            (new ASErrorTest_DerivedError() {name = "Foo", message = "Hello"}, "Foo: Hello")
+            (new ASErrorTest_DerivedError() {name = "Foo", message = "Hello"}, "Foo: Hello"),
+            (new ASErrorTest_DerivedError() {name = 1948, message = new ConvertibleMockObject(stringValue: "Hello")}, "1948: Hello")
         );
 
         [Theory]
@@ -95,21 +109,28 @@ namespace Mariana.AVM2.Tests {
 
         [Fact]
         public void toStringMethodTest_nameAndMessageChanged() {
-            ASError err = new ASError();
+            ASError err = new ASError("");
 
-            err.message = null;
+            err.message = ASAny.@null;
             Assert.Equal("Error: null", err.AS_toString());
+
             err.message = "";
             Assert.Equal("Error", err.AS_toString());
+
             err.message = "Hello";
             Assert.Equal("Error: Hello", err.AS_toString());
+
             err.name = "Error2";
             Assert.Equal("Error2: Hello", err.AS_toString());
+
+            err.name = new ConvertibleMockObject(stringValue: "Error3");
+            err.message = new ConvertibleMockObject(stringValue: "World");
+            Assert.Equal("Error3: World", err.AS_toString());
         }
 
         public static IEnumerable<object[]> getStackTraceMethodTest_data = TupleHelper.toArrays<Action, string>(
             (
-                () => ErrorStackTraceTestClass.createdError = new ASError("Hello"),
+                () => ASErrorTest.stackTraceTestError.value = new ASError("Hello"),
                 "Error: Hello"
             ),
             (
@@ -174,28 +195,35 @@ namespace Mariana.AVM2.Tests {
                 "    at abc::ErrorStackTraceTestClass/method1()\n" +
                 "    at abc::ErrorStackTraceTestClass()\n" +
                 "    at global/abc::__method2()"
+            ),
+            (
+                () => new ErrorStackTraceTestClass2(),
+                "Error: Hello\n" +
+                "    at ErrorStackTraceTestClass2/method1()"
             )
         );
 
         [Theory]
         [MemberData(nameof(getStackTraceMethodTest_data))]
         public void getStackTraceMethodTest(Action errorConstructor, string expectedStackTrace) {
-            errorConstructor();
-            Assert.Equal(expectedStackTrace, ErrorStackTraceTestClass.createdError.getStackTrace());
+            using (StaticZone zone = new StaticZone()) {
+                zone.enterAndRun(() => {
+                    errorConstructor();
+                    Assert.Equal(expectedStackTrace, stackTraceTestError.value.getStackTrace());
+                });
+            }
         }
     }
 
     [AVM2ExportClass]
     public class ASErrorTest_DerivedError : ASError {
         static ASErrorTest_DerivedError() => TestAppDomain.ensureClassesLoaded(typeof(ASErrorTest_DerivedError));
+        public ASErrorTest_DerivedError() : base("") { }
     }
 
     [AVM2ExportClass(nsUri = "abc")]
     public class ErrorStackTraceTestClass : ASObject {
         static ErrorStackTraceTestClass() => TestAppDomain.ensureClassesLoaded(typeof(ErrorStackTraceTestClass));
-
-        [ThreadStatic]
-        public static ASError createdError;
 
         [AVM2ExportTrait]
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -226,7 +254,17 @@ namespace Mariana.AVM2.Tests {
 
         [AVM2ExportTrait(name = "__method4", nsUri = "abc")]
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void method4() => createdError = new ASError("Hello");
+        public static void method4() => ASErrorTest.stackTraceTestError.value = new ASError("Hello");
+    }
+
+    [AVM2ExportClass]
+    public class ErrorStackTraceTestClass2 : ASObject {
+        static ErrorStackTraceTestClass2() => TestAppDomain.ensureClassesLoaded(typeof(ErrorStackTraceTestClass2));
+
+        public ErrorStackTraceTestClass2() => method1();
+
+        [AVM2ExportTrait]
+        public void method1() => ASErrorTest.stackTraceTestError.value = new ASError("Hello");
     }
 
     [AVM2ExportModule]
@@ -235,7 +273,7 @@ namespace Mariana.AVM2.Tests {
 
         [AVM2ExportTrait]
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void method1() => ErrorStackTraceTestClass.createdError = new ASError("Hello");
+        public static void method1() => ASErrorTest.stackTraceTestError.value = new ASError("Hello");
 
         [AVM2ExportTrait(name = "__method2", nsUri = "abc")]
         [MethodImpl(MethodImplOptions.NoInlining)]

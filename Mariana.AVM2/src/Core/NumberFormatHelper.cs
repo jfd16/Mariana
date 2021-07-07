@@ -41,7 +41,7 @@ namespace Mariana.AVM2.Core {
         /// Temporary buffer used by string formatting methods.
         /// </summary>
         [ThreadStatic]
-        private static char[] s_threadBuffer;
+        private static char[]? s_threadBuffer;
 
         /// <summary>
         /// Contains base-2 logarithms (floored) for integers [0, 36].
@@ -76,7 +76,7 @@ namespace Mariana.AVM2.Core {
         }
 
         private static char[] _getThreadStaticBuffer() {
-            ref char[] buffer = ref s_threadBuffer;
+            ref char[]? buffer = ref s_threadBuffer;
             if (buffer == null)
                 buffer = new char[64];
 
@@ -1153,7 +1153,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="allowLeadingZeroes">Set this to true to allow leading zeroes.</param>
         /// <param name="index">The array index as an integer.</param>
         /// <returns>True, if the string is a valid array index, otherwise false.</returns>
-        public static bool parseArrayIndex(string s, bool allowLeadingZeroes, out uint index) {
+        public static bool parseArrayIndex(string? s, bool allowLeadingZeroes, out uint index) {
             index = 0;
 
             if (s == null || s.Length == 0)

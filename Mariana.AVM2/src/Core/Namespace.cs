@@ -44,7 +44,7 @@ namespace Mariana.AVM2.Core {
         /// The name or URI of the namespace. For non-private namespaces, this is non-null; for
         /// private namespaces and the "any" namespace, this is null.
         /// </summary>
-        public readonly string uri;
+        public readonly string? uri;
 
         /// <summary>
         /// Gets the kind of the namespace.
@@ -101,7 +101,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="uri">The name or URI of the namespace. If this is null, the namespace
         /// returned will be the "any" namespace. Otherwise, the kind of the returned namespace is
         /// <see cref="NamespaceKind.NAMESPACE" qualifyHint="true"/>.</param>
-        public Namespace(string uri) {
+        public Namespace(string? uri) {
             this.uri = uri;
             this.m_kindAndId = (uri == null) ? (uint)NamespaceKind.ANY : (uint)NamespaceKind.NAMESPACE;
         }
@@ -150,7 +150,7 @@ namespace Mariana.AVM2.Core {
         /// <see cref="NamespaceKind.NAMESPACE" qualifyHint="true"/>, and <see cref="uri"/> is the
         /// empty string.
         /// </remarks>
-        public bool isPublic => m_kindAndId == (uint)NamespaceKind.NAMESPACE && uri.Length == 0;
+        public bool isPublic => m_kindAndId == (uint)NamespaceKind.NAMESPACE && uri!.Length == 0;
 
         /// <summary>
         /// Gets a unique identifier that identifies a private namespace.
@@ -164,7 +164,7 @@ namespace Mariana.AVM2.Core {
         public override string ToString() {
             return kind switch {
                 NamespaceKind.ANY => "*",
-                NamespaceKind.NAMESPACE => uri,
+                NamespaceKind.NAMESPACE => uri!,
                 NamespaceKind.EXPLICIT => "<explicit " + uri + ">",
                 NamespaceKind.PACKAGE_INTERNAL => "<internal " + uri + ">",
                 NamespaceKind.PRIVATE => "<private #" + privateNamespaceId.ToString(CultureInfo.InvariantCulture) + ">",

@@ -36,16 +36,16 @@ namespace Mariana.AVM2.Tests {
         private static readonly ASAny UNDEF = ASAny.undefined;
         private static readonly double NEG_ZERO = BitConverter.Int64BitsToDouble(unchecked((long)0x8000000000000000L));
 
-        private static ASXML xmlText(string value) => ASXML.createNode(XMLNodeType.TEXT, null, value);
+        private static ASXML xmlText(string value) => ASXML.createTextNode(value);
 
-        private static ASXML xmlCdata(string value) => ASXML.createNode(XMLNodeType.CDATA, null, value);
+        private static ASXML xmlCdata(string value) => ASXML.createCDATANode(value);
 
-        private static ASXML xmlComment(string value) => ASXML.createNode(XMLNodeType.COMMENT, null, value);
+        private static ASXML xmlComment(string value) => ASXML.createCommentNode(value);
 
-        private static ASXML xmlAttribute(string name, string value) => ASXML.internalCreateAttribute(ASQName.parse(name), value);
+        private static ASXML xmlAttribute(string name, string value) => ASXML.unsafeCreateAttribute(ASQName.parse(name), value);
 
         private static ASXML xmlProcInstr(string name, string value) =>
-            ASXML.createNode(XMLNodeType.PROCESSING_INSTRUCTION, new ASQName(name), value);
+            ASXML.createProcessingInstructionNode(name, value);
 
         private static ASObject objWithMethods(params (string name, ASAny returnVal)[] methods) {
             var obj = new ASObject();
@@ -63,9 +63,9 @@ namespace Mariana.AVM2.Tests {
             children = children ?? Array.Empty<ASXML>();
             nsDecls = nsDecls ?? Array.Empty<ASNamespace>();
 
-            return ASXML.internalCreateElement(
+            return ASXML.unsafeCreateElement(
                 ASQName.parse(name),
-                attributes.Select(x => ASXML.internalCreateAttribute(ASQName.parse(x.name), x.value)).ToArray(),
+                attributes.Select(x => ASXML.unsafeCreateAttribute(ASQName.parse(x.name), x.value)).ToArray(),
                 children,
                 nsDecls
             );
@@ -2509,10 +2509,10 @@ namespace Mariana.AVM2.Tests {
             testcases.Add(("hello", objectClass, true));
             testcases.Add(("hello", mockInterfaceA.classObject, false));
 
-            testcases.Add((ASXML.createNode(XMLNodeType.TEXT), xmlClass, true));
-            testcases.Add((ASXML.createNode(XMLNodeType.TEXT), xmlListClass, false));
-            testcases.Add((new ASXMLList(new[] {ASXML.createNode(XMLNodeType.TEXT)}), xmlClass, false));
-            testcases.Add((new ASXMLList(new[] {ASXML.createNode(XMLNodeType.TEXT)}), xmlListClass, true));
+            testcases.Add((ASXML.createTextNode(""), xmlClass, true));
+            testcases.Add((ASXML.createTextNode(""), xmlListClass, false));
+            testcases.Add((new ASXMLList(new[] {ASXML.createTextNode("")}), xmlClass, false));
+            testcases.Add((new ASXMLList(new[] {ASXML.createTextNode("")}), xmlListClass, true));
 
             testcases.Add((mockClassB.prototypeObject, objectClass, true));
             testcases.Add((mockClassB.prototypeObject, mockClassA.classObject, true));
@@ -2576,6 +2576,8 @@ namespace Mariana.AVM2.Tests {
             testcases.Add((func3.prototype, func3, false));
             testcases.Add((func3.prototype, func2, true));
             testcases.Add((func3.prototype, func1, true));
+
+            testcases.Add((new ASObject(), mockClassA.getMethod("foo").createMethodClosure(new MockClassInstance(mockClassA)), false));
 
             return testcases.Select(x => TupleHelper.toArray(x));
         }

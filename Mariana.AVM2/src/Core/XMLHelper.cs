@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using Mariana.Common;
 
@@ -19,7 +20,60 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="span">The span to check.</param>
         /// <returns>True if <paramref name="span"/> contains a valid name, otherwise false.</returns>
-        public static bool isValidName(ReadOnlySpan<char> span) => getValidNamePrefixLength(span) == span.Length;
+        public static bool isValidName(ReadOnlySpan<char> span) => !span.IsEmpty && getValidNamePrefixLength(span) == span.Length;
+
+        /// <summary>
+        /// Checks if the given <see cref="ASQName"/> is a valid node name for an element, attribute
+        /// or processing instruction. If it is not valid, attempts to create a valid name by removing
+        /// the namespace prefix from the name, or by substituting a default namespace URI if the
+        /// name has a null namespace URI.
+        /// </summary>
+        ///
+        /// <param name="name">The <see cref="ASQName"/> instance to check.</param>
+        /// <param name="nodeType">Must be one of <see cref="XMLNodeType.ELEMENT"/>, <see cref="XMLNodeType.ATTRIBUTE"/>
+        /// or <see cref="XMLNodeType.PROCESSING_INSTRUCTION"/>.</param>
+        /// <param name="defaultNS">The default namespace to use if the namespace URI of <paramref name="name"/>
+        /// is null. If this is null, the value of <see cref="ASNamespace.getDefault()"/> is used if
+        /// <paramref name="nodeType"/> if <see cref="XMLNodeType.ELEMENT"/>, and <see cref="ASNamespace.@public"/>
+        /// otherwise.</param>
+        ///
+        /// <returns>If <paramref name="name"/> is a valid name for a node of the given type, returns
+        /// <paramref name="name"/>; if a new valid name could be created by removing the namespace prefix
+        /// and/or by substituting a default namespace URI, returns the new name; otherwise, returns null.</returns>
+        public static ASQName? tryMakeValidNodeName(ASQName? name, XMLNodeType nodeType, ASNamespace? defaultNS = null) {
+            if (name == null || !isValidName(name.localName))
+                return null;
+
+            switch (nodeType) {
+                case XMLNodeType.ELEMENT:
+                    if (name.uri == null)
+                        return new ASQName(defaultNS ?? ASNamespace.getDefault(), name.localName);
+                    break;
+
+                case XMLNodeType.PROCESSING_INSTRUCTION:
+                    if (name.uri == null || name.uri.Length != 0)
+                        return new ASQName(ASNamespace.@public, name.localName);
+                    break;
+
+                case XMLNodeType.ATTRIBUTE: {
+                    if (name.uri == null) {
+                        name = new ASQName(defaultNS ?? ASNamespace.@public, name.localName);
+                    }
+                    else if (name.prefix != null
+                        && ((name.prefix.Length == 0 && name.uri.Length != 0) || name.prefix == "xmlns"))
+                    {
+                        name = ASQName.unsafeCreate(prefix: null, name.uri, name.localName);
+                    }
+
+                    if (name.uri!.Length == 0 && name.localName == "xmlns")
+                        return null;
+
+                    break;
+                }
+            }
+
+            return name;
+        }
 
         /// <summary>
         /// Computes the length of the longest prefix of the given span that is a valid XML name.
@@ -151,7 +205,7 @@ namespace Mariana.AVM2.Core {
         /// double-quoted attributes. (The <c>&apos;</c> character is not escaped)</para>
         /// </remarks>
         public static string escape(string s, int start, int length, bool isAttr) {
-            char[] buffer = null;
+            char[]? buffer = null;
             return escape(s, start, length, ref buffer, isAttr);
         }
 
@@ -183,7 +237,10 @@ namespace Mariana.AVM2.Core {
         /// <para>If <paramref name="isAttr"/> is true, this function escapes strings for
         /// double-quoted attributes. (The <c>&apos;</c> character is not escaped)</para>
         /// </remarks>
-        public static string escape(string str, int start, int length, ref char[] buffer, bool isAttr) {
+        public static string escape(string str, int start, int length, ref char[]? buffer, bool isAttr) {
+            if (str == null)
+                return "";
+
             ReadOnlySpan<char> span = str.AsSpan(start, length);
 
             ReadOnlySpan<char> ec1 = isAttr ? s_escapeAttrChars1 : s_escapeElemChars;
@@ -223,41 +280,26 @@ namespace Mariana.AVM2.Core {
             span = span.Slice(indexOfFirstEscapeChar);
 
             while (!span.IsEmpty) {
-                string esc = null;
-                switch (span[0]) {
-                    case '&':
-                        esc = "&amp;";
-                        break;
-                    case '<':
-                        esc = "&lt;";
-                        break;
-                    case '>':
-                        esc = "&gt;";
-                        break;
-                    case '"':
-                        esc = "&quot;";
-                        break;
-                    case '\x09':
-                        esc = "&#x9;";
-                        break;
-                    case '\x0A':
-                        esc = "&#xA;";
-                        break;
-                    case '\x0D':
-                        esc = "&#xD;";
-                        break;
-                }
+                string escapeString = span[0] switch {
+                    '&' => "&amp;",
+                    '<' => "&lt;",
+                    '>' => "&gt;",
+                    '"' => "&quot;",
+                    '\x09' => "&#x9;",
+                    '\x0A' => "&#xA;",
+                    '\x0D' => "&#xD;"
+                };
 
-                if (bufLen - bufPos < esc.Length) {
-                    DataStructureUtil.expandArray(ref buffer, esc.Length);
+                if (bufLen - bufPos < escapeString.Length) {
+                    DataStructureUtil.expandArray(ref buffer, escapeString.Length);
                     bufLen = buffer.Length;
                 }
 
-                Span<char> bufferSpan = buffer.AsSpan(bufPos, esc.Length);
-                for (int i = 0; i < esc.Length; i++)
-                    bufferSpan[i] = esc[i];
+                Span<char> bufferSpan = buffer.AsSpan(bufPos, escapeString.Length);
+                for (int i = 0; i < escapeString.Length; i++)
+                    bufferSpan[i] = escapeString[i];
 
-                bufPos += esc.Length;
+                bufPos += escapeString.Length;
 
                 // Find the next escape character
 
@@ -469,9 +511,9 @@ namespace Mariana.AVM2.Core {
         /// returns <paramref name="value"/> converted to a string. Otherwise, returns null.</returns>
         ///
         /// <remarks>This method does not consider CDATA nodes to be text nodes.</remarks>
-        public static string tryGetStringFromObjectOrNode(ASAny value) {
-            ASXML valueXml = value.value as ASXML;
-            ASXMLList valueXmlList = value.value as ASXMLList;
+        public static string? tryGetStringFromObjectOrNode(ASAny value) {
+            ASXML? valueXml = value.value as ASXML;
+            ASXMLList? valueXmlList = value.value as ASXMLList;
 
             if (valueXmlList != null && valueXmlList.length() == 1)
                 valueXml = valueXmlList[0];
@@ -492,16 +534,16 @@ namespace Mariana.AVM2.Core {
         /// <param name="o1">The first XML or XMLList object.</param>
         /// <param name="o2">The second XML or XMLList object.</param>
         public static ASXMLList concatenateXMLObjects(ASObject o1, ASObject o2) {
-            ASXML xml1 = o1 as ASXML, xml2 = o2 as ASXML;
+            ASXML? xml1 = o1 as ASXML, xml2 = o2 as ASXML;
 
             if (xml1 != null && xml2 != null)
                 return new ASXMLList(new ASXML[] {xml1, xml2}, 2, noCopy: true);
 
-            ASXMLList xmlList1 = o1 as ASXMLList, xmlList2 = o2 as ASXMLList;
+            ASXMLList? xmlList1 = o1 as ASXMLList, xmlList2 = o2 as ASXMLList;
 
             int totalLength = 0;
-            totalLength = checked(totalLength + ((xml1 != null) ? 1 : xmlList1.length()));
-            totalLength = checked(totalLength + ((xml2 != null) ? 1 : xmlList2.length()));
+            totalLength = checked(totalLength + ((xml1 != null) ? 1 : xmlList1!.length()));
+            totalLength = checked(totalLength + ((xml2 != null) ? 1 : xmlList2!.length()));
 
             var newListItems = new DynamicArray<ASXML>(totalLength);
 
@@ -509,16 +551,16 @@ namespace Mariana.AVM2.Core {
                 newListItems.add(xml1);
             }
             else {
-                for (int i = 0, n = xmlList1.length(); i < n; i++)
-                    newListItems.add(xmlList1[i]);
+                for (int i = 0, n = xmlList1!.length(); i < n; i++)
+                    newListItems.add(xmlList1![i]);
             }
 
             if (xml2 != null) {
                 newListItems.add(xml2);
             }
             else {
-                for (int i = 0, n = xmlList2.length(); i < n; i++)
-                    newListItems.add(xmlList2[i]);
+                for (int i = 0, n = xmlList2!.length(); i < n; i++)
+                    newListItems.add(xmlList2![i]);
             }
 
             return new ASXMLList(newListItems.getUnderlyingArray(), newListItems.length, noCopy: true);
@@ -532,12 +574,12 @@ namespace Mariana.AVM2.Core {
         /// <param name="o1">The first operand.</param>
         /// <param name="o2">The second operand.</param>
         public static bool weakEquals(ASAny o1, ASAny o2) {
-            ASXML xml1 = o1.value as ASXML, xml2 = o2.value as ASXML;
+            ASXML? xml1 = o1.value as ASXML, xml2 = o2.value as ASXML;
 
             if (xml1 != null && xml2 != null)
                 return ASXML.AS_weakEq(xml1, xml2);
 
-            ASXMLList xmlList1 = o1.value as ASXMLList, xmlList2 = o2.value as ASXMLList;
+            ASXMLList? xmlList1 = o1.value as ASXMLList, xmlList2 = o2.value as ASXMLList;
             if (xmlList1 != null && xmlList2 != null)
                 return ASXMLList.AS_weakEq(xmlList1, xmlList2);
 

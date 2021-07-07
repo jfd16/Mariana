@@ -60,7 +60,7 @@ namespace Mariana.AVM2.Core {
         private const int STRING_CACHE_RANGE = 128;
 
         private static LazyInitObject<Class> s_lazyClass = new LazyInitObject<Class>(
-            () => Class.fromType(typeof(ASint)),
+            () => Class.fromType(typeof(ASint))!,
             recursionHandling: LazyInitRecursionHandling.RECURSIVE_CALL
         );
 

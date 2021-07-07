@@ -83,8 +83,8 @@ namespace Mariana.AVM2.Core {
     internal static class InternalGenericTypeConverters {
 
         internal static object createConverterInstance(Type tSource, Type tDest) {
-            object instance = null;
-            Type converterType = null;
+            object? instance = null;
+            Type? converterType = null;
             bool converterHasSourceArg = false;
 
             if (tSource == tDest) {
@@ -227,7 +227,7 @@ namespace Mariana.AVM2.Core {
                 converterType = typeof(Invalid<,>);
             }
 
-            if (instance == null) {
+            if (converterType != null) {
                 if (converterType.GetGenericArguments().Length == 2)
                     instance = Activator.CreateInstance(converterType.MakeGenericType(tSource, tDest));
                 else if (converterHasSourceArg)
@@ -236,7 +236,7 @@ namespace Mariana.AVM2.Core {
                     instance = Activator.CreateInstance(converterType.MakeGenericType(tDest));
             }
 
-            return instance;
+            return instance!;
         }
 
         #region ASAny => (TDest)
@@ -268,10 +268,10 @@ namespace Mariana.AVM2.Core {
             }
         }
 
-        internal sealed class Any2String : GenericTypeConverter<ASAny, string> {
-            public override string convert(ASAny value) => ASAny.AS_coerceString(value);
+        internal sealed class Any2String : GenericTypeConverter<ASAny, string?> {
+            public override string? convert(ASAny value) => ASAny.AS_coerceString(value);
 
-            protected private override void convertSpanImpl(ReadOnlySpan<ASAny> src, Span<string> dst) {
+            protected private override void convertSpanImpl(ReadOnlySpan<ASAny> src, Span<string?> dst) {
                 for (int i = 0; i < src.Length; i++)
                     dst[i] = ASAny.AS_coerceString(src[i]);
             }
@@ -286,10 +286,10 @@ namespace Mariana.AVM2.Core {
             }
         }
 
-        internal sealed class Any2Object<T> : GenericTypeConverter<ASAny, T> where T : class {
-            public override T convert(ASAny value) => ASAny.AS_cast<T>(value);
+        internal sealed class Any2Object<T> : GenericTypeConverter<ASAny, T?> where T : class {
+            public override T? convert(ASAny value) => ASAny.AS_cast<T>(value);
 
-            protected private override void convertSpanImpl(ReadOnlySpan<ASAny> src, Span<T> dst) {
+            protected private override void convertSpanImpl(ReadOnlySpan<ASAny> src, Span<T?> dst) {
                 for (int i = 0; i < src.Length; i++)
                     dst[i] = ASAny.AS_cast<T>(src[i]);
             }
@@ -473,63 +473,64 @@ namespace Mariana.AVM2.Core {
 
         #region Object => (TDest)
 
-        internal sealed class Object2Int<T> : GenericTypeConverter<T, int> where T : class {
-            public override int convert(T value) => ASObject.AS_toInt((ASObject)(object)value);
+        internal sealed class Object2Int<T> : GenericTypeConverter<T?, int> where T : class {
+            public override int convert(T? value) => ASObject.AS_toInt((ASObject?)(object?)value);
 
-            protected private override void convertSpanImpl(ReadOnlySpan<T> src, Span<int> dst) {
+            protected private override void convertSpanImpl(ReadOnlySpan<T?> src, Span<int> dst) {
                 for (int i = 0; i < src.Length; i++)
-                    dst[i] = ASObject.AS_toInt((ASObject)(object)src[i]);
+                    dst[i] = ASObject.AS_toInt((ASObject?)(object?)src[i]);
             }
         }
 
-        internal sealed class Object2Uint<T> : GenericTypeConverter<T, uint> where T : class {
-            public override uint convert(T value) => ASObject.AS_toUint((ASObject)(object)value);
+        internal sealed class Object2Uint<T> : GenericTypeConverter<T?, uint> where T : class {
+            public override uint convert(T? value) => ASObject.AS_toUint((ASObject?)(object?)value);
 
-            protected private override void convertSpanImpl(ReadOnlySpan<T> src, Span<uint> dst) {
+            protected private override void convertSpanImpl(ReadOnlySpan<T?> src, Span<uint> dst) {
                 for (int i = 0; i < src.Length; i++)
-                    dst[i] = ASObject.AS_toUint((ASObject)(object)src[i]);
+                    dst[i] = ASObject.AS_toUint((ASObject?)(object?)src[i]);
             }
         }
 
-        internal sealed class Object2Number<T> : GenericTypeConverter<T, double> where T : class {
-            public override double convert(T value) => ASObject.AS_toNumber((ASObject)(object)value);
+        internal sealed class Object2Number<T> : GenericTypeConverter<T?, double> where T : class {
+            public override double convert(T? value) => ASObject.AS_toNumber((ASObject?)(object?)value);
 
-            protected private override void convertSpanImpl(ReadOnlySpan<T> src, Span<double> dst) {
+            protected private override void convertSpanImpl(ReadOnlySpan<T?> src, Span<double> dst) {
                 for (int i = 0; i < src.Length; i++)
-                    dst[i] = ASObject.AS_toNumber((ASObject)(object)src[i]);
+                    dst[i] = ASObject.AS_toNumber((ASObject?)(object?)src[i]);
             }
         }
 
-        internal sealed class Object2Boolean<T> : GenericTypeConverter<T, bool> where T : class {
-            public override bool convert(T value) => ASObject.AS_toBoolean((ASObject)(object)value);
+        internal sealed class Object2Boolean<T> : GenericTypeConverter<T?, bool> where T : class {
+            public override bool convert(T? value) => ASObject.AS_toBoolean((ASObject?)(object?)value);
 
-            protected private override void convertSpanImpl(ReadOnlySpan<T> src, Span<bool> dst) {
+            protected private override void convertSpanImpl(ReadOnlySpan<T?> src, Span<bool> dst) {
                 for (int i = 0; i < src.Length; i++)
-                    dst[i] = ASObject.AS_toBoolean((ASObject)(object)src[i]);
+                    dst[i] = ASObject.AS_toBoolean((ASObject?)(object?)src[i]);
             }
         }
 
-        internal sealed class Object2String<T> : GenericTypeConverter<T, string> where T : class {
-            public override string convert(T value) => ASObject.AS_coerceString((ASObject)(object)value);
+        internal sealed class Object2String<T> : GenericTypeConverter<T?, string?> where T : class {
+            public override string? convert(T? value) => ASObject.AS_coerceString((ASObject?)(object?)value);
 
-            protected private override void convertSpanImpl(ReadOnlySpan<T> src, Span<string> dst) {
+            protected private override void convertSpanImpl(ReadOnlySpan<T?> src, Span<string?> dst) {
                 for (int i = 0; i < src.Length; i++)
-                    dst[i] = ASObject.AS_coerceString((ASObject)(object)src[i]);
+                    dst[i] = ASObject.AS_coerceString((ASObject?)(object?)src[i]);
             }
         }
 
-        internal sealed class Object2Object<TSource, TDest> : GenericTypeConverter<TSource, TDest>
+        internal sealed class Object2Object<TSource, TDest> : GenericTypeConverter<TSource?, TDest?>
             where TSource : class
             where TDest : class
         {
             private static readonly bool s_isUpCast = typeof(TDest).IsAssignableFrom(typeof(TSource));
 
-            public override TDest convert(TSource value) => s_isUpCast ? (TDest)(object)value : ASObject.AS_cast<TDest>(value);
+            public override TDest? convert(TSource? value) =>
+                s_isUpCast ? (TDest?)(object?)value : ASObject.AS_cast<TDest>(value);
 
-            protected private override void convertSpanImpl(ReadOnlySpan<TSource> src, Span<TDest> dst) {
+            protected private override void convertSpanImpl(ReadOnlySpan<TSource?> src, Span<TDest?> dst) {
                 if (s_isUpCast) {
                     for (int i = 0; i < src.Length; i++)
-                        dst[i] = (TDest)(object)src[i];
+                        dst[i] = (TDest?)(object?)src[i];
                 }
                 else {
                     for (int i = 0; i < src.Length; i++)
@@ -538,12 +539,12 @@ namespace Mariana.AVM2.Core {
             }
         }
 
-        internal sealed class Object2Any<T> : GenericTypeConverter<T, ASAny> where T : class {
-            public override ASAny convert(T value) => new ASAny((ASObject)(object)value);
+        internal sealed class Object2Any<T> : GenericTypeConverter<T?, ASAny> where T : class {
+            public override ASAny convert(T? value) => new ASAny((ASObject?)(object?)value);
 
-            protected private override void convertSpanImpl(ReadOnlySpan<T> src, Span<ASAny> dst) {
+            protected private override void convertSpanImpl(ReadOnlySpan<T?> src, Span<ASAny> dst) {
                 for (int i = 0; i < src.Length; i++)
-                    dst[i] = new ASAny((ASObject)(object)src[i]);
+                    dst[i] = new ASAny((ASObject?)(object?)src[i]);
             }
         }
 
@@ -551,55 +552,55 @@ namespace Mariana.AVM2.Core {
 
         #region String => (TDest)
 
-        internal sealed class String2Int : GenericTypeConverter<string, int> {
-            public override int convert(string value) => ASString.AS_toInt(value);
+        internal sealed class String2Int : GenericTypeConverter<string?, int> {
+            public override int convert(string? value) => ASString.AS_toInt(value);
 
-            protected private override void convertSpanImpl(ReadOnlySpan<string> src, Span<int> dst) {
+            protected private override void convertSpanImpl(ReadOnlySpan<string?> src, Span<int> dst) {
                 for (int i = 0; i < src.Length; i++)
                     dst[i] = ASString.AS_toInt(src[i]);
             }
         }
 
-        internal sealed class String2Uint : GenericTypeConverter<string, uint> {
-            public override uint convert(string value) => ASString.AS_toUint(value);
+        internal sealed class String2Uint : GenericTypeConverter<string?, uint> {
+            public override uint convert(string? value) => ASString.AS_toUint(value);
 
-            protected private override void convertSpanImpl(ReadOnlySpan<string> src, Span<uint> dst) {
+            protected private override void convertSpanImpl(ReadOnlySpan<string?> src, Span<uint> dst) {
                 for (int i = 0; i < src.Length; i++)
                     dst[i] = ASString.AS_toUint(src[i]);
             }
         }
 
-        internal sealed class String2Number : GenericTypeConverter<string, double> {
-            public override double convert(string value) => ASString.AS_toNumber(value);
+        internal sealed class String2Number : GenericTypeConverter<string?, double> {
+            public override double convert(string? value) => ASString.AS_toNumber(value);
 
-            protected private override void convertSpanImpl(ReadOnlySpan<string> src, Span<double> dst) {
+            protected private override void convertSpanImpl(ReadOnlySpan<string?> src, Span<double> dst) {
                 for (int i = 0; i < src.Length; i++)
                     dst[i] = ASString.AS_toNumber(src[i]);
             }
         }
 
-        internal sealed class String2Boolean : GenericTypeConverter<string, bool> {
-            public override bool convert(string value) => ASString.AS_toBoolean(value);
+        internal sealed class String2Boolean : GenericTypeConverter<string?, bool> {
+            public override bool convert(string? value) => ASString.AS_toBoolean(value);
 
-            protected private override void convertSpanImpl(ReadOnlySpan<string> src, Span<bool> dst) {
+            protected private override void convertSpanImpl(ReadOnlySpan<string?> src, Span<bool> dst) {
                 for (int i = 0; i < src.Length; i++)
                     dst[i] = ASString.AS_toBoolean(src[i]);
             }
         }
 
-        internal sealed class String2Object : GenericTypeConverter<string, ASObject> {
-            public override ASObject convert(string value) => ASObject.AS_fromString(value);
+        internal sealed class String2Object : GenericTypeConverter<string?, ASObject?> {
+            public override ASObject? convert(string? value) => ASObject.AS_fromString(value);
 
-            protected private override void convertSpanImpl(ReadOnlySpan<string> src, Span<ASObject> dst) {
+            protected private override void convertSpanImpl(ReadOnlySpan<string?> src, Span<ASObject?> dst) {
                 for (int i = 0; i < src.Length; i++)
                     dst[i] = ASObject.AS_fromString(src[i]);
             }
         }
 
-        internal sealed class String2Any : GenericTypeConverter<string, ASAny> {
-            public override ASAny convert(string value) => ASAny.AS_fromString(value);
+        internal sealed class String2Any : GenericTypeConverter<string?, ASAny> {
+            public override ASAny convert(string? value) => ASAny.AS_fromString(value);
 
-            protected private override void convertSpanImpl(ReadOnlySpan<string> src, Span<ASAny> dst) {
+            protected private override void convertSpanImpl(ReadOnlySpan<string?> src, Span<ASAny> dst) {
                 for (int i = 0; i < src.Length; i++)
                     dst[i] = ASAny.AS_fromString(src[i]);
             }
@@ -678,21 +679,23 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// The GenericTypeConverter implementation for invalid conversions except for null.
         /// </summary>
-        internal sealed class InvalidExceptNull<TSource, TDest> : GenericTypeConverter<TSource, TDest>
+        internal sealed class InvalidExceptNull<TSource, TDest> : GenericTypeConverter<TSource?, TDest?>
             where TSource : class
             where TDest : class
         {
-            public override TDest convert(TSource value) {
+            public override TDest? convert(TSource? value) {
                 if (value == null)
                     return null;
+
                 throw ErrorHelper.createCastError(typeof(TSource), typeof(TDest));
             }
 
-            protected private override void convertSpanImpl(ReadOnlySpan<TSource> src, Span<TDest> dst) {
+            protected private override void convertSpanImpl(ReadOnlySpan<TSource?> src, Span<TDest?> dst) {
                 for (int i = 0; i < src.Length; i++) {
                     if (src[i] != null)
                         throw ErrorHelper.createCastError(typeof(TSource), typeof(TDest));
-                    dst[i] = null;
+
+                    dst[i] = null!;
                 }
             }
         }

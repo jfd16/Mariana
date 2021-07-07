@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using Mariana.Common;
 
 namespace Mariana.AVM2.Core {
@@ -12,7 +13,7 @@ namespace Mariana.AVM2.Core {
         /// Represents a temporary attribute (whose name is not fully resolved).
         /// </summary>
         private struct UnresolvedAttribute {
-            public string prefix;       // Namespace prefix of the attribute
+            public string? prefix;      // Namespace prefix of the attribute
             public string localName;    // Local name of the attribute
             public string value;        // Value of the attribute
             public int lineNumber;      // Line number on which the attribute is defined
@@ -22,7 +23,7 @@ namespace Mariana.AVM2.Core {
             public ASQName elementName;
             public ASXML[] attributes;
             public ASNamespace[] nsDecls;
-            public int childrenStartAt;
+            public int childNodeStackBaseIndex;
         }
 
         private const int FLAG_IGNORE_SPACE = 1;
@@ -77,7 +78,7 @@ namespace Mariana.AVM2.Core {
 
             DynamicArray<ASXML> list = new DynamicArray<ASXML>();
             while (m_pos < m_str.Length) {
-                ASXML node = _readSingleNode();
+                ASXML? node = _readSingleNode();
                 if (node != null)
                     list.add(node);
             }
@@ -93,10 +94,10 @@ namespace Mariana.AVM2.Core {
         public ASXML parseSingleElement(string str) {
             _init(str);
 
-            ASXML firstNode = _readSingleNode();
+            ASXML? firstNode = _readSingleNode();
 
             if (m_pos == m_str.Length)
-                return firstNode ?? ASXML.createNode(XMLNodeType.TEXT);
+                return firstNode ?? ASXML.createTextNode("");
 
             if (firstNode != null
                 && firstNode.nodeType != XMLNodeType.ELEMENT
@@ -107,7 +108,7 @@ namespace Mariana.AVM2.Core {
             }
 
             while (m_pos < m_str.Length) {
-                ASXML curNode = _readSingleNode();
+                ASXML? curNode = _readSingleNode();
                 if (curNode == null)
                     continue;
 
@@ -124,7 +125,7 @@ namespace Mariana.AVM2.Core {
                 firstNode = curNode;
             }
 
-            return firstNode ?? ASXML.createNode(XMLNodeType.TEXT);
+            return firstNode ?? ASXML.createTextNode("");
         }
 
         private void _init(string str) {
@@ -160,7 +161,7 @@ namespace Mariana.AVM2.Core {
         /// Parses a single XML node, reading from the current position in the string.
         /// </summary>
         /// <returns>The created node as an XML object.</returns>
-        private ASXML _readSingleNode() {
+        private ASXML? _readSingleNode() {
             m_parserFlags &= ~(FLAG_USES_XML_NS | FLAG_USES_DEFAULT_NS);
 
             while (true) {
@@ -248,7 +249,7 @@ namespace Mariana.AVM2.Core {
         /// <returns>True if a valid name was read, false otherwise.</returns>
         /// <param name="prefix">The namespace prefix, if any.</param>
         /// <param name="localName">The local name.</param>
-        private bool _readName(out string prefix, out string localName) {
+        private bool _readName(out string? prefix, [NotNullWhen(true)] out string? localName) {
             prefix = null;
             localName = null;
 
@@ -303,7 +304,7 @@ namespace Mariana.AVM2.Core {
             }
 
             // Named entity reference
-            if (!_readName(out string prefix, out string name))
+            if (!_readName(out string? prefix, out string? name))
                 throw _error(ErrorCode.MARIANA__XML_PARSER_INVALID_ENTITY);
 
             if (m_pos == m_str.Length || m_str[m_pos] != ';')
@@ -453,7 +454,7 @@ namespace Mariana.AVM2.Core {
             if ((m_parserFlags & FLAG_IGNORE_COMMENTS) != 0)
                 return;
 
-            m_nodeStack.add(ASXML.createNode(XMLNodeType.COMMENT, null, m_str.Substring(startPos, charsRead)));
+            m_nodeStack.add(ASXML.createCommentNode(m_str.Substring(startPos, charsRead)));
         }
 
         /// <summary>
@@ -463,7 +464,7 @@ namespace Mariana.AVM2.Core {
         private void _readProcInstr() {
             m_pos += 2;     // For opening '<?'
 
-            if (!_readName(out string prefix, out string name) || prefix != null)
+            if (!_readName(out string? prefix, out string? name) || prefix != null)
                 throw _error(ErrorCode.MARIANA__XML_PARSER_INVALID_NAME, (prefix == null) ? name : prefix + ":" + name);
 
             _goToNextNonSpace();
@@ -500,7 +501,9 @@ namespace Mariana.AVM2.Core {
                 return;
 
             string text = m_str.Substring(startPos, charsRead - 2);
-            m_nodeStack.add(ASXML.createNode(XMLNodeType.PROCESSING_INSTRUCTION, new ASQName("", name), text));
+            ASXML node = ASXML.unsafeCreateProcessingInstruction(name, text);
+
+            m_nodeStack.add(node);
         }
 
         /// <summary>
@@ -570,7 +573,7 @@ namespace Mariana.AVM2.Core {
                     : m_str.Substring(m_pos, charsRead);
 
                 if (text.Length != 0)
-                    m_nodeStack.add(ASXML.createNode(XMLNodeType.TEXT, null, text));
+                    m_nodeStack.add(ASXML.createTextNode(text));
 
                 m_pos += charsRead;
                 return;
@@ -623,7 +626,7 @@ namespace Mariana.AVM2.Core {
                 : new string(textBuffer, 0, textBufPos);
 
             if (text.Length != 0)
-                m_nodeStack.add(ASXML.createNode(XMLNodeType.TEXT, null, text));
+                m_nodeStack.add(ASXML.createTextNode(text));
         }
 
         /// <summary>
@@ -766,7 +769,8 @@ namespace Mariana.AVM2.Core {
             if (charsRead == 3)
                 return;
 
-            m_nodeStack.add(ASXML.createNode(XMLNodeType.CDATA, null, m_str.Substring(startPos, charsRead - 3)));
+            ASXML node = ASXML.createCDATANode(m_str.Substring(startPos, charsRead - 3));
+            m_nodeStack.add(node);
         }
 
         /// <summary>
@@ -776,7 +780,7 @@ namespace Mariana.AVM2.Core {
             char ch;
 
             m_pos++;
-            if (!_readName(out string prefix, out string localName)) {
+            if (!_readName(out string? prefix, out string? localName)) {
                 throw _error(
                     ErrorCode.MARIANA__XML_PARSER_INVALID_NAME,
                     (prefix == null) ? localName : prefix + ":" + localName
@@ -817,7 +821,7 @@ namespace Mariana.AVM2.Core {
 
             StackItem parserStackItem = new StackItem();
 
-            ASNamespace elementNS = _resolvePrefix(prefix);
+            ASNamespace? elementNS = _resolvePrefix(prefix);
             if (elementNS == null)
                 throw _error(ErrorCode.XML_PREFIX_NOT_BOUND, prefix, localName);
 
@@ -835,7 +839,7 @@ namespace Mariana.AVM2.Core {
                 if (m_parserStack.length == 0)
                     parserStackItem.nsDecls = _addImplicitNSDeclsToRoot(parserStackItem.nsDecls);
 
-                ASXML element = ASXML.internalCreateElement(
+                ASXML element = ASXML.unsafeCreateElement(
                     parserStackItem.elementName,
                     parserStackItem.attributes,
                     ReadOnlySpan<ASXML>.Empty,
@@ -848,7 +852,7 @@ namespace Mariana.AVM2.Core {
                 m_nsInScope.removeRange(nsDeclStart, nsDeclCount);
             }
             else {
-                parserStackItem.childrenStartAt = m_nodeStack.length;
+                parserStackItem.childNodeStackBaseIndex = m_nodeStack.length;
                 m_parserStack.add(parserStackItem);
             }
         }
@@ -859,7 +863,7 @@ namespace Mariana.AVM2.Core {
         private void _readAttribute() {
             int curLine = m_curLine;
 
-            if (!_readName(out string prefix, out string localName)) {
+            if (!_readName(out string? prefix, out string? localName)) {
                 throw _error(
                     ErrorCode.MARIANA__XML_PARSER_INVALID_NAME,
                     (prefix == null) ? localName : prefix + ":" + localName
@@ -902,7 +906,7 @@ namespace Mariana.AVM2.Core {
                 throw _error(ErrorCode.XML_MARKUP_AFTER_ROOT);
 
             m_pos += 2;
-            if (!_readName(out string prefix, out string localName)) {
+            if (!_readName(out string? prefix, out string? localName)) {
                 throw _error(
                     ErrorCode.MARIANA__XML_PARSER_INVALID_NAME,
                     (prefix == null) ? localName : prefix + ":" + localName);
@@ -916,7 +920,9 @@ namespace Mariana.AVM2.Core {
             StackItem parserStackItem = m_parserStack[m_parserStack.length - 1];
 
             // Check that the end tag matches the corresponding start tag.
-            ASNamespace prefixNS = _resolvePrefix(prefix);
+
+            ASNamespace? prefixNS = _resolvePrefix(prefix);
+
             if (parserStackItem.elementName.localName != localName
                 || prefixNS == null
                 || parserStackItem.elementName.uri != prefixNS.uri)
@@ -928,15 +934,17 @@ namespace Mariana.AVM2.Core {
                 parserStackItem.nsDecls = _addImplicitNSDeclsToRoot(parserStackItem.nsDecls);
 
             // Create the element.
-            int childCount = m_nodeStack.length - parserStackItem.childrenStartAt;
-            ASXML element = ASXML.internalCreateElement(
+
+            int childCount = m_nodeStack.length - parserStackItem.childNodeStackBaseIndex;
+
+            ASXML element = ASXML.unsafeCreateElement(
                 parserStackItem.elementName,
                 parserStackItem.attributes,
-                m_nodeStack.asSpan(parserStackItem.childrenStartAt, childCount),
+                m_nodeStack.asSpan(parserStackItem.childNodeStackBaseIndex, childCount),
                 parserStackItem.nsDecls
             );
 
-            m_nodeStack.removeRange(parserStackItem.childrenStartAt, childCount);
+            m_nodeStack.removeRange(parserStackItem.childNodeStackBaseIndex, childCount);
             m_nodeStack.add(element);
 
             m_parserStack.removeLast();
@@ -1013,16 +1021,19 @@ namespace Mariana.AVM2.Core {
         /// <returns>The resolved namespace. If there is no namespace in scope with the given
         /// prefix, returns null.</returns>
         /// <param name="prefix">The prefix to resolve.</param>
-        private ASNamespace _resolvePrefix(string prefix) {
+        private ASNamespace? _resolvePrefix(string? prefix) {
+            prefix ??= "";
+
             for (int i = m_nsInScope.length - 1; i >= 0; i--) {
-                string nsPrefix = m_nsInScope[i].prefix;
-                if (nsPrefix == prefix || (nsPrefix.Length == 0 && prefix == null))
+                string nsPrefix = m_nsInScope[i].prefix!;
+                if (nsPrefix == prefix)
                     return m_nsInScope[i];
             }
 
-            if (prefix == null || prefix.Length == 0) {
+            if (prefix.Length == 0) {
                 if (m_defaultNS.uri.Length != 0)
                     m_parserFlags |= FLAG_USES_DEFAULT_NS;
+
                 return m_defaultNS;
             }
 
@@ -1067,8 +1078,10 @@ namespace Mariana.AVM2.Core {
         /// declarations.</param>
         private ASNamespace[] _addImplicitNSDeclsToRoot(ASNamespace[] rootNSDecls) {
             int nsDeclSize = rootNSDecls.Length;
+
             if ((m_parserFlags & FLAG_USES_XML_NS) != 0)
                 nsDeclSize++;
+
             if ((m_parserFlags & FLAG_USES_DEFAULT_NS) != 0)
                 nsDeclSize++;
 
@@ -1101,10 +1114,11 @@ namespace Mariana.AVM2.Core {
             ASXML[] resolvedAttrs = new ASXML[m_unresolvedAttrs.length];
 
             for (int i = 0, n = m_unresolvedAttrs.length; i < n; i++) {
-                string prefix = m_unresolvedAttrs[i].prefix;
+                string? prefix = m_unresolvedAttrs[i].prefix;
 
-                ASNamespace attrNS = (prefix == null) ? ASNamespace.@public : _resolvePrefix(prefix);
-                if (attrNS == null) {
+                ASNamespace? attributeNamespace = (prefix == null) ? ASNamespace.@public : _resolvePrefix(prefix);
+
+                if (attributeNamespace == null) {
                     throw _error(
                         ErrorCode.XML_PREFIX_NOT_BOUND,
                         prefix,
@@ -1113,21 +1127,21 @@ namespace Mariana.AVM2.Core {
                     );
                 }
 
-                ASQName attrName = new ASQName(attrNS, m_unresolvedAttrs[i].localName);
+                ASQName attributeName = new ASQName(attributeNamespace, m_unresolvedAttrs[i].localName);
 
                 // Check for duplicate attributes
                 for (int j = 0; j < i; j++) {
-                    if (ASQName.AS_equals(attrName, resolvedAttrs[j].name())) {
+                    if (ASQName.AS_equals(attributeName, resolvedAttrs[j].name())) {
                         throw _error(
                             ErrorCode.XML_ATTRIBUTE_DUPLICATE,
-                            attrName.AS_toString(),
+                            attributeName.AS_toString(),
                             elementName.AS_toString(),
                             line: m_unresolvedAttrs[i].lineNumber
                         );
                     }
                 }
 
-                resolvedAttrs[i] = ASXML.internalCreateAttribute(attrName, m_unresolvedAttrs[i].value);
+                resolvedAttrs[i] = ASXML.unsafeCreateAttribute(attributeName, m_unresolvedAttrs[i].value);
             }
 
             m_unresolvedAttrs.clear();
@@ -1143,17 +1157,17 @@ namespace Mariana.AVM2.Core {
         /// <param name="arg2">The second argument in the error message.</param>
         /// <param name="line">The line number at which the error occurred. If not set, the
         /// current line number is used.</param>
-        private AVM2Exception _error(ErrorCode code, string arg1 = null, string arg2 = null, int line = -1) {
+        private AVM2Exception _error(ErrorCode code, string? arg1 = null, string? arg2 = null, int line = -1) {
             if (line == -1)
                 line = m_curLine;
 
-            object[] args;
+            object?[] args;
             if (arg2 != null)
-                args = new object[] {arg1, arg2, line};
+                args = new object?[] {arg1, arg2, line};
             else if (arg1 != null)
-                args = new object[] {arg1, line};
+                args = new object?[] {arg1, line};
             else
-                args = new object[] {line};
+                args = new object?[] {line};
 
             return ErrorHelper.createError(code, args);
         }

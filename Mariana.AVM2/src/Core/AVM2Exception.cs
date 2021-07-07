@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Reflection;
 
 namespace Mariana.AVM2.Core {
@@ -34,8 +35,14 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         public override string Message {
             get {
-                if (thrownValue.value is ASError err)
-                    return err.name + " #" + ASint.AS_convertString(err.errorID) + ": " + err.message;
+                if (thrownValue.value is ASError err) {
+                    return String.Format(
+                        "{0} #{1}: {2}",
+                        err.name.ToString(),
+                        err.errorID.ToString(CultureInfo.InvariantCulture),
+                        err.message.ToString()
+                    );
+                }
 
                 return ASAny.AS_convertString(thrownValue);
             }

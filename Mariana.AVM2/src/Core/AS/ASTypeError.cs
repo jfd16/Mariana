@@ -24,7 +24,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="message">The error message.</param>
         /// <param name="id">The error code.</param>
         [AVM2ExportTrait]
-        public ASTypeError(string message = "", int id = 0) : base(message, id) {
+        public ASTypeError([ParamDefaultValue("")] ASAny message, int id = 0) : base(message, id) {
             name = "TypeError";
         }
 

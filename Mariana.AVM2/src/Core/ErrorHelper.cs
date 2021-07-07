@@ -84,7 +84,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="args">The placeholder arguments, if the error code has a formattable
         /// message.</param>
         /// <returns>An <see cref="AVM2Exception"/> instance that can be thrown.</returns>
-        internal static AVM2Exception createError(ErrorCode code, params object[] args) =>
+        internal static AVM2Exception createError(ErrorCode code, params object?[] args) =>
             new AVM2Exception(createErrorObject(code, args));
 
         /// <summary>
@@ -97,10 +97,10 @@ namespace Mariana.AVM2.Core {
         /// <param name="args">The placeholder arguments, if the error code has a formattable
         /// message.</param>
         /// <returns>An <see cref="ASError"/> object.</returns>
-        internal static ASError createErrorObject(ErrorCode code, params object[] args) {
+        internal static ASError createErrorObject(ErrorCode code, params object?[] args) {
             _ErrInfo errinfo = m_errorInfoDict[code];
-            ConstructorInfo ctor = errinfo.type.GetConstructor(new[] {typeof(string), typeof(int)});
-            return (ASError)ctor.Invoke(new object[] {_formatErrorMsg(errinfo.msg, args), (int)code});
+            ConstructorInfo ctor = errinfo.type.GetConstructor(new[] {typeof(ASAny), typeof(int)});
+            return (ASError)ctor.Invoke(new object[] {(ASAny)_formatErrorMsg(errinfo.msg, args), (int)code});
         }
 
         /// <summary>
@@ -158,20 +158,20 @@ namespace Mariana.AVM2.Core {
         /// <see cref="Class"/> or <see cref="Type"/>.</param>
         ///
         /// <returns>An <see cref="AVM2Exception"/> instance that can be thrown.</returns>
-        public static AVM2Exception createCastError(object objOrFromType, object toType) {
+        public static AVM2Exception createCastError(object? objOrFromType, object? toType) {
             string fromTypeStr, toTypeStr;
 
             if (objOrFromType is ASAny any) {
                 if (any.isUndefinedOrNull)
                     fromTypeStr = any.ToString();
                 else
-                    fromTypeStr = any.AS_class.name.ToString();
+                    fromTypeStr = any.AS_class!.name.ToString();
             }
             else if (objOrFromType is ASObject obj) {
                 fromTypeStr = obj.AS_class.name.ToString();
             }
             else if (objOrFromType is Type fromType) {
-                Class fromTypeClass = Class.fromType(fromType);
+                Class? fromTypeClass = Class.fromType(fromType);
                 fromTypeStr = (fromTypeClass != null) ? fromTypeClass.name.ToString() : ReflectUtil.getFullTypeName(fromType);
             }
             else if (objOrFromType is Class fromClass) {
@@ -185,7 +185,7 @@ namespace Mariana.AVM2.Core {
                 toTypeStr = toClass.name.ToString();
             }
             else if (toType is Type toTypeAsType) {
-                Class toTypeClass = Class.fromType(toTypeAsType);
+                Class? toTypeClass = Class.fromType(toTypeAsType);
                 toTypeStr = (toTypeClass != null) ? toTypeClass.name.ToString() : ReflectUtil.getFullTypeName(toTypeAsType);
             }
             else {
@@ -239,7 +239,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="message">The error message containing placeholders.</param>
         /// <param name="args">The arguments to substitute.</param>
         /// <returns>The error message, with arguments substituted.</returns>
-        private static string _formatErrorMsg(string message, object[] args) {
+        private static string _formatErrorMsg(string message, object?[] args) {
             var sb = new StringBuilder();
             ReadOnlySpan<char> messageSpan = message;
 
@@ -253,7 +253,7 @@ namespace Mariana.AVM2.Core {
                 int argIndex = messageSpan[placeholderPos + 1] - '0';
                 if (argIndex <= 9) {
                     sb.Append(messageSpan.Slice(0, placeholderPos));
-                    object arg = args[argIndex - 1];
+                    object? arg = args[argIndex - 1];
                     sb.Append((arg != null) ? arg.ToString() : "null");
                 }
 

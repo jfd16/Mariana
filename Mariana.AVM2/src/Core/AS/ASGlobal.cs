@@ -59,7 +59,7 @@ namespace Mariana.AVM2.Core {
         /// The AS3 namespace, which is used for the names of class-based methods of the core classes.
         /// </summary>
         [AVM2ExportTrait]
-        public static readonly ASNamespace AS3 = new ASNamespace(Namespace.AS3.uri);
+        public static readonly ASNamespace AS3 = new ASNamespace(Namespace.AS3.uri!);
 
         /// <summary>
         /// Decodes a URI-encoded string.
@@ -87,7 +87,7 @@ namespace Mariana.AVM2.Core {
             if (uri == null)
                 return "null";
 
-            if (URIUtil.tryDecode(uri, DECODE_URI_NO_DECODE, failOnInvalidSurrogate: false, out string decoded))
+            if (URIUtil.tryDecode(uri, DECODE_URI_NO_DECODE, failOnInvalidSurrogate: false, out string? decoded))
                 return decoded;
 
             throw ErrorHelper.createError(ErrorCode.INVALID_URI, "decodeURI");
@@ -118,7 +118,7 @@ namespace Mariana.AVM2.Core {
             if (uri == null)
                 return "null";
 
-            if (URIUtil.tryDecode(uri, "", failOnInvalidSurrogate: false, out string decoded))
+            if (URIUtil.tryDecode(uri, "", failOnInvalidSurrogate: false, out string? decoded))
                 return decoded;
 
             throw ErrorHelper.createError(ErrorCode.INVALID_URI, "decodeURIComponent");
@@ -149,7 +149,7 @@ namespace Mariana.AVM2.Core {
             if (uri == null)
                 return "null";
 
-            if (URIUtil.tryEncode(uri, ENCODE_URI_NO_ENCODE, failOnInvalidSurrogate: false, out string encoded))
+            if (URIUtil.tryEncode(uri, ENCODE_URI_NO_ENCODE, failOnInvalidSurrogate: false, out string? encoded))
                 return encoded;
 
             throw ErrorHelper.createError(ErrorCode.INVALID_URI, "encodeURI");
@@ -174,11 +174,11 @@ namespace Mariana.AVM2.Core {
         /// special characters: <c>- _ . ! * ' ( )</c>
         /// </remarks>
         [AVM2ExportTrait]
-        public static string encodeURIComponent(string uri = null) {
+        public static string encodeURIComponent(string uri = "undefined") {
             if (uri == null)
                 return "null";
 
-            if (URIUtil.tryEncode(uri, ENCODE_URI_COMPONENT_NO_ENCODE, failOnInvalidSurrogate: false, out string encoded))
+            if (URIUtil.tryEncode(uri, ENCODE_URI_COMPONENT_NO_ENCODE, failOnInvalidSurrogate: false, out string? encoded))
                 return encoded;
 
             throw ErrorHelper.createError(ErrorCode.INVALID_URI, "encodeURIComponent");
@@ -285,7 +285,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="str">The string to check.</param>
         /// <returns>True if the string is a valid XML name, false otherwise.</returns>
         [AVM2ExportTrait]
-        public static bool isXMLName(string str = null) => str != null && XMLHelper.isValidName(str);
+        public static bool isXMLName(string? str = null) => XMLHelper.isValidName(str);
 
         /// <summary>
         /// Parses a string into a floating-point number.
@@ -299,7 +299,7 @@ namespace Mariana.AVM2.Core {
         /// containing only white space.
         /// </remarks>
         [AVM2ExportTrait]
-        public static double parseFloat(string str = null) {
+        public static double parseFloat(string? str = null) {
             if (str != null && NumberFormatHelper.stringToDouble(str, out double val, out _, strict: false))
                 return val;
 
@@ -336,7 +336,7 @@ namespace Mariana.AVM2.Core {
         /// value will be returned in such cases.</para>
         /// </remarks>
         [AVM2ExportTrait]
-        public static double parseInt(string str = null, int radix = 0) {
+        public static double parseInt(string? str = null, int radix = 0) {
             if (str == null || str.Length == 0)
                 return Double.NaN;
 

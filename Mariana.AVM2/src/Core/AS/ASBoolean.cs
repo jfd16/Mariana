@@ -32,7 +32,7 @@ namespace Mariana.AVM2.Core {
             new LazyInitObject<(ASBoolean, ASBoolean)>(() => (new ASBoolean(false), new ASBoolean(true)));
 
         private static LazyInitObject<Class> s_lazyClass = new LazyInitObject<Class>(
-            () => Class.fromType(typeof(ASBoolean)),
+            () => Class.fromType(typeof(ASBoolean))!,
             recursionHandling: LazyInitRecursionHandling.RECURSIVE_CALL
         );
 

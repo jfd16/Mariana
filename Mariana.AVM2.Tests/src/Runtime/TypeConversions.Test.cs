@@ -1296,7 +1296,7 @@ namespace Mariana.AVM2.Tests {
 
             addTestCase(new ASObject());
             addTestCase(new ASArray());
-            addTestCase(ASXML.createNode(XMLNodeType.TEXT));
+            addTestCase(ASXML.createTextNode(""));
             addTestCase(new ASXMLList());
             addTestCase(new ASDate(0));
             addTestCase(ASFunction.createEmpty());
@@ -1356,7 +1356,7 @@ namespace Mariana.AVM2.Tests {
             (true, false),
             (new ASDate(0), false),
             (new TypeConversionsTest_CA(), false),
-            (ASXML.createNode(XMLNodeType.TEXT), false),
+            (ASXML.createTextNode(""), false),
             (new ASXMLList(), false),
 
             (new ASArray(), true),
@@ -1429,10 +1429,10 @@ namespace Mariana.AVM2.Tests {
             (obj: "abcd", toType: typeof(TypeConversionsTest_CA), isSuccess: false),
             (obj: "abcd", toType: typeof(TypeConversionsTest_IA), isSuccess: false),
 
-            (obj: ASXML.createNode(XMLNodeType.ELEMENT, new ASQName("a")), toType: typeof(ASXML), isSuccess: true),
-            (obj: ASXML.createNode(XMLNodeType.ELEMENT, new ASQName("a")), toType: typeof(ASXMLList), isSuccess: false),
-            (obj: new ASXMLList(new[] {ASXML.createNode(XMLNodeType.TEXT)}), toType: typeof(ASXMLList), isSuccess: true),
-            (obj: new ASXMLList(new[] {ASXML.createNode(XMLNodeType.TEXT)}), toType: typeof(ASXML), isSuccess: false),
+            (obj: ASXML.createElementNode(new ASQName("a")), toType: typeof(ASXML), isSuccess: true),
+            (obj: ASXML.createElementNode(new ASQName("a")), toType: typeof(ASXMLList), isSuccess: false),
+            (obj: new ASXMLList(new[] {ASXML.createTextNode("")}), toType: typeof(ASXMLList), isSuccess: true),
+            (obj: new ASXMLList(new[] {ASXML.createTextNode("")}), toType: typeof(ASXML), isSuccess: false),
 
             (obj: new ASVector<ASObject>(), toType: typeof(ASVector<ASObject>), isSuccess: true),
             (obj: new ASVector<ASObject>(), toType: typeof(ASVectorAny), isSuccess: true),

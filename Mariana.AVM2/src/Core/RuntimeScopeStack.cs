@@ -15,7 +15,6 @@ namespace Mariana.AVM2.Core {
         /// An item on the scope stack.
         /// </summary>
         private struct Item {
-
             /// <summary>
             /// The object on the stack.
             /// </summary>
@@ -25,7 +24,6 @@ namespace Mariana.AVM2.Core {
             /// The binding options to use for a name lookup on the object <see cref="obj"/>.
             /// </summary>
             public BindOptions bindOptions;
-
         }
 
         /// <summary>
@@ -36,7 +34,7 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// The <see cref="RuntimeScopeStack"/> for the enclosing scope.
         /// </summary>
-        private RuntimeScopeStack m_parentScope;
+        private RuntimeScopeStack? m_parentScope;
 
         /// <summary>
         /// Creates a new instance of <see cref="RuntimeScopeStack"/>.
@@ -44,7 +42,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="initialCapacity">The initial capacity of the stack.</param>
         /// <param name="parentScope">The scope stack which the new scope stack should extend,
         /// or null if the new scope stack should not extend an enclosing scope.</param>
-        public RuntimeScopeStack(int initialCapacity = 0, RuntimeScopeStack parentScope = null) {
+        public RuntimeScopeStack(int initialCapacity = 0, RuntimeScopeStack? parentScope = null) {
             m_items = new DynamicArray<Item>(initialCapacity);
             m_parentScope = parentScope;
         }
@@ -55,12 +53,8 @@ namespace Mariana.AVM2.Core {
         /// <param name="scopeObject">The object to push onto the scope stack.</param>
         /// <param name="bindingOptions">The binding options to be used when the object is reached in
         /// a name lookup. The default value will only search the object's traits.</param>
-        public void push(ASObject scopeObject, BindOptions bindingOptions = BindOptions.SEARCH_TRAITS) {
-            Item stackItem;
-            stackItem.obj = scopeObject;
-            stackItem.bindOptions = bindingOptions;
-            m_items.add(stackItem);
-        }
+        public void push(ASObject scopeObject, BindOptions bindingOptions = BindOptions.SEARCH_TRAITS) =>
+            m_items.add(new Item {obj = scopeObject, bindOptions = bindingOptions});
 
         /// <summary>
         /// Discards the topmost object from the scope stack. If the scope stack is empty, this method
@@ -120,8 +114,13 @@ namespace Mariana.AVM2.Core {
         ///
         /// <returns>A <see cref="BindStatus"/> indicating the result of the name lookup.</returns>
         public BindStatus tryFindProperty(
-            in QName name, int startLevel, out ASObject obj, out ASAny value, bool isAttribute = false, bool strict = false)
-        {
+            in QName name,
+            int startLevel,
+            out ASObject? obj,
+            out ASAny value,
+            bool isAttribute = false,
+            bool strict = false
+        ) {
             BindStatus bindStatus = BindStatus.NOT_FOUND;
             value = default(ASAny);
             obj = null;
@@ -168,9 +167,14 @@ namespace Mariana.AVM2.Core {
         ///
         /// <returns>A <see cref="BindStatus"/> indicating the result of the name lookup.</returns>
         public BindStatus tryFindProperty(
-            string name, in NamespaceSet nsSet, int startLevel, out ASObject obj, out ASAny value,
-            bool isAttribute = false, bool strict = false)
-        {
+            string name,
+            in NamespaceSet nsSet,
+            int startLevel,
+            out ASObject? obj,
+            out ASAny value,
+            bool isAttribute = false,
+            bool strict = false
+        ) {
             BindStatus bindStatus = BindStatus.NOT_FOUND;
             value = default(ASAny);
             obj = null;
@@ -217,8 +221,13 @@ namespace Mariana.AVM2.Core {
         ///
         /// <returns>A <see cref="BindStatus"/> indicating the result of the name lookup.</returns>
         public BindStatus tryFindPropertyObj(
-            ASAny key, int startLevel, out ASObject obj, out ASAny value, bool isAttribute = false, bool strict = false)
-        {
+            ASAny key,
+            int startLevel,
+            out ASObject? obj,
+            out ASAny value,
+            bool isAttribute = false,
+            bool strict = false
+        ) {
             BindStatus bindStatus = BindStatus.NOT_FOUND;
             value = default(ASAny);
             obj = null;
@@ -265,9 +274,14 @@ namespace Mariana.AVM2.Core {
         ///
         /// <returns>A <see cref="BindStatus"/> indicating the result of the name lookup.</returns>
         public BindStatus tryFindPropertyObj(
-            ASAny key, in NamespaceSet nsSet, int startLevel, out ASObject obj, out ASAny value,
-            bool isAttribute = false, bool strict = false)
-        {
+            ASAny key,
+            in NamespaceSet nsSet,
+            int startLevel,
+            out ASObject? obj,
+            out ASAny value,
+            bool isAttribute = false,
+            bool strict = false
+        ) {
             BindStatus bindStatus = BindStatus.NOT_FOUND;
             value = default(ASAny);
             obj = null;
@@ -309,14 +323,15 @@ namespace Mariana.AVM2.Core {
         /// <returns>The object in which the property with the given name was found. If no such
         /// property was found and <paramref name="strict"/> is set to false, the bottom-most object
         /// in the stack is returned.</returns>
-        public ASObject findProperty(in QName name, int startLevel = 0, bool isAttribute = false, bool strict = false) {
+        public ASObject? findProperty(in QName name, int startLevel = 0, bool isAttribute = false, bool strict = false) {
             BindStatus bindStatus = tryFindProperty(
-                name, startLevel, out ASObject obj, out _, isAttribute, strict);
+                name, startLevel, out ASObject? obj, out _, isAttribute, strict);
 
             if (bindStatus == BindStatus.NOT_FOUND || bindStatus == BindStatus.SOFT_SUCCESS)
                 throw ErrorHelper.createError(ErrorCode.VARIABLE_NOT_DEFINED, name.ToString());
             if (bindStatus == BindStatus.AMBIGUOUS)
                 throw ErrorHelper.createError(ErrorCode.AMBIGUOUS_NAME_MATCH, name.ToString());
+
             return obj;
         }
 
@@ -341,16 +356,17 @@ namespace Mariana.AVM2.Core {
         /// <returns>The object in which the property with the given name was found. If no such
         /// property was found and <paramref name="strict"/> is set to false, the bottom-most object
         /// in the stack is returned.</returns>
-        public ASObject findProperty(
+        public ASObject? findProperty(
             string name, in NamespaceSet nsSet, int startLevel = 0, bool isAttribute = false, bool strict = false)
         {
             BindStatus bindStatus = tryFindProperty(
-                name, nsSet, startLevel, out ASObject obj, out _, isAttribute, strict);
+                name, nsSet, startLevel, out ASObject? obj, out _, isAttribute, strict);
 
             if (bindStatus == BindStatus.NOT_FOUND || bindStatus == BindStatus.SOFT_SUCCESS)
                 throw ErrorHelper.createError(ErrorCode.VARIABLE_NOT_DEFINED, name);
             if (bindStatus == BindStatus.AMBIGUOUS)
                 throw ErrorHelper.createError(ErrorCode.AMBIGUOUS_NAME_MATCH, name);
+
             return obj;
         }
 
@@ -374,14 +390,15 @@ namespace Mariana.AVM2.Core {
         /// <returns>The object in which the property with the given key was found. If no such
         /// property was found and <paramref name="strict"/> is set to false, the bottom-most object
         /// in the stack is returned.</returns>
-        public ASObject findPropertyObj(ASAny key, int startLevel = 0, bool isAttribute = false, bool strict = false) {
+        public ASObject? findPropertyObj(ASAny key, int startLevel = 0, bool isAttribute = false, bool strict = false) {
             BindStatus status = tryFindPropertyObj(
-                key, startLevel, out ASObject obj, out _, isAttribute, strict);
+                key, startLevel, out ASObject? obj, out _, isAttribute, strict);
 
             if (status == BindStatus.NOT_FOUND || status == BindStatus.SOFT_SUCCESS)
                 throw ErrorHelper.createError(ErrorCode.VARIABLE_NOT_DEFINED, key);
             if (status == BindStatus.AMBIGUOUS)
                 throw ErrorHelper.createError(ErrorCode.AMBIGUOUS_NAME_MATCH, key);
+
             return obj;
         }
 
@@ -406,16 +423,17 @@ namespace Mariana.AVM2.Core {
         /// <returns>The object in which the property with the given key was found. If no such
         /// property was found and <paramref name="strict"/> is set to false, the bottom-most object
         /// in the stack is returned.</returns>
-        public ASObject findPropertyObj(
+        public ASObject? findPropertyObj(
             ASAny key, in NamespaceSet nsSet, int startLevel = 0, bool isAttribute = false, bool strict = false)
         {
             BindStatus status = tryFindPropertyObj(
-                key, nsSet, startLevel, out ASObject obj, out _, isAttribute, strict);
+                key, nsSet, startLevel, out ASObject? obj, out _, isAttribute, strict);
 
             if (status == BindStatus.NOT_FOUND || status == BindStatus.SOFT_SUCCESS)
                 throw ErrorHelper.createError(ErrorCode.VARIABLE_NOT_DEFINED, key);
             if (status == BindStatus.AMBIGUOUS)
                 throw ErrorHelper.createError(ErrorCode.AMBIGUOUS_NAME_MATCH, key);
+
             return obj;
         }
 
@@ -446,6 +464,7 @@ namespace Mariana.AVM2.Core {
                 throw ErrorHelper.createError(ErrorCode.VARIABLE_NOT_DEFINED, name.ToString());
             if (status == BindStatus.AMBIGUOUS)
                 throw ErrorHelper.createError(ErrorCode.AMBIGUOUS_NAME_MATCH, name.ToString());
+
             return value;
         }
 
@@ -478,6 +497,7 @@ namespace Mariana.AVM2.Core {
                 throw ErrorHelper.createError(ErrorCode.VARIABLE_NOT_DEFINED, name);
             if (status == BindStatus.AMBIGUOUS)
                 throw ErrorHelper.createError(ErrorCode.AMBIGUOUS_NAME_MATCH, name);
+
             return value;
         }
 
@@ -509,6 +529,7 @@ namespace Mariana.AVM2.Core {
                 throw ErrorHelper.createError(ErrorCode.VARIABLE_NOT_DEFINED, key);
             if (status == BindStatus.AMBIGUOUS)
                 throw ErrorHelper.createError(ErrorCode.AMBIGUOUS_NAME_MATCH, key);
+
             return value;
         }
 
@@ -543,6 +564,7 @@ namespace Mariana.AVM2.Core {
                 throw ErrorHelper.createError(ErrorCode.VARIABLE_NOT_DEFINED, key);
             if (status == BindStatus.AMBIGUOUS)
                 throw ErrorHelper.createError(ErrorCode.AMBIGUOUS_NAME_MATCH, key);
+
             return value;
         }
 

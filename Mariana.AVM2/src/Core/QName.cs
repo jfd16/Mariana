@@ -16,14 +16,14 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// The local name of the qualified name.
         /// </summary>
-        public readonly string localName;
+        public readonly string? localName;
 
         /// <summary>
         /// Creates a new <see cref="QName"/> with a given name and namespace.
         /// </summary>
         /// <param name="ns">The namespace of the <see cref="QName"/>.</param>
         /// <param name="localName">The local name of the <see cref="QName"/>.</param>
-        public QName(in Namespace ns, string localName) {
+        public QName(in Namespace ns, string? localName) {
             this.ns = ns;
             this.localName = localName;
         }
@@ -35,7 +35,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="uri">The namespace name (URI) of the <see cref="QName"/>. If this is
         /// null, the namespace is set to the "any" namespace.</param>
         /// <param name="localName">The local name of the <see cref="QName"/>.</param>
-        public QName(string uri, string localName) {
+        public QName(string? uri, string? localName) {
             this.ns = new Namespace(uri);
             this.localName = localName;
         }
@@ -88,7 +88,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="name">The string to covert to a <see cref="QName"/>.</param>
         /// <returns>A <see cref="QName"/> in the public namespace whose local name is
         /// <paramref name="name"/>.</returns>
-        public static implicit operator QName(string name) => publicName(name);
+        public static implicit operator QName(string? name) => publicName(name);
 
         /// <summary>
         /// Determines whether two QNames are equal to each other.
@@ -123,7 +123,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="localName">The local name of the <see cref="QName"/>.</param>
         /// <returns>The created <see cref="QName"/>.</returns>
-        public static QName publicName(string localName) => new QName(Namespace.@public, localName);
+        public static QName publicName(string? localName) => new QName(Namespace.@public, localName);
 
         /// <summary>
         /// Converts an AS3 object to a <see cref="QName"/>.
@@ -137,7 +137,7 @@ namespace Mariana.AVM2.Core {
         /// using both their local name and namespace URI; any other object is converted to a string
         /// and used as the local name with the namespace being set to the public namespace.
         /// </remarks>
-        public static QName fromObject(ASObject obj) {
+        public static QName fromObject(ASObject? obj) {
             if (obj is ASQName qName)
                 return new QName(new Namespace(qName.uri), qName.localName);
 
@@ -159,7 +159,7 @@ namespace Mariana.AVM2.Core {
         /// are taken from <paramref name="qname"/>. If <paramref name="qname"/> is null, the
         /// default value of this type is returned.
         /// </remarks>
-        public static QName fromASQName(ASQName qname) =>
+        public static QName fromASQName(ASQName? qname) =>
             (qname == null) ? default : new QName(new Namespace(qname.uri), qname.localName);
 
         /// <summary>
@@ -190,7 +190,7 @@ namespace Mariana.AVM2.Core {
         /// local name, with the namespace being the public namespace.</description></item>
         /// </list>
         /// </remarks>
-        public static QName parse(string name) {
+        public static QName parse(string? name) {
             if (name == null)
                 return default(QName);
 

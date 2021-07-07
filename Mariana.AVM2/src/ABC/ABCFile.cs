@@ -11,34 +11,24 @@ namespace Mariana.AVM2.ABC {
     public sealed class ABCFile {
 
         private ushort m_majorVersion;
-
         private ushort m_minorVersion;
 
-        private int[] m_intPool;
+        // These arrays are initialized to null.
+        // They will be set to non-null values by ABCParser.
 
-        private uint[] m_uintPool;
-
-        private double[] m_doublePool;
-
-        private string[] m_stringPool;
-
-        private Namespace[] m_namespacePool;
-
-        private NamespaceSet[] m_nsSetPool;
-
-        private ABCMultiname[] m_multinamePool;
-
-        private ABCMultiname[][] m_genericArgListPool;
-
-        private ABCMethodInfo[] m_methodInfo;
-
-        private MetadataTag[] m_metadata;
-
-        private ABCClassInfo[] m_classInfo;
-
-        private ABCScriptInfo[] m_scriptInfo;
-
-        private ABCMethodBodyInfo[] m_methodBodyInfo;
+        private int[] m_intPool = null!;
+        private uint[] m_uintPool = null!;
+        private double[] m_doublePool = null!;
+        private string?[] m_stringPool = null!;
+        private Namespace[] m_namespacePool = null!;
+        private NamespaceSet[] m_nsSetPool = null!;
+        private ABCMultiname[] m_multinamePool = null!;
+        private ABCMultiname[][] m_genericArgListPool = null!;
+        private ABCMethodInfo[] m_methodInfo = null!;
+        private MetadataTag[] m_metadata = null!;
+        private ABCClassInfo[] m_classInfo = null!;
+        private ABCScriptInfo[] m_scriptInfo = null!;
+        private ABCMethodBodyInfo[] m_methodBodyInfo = null!;
 
         /// <summary>
         /// Reads an ActionScript 3 bytecode file from a file.
@@ -88,11 +78,14 @@ namespace Mariana.AVM2.ABC {
             if (stream == null)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(stream));
 
-            ABCParser parser = new ABCParser();
-            return parser.parse(stream, parseOptions);
+            var file = new ABCFile();
+            var parser = new ABCParser();
+            parser.parse(stream, parseOptions, file);
+
+            return file;
         }
 
-        internal ABCFile() { }
+        private ABCFile() { }
 
         /// <summary>
         /// Gets the ABC major version of this ABC file.
@@ -109,9 +102,12 @@ namespace Mariana.AVM2.ABC {
         /// </summary>
         /// <returns>The integer constant.</returns>
         /// <param name="index">The index of the constant in the ABC file's constant pool.</param>
+        /// <exception cref="AVM2Exception">VerifyError #1032: <paramref name="index"/> is negative
+        /// or outside the range of the integer constant pool.</exception>
         public int resolveInt(int index) {
             if ((uint)index >= (uint)m_intPool.Length)
                 throw ErrorHelper.createError(ErrorCode.CONSTANT_POOL_OUT_OF_RANGE, index, m_intPool.Length);
+
             return m_intPool[index];
         }
 
@@ -120,9 +116,12 @@ namespace Mariana.AVM2.ABC {
         /// </summary>
         /// <returns>The unsigned integer constant.</returns>
         /// <param name="index">The index of the constant in the ABC file's constant pool.</param>
+        /// <exception cref="AVM2Exception">VerifyError #1032: <paramref name="index"/> is negative
+        /// or outside the range of the unsigned integer constant pool.</exception>
         public uint resolveUint(int index) {
             if ((uint)index >= (uint)m_uintPool.Length)
                 throw ErrorHelper.createError(ErrorCode.CONSTANT_POOL_OUT_OF_RANGE, index, m_uintPool.Length);
+
             return m_uintPool[index];
         }
 
@@ -131,9 +130,12 @@ namespace Mariana.AVM2.ABC {
         /// </summary>
         /// <returns>The floating-point constant.</returns>
         /// <param name="index">The index of the constant in the ABC file's constant pool.</param>
+        /// <exception cref="AVM2Exception">VerifyError #1032: <paramref name="index"/> is negative
+        /// or outside the range of the floating-point constant pool.</exception>
         public double resolveDouble(int index) {
             if ((uint)index >= (uint)m_doublePool.Length)
                 throw ErrorHelper.createError(ErrorCode.CONSTANT_POOL_OUT_OF_RANGE, index, m_doublePool.Length);
+
             return m_doublePool[index];
         }
 
@@ -142,9 +144,12 @@ namespace Mariana.AVM2.ABC {
         /// </summary>
         /// <returns>The string constant.</returns>
         /// <param name="index">The index of the constant in the ABC file's constant pool.</param>
-        public string resolveString(int index) {
+        /// <exception cref="AVM2Exception">VerifyError #1032: <paramref name="index"/> is negative
+        /// or outside the range of the string constant pool.</exception>
+        public string? resolveString(int index) {
             if ((uint)index >= (uint)m_stringPool.Length)
                 throw ErrorHelper.createError(ErrorCode.CONSTANT_POOL_OUT_OF_RANGE, index, m_stringPool.Length);
+
             return m_stringPool[index];
         }
 
@@ -153,9 +158,12 @@ namespace Mariana.AVM2.ABC {
         /// </summary>
         /// <returns>The namespace constant.</returns>
         /// <param name="index">The index of the constant in the ABC file's constant pool.</param>
+        /// <exception cref="AVM2Exception">VerifyError #1032: <paramref name="index"/> is negative
+        /// or outside the range of the namespace constant pool.</exception>
         public Namespace resolveNamespace(int index) {
             if ((uint)index >= (uint)m_namespacePool.Length)
                 throw ErrorHelper.createError(ErrorCode.CONSTANT_POOL_OUT_OF_RANGE, index, m_namespacePool.Length);
+
             return m_namespacePool[index];
         }
 
@@ -164,9 +172,12 @@ namespace Mariana.AVM2.ABC {
         /// </summary>
         /// <returns>The namespace set constant.</returns>
         /// <param name="index">The index of the constant in the ABC file's constant pool.</param>
+        /// <exception cref="AVM2Exception">VerifyError #1032: <paramref name="index"/> is negative
+        /// or outside the range of the namespace set constant pool.</exception>
         public NamespaceSet resolveNamespaceSet(int index) {
             if ((uint)index >= (uint)m_nsSetPool.Length)
                 throw ErrorHelper.createError(ErrorCode.CONSTANT_POOL_OUT_OF_RANGE, index, m_nsSetPool.Length);
+
             return m_nsSetPool[index];
         }
 
@@ -175,9 +186,12 @@ namespace Mariana.AVM2.ABC {
         /// </summary>
         /// <returns>The multiname constant.</returns>
         /// <param name="index">The index of the constant in the ABC file's constant pool.</param>
+        /// <exception cref="AVM2Exception">VerifyError #1032: <paramref name="index"/> is negative
+        /// or outside the range of the multiname constant pool.</exception>
         public ABCMultiname resolveMultiname(int index) {
             if ((uint)index >= (uint)m_multinamePool.Length)
                 throw ErrorHelper.createError(ErrorCode.CONSTANT_POOL_OUT_OF_RANGE, index, m_multinamePool.Length);
+
             return m_multinamePool[index];
         }
 
@@ -187,6 +201,8 @@ namespace Mariana.AVM2.ABC {
         /// <returns>The generic argument list as a read-only array view of <see cref="ABCMultiname"/>
         /// instances.</returns>
         /// <param name="index">The index of the constant in the ABC file's constant pool.</param>
+        /// <exception cref="AVM2Exception">VerifyError #1032: <paramref name="index"/> is negative
+        /// or outside the range of the generic argument list constant pool.</exception>
         public ReadOnlyArrayView<ABCMultiname> resolveGenericArgList(int index) {
             if ((uint)index >= (uint)m_multinamePool.Length)
                 throw ErrorHelper.createError(ErrorCode.CONSTANT_POOL_OUT_OF_RANGE, index, m_genericArgListPool.Length);
@@ -200,6 +216,15 @@ namespace Mariana.AVM2.ABC {
         /// <param name="kind">The type of the constant.</param>
         /// <param name="index">The index of the constant in the ABC file, in the constant pool
         /// determined by <paramref name="kind"/>.</param>
+        /// <exception cref="AVM2Exception">
+        /// <list type="bullet">
+        /// <item><description>VerifyError #1032: <paramref name="index"/> is negative
+        /// or outside the range of the constant pool for the type specified by
+        /// <paramref name="kind"/>.</description></item>
+        /// <item><description>ArgumentError #10061: <paramref name="kind"/> is not
+        /// a valid constant kind.</description></item>
+        /// </list>
+        /// </exception>
         public ASAny resolveConstant(ABCConstKind kind, int index) {
             return kind switch {
                 ABCConstKind.Int => resolveInt(index),
@@ -218,7 +243,7 @@ namespace Mariana.AVM2.ABC {
                 or ABCConstKind.StaticProtectedNs
                 or ABCConstKind.ExplicitNamespace
                 or ABCConstKind.PrivateNs =>
-                    new ASNamespace(resolveNamespace(index).uri),
+                    new ASNamespace(resolveNamespace(index).uri!),
 
                 _ => throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_OUT_OF_RANGE, nameof(kind)),
             };
@@ -229,9 +254,12 @@ namespace Mariana.AVM2.ABC {
         /// </summary>
         /// <returns>The <see cref="MetadataTag"/> instance.</returns>
         /// <param name="index">The index of the metadata tag in the ABC file.</param>
+        /// <exception cref="AVM2Exception">VerifyError #10323: <paramref name="index"/> is negative
+        /// or not less than the number of <c>metadata_info</c> entries in the ABC file.</exception>
         public MetadataTag resolveMetadata(int index) {
             if ((uint)index >= (uint)m_metadata.Length)
-                throw null;
+                throw ErrorHelper.createError(ErrorCode.MARIANA__ABC_METADATA_INFO_OUT_OF_RANGE, index, m_metadata.Length);
+
             return m_metadata[index];
         }
 
@@ -240,9 +268,12 @@ namespace Mariana.AVM2.ABC {
         /// </summary>
         /// <returns>The <see cref="ABCMethodInfo"/> instance.</returns>
         /// <param name="index">The index of the method in the ABC file.</param>
+        /// <exception cref="AVM2Exception">VerifyError #1027: <paramref name="index"/> is negative
+        /// or not less than the number of <c>method_info</c> entries in the ABC file.</exception>
         public ABCMethodInfo resolveMethodInfo(int index) {
             if ((uint)index >= (uint)m_methodInfo.Length)
                 throw ErrorHelper.createError(ErrorCode.METHOD_INFO_OUT_OF_RANGE, index, m_methodInfo.Length);
+
             return m_methodInfo[index];
         }
 
@@ -251,9 +282,12 @@ namespace Mariana.AVM2.ABC {
         /// </summary>
         /// <returns>The <see cref="ABCClassInfo"/> instance.</returns>
         /// <param name="index">The index of the class in the ABC file.</param>
+        /// <exception cref="AVM2Exception">VerifyError #1060: <paramref name="index"/> is negative
+        /// or not less than the number of <c>class_info</c> entries in the ABC file.</exception>
         public ABCClassInfo resolveClassInfo(int index) {
             if ((uint)index >= (uint)m_classInfo.Length)
                 throw ErrorHelper.createError(ErrorCode.CLASS_INFO_OUT_OF_RANGE, index, m_classInfo.Length);
+
             return m_classInfo[index];
         }
 
@@ -283,7 +317,7 @@ namespace Mariana.AVM2.ABC {
         /// </summary>
         /// <returns>A <see cref="ReadOnlyArrayView{Double}"/> containing the values in the
         /// string constant pool.</returns>
-        public ReadOnlyArrayView<string> getStringPool() => new ReadOnlyArrayView<string>(m_stringPool);
+        public ReadOnlyArrayView<string?> getStringPool() => new ReadOnlyArrayView<string?>(m_stringPool);
 
         /// <summary>
         /// Gets a read-only array view containing the values of this ABC file's namespace constant pool.
@@ -342,28 +376,23 @@ namespace Mariana.AVM2.ABC {
         public ReadOnlyArrayView<ABCMethodBodyInfo> getMethodBodyInfo() => new ReadOnlyArrayView<ABCMethodBodyInfo>(m_methodBodyInfo);
 
         /// <summary>
-        /// Returns a value indicating whether the given multiname represents the "any" name
-        /// when resolved in this ABC file.
+        /// Returns a string representation of a multiname when resolved in this ABC file.
         /// </summary>
-        /// <returns>True if <paramref name="multiname"/> represents the "any" name,
-        /// otherwise false.</returns>
-        /// <param name="multiname">A multiname.</param>
-        public bool isAnyName(in ABCMultiname multiname) {
-            if (multiname.kind != ABCConstKind.QName)
-                return false;
-
-            return resolveString(multiname.localNameIndex) == null
-                && resolveNamespace(multiname.namespaceIndex).kind == NamespaceKind.ANY;
-        }
+        /// <returns>The string representation of the multiname whose constant pool index is
+        /// <paramref name="multinameIndex"/>.</returns>
+        /// <param name="multinameIndex">The index of the constant in the ABC file's multiname constant pool.</param>
+        /// <exception cref="AVM2Exception">VerifyError #1032: <paramref name="multinameIndex"/> is negative
+        /// or outside the range of the multiname constant pool.</exception>
+        public string multinameToString(int multinameIndex) => multinameToString(resolveMultiname(multinameIndex));
 
         /// <summary>
         /// Returns a string representation of a multiname when resolved in this ABC file.
         /// </summary>
         /// <returns>The string representation of the given multiname.</returns>
-        /// <param name="multiname">A multiname.</param>
+        /// <param name="multiname">A multiname obtained from this ABC file.</param>
         public string multinameToString(in ABCMultiname multiname) {
             if (multiname.kind == ABCConstKind.GenericClassName) {
-                string baseStr = multinameToString(resolveMultiname(multiname.genericDefIndex));
+                string baseStr = multinameToString(multiname.genericDefIndex);
                 var args = resolveGenericArgList(multiname.genericArgListIndex);
                 var argStrs = new string[args.length];
 
@@ -382,18 +411,12 @@ namespace Mariana.AVM2.ABC {
             else
                 nsStr = resolveNamespace(multiname.namespaceIndex).ToString();
 
-            string localStr;
+            string? localStr = multiname.hasRuntimeLocalName ? "{RTname}" : resolveString(multiname.localNameIndex);
 
-            if (multiname.hasRuntimeLocalName)
-                localStr = "{RTname}";
-            else
-                localStr = resolveString(multiname.localNameIndex);
+            if (localStr == null && nsStr == "*")
+                return "*";
 
-            if (localStr == null) {
-                if (nsStr == "*")
-                    return "*";
-                localStr = "*";
-            }
+            localStr ??= "*";
 
             if (multiname.isAttributeName)
                 localStr = "@" + localStr;
@@ -415,7 +438,7 @@ namespace Mariana.AVM2.ABC {
 
         internal void setDoublePool(double[] doublePool) => m_doublePool = doublePool;
 
-        internal void setStringPool(string[] stringPool) => m_stringPool = stringPool;
+        internal void setStringPool(string?[] stringPool) => m_stringPool = stringPool;
 
         internal void setNamespacePool(Namespace[] nsPool) => m_namespacePool = nsPool;
 

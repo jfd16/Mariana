@@ -19,7 +19,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="type">The <see cref="Type"/> for which to get the associated <see cref="Class"/>.</param>
         /// <returns>The <see cref="Class"/> associated with <paramref name="type"/>, or null if no
         /// such class exists.</returns>
-        public static Class getClass(Type type) => m_table.TryGetValue(type, out Class klass) ? klass : null;
+        public static Class? getClass(Type type) => m_table.TryGetValue(type, out Class klass) ? klass : null;
 
         /// <summary>
         /// Returns the <see cref="Class"/> associated with a <see cref="Type"/>, or calls a callback function

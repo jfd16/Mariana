@@ -24,7 +24,7 @@ namespace Mariana.AVM2.Core {
         /// <inheritdoc/>
         public sealed override TraitType traitType => TraitType.CONSTANT;
 
-        internal ConstantTrait(in QName name, Class declaringClass, ApplicationDomain appDomain, ASAny value)
+        internal ConstantTrait(in QName name, Class? declaringClass, ApplicationDomain appDomain, ASAny value)
             : base(name, declaringClass, appDomain, isStatic: true)
         {
             m_val = value;
@@ -117,8 +117,9 @@ namespace Mariana.AVM2.Core {
                 sb.Append(": Object = null");
             }
             else {
-                Class valType = constantValue.AS_class;
+                Class valType = constantValue.AS_class!;
                 sb.Append(':').Append(' ').Append(valType.name.ToString()).Append(" = ");
+
                 if (valType.tag == ClassTag.STRING) {
                     string strval = constantValue.ToString().Replace("\\", "\\\\").Replace("\"", "\\\"");
                     sb.Append('"');

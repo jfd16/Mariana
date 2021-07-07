@@ -17,7 +17,7 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// The receiver argument passed to the method.
         /// </summary>
-        public readonly ASObject receiver;
+        public readonly ASObject? receiver;
 
         /// <summary>
         /// The scope argument passed to the method.
@@ -27,7 +27,7 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// The <see cref="ASFunction"/> instance that invoked the method.
         /// </summary>
-        public readonly ASFunction callee;
+        public readonly ASFunction? callee;
 
         /// <summary>
         /// Creates a new instance of <see cref="ScopedClosureReceiver"/>.
@@ -35,7 +35,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="receiver">The receiver argument passed to the method.</param>
         /// <param name="scope">The scope argument passed to the method.</param>
         /// <param name="callee">The <see cref="ASFunction"/> instance that invoked the method.</param>
-        public ScopedClosureReceiver(ASObject receiver, object scope, ASFunction callee) {
+        public ScopedClosureReceiver(ASObject? receiver, object scope, ASFunction? callee) {
             this.receiver = receiver;
             this.scope = scope;
             this.callee = callee;

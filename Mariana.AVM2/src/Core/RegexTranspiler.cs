@@ -201,7 +201,7 @@ namespace Mariana.AVM2.Core {
         /// <returns>An array containing the group names corresponding to each group number, with the
         /// first group as number 0. If there are no named groups in the pattern, returns
         /// null.</returns>
-        public string[] getGroupNames() {
+        public string[]? getGroupNames() {
             if (m_groupNameIndexMap.Count == 0)
                 return null;
 
@@ -233,7 +233,7 @@ namespace Mariana.AVM2.Core {
             m_forwardReferences.clear();
             m_parenBalance = 0;
             m_isInCharSet = false;
-            m_transpiledRegex = null;
+            m_transpiledRegex = null!;
 
             if (m_groupNameIndexMap == null)
                 m_groupNameIndexMap = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -345,7 +345,7 @@ namespace Mariana.AVM2.Core {
             _resolveForwardReferences();
 
             m_transpiledRegex = new string(m_buffer, 0, m_bufpos);
-            m_buffer = null;
+            m_buffer = null!;
         }
 
         /// <summary>

@@ -7,7 +7,7 @@ namespace Mariana.AVM2.Native {
     internal sealed class NativeClassConstant : ConstantTrait {
         internal NativeClassConstant(
             in QName name,
-            Class declaringClass,
+            Class? declaringClass,
             ApplicationDomain appDomain,
             ASAny value,
             MetadataTagCollection metadata
@@ -21,10 +21,10 @@ namespace Mariana.AVM2.Native {
     internal sealed class NativeClassField : FieldTrait {
         internal NativeClassField(
             in QName name,
-            Class declaringClass,
+            Class? declaringClass,
             ApplicationDomain appDomain,
             FieldInfo underlyingFieldInfo,
-            Class fieldType,
+            Class? fieldType,
             MetadataTagCollection metadata
         )
             : base(name, declaringClass, appDomain, underlyingFieldInfo.IsStatic)
@@ -39,11 +39,11 @@ namespace Mariana.AVM2.Native {
     internal sealed class NativeClassMethod : MethodTrait {
         internal NativeClassMethod(
             in QName name,
-            Class declaringClass,
+            Class? declaringClass,
             ApplicationDomain appDomain,
             MethodInfo underlyingMethodInfo,
             bool hasReturn,
-            Class returnType,
+            Class? returnType,
             MethodTraitParameter[] parameters,
             bool hasRest,
             bool isOverride,
@@ -61,11 +61,11 @@ namespace Mariana.AVM2.Native {
     internal sealed class NativeClassProperty : PropertyTrait {
         internal NativeClassProperty(
             in QName name,
-            Class declaringClass,
+            Class? declaringClass,
             ApplicationDomain appDomain,
             bool isStatic,
-            MethodTrait getter,
-            MethodTrait setter,
+            MethodTrait? getter,
+            MethodTrait? setter,
             MetadataTagCollection metadata
         )
             : base(name, declaringClass, appDomain, isStatic, getter, setter)

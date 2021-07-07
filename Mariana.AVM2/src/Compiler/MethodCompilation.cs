@@ -14,9 +14,9 @@ namespace Mariana.AVM2.Compiler {
 
         private ScriptCompileContext m_context;
 
-        private ABCScriptInfo m_currentScript;
+        private ABCScriptInfo? m_currentScript;
 
-        private object m_currentMethod;
+        private object m_currentMethodOrCtor;
 
         private ABCMethodInfo m_currentMethodInfo;
 
@@ -26,7 +26,7 @@ namespace Mariana.AVM2.Compiler {
 
         private MethodCompilationFlags m_flags;
 
-        private ScriptClass m_declClass;
+        private ScriptClass? m_declClass;
 
         private DynamicArray<Instruction> m_instructions = new DynamicArray<Instruction>(256);
 
@@ -56,9 +56,9 @@ namespace Mariana.AVM2.Compiler {
 
         private DynamicArray<int> m_initialLocalNodeIds = new DynamicArray<int>(16);
 
-        private CapturedScope m_capturedScope;
+        private CapturedScope? m_capturedScope;
 
-        private ScriptClass m_activationClass;
+        private ScriptClass? m_activationClass;
 
         private DynamicArray<ScriptClass> m_catchScopeClasses = new DynamicArray<ScriptClass>(8);
 
@@ -79,6 +79,10 @@ namespace Mariana.AVM2.Compiler {
             m_dfAssemblyPass = new DataFlowAssembler(this);
             m_semanticBindingPass = new SemanticBinder(this);
             m_codegenPass = new CodeGenerator(this);
+
+            m_currentMethodOrCtor = null!;
+            m_currentMethodInfo = null!;
+            m_currentMethodBodyInfo = null!;
         }
 
         /// <summary>
@@ -96,7 +100,7 @@ namespace Mariana.AVM2.Compiler {
         /// Gets the class that declares the method being compiled. For global methods, the value
         /// of this property is null.
         /// </summary>
-        public ScriptClass declaringClass => m_declClass;
+        public ScriptClass? declaringClass => m_declClass;
 
         /// <summary>
         /// Gets the <see cref="ABCMethodInfo"/> for the method being compiled.
@@ -126,7 +130,7 @@ namespace Mariana.AVM2.Compiler {
         /// Returns the <see cref="CapturedScope"/> representing the scope stack captured by this
         /// method from its outer context.
         /// </summary>
-        public CapturedScope capturedScope => m_capturedScope;
+        public CapturedScope? capturedScope => m_capturedScope;
 
         /// <summary>
         /// Gets the static integer array pool used by this <see cref="MethodCompilation"/> instance.
@@ -190,14 +194,14 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         /// <returns>The <see cref="ScriptMethod"/> representing the method being compiled. If the current
         /// method being compiled is a constructor, returns null. </returns>
-        public ScriptMethod getCurrentMethod() => m_currentMethod as ScriptMethod;
+        public ScriptMethod? getCurrentMethod() => m_currentMethodOrCtor as ScriptMethod;
 
         /// <summary>
         /// Gets the <see cref="ScriptClassConstructor"/> representing the constructor being compiled.
         /// </summary>
         /// <returns>The <see cref="ScriptClassConstructor"/> representing the constructor being compiled.
         /// If the current method being compiled is not a constructor, returns null.</returns>
-        public ScriptClassConstructor getCurrentConstructor() => m_currentMethod as ScriptClassConstructor;
+        public ScriptClassConstructor? getCurrentConstructor() => m_currentMethodOrCtor as ScriptClassConstructor;
 
         /// <summary>
         /// Gets a read-only array view containing the parameters of the current method or constructor.
@@ -620,7 +624,7 @@ namespace Mariana.AVM2.Compiler {
         /// of the compilation.</param>
         public void compile(
             object methodOrCtor,
-            CapturedScope capturedScope,
+            CapturedScope? capturedScope,
             MethodBuilder methodBuilder,
             MethodCompilationFlags initFlags = 0
         ) {
@@ -628,7 +632,8 @@ namespace Mariana.AVM2.Compiler {
                 using (var lockedContext = getContext()) {
                     if (methodOrCtor is ScriptMethod method) {
                         m_currentMethodInfo = method.abcMethodInfo;
-                        m_declClass = (ScriptClass)method.declaringClass;
+
+                        m_declClass = (ScriptClass?)method.declaringClass;
                         m_currentScript = lockedContext.value.getExportingScript(method);
                         m_currentMethodParams = method.getParameters();
 
@@ -643,6 +648,7 @@ namespace Mariana.AVM2.Compiler {
                     }
                     else {
                         var ctor = (ScriptClassConstructor)methodOrCtor;
+
                         m_currentMethodInfo = ctor.abcMethodInfo;
                         m_declClass = (ScriptClass)ctor.declaringClass;
                         m_currentScript = lockedContext.value.getExportingScript(m_declClass);
@@ -654,16 +660,17 @@ namespace Mariana.AVM2.Compiler {
                             setFlag(MethodCompilationFlags.HAS_REST_PARAM);
                     }
 
-                    m_currentMethodBodyInfo = lockedContext.value.getMethodBodyInfo(m_currentMethodInfo);
+                    m_currentMethodBodyInfo = lockedContext.value.getMethodBodyInfo(m_currentMethodInfo)!;
                 }
 
                 setFlag(initFlags);
 
-                if (isAnyFlagSet(MethodCompilationFlags.IS_SCOPED_FUNCTION))
-                    // Remove the ScopedClosureReceiver implicit parameter
-                    m_currentMethodParams = m_currentMethodParams.slice(1, m_currentMethodParams.length - 1);
+                if (isAnyFlagSet(MethodCompilationFlags.IS_SCOPED_FUNCTION)) {
+                    // Hide the ScopedClosureReceiver implicit parameter
+                    m_currentMethodParams = m_currentMethodParams.slice(1);
+                }
 
-                m_currentMethod = methodOrCtor;
+                m_currentMethodOrCtor = methodOrCtor;
                 m_capturedScope = capturedScope;
 
                 m_computedMaxStack = -1;
@@ -734,7 +741,7 @@ namespace Mariana.AVM2.Compiler {
 
             if ((m_flags & MethodCompilationFlags.IS_SCOPED_FUNCTION) != 0) {
                 thisNode.dataType = DataNodeType.OBJECT;
-                thisNode.constant = new DataNodeConstant(DataNodeTypeHelper.getClass(DataNodeType.OBJECT));
+                thisNode.constant = new DataNodeConstant(DataNodeTypeHelper.getClass(DataNodeType.OBJECT)!);
             }
             if ((m_flags & MethodCompilationFlags.IS_INSTANCE_METHOD) != 0) {
                 thisNode.dataType = DataNodeType.THIS;
@@ -765,7 +772,7 @@ namespace Mariana.AVM2.Compiler {
 
                 if ((methodFlags & ABCMethodFlags.NEED_ARGUMENTS) != 0) {
                     argsOrRestNode.dataType = DataNodeType.OBJECT;
-                    argsOrRestNode.constant = new DataNodeConstant(Class.fromType<ASArray>());
+                    argsOrRestNode.constant = new DataNodeConstant(Class.fromType(typeof(ASArray))!);
                     argsOrRestNode.isNotNull = true;
                     argsOrRestNode.isArgument = true;
                     argsEndIndex++;
@@ -902,14 +909,14 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="nodeId">The id of the data node.</param>
         /// <returns>A <see cref="Class"/> representing the data type of the node whose id
         /// is <paramref name="nodeId"/>.</returns>
-        public Class getDataNodeClass(int nodeId) => getDataNodeClass(m_dataNodes[nodeId]);
+        public Class? getDataNodeClass(int nodeId) => getDataNodeClass(m_dataNodes[nodeId]);
 
         /// <summary>
         /// Returns the <see cref="Class"/> representing the data type of the given node.
         /// </summary>
         /// <param name="node">A reference to a data node.</param>
         /// <returns>A <see cref="Class"/> representing the data type of the given node.</returns>
-        public Class getDataNodeClass(in DataNode node) {
+        public Class? getDataNodeClass(in DataNode node) {
             if (node.dataType == DataNodeType.OBJECT)
                 return node.constant.classValue;
 
@@ -925,7 +932,7 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="node">A reference to a data node.</param>
         /// <returns>True if the data type of <paramref name="node"/> is a final class, otherwise false.</returns>
         public bool isDataNodeClassFinal(in DataNode node) {
-            Class klass = getDataNodeClass(node);
+            Class? klass = getDataNodeClass(node);
             return klass != null && klass.isFinal;
         }
 
@@ -946,11 +953,11 @@ namespace Mariana.AVM2.Compiler {
                 DataNodeType.UNKNOWN => "?",
                 DataNodeType.OBJECT => node.constant.classValue.ToString(),
                 DataNodeType.CLASS => "class " + node.constant.classValue.ToString(),
-                DataNodeType.THIS => m_declClass.name.ToString(),
+                DataNodeType.THIS => m_declClass!.name.ToString(),
                 DataNodeType.GLOBAL => "global",
                 DataNodeType.ANY or DataNodeType.UNDEFINED => "*",
                 DataNodeType.NULL => "null",
-                _ => DataNodeTypeHelper.getClass(node.dataType).name.ToString(),
+                _ => DataNodeTypeHelper.getClass(node.dataType)!.name.ToString(),
             };
         }
 
@@ -964,6 +971,7 @@ namespace Mariana.AVM2.Compiler {
         public ReadOnlyArrayView<CapturedScopeItem> getCapturedScopeItems() {
             if (m_capturedScope == null)
                 return default;
+
             return m_capturedScope.getItems(isStatic: !isAnyFlagSet(MethodCompilationFlags.IS_INSTANCE_METHOD));
         }
 
@@ -1006,13 +1014,13 @@ namespace Mariana.AVM2.Compiler {
         public string getMethodNameString() {
             string className, methodName;
 
-            ScriptMethod method = getCurrentMethod();
+            ScriptMethod? method = getCurrentMethod();
             if (method != null) {
                 className = (method.declaringClass == null) ? "global" : method.declaringClass.name.ToString();
                 methodName = method.name.ToString();
             }
             else {
-                ScriptClassConstructor ctor = getCurrentConstructor();
+                ScriptClassConstructor ctor = getCurrentConstructor()!;
                 className = ctor.declaringClass.name.ToString();
                 methodName = "constructor";
             }
@@ -1029,8 +1037,9 @@ namespace Mariana.AVM2.Compiler {
         /// codes that do not include an instruction byte offset, set this to -1.</param>
         /// <param name="args">The arguments for a formatted error message. This must not include the
         /// method name or instruction offset, which are added by this method.</param>
-        public AVM2Exception createError(ErrorCode errCode, int instrId, params object[] args) {
-            object[] newArgs;
+        public AVM2Exception createError(ErrorCode errCode, int instrId, params object?[] args) {
+            object?[] newArgs;
+
             if (instrId != -1) {
                 newArgs = new object[args.Length + 2];
                 newArgs[args.Length + 1] = getInstruction(instrId).byteOffset;
@@ -1053,7 +1062,7 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         /// <returns>A <see cref="ABCScriptInfo"/> representing the script containing the
         /// method currently being compiled.</returns>
-        public ABCScriptInfo currentScriptInfo => m_currentScript;
+        public ABCScriptInfo? currentScriptInfo => m_currentScript;
 
         /// <summary>
         /// Returns the class that must be instantiated for a newcatch instruction.
@@ -1079,14 +1088,13 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         /// <returns>A <see cref="Class"/> representing the activation class that should be
         /// instantiated. If the method does not define an activation type, returns null.</returns>
-        public Class getClassForActivation() {
+        public Class? getClassForActivation() {
             if (m_activationClass == null && (methodInfo.flags & ABCMethodFlags.NEED_ACTIVATION) != 0) {
                 var traits = methodBodyInfo.getActivationTraits();
 
                 for (int i = 0; i < traits.length; i++) {
-                    var kind = traits[i].kind;
-                    if (kind != ABCTraitFlags.Slot && kind != ABCTraitFlags.Const)
-                        throw createError(ErrorCode.MARIANA__ABC_ACTIVATION_INVALID_TRAIT_KIND, (int)kind);
+                    if (!traits[i].isField)
+                        throw createError(ErrorCode.MARIANA__ABC_ACTIVATION_INVALID_TRAIT_KIND, (int)traits[i].kind);
                 }
 
                 using var lockedContext = getContext();

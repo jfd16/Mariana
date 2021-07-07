@@ -53,7 +53,7 @@ namespace Mariana.AVM2.Compiler {
         /// <summary>
         /// The type of the exception handled by this handler.
         /// </summary>
-        public Class errorType;
+        public Class? errorType;
 
         /// <summary>
         /// The data node id for the caught exception pushed onto the stack.

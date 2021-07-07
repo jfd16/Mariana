@@ -577,6 +577,7 @@ namespace Mariana.AVM2.Core {
         public void AS_setElement(int index, T value) {
             if ((uint)index >= (uint)m_length)
                 _setOutOfBoundsIndex(index);
+
             m_data[index] = value;
         }
 
@@ -857,7 +858,7 @@ namespace Mariana.AVM2.Core {
             var argsSpan = args.getSpan();
 
             for (int i = 0; i < argsSpan.Length; i++) {
-                ASObject arg = argsSpan[i].value;
+                ASObject? arg = argsSpan[i].value;
 
                 if (arg is ASVectorAny argAsVector)
                     totalLength = checked(totalLength + argAsVector.length);
@@ -873,7 +874,7 @@ namespace Mariana.AVM2.Core {
             totalLength = m_length;
 
             for (int i = 0; i < argsSpan.Length; i++) {
-                ASObject arg = argsSpan[i].value;
+                ASObject? arg = argsSpan[i].value;
 
                 if (arg is ASVectorAny argAsVector) {
                     int argLength = argAsVector.length;
@@ -923,7 +924,7 @@ namespace Mariana.AVM2.Core {
         /// If the callback function modifies the Vector, the behaviour of this method is undefined.
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        public new bool every(ASFunction callback, ASObject thisObject = null) {
+        public new bool every(ASFunction callback, ASObject? thisObject = null) {
             if (callback == null)
                 return true;
 
@@ -982,7 +983,7 @@ namespace Mariana.AVM2.Core {
         /// If the callback function modifies the Vector, the behaviour of this method is undefined.
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        public new ASVector<T> filter(ASFunction callback, ASObject thisObject = null) {
+        public new ASVector<T> filter(ASFunction callback, ASObject? thisObject = null) {
             if (callback == null)
                 return new ASVector<T>();
 
@@ -1038,7 +1039,7 @@ namespace Mariana.AVM2.Core {
         /// If the callback function modifies the Vector, the behaviour of this method is undefined.
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        public new void forEach(ASFunction callback, ASObject thisObject = null) {
+        public new void forEach(ASFunction callback, ASObject? thisObject = null) {
             if (callback == null)
                 return;
 
@@ -1174,7 +1175,7 @@ namespace Mariana.AVM2.Core {
         /// If the callback function modifies the Vector, the behaviour of this method is undefined.
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        public new ASVector<T> map(ASFunction callback, ASObject thisObject = null) {
+        public new ASVector<T> map(ASFunction callback, ASObject? thisObject = null) {
             if (callback == null)
                 return new ASVector<T>(m_length);
 
@@ -1212,13 +1213,16 @@ namespace Mariana.AVM2.Core {
         /// </list>
         /// </exception>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        public new T pop() {
+        public new T? pop() {
             if (m_fixed)
                 throw ErrorHelper.createError(ErrorCode.VECTOR_FIXED_LENGTH_CHANGE);
+
             if (m_length == 0)
                 return default(T);
+
             T val = m_data[m_length - 1];
-            m_data[--m_length] = default(T);
+            m_data[--m_length] = default(T)!;
+
             return val;
         }
 
@@ -1287,17 +1291,19 @@ namespace Mariana.AVM2.Core {
         /// </list>
         /// </exception>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        public new T shift() {
+        public new T? shift() {
             if (m_fixed)
                 throw ErrorHelper.createError(ErrorCode.VECTOR_FIXED_LENGTH_CHANGE);
+
             if (m_length == 0)
                 return default(T);
 
             T val = m_data[0];
             _internalArrayCopy(m_data, 1, m_data, 0, m_length - 1);
 
-            m_data[m_length - 1] = default(T);
+            m_data[m_length - 1] = default(T)!;
             m_length--;
+
             return val;
         }
 
@@ -1369,7 +1375,7 @@ namespace Mariana.AVM2.Core {
         /// If the callback function modifies the Vector, the behaviour of this method is undefined.
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        public new bool some(ASFunction callback, ASObject thisObject = null) {
+        public new bool some(ASFunction callback, ASObject? thisObject = null) {
             if (callback == null)
                 return false;
 
@@ -1415,7 +1421,7 @@ namespace Mariana.AVM2.Core {
         /// an exception during the sort, the state of the Vector is undefined.
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        public new ASVector<T> sort(ASObject sortComparer) {
+        public new ASVector<T> sort(ASObject? sortComparer) {
             if (sortComparer is ASFunction func) {
                 // The Array.Sort methods in corelib throws ArgumentException for some ill-behaved
                 // comparison functions, so use DataStructureUtil.sortSpan (which never throws)
@@ -1674,7 +1680,8 @@ namespace Mariana.AVM2.Core {
         internal static new ASAny __AS_INVOKE(ReadOnlySpan<ASAny> args) {
             if (args.Length != 1)
                 throw ErrorHelper.createError(ErrorCode.CLASS_COERCE_ARG_COUNT_MISMATCH, args.Length);
-            return fromObject(args[0].value);
+
+            return fromObject(args[0].value!);
         }
 
         #region ASVectorAny overrides
@@ -1696,14 +1703,14 @@ namespace Mariana.AVM2.Core {
         protected private override ASObject _VA_getElement(double index) =>
             GenericTypeConverter<T, ASObject>.instance.convert(AS_getElement(index));
 
-        protected private override void _VA_setElement(int index, ASObject value) =>
-            AS_setElement(index, GenericTypeConverter<ASObject, T>.instance.convert(value));
+        protected private override void _VA_setElement(int index, ASObject? value) =>
+            AS_setElement(index, GenericTypeConverter<ASObject?, T>.instance.convert(value));
 
-        protected private override void _VA_setElement(uint index, ASObject value) =>
-            AS_setElement(index, GenericTypeConverter<ASObject, T>.instance.convert(value));
+        protected private override void _VA_setElement(uint index, ASObject? value) =>
+            AS_setElement(index, GenericTypeConverter<ASObject?, T>.instance.convert(value));
 
-        protected private override void _VA_setElement(double index, ASObject value) =>
-            AS_setElement(index, GenericTypeConverter<ASObject, T>.instance.convert(value));
+        protected private override void _VA_setElement(double index, ASObject? value) =>
+            AS_setElement(index, GenericTypeConverter<ASObject?, T>.instance.convert(value));
 
         protected private override bool _VA_deleteElement(int index) => AS_deleteElement(index);
         protected private override bool _VA_deleteElement(uint index) => AS_deleteElement(index);
@@ -1719,19 +1726,19 @@ namespace Mariana.AVM2.Core {
             set => @fixed = value;
         }
 
-        protected private override bool _VA_some(ASFunction callback, ASObject thisObject) =>
+        protected private override bool _VA_some(ASFunction callback, ASObject? thisObject) =>
             some(callback, thisObject);
 
-        protected private override bool _VA_every(ASFunction callback, ASObject thisObject) =>
+        protected private override bool _VA_every(ASFunction callback, ASObject? thisObject) =>
             every(callback, thisObject);
 
-        protected private override void _VA_forEach(ASFunction callback, ASObject thisObject) =>
+        protected private override void _VA_forEach(ASFunction callback, ASObject? thisObject) =>
             forEach(callback, thisObject);
 
-        protected private override ASVectorAny _VA_map(ASFunction callback, ASObject thisObject) =>
+        protected private override ASVectorAny _VA_map(ASFunction callback, ASObject? thisObject) =>
             map(callback, thisObject);
 
-        protected private override ASVectorAny _VA_filter(ASFunction callback, ASObject thisObject) =>
+        protected private override ASVectorAny _VA_filter(ASFunction callback, ASObject? thisObject) =>
             filter(callback, thisObject);
 
         protected private override ASVectorAny _VA_concat(RestParam args) => concat(args);
@@ -1744,9 +1751,9 @@ namespace Mariana.AVM2.Core {
 
         protected private override int _VA_push(RestParam args) => push(args);
 
-        protected private override ASAny _VA_pop() => GenericTypeConverter<T, ASAny>.instance.convert(pop());
+        protected private override ASAny _VA_pop() => GenericTypeConverter<T?, ASAny>.instance.convert(pop());
 
-        protected private override ASAny _VA_shift() => GenericTypeConverter<T, ASAny>.instance.convert(shift());
+        protected private override ASAny _VA_shift() => GenericTypeConverter<T?, ASAny>.instance.convert(shift());
 
         protected private override int _VA_unshift(RestParam args) => unshift(args);
 
@@ -1757,7 +1764,7 @@ namespace Mariana.AVM2.Core {
         protected private override ASVectorAny _VA_splice(int startIndex, int deleteCount, RestParam newValues) =>
             splice(startIndex, deleteCount, newValues);
 
-        protected private override ASVectorAny _VA_sort(ASObject sortComparer) => sort(sortComparer);
+        protected private override ASVectorAny _VA_sort(ASObject? sortComparer) => sort(sortComparer);
 
         protected private override ASVectorAny _VA_reverse() => reverse();
 

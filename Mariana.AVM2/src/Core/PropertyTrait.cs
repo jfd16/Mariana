@@ -7,16 +7,16 @@ namespace Mariana.AVM2.Core {
     /// </summary>
     public class PropertyTrait : Trait {
 
-        private MethodTrait m_getter;
-        private MethodTrait m_setter;
+        private MethodTrait? m_getter;
+        private MethodTrait? m_setter;
 
         internal PropertyTrait(
             in QName name,
-            Class declaringClass,
+            Class? declaringClass,
             ApplicationDomain appDomain,
             bool isStatic,
-            MethodTrait getter,
-            MethodTrait setter
+            MethodTrait? getter,
+            MethodTrait? setter
         )
             : base(name, declaringClass, appDomain, isStatic)
         {
@@ -30,26 +30,26 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// The getter method of the property. For write-only properties, this value is null.
         /// </summary>
-        public MethodTrait getter => m_getter;
+        public MethodTrait? getter => m_getter;
 
         /// <summary>
         /// The setter method of the property. For read-only properties, this value is null.
         /// </summary>
-        public MethodTrait setter => m_setter;
+        public MethodTrait? setter => m_setter;
 
         /// <summary>
         /// Gets the type of the property's value.
         /// </summary>
-        public Class propertyType {
+        public Class? propertyType {
             get {
                 if (m_setter == null)
-                    return m_getter.returnType;
+                    return m_getter!.returnType;
 
                 var setterParams = m_setter.getParameters();
                 if (setterParams.length != 1)
                     return null;
 
-                Class paramType = setterParams[0].type;
+                Class? paramType = setterParams[0].type;
                 if (m_getter != null && paramType != m_getter.returnType)
                     return null;
 
@@ -62,7 +62,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="getter">Getter.</param>
         /// <param name="setter">Setter.</param>
-        protected private void setAccessors(MethodTrait getter, MethodTrait setter) {
+        protected private void setAccessors(MethodTrait? getter, MethodTrait? setter) {
             m_getter = getter;
             m_setter = setter;
         }
@@ -76,7 +76,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="otherProp">The property trait to be merged into <paramref name="prop"/>.</param>
         /// <param name="declClass">The class declaring or inheriting <paramref name="prop"/> from which
         /// the merge is requested.</param>
-        internal static PropertyTrait tryMerge(PropertyTrait prop, PropertyTrait otherProp, Class declClass) {
+        internal static PropertyTrait? tryMerge(PropertyTrait prop, PropertyTrait otherProp, Class declClass) {
             if (prop.setter != null) {
                 if (prop.getter != null
                     || otherProp.getter == null
@@ -125,7 +125,7 @@ namespace Mariana.AVM2.Core {
             if (target.isUndefined && !isStatic)
                 throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
 
-            MethodTrait getter = this.getter;
+            MethodTrait? getter = this.getter;
             if (getter == null) {
                 value = default(ASAny);
                 return BindStatus.FAILED_WRITEONLY;
@@ -146,7 +146,7 @@ namespace Mariana.AVM2.Core {
             if (target.isUndefined && !isStatic)
                 throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
 
-            MethodTrait setter = this.setter;
+            MethodTrait? setter = this.setter;
             if (setter == null)
                 return BindStatus.FAILED_READONLY;
 
@@ -166,7 +166,7 @@ namespace Mariana.AVM2.Core {
             if (target.isUndefined && !isStatic)
                 throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
 
-            MethodTrait getter = this.getter;
+            MethodTrait? getter = this.getter;
             if (getter == null) {
                 result = default(ASAny);
                 return BindStatus.FAILED_WRITEONLY;
@@ -192,7 +192,7 @@ namespace Mariana.AVM2.Core {
             if (target.isUndefined && !isStatic)
                 throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
 
-            MethodTrait getter = this.getter;
+            MethodTrait? getter = this.getter;
             if (getter == null) {
                 result = default(ASAny);
                 return BindStatus.FAILED_WRITEONLY;

@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using Mariana.AVM2.Native;
 
@@ -37,18 +38,18 @@ namespace Mariana.AVM2.Core {
         /// instance. This is lazily initialized when the <see cref="AS_class"/>,
         /// <see cref="AS_proto"/> or <see cref="AS_dynamicProps"/> property is accessed.
         /// </summary>
-        private volatile Class m_class;
+        private volatile Class? m_class;
 
         /// <summary>
         /// The next object in the prototype chain of this object.
         /// </summary>
-        private readonly ASObject m_proto;
+        private readonly ASObject? m_proto;
 
         /// <summary>
         /// The dynamic property table for this object. This is null for instances of non-dynamic
         /// classes.
         /// </summary>
-        private DynamicPropertyCollection m_dynProps;
+        private DynamicPropertyCollection? m_dynProps;
 
         /// <summary>
         /// Creates a new ActionScript 3 object.
@@ -62,7 +63,7 @@ namespace Mariana.AVM2.Core {
         /// null to determine the class from the object type.</param>
         /// <param name="proto">The first object in the prototype chain of the created object,
         /// or null to use the class's prototype.</param>
-        protected private ASObject(Class klass, ASObject proto = null) {
+        protected private ASObject(Class? klass, ASObject? proto = null) {
             m_proto = proto;
             if (klass != null) {
                 m_class = klass;
@@ -75,19 +76,19 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="prototype">The first object in the prototype chain of the created object.</param>
         /// <returns>The created object.</returns>
-        public static ASObject AS_createWithPrototype(ASObject prototype) => new ASObject(null, prototype);
+        public static ASObject AS_createWithPrototype(ASObject? prototype) => new ASObject(null, prototype);
 
         /// <summary>
         /// Gets the <see cref="Class"/> instance representing the object's class.
         /// </summary>
         public Class AS_class {
             get {
-                Class klass = m_class;  // Volatile read
+                Class? klass = m_class;  // Volatile read
                 if (klass == null) {
                     _initInternalFields();
                     klass = m_class;
                 }
-                return klass;
+                return klass!;
             }
         }
 
@@ -97,7 +98,7 @@ namespace Mariana.AVM2.Core {
         /// <value>A <see cref="DynamicPropertyCollection"/> that can be used to access or modify
         /// the object's dynamic properties. If this object is not an instance of a dynamic class,
         /// the value of this property is null.</value>
-        public DynamicPropertyCollection AS_dynamicProps {
+        public DynamicPropertyCollection? AS_dynamicProps {
             get {
                 if (m_class == null)
                     _initInternalFields();
@@ -108,7 +109,7 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Gets the next object in the object's prototype chain.
         /// </summary>
-        public ASObject AS_proto {
+        public ASObject? AS_proto {
             get {
                 if (m_proto != null)
                     return m_proto;
@@ -121,7 +122,7 @@ namespace Mariana.AVM2.Core {
         }
 
         private void _initInternalFields() {
-            Class klass = null;
+            Class? klass = null;
             Type objType = GetType();
 
             do {
@@ -169,7 +170,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="trait">The trait with the name <paramref name="name"/>, if one
         /// exists.</param>
         /// <returns>A <see cref="BindStatus"/> indicating the result of the lookup.</returns>
-        internal virtual BindStatus AS_lookupTrait(in QName name, out Trait trait) =>
+        internal virtual BindStatus AS_lookupTrait(in QName name, out Trait? trait) =>
             AS_class.lookupTrait(name, isStatic: false, out trait);
 
         /// <summary>
@@ -180,7 +181,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="trait">The trait with the name <paramref name="name"/> in a namespace of
         /// <paramref name="nsSet"/>, if one exists.</param>
         /// <returns>A <see cref="BindStatus"/> indicating the result of the lookup.</returns>
-        internal virtual BindStatus AS_lookupTrait(string name, in NamespaceSet nsSet, out Trait trait) =>
+        internal virtual BindStatus AS_lookupTrait(string name, in NamespaceSet nsSet, out Trait? trait) =>
             AS_class.lookupTrait(name, nsSet, isStatic: false, out trait);
 
         /// <summary>
@@ -203,7 +204,7 @@ namespace Mariana.AVM2.Core {
             if (name.ns.isPublic && (name.localName != null || (options & BindOptions.RUNTIME_NAME) != 0)) {
                 string key = ASString.AS_convertString(name.localName);
 
-                DynamicPropertyCollection dynamicProperties = AS_dynamicProps;
+                DynamicPropertyCollection? dynamicProperties = AS_dynamicProps;
                 if ((options & BindOptions.SEARCH_DYNAMIC) != 0 && dynamicProperties != null) {
                     if ((options & BindOptions.SEARCH_PROTOTYPE) != 0)
                         return DynamicPropertyCollection.searchPrototypeChain(this, key, out _);
@@ -239,7 +240,7 @@ namespace Mariana.AVM2.Core {
             if (nsSet.containsPublic && (name != null || (options & BindOptions.RUNTIME_NAME) != 0)) {
                 string key = ASString.AS_convertString(name);
 
-                DynamicPropertyCollection dynamicProperties = AS_dynamicProps;
+                DynamicPropertyCollection? dynamicProperties = AS_dynamicProps;
                 if ((options & BindOptions.SEARCH_DYNAMIC) != 0 && dynamicProperties != null) {
                     if ((options & BindOptions.SEARCH_PROTOTYPE) != 0)
                         return DynamicPropertyCollection.searchPrototypeChain(this, key, out _);
@@ -271,13 +272,13 @@ namespace Mariana.AVM2.Core {
                 return BindStatus.NOT_FOUND;
             }
 
-            Trait trait = null;
+            Trait? trait = null;
             BindStatus bindStatus = ((options & BindOptions.SEARCH_TRAITS) != 0)
                 ? AS_lookupTrait(name, out trait)
                 : BindStatus.NOT_FOUND;
 
             if (bindStatus == BindStatus.SUCCESS)
-                return trait.tryGetValue(this, out value);
+                return trait!.tryGetValue(this, out value);
 
             if (bindStatus == BindStatus.AMBIGUOUS) {
                 value = default(ASAny);
@@ -285,7 +286,7 @@ namespace Mariana.AVM2.Core {
             }
 
             if (name.ns.isPublic && (name.localName != null || (options & BindOptions.RUNTIME_NAME) != 0)) {
-                DynamicPropertyCollection dynamicProperties = AS_dynamicProps;
+                DynamicPropertyCollection? dynamicProperties = AS_dynamicProps;
                 string key = ASString.AS_convertString(name.localName);
                 bool found;
 
@@ -330,13 +331,13 @@ namespace Mariana.AVM2.Core {
                 return BindStatus.NOT_FOUND;
             }
 
-            Trait trait = null;
+            Trait? trait = null;
             BindStatus bindStatus = ((options & BindOptions.SEARCH_TRAITS) != 0)
                 ? AS_lookupTrait(name, nsSet, out trait)
                 : BindStatus.NOT_FOUND;
 
             if (bindStatus == BindStatus.SUCCESS)
-                return trait.tryGetValue(this, out value);
+                return trait!.tryGetValue(this, out value);
 
             if (bindStatus == BindStatus.AMBIGUOUS) {
                 value = default(ASAny);
@@ -344,7 +345,7 @@ namespace Mariana.AVM2.Core {
             }
 
             if (nsSet.containsPublic && (name != null || (options & BindOptions.RUNTIME_NAME) != 0)) {
-                DynamicPropertyCollection dynamicProperties = AS_dynamicProps;
+                DynamicPropertyCollection? dynamicProperties = AS_dynamicProps;
                 string key = ASString.AS_convertString(name);
                 bool found;
 
@@ -383,13 +384,13 @@ namespace Mariana.AVM2.Core {
             if (name.ns.kind == NamespaceKind.ANY || (options & BindOptions.ATTRIBUTE) != 0)
                 return BindStatus.NOT_FOUND;
 
-            Trait trait = null;
+            Trait? trait = null;
             BindStatus bindStatus = ((options & BindOptions.SEARCH_TRAITS) != 0)
                 ? AS_lookupTrait(name, out trait)
                 : BindStatus.NOT_FOUND;
 
             if (bindStatus == BindStatus.SUCCESS)
-                return trait.trySetValue(this, value);
+                return trait!.trySetValue(this, value);
 
             if (bindStatus == BindStatus.AMBIGUOUS)
                 return BindStatus.AMBIGUOUS;
@@ -398,7 +399,7 @@ namespace Mariana.AVM2.Core {
                 return BindStatus.NOT_FOUND;
 
             if (name.ns.isPublic) {
-                DynamicPropertyCollection dynamicProperties = AS_dynamicProps;
+                DynamicPropertyCollection? dynamicProperties = AS_dynamicProps;
                 if ((options & BindOptions.SEARCH_DYNAMIC) != 0 && dynamicProperties != null) {
                     string key = ASString.AS_convertString(name.localName);
                     dynamicProperties[key] = value;
@@ -432,13 +433,13 @@ namespace Mariana.AVM2.Core {
             if ((options & BindOptions.ATTRIBUTE) != 0)
                 return BindStatus.NOT_FOUND;
 
-            Trait trait = null;
+            Trait? trait = null;
             BindStatus bindStatus = ((options & BindOptions.SEARCH_TRAITS) != 0)
                 ? AS_lookupTrait(name, nsSet, out trait)
                 : BindStatus.NOT_FOUND;
 
             if (bindStatus == BindStatus.SUCCESS)
-                return trait.trySetValue(this, value);
+                return trait!.trySetValue(this, value);
 
             if (bindStatus == BindStatus.AMBIGUOUS)
                 return BindStatus.AMBIGUOUS;
@@ -447,7 +448,7 @@ namespace Mariana.AVM2.Core {
                 return BindStatus.NOT_FOUND;
 
             if (nsSet.containsPublic) {
-                DynamicPropertyCollection dynamicProperties = AS_dynamicProps;
+                DynamicPropertyCollection? dynamicProperties = AS_dynamicProps;
                 if ((options & BindOptions.SEARCH_DYNAMIC) != 0 && dynamicProperties != null) {
                     string key = ASString.AS_convertString(name);
                     dynamicProperties[key] = value;
@@ -482,9 +483,9 @@ namespace Mariana.AVM2.Core {
                 return BindStatus.NOT_FOUND;
             }
 
-            ASObject receiver = ((options & BindOptions.NULL_RECEIVER) != 0) ? null : this;
+            ASObject? receiver = ((options & BindOptions.NULL_RECEIVER) != 0) ? null : this;
 
-            Trait trait = null;
+            Trait? trait = null;
             BindStatus bindStatus = ((options & BindOptions.SEARCH_TRAITS) != 0)
                 ? AS_lookupTrait(name, out trait)
                 : BindStatus.NOT_FOUND;
@@ -492,7 +493,7 @@ namespace Mariana.AVM2.Core {
             result = default(ASAny);
 
             if (bindStatus == BindStatus.SUCCESS)
-                return trait.tryInvoke(this, receiver, args, out result);
+                return trait!.tryInvoke(this, receiver, args, out result);
 
             if (bindStatus == BindStatus.AMBIGUOUS) {
                 result = default(ASAny);
@@ -503,7 +504,7 @@ namespace Mariana.AVM2.Core {
                 string key = ASString.AS_convertString(name.localName);
                 ASAny funcToInvoke;
 
-                DynamicPropertyCollection dynamicProperties = AS_dynamicProps;
+                DynamicPropertyCollection? dynamicProperties = AS_dynamicProps;
                 if ((options & BindOptions.SEARCH_DYNAMIC) != 0 && dynamicProperties != null) {
                     if ((options & BindOptions.SEARCH_PROTOTYPE) != 0)
                         DynamicPropertyCollection.searchPrototypeChain(this, key, out funcToInvoke);
@@ -550,9 +551,9 @@ namespace Mariana.AVM2.Core {
                 return BindStatus.NOT_FOUND;
             }
 
-            ASObject receiver = ((options & BindOptions.NULL_RECEIVER) != 0) ? null : this;
+            ASObject? receiver = ((options & BindOptions.NULL_RECEIVER) != 0) ? null : this;
 
-            Trait trait = null;
+            Trait? trait = null;
             BindStatus bindStatus = ((options & BindOptions.SEARCH_TRAITS) != 0)
                 ? AS_lookupTrait(name, nsSet, out trait)
                 : BindStatus.NOT_FOUND;
@@ -560,7 +561,7 @@ namespace Mariana.AVM2.Core {
             result = default(ASAny);
 
             if (bindStatus == BindStatus.SUCCESS)
-                return trait.tryInvoke(this, receiver, args, out result);
+                return trait!.tryInvoke(this, receiver, args, out result);
 
             if (bindStatus == BindStatus.AMBIGUOUS)
                 return BindStatus.AMBIGUOUS;
@@ -569,7 +570,7 @@ namespace Mariana.AVM2.Core {
                 string key = ASString.AS_convertString(name);
                 ASAny funcToInvoke;
 
-                DynamicPropertyCollection dynamicProperties = AS_dynamicProps;
+                DynamicPropertyCollection? dynamicProperties = AS_dynamicProps;
                 if ((options & BindOptions.SEARCH_DYNAMIC) != 0 && dynamicProperties != null) {
                     if ((options & BindOptions.SEARCH_PROTOTYPE) != 0)
                         DynamicPropertyCollection.searchPrototypeChain(this, key, out funcToInvoke);
@@ -613,14 +614,14 @@ namespace Mariana.AVM2.Core {
                 return BindStatus.NOT_FOUND;
             }
 
-            Trait trait = null;
+            Trait? trait = null;
             result = default(ASAny);
             BindStatus bindStatus = ((options & BindOptions.SEARCH_TRAITS) != 0)
                 ? AS_lookupTrait(name, out trait)
                 : BindStatus.NOT_FOUND;
 
             if (bindStatus == BindStatus.SUCCESS)
-                return trait.tryConstruct(this, args, out result);
+                return trait!.tryConstruct(this, args, out result);
 
             if (bindStatus == BindStatus.AMBIGUOUS)
                 return BindStatus.AMBIGUOUS;
@@ -629,7 +630,7 @@ namespace Mariana.AVM2.Core {
                 string key = ASString.AS_convertString(name.localName);
                 ASAny funcToInvoke;
 
-                DynamicPropertyCollection dynamicProperties = AS_dynamicProps;
+                DynamicPropertyCollection? dynamicProperties = AS_dynamicProps;
                 if ((options & BindOptions.SEARCH_DYNAMIC) != 0 && dynamicProperties != null) {
                     if ((options & BindOptions.SEARCH_PROTOTYPE) != 0)
                         DynamicPropertyCollection.searchPrototypeChain(this, key, out funcToInvoke);
@@ -676,7 +677,7 @@ namespace Mariana.AVM2.Core {
                 return BindStatus.NOT_FOUND;
             }
 
-            Trait trait = null;
+            Trait? trait = null;
             BindStatus b = ((options & BindOptions.SEARCH_TRAITS) != 0)
                 ? AS_lookupTrait(name, nsSet, out trait)
                 : BindStatus.NOT_FOUND;
@@ -684,7 +685,7 @@ namespace Mariana.AVM2.Core {
             result = default(ASAny);
 
             if (b == BindStatus.SUCCESS)
-                return trait.tryConstruct(this, args, out result);
+                return trait!.tryConstruct(this, args, out result);
 
             if (b == BindStatus.AMBIGUOUS)
                 return BindStatus.AMBIGUOUS;
@@ -693,7 +694,7 @@ namespace Mariana.AVM2.Core {
                 string key = ASString.AS_convertString(name);
                 ASAny funcToInvoke;
 
-                DynamicPropertyCollection dynamicProperties = AS_dynamicProps;
+                DynamicPropertyCollection? dynamicProperties = AS_dynamicProps;
                 if ((options & BindOptions.SEARCH_DYNAMIC) != 0 && dynamicProperties != null) {
                     if ((options & BindOptions.SEARCH_PROTOTYPE) != 0)
                         DynamicPropertyCollection.searchPrototypeChain(this, key, out funcToInvoke);
@@ -735,7 +736,7 @@ namespace Mariana.AVM2.Core {
                 return false;
             if ((options & BindOptions.SEARCH_DYNAMIC) == 0)
                 return false;
-            DynamicPropertyCollection dynamicProperties = AS_dynamicProps;
+            DynamicPropertyCollection? dynamicProperties = AS_dynamicProps;
             return dynamicProperties != null && dynamicProperties.delete(ASString.AS_convertString(name.localName));
         }
 
@@ -762,7 +763,7 @@ namespace Mariana.AVM2.Core {
                 return false;
             if ((options & BindOptions.SEARCH_DYNAMIC) == 0)
                 return false;
-            DynamicPropertyCollection dynamicProperties = AS_dynamicProps;
+            DynamicPropertyCollection? dynamicProperties = AS_dynamicProps;
             return dynamicProperties != null && dynamicProperties.delete(ASString.AS_convertString(name));
         }
 
@@ -1097,12 +1098,12 @@ namespace Mariana.AVM2.Core {
         /// <param name="key">The key to be used for the index property lookup.</param>
         /// <returns>An instance of <see cref="IndexProperty"/>, or null if the object's class
         /// does not define an index property compatible with the type of <paramref name="key"/>.</returns>
-        private IndexProperty _getIndexPropertyForKey(ASAny key) {
-            ClassSpecials classSpecials = AS_class.classSpecials;
+        private IndexProperty? _getIndexPropertyForKey(ASAny key) {
+            ClassSpecials? classSpecials = AS_class.classSpecials;
             if (classSpecials == null)
                 return null;
 
-            ASObject keyObj = key.value;
+            ASObject? keyObj = key.value;
             if (keyObj == null)
                 return null;
 
@@ -1124,7 +1125,7 @@ namespace Mariana.AVM2.Core {
             ASAny key,
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
-            MethodTrait indexMethod = _getIndexPropertyForKey(key)?.hasMethod;
+            MethodTrait? indexMethod = _getIndexPropertyForKey(key)?.hasMethod;
             if (indexMethod != null)
                 return (bool)indexMethod.invoke(this, new ASAny[] {key});
 
@@ -1146,7 +1147,7 @@ namespace Mariana.AVM2.Core {
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
             if (nsSet.containsPublic) {
-                MethodTrait indexMethod = _getIndexPropertyForKey(key)?.hasMethod;
+                MethodTrait? indexMethod = _getIndexPropertyForKey(key)?.hasMethod;
                 if (indexMethod != null)
                     return (bool)indexMethod.invoke(this, new ASAny[] {key});
             }
@@ -1170,7 +1171,7 @@ namespace Mariana.AVM2.Core {
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC | BindOptions.SEARCH_PROTOTYPE)
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC) {
-                MethodTrait indexMethod = _getIndexPropertyForKey(key)?.getMethod;
+                MethodTrait? indexMethod = _getIndexPropertyForKey(key)?.getMethod;
                 if (indexMethod != null) {
                     value = indexMethod.invoke(this, new ASAny[] {key});
                     return BindStatus.SUCCESS;
@@ -1201,7 +1202,7 @@ namespace Mariana.AVM2.Core {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic)
             {
-                MethodTrait indexMethod = _getIndexPropertyForKey(key)?.getMethod;
+                MethodTrait? indexMethod = _getIndexPropertyForKey(key)?.getMethod;
                 if (indexMethod != null) {
                     value = indexMethod.invoke(this, new ASAny[] {key});
                     return BindStatus.SUCCESS;
@@ -1227,7 +1228,7 @@ namespace Mariana.AVM2.Core {
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC) {
-                MethodTrait indexMethod = _getIndexPropertyForKey(key)?.setMethod;
+                MethodTrait? indexMethod = _getIndexPropertyForKey(key)?.setMethod;
                 if (indexMethod != null) {
                     indexMethod.invoke(this, new ASAny[] {key, value});
                     return BindStatus.SUCCESS;
@@ -1258,7 +1259,7 @@ namespace Mariana.AVM2.Core {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic)
             {
-                MethodTrait indexMethod = _getIndexPropertyForKey(key)?.setMethod;
+                MethodTrait? indexMethod = _getIndexPropertyForKey(key)?.setMethod;
                 if (indexMethod != null) {
                     indexMethod.invoke(this, new ASAny[] {key, value});
                     return BindStatus.SUCCESS;
@@ -1289,10 +1290,10 @@ namespace Mariana.AVM2.Core {
             result = default(ASAny);
 
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC) {
-                MethodTrait indexMethod = _getIndexPropertyForKey(key)?.getMethod;
+                MethodTrait? indexMethod = _getIndexPropertyForKey(key)?.getMethod;
                 if (indexMethod != null) {
                     ASAny func = indexMethod.invoke(this, new ASAny[] {key});
-                    ASObject receiver = ((options & BindOptions.NULL_RECEIVER) != 0) ? null : this;
+                    ASObject? receiver = ((options & BindOptions.NULL_RECEIVER) != 0) ? null : this;
 
                     if (!func.isUndefinedOrNull && func.AS_tryInvoke(receiver, args, out result))
                         return BindStatus.SUCCESS;
@@ -1329,10 +1330,10 @@ namespace Mariana.AVM2.Core {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic)
             {
-                MethodTrait indexMethod = _getIndexPropertyForKey(key)?.getMethod;
+                MethodTrait? indexMethod = _getIndexPropertyForKey(key)?.getMethod;
                 if (indexMethod != null) {
                     ASAny func = indexMethod.invoke(this, new ASAny[] {key});
-                    ASObject receiver = ((options & BindOptions.NULL_RECEIVER) != 0) ? null : this;
+                    ASObject? receiver = ((options & BindOptions.NULL_RECEIVER) != 0) ? null : this;
 
                     if (!func.isUndefinedOrNull && func.AS_tryInvoke(receiver, args, out result))
                         return BindStatus.SUCCESS;
@@ -1365,7 +1366,7 @@ namespace Mariana.AVM2.Core {
             result = default(ASAny);
 
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC) {
-                MethodTrait indexMethod = _getIndexPropertyForKey(key)?.getMethod;
+                MethodTrait? indexMethod = _getIndexPropertyForKey(key)?.getMethod;
                 if (indexMethod != null) {
                     ASAny func = indexMethod.invoke(this, new ASAny[] {key});
 
@@ -1404,7 +1405,7 @@ namespace Mariana.AVM2.Core {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic)
             {
-                MethodTrait indexMethod = _getIndexPropertyForKey(key)?.getMethod;
+                MethodTrait? indexMethod = _getIndexPropertyForKey(key)?.getMethod;
                 if (indexMethod != null) {
                     ASAny func = indexMethod.invoke(this, new ASAny[] {key});
 
@@ -1438,7 +1439,7 @@ namespace Mariana.AVM2.Core {
             BindOptions options = BindOptions.SEARCH_TRAITS | BindOptions.SEARCH_DYNAMIC)
         {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC) {
-                MethodTrait indexMethod = _getIndexPropertyForKey(key)?.deleteMethod;
+                MethodTrait? indexMethod = _getIndexPropertyForKey(key)?.deleteMethod;
                 if (indexMethod != null)
                     return (bool)indexMethod.invoke(new ASAny[] {key});
             }
@@ -1469,7 +1470,7 @@ namespace Mariana.AVM2.Core {
             if ((options & (BindOptions.SEARCH_DYNAMIC | BindOptions.ATTRIBUTE)) == BindOptions.SEARCH_DYNAMIC
                 && nsSet.containsPublic)
             {
-                MethodTrait indexMethod = _getIndexPropertyForKey(key)?.deleteMethod;
+                MethodTrait? indexMethod = _getIndexPropertyForKey(key)?.deleteMethod;
                 if (indexMethod != null)
                     return (bool)indexMethod.invoke(new ASAny[] {key});
             }
@@ -1539,6 +1540,7 @@ namespace Mariana.AVM2.Core {
             BindStatus bindStatus = AS_tryGetPropertyObj(key, out ASAny value, options);
             if (bindStatus == BindStatus.SUCCESS || bindStatus == BindStatus.SOFT_SUCCESS)
                 return value;
+
             throw ErrorHelper.createBindingError(AS_class.name.ToString(), ASAny.AS_convertString(key), bindStatus);
         }
 
@@ -1561,6 +1563,7 @@ namespace Mariana.AVM2.Core {
             BindStatus bindStatus = AS_tryGetPropertyObj(key, nsSet, out ASAny value, options);
             if (bindStatus == BindStatus.SUCCESS || bindStatus == BindStatus.SOFT_SUCCESS)
                 return value;
+
             throw ErrorHelper.createBindingError(AS_class.name.ToString(), ASAny.AS_convertString(key), bindStatus);
         }
 
@@ -1626,6 +1629,7 @@ namespace Mariana.AVM2.Core {
             BindStatus bindStatus = AS_tryCallPropertyObj(key, args, out ASAny result, options);
             if (bindStatus == BindStatus.SUCCESS || bindStatus == BindStatus.SOFT_SUCCESS)
                 return result;
+
             throw ErrorHelper.createBindingError(AS_class.name.ToString(), ASAny.AS_convertString(key), bindStatus);
         }
 
@@ -1651,6 +1655,7 @@ namespace Mariana.AVM2.Core {
             BindStatus bindStatus = AS_tryCallPropertyObj(key, nsSet, args, out ASAny result, options);
             if (bindStatus == BindStatus.SUCCESS || bindStatus == BindStatus.SOFT_SUCCESS)
                 return result;
+
             throw ErrorHelper.createBindingError(AS_class.name.ToString(), ASAny.AS_convertString(key), bindStatus);
         }
 
@@ -1673,6 +1678,7 @@ namespace Mariana.AVM2.Core {
             BindStatus bindStatus = AS_tryConstructPropertyObj(key, args, out ASAny result, options);
             if (bindStatus == BindStatus.SUCCESS || bindStatus == BindStatus.SOFT_SUCCESS)
                 return result;
+
             throw ErrorHelper.createBindingError(AS_class.name.ToString(), ASAny.AS_convertString(key), bindStatus);
         }
 
@@ -1698,6 +1704,7 @@ namespace Mariana.AVM2.Core {
             BindStatus bindStatus = AS_tryConstructPropertyObj(key, nsSet, args, out ASAny result, options);
             if (bindStatus == BindStatus.SUCCESS || bindStatus == BindStatus.SOFT_SUCCESS)
                 return result;
+
             throw ErrorHelper.createBindingError(AS_class.name.ToString(), ASAny.AS_convertString(key), bindStatus);
         }
 
@@ -1718,6 +1725,7 @@ namespace Mariana.AVM2.Core {
             BindStatus bindStatus = AS_tryGetDescendantsObj(key, out ASAny result, options);
             if (bindStatus == BindStatus.SUCCESS || bindStatus == BindStatus.SOFT_SUCCESS)
                 return result;
+
             throw ErrorHelper.createBindingError(AS_class.name.ToString(), ASAny.AS_convertString(key), bindStatus);
         }
 
@@ -1742,6 +1750,7 @@ namespace Mariana.AVM2.Core {
             BindStatus bindStatus = AS_tryGetDescendantsObj(key, nsSet, out ASAny value, options);
             if (bindStatus == BindStatus.SUCCESS || bindStatus == BindStatus.SOFT_SUCCESS)
                 return value;
+
             throw ErrorHelper.createBindingError(AS_class.name.ToString(), ASAny.AS_convertString(key), bindStatus);
         }
 
@@ -1759,7 +1768,7 @@ namespace Mariana.AVM2.Core {
         /// Subclasses can override these methods for custom for-in loop behaviour.</para>
         /// </remarks>
         public virtual int AS_nextIndex(int index) {
-            DynamicPropertyCollection dynamicProperties = AS_dynamicProps;
+            DynamicPropertyCollection? dynamicProperties = AS_dynamicProps;
             return (dynamicProperties == null) ? 0 : dynamicProperties.getNextIndex(index - 1) + 1;
         }
 
@@ -1777,7 +1786,7 @@ namespace Mariana.AVM2.Core {
         /// for custom for-in loop behaviour.
         /// </remarks>
         public virtual ASAny AS_nameAtIndex(int index) {
-            DynamicPropertyCollection dynamicProperties = AS_dynamicProps;
+            DynamicPropertyCollection? dynamicProperties = AS_dynamicProps;
             return (dynamicProperties == null) ? default(ASAny) : dynamicProperties.getNameFromIndex(index - 1);
         }
 
@@ -1795,7 +1804,7 @@ namespace Mariana.AVM2.Core {
         /// for custom for-in loop behaviour.
         /// </remarks>
         public virtual ASAny AS_valueAtIndex(int index) {
-            DynamicPropertyCollection dynamicProperties = AS_dynamicProps;
+            DynamicPropertyCollection? dynamicProperties = AS_dynamicProps;
             return (dynamicProperties == null) ? default(ASAny) : dynamicProperties.getValueFromIndex(index - 1);
         }
 
@@ -1824,11 +1833,12 @@ namespace Mariana.AVM2.Core {
         /// is used for for-in loops in AS3. Calls to this method are injected into code generated by
         /// the ABC to IL compiler. There are very few (if any) uses of it in .NET code.</para>
         /// </remarks>
-        public static bool AS_hasnext2(ref ASObject obj, ref int index) {
+        public static bool AS_hasnext2(ref ASObject? obj, ref int index) {
             if (obj == null)
                 return false;
 
             index = obj.AS_nextIndex(index);
+
             while (index == 0) {
                 obj = obj.AS_proto;
                 if (obj == null)
@@ -1942,78 +1952,81 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="x">The string to convert to a boxed object.</param>
         /// <returns>The boxed object.</returns>
-        public static implicit operator ASObject(string x) => ASString.box(x);
+        [return: NotNullIfNotNull("x")]
+        public static implicit operator ASObject?(string? x) => ASString.box(x);
 
         /// <summary>
         /// Converts a string to a boxed object.
         /// </summary>
         /// <param name="x">The string to convert to a boxed object.</param>
         /// <returns>The boxed object.</returns>
-        public static ASObject AS_fromString(string x) => ASString.box(x);
+        [return: NotNullIfNotNull("x")]
+        public static ASObject? AS_fromString(string? x) => ASString.box(x);
 
         /// <summary>
         /// Converts the given object to a Boolean value.
         /// </summary>
         /// <param name="x">The object to convert.</param>
         /// <returns>The Boolean value.</returns>
-        public static explicit operator bool(ASObject x) => x != null && x.AS_coerceBoolean();
+        public static explicit operator bool(ASObject? x) => x != null && x.AS_coerceBoolean();
 
         /// <summary>
         /// Converts the given object to a Boolean value.
         /// </summary>
         /// <param name="x">The object to convert.</param>
         /// <returns>The Boolean value.</returns>
-        public static bool AS_toBoolean(ASObject x) => x != null && x.AS_coerceBoolean();
+        public static bool AS_toBoolean(ASObject? x) => x != null && x.AS_coerceBoolean();
 
         /// <summary>
         /// Converts the given object to an integer value.
         /// </summary>
         /// <param name="x">The object to convert.</param>
         /// <returns>The integer value.</returns>
-        public static explicit operator int(ASObject x) => (x == null) ? 0 : x.AS_coerceInt();
+        public static explicit operator int(ASObject? x) => (x == null) ? 0 : x.AS_coerceInt();
 
         /// <summary>
         /// Converts the given object to an integer value.
         /// </summary>
         /// <param name="x">The object to convert.</param>
         /// <returns>The integer value.</returns>
-        public static int AS_toInt(ASObject x) => (x == null) ? 0 : x.AS_coerceInt();
+        public static int AS_toInt(ASObject? x) => (x == null) ? 0 : x.AS_coerceInt();
 
         /// <summary>
         /// Converts the given object to an unsigned integer value.
         /// </summary>
         /// <param name="x">The object to convert.</param>
         /// <returns>The unsigned integer value.</returns>
-        public static explicit operator uint(ASObject x) => (x == null) ? 0u : x.AS_coerceUint();
+        public static explicit operator uint(ASObject? x) => (x == null) ? 0u : x.AS_coerceUint();
 
         /// <summary>
         /// Converts the given object to an unsigned integer value.
         /// </summary>
         /// <param name="x">The object to convert.</param>
         /// <returns>The unsigned integer value.</returns>
-        public static uint AS_toUint(ASObject x) => (x == null) ? 0u : x.AS_coerceUint();
+        public static uint AS_toUint(ASObject? x) => (x == null) ? 0u : x.AS_coerceUint();
 
         /// <summary>
         /// Converts the given object to a floating-point number value.
         /// </summary>
         /// <param name="x">The object to convert.</param>
         /// <returns>The floating-point number value.</returns>
-        public static explicit operator double(ASObject x) => (x == null) ? 0.0 : x.AS_coerceNumber();
+        public static explicit operator double(ASObject? x) => (x == null) ? 0.0 : x.AS_coerceNumber();
 
         /// <summary>
         /// Converts the given object to a floating-point number value.
         /// </summary>
         /// <param name="x">The object to convert.</param>
         /// <returns>The floating-point number value.</returns>
-        public static double AS_toNumber(ASObject x) => (x == null) ? 0.0 : x.AS_coerceNumber();
+        public static double AS_toNumber(ASObject? x) => (x == null) ? 0.0 : x.AS_coerceNumber();
 
         /// <summary>
         /// Converts the given object to a string value. This operator uses the
-        /// <see cref="AS_coerceString(ASObject)"/> method, which converts null to null.
+        /// <see cref="AS_coerceString(ASObject?)"/> method, which converts null to null.
         /// </summary>
         /// <param name="x">The object to convert.</param>
         /// <returns>The string value.</returns>
-        public static explicit operator string(ASObject x) => x?.AS_coerceString();
+        [return: NotNullIfNotNull("x")]
+        public static explicit operator string?(ASObject? x) => x?.AS_coerceString();
 
         /// <summary>
         /// Converts the given object to a string value. The null object is converted to the string
@@ -2021,7 +2034,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="x">The object to convert.</param>
         /// <returns>The string value.</returns>
-        public static string AS_convertString(ASObject x) => (x == null) ? "null" : x.AS_coerceString();
+        public static string AS_convertString(ASObject? x) => (x == null) ? "null" : x.AS_coerceString();
 
         /// <summary>
         /// Converts the given object to a string value. This method differs from
@@ -2031,7 +2044,8 @@ namespace Mariana.AVM2.Core {
         ///
         /// <param name="x">The object to convert.</param>
         /// <returns>The string value.</returns>
-        public static string AS_coerceString(ASObject x) => (x == null) ? null : x.AS_coerceString();
+        [return: NotNullIfNotNull("x")]
+        public static string? AS_coerceString(ASObject? x) => (x == null) ? null : x.AS_coerceString();
 
         /// <summary>
         /// Creates an <see cref="ASObject"/> from the given argument, of an object or boxed
@@ -2059,8 +2073,8 @@ namespace Mariana.AVM2.Core {
         /// </item>
         /// </list>
         /// </exception>
-        public static ASObject AS_fromBoxed(object obj) {
-            ASObject asobj = obj as ASObject;
+        public static ASObject? AS_fromBoxed(object? obj) {
+            ASObject? asobj = obj as ASObject;
             if (asobj != null || obj == null)
                 return asobj;
 
@@ -2099,8 +2113,9 @@ namespace Mariana.AVM2.Core {
         /// </item>
         /// </list>
         /// </exception>
-        public static T AS_cast<T>(object obj) where T : class {
-            T x = obj as T;
+        [return: NotNullIfNotNull("obj")]
+        public static T? AS_cast<T>(object? obj) where T : class {
+            T? x = obj as T;
             if (x == null && obj != null)
                 throw ErrorHelper.createCastError(obj.GetType(), typeof(T));
             return x;
@@ -2120,26 +2135,22 @@ namespace Mariana.AVM2.Core {
         /// <item><description>TypeError #1034: The type conversion is unsuccessful.</description></item>
         /// </list>
         /// </exception>
-        public static ASObject AS_coerceType(ASObject obj, Class toClass) {
+        [return: NotNullIfNotNull("obj")]
+        public static ASObject? AS_coerceType(ASObject? obj, Class? toClass) {
             if (toClass == null || (obj != null && obj.AS_class == toClass))
                 return obj;
 
-            switch (toClass.tag) {
-                case ClassTag.INT:
-                    return (int)obj;
-                case ClassTag.UINT:
-                    return (uint)obj;
-                case ClassTag.NUMBER:
-                    return (double)obj;
-                case ClassTag.BOOLEAN:
-                    return (bool)obj;
-                case ClassTag.STRING:
-                    return (string)obj;
-                default:
-                    if (obj == null || obj.AS_class.canAssignTo(toClass))
-                        return obj;
-                    throw ErrorHelper.createCastError(obj, toClass);
-            }
+            return toClass.tag switch {
+                ClassTag.INT => (int)obj,
+                ClassTag.UINT => (uint)obj,
+                ClassTag.NUMBER => (double)obj,
+                ClassTag.BOOLEAN => (bool)obj,
+                ClassTag.STRING => (string?)obj,
+
+                _ => (obj == null || obj.AS_class.canAssignTo(toClass))
+                    ? obj
+                    : throw ErrorHelper.createCastError(obj, toClass)
+            };
         }
 
         /// <summary>
@@ -2162,7 +2173,7 @@ namespace Mariana.AVM2.Core {
         /// <c>valueOf()</c>); for any other object, the number hint is used (<c>valueOf()</c>
         /// is called before <c>toString()</c>).
         /// </remarks>
-        public static ASAny AS_toPrimitive(ASObject obj) =>
+        public static ASAny AS_toPrimitive(ASObject? obj) =>
             (obj is ASDate) ? AS_toPrimitiveStringHint(obj) : AS_toPrimitiveNumHint(obj);
 
         /// <summary>
@@ -2185,7 +2196,7 @@ namespace Mariana.AVM2.Core {
         /// and its <c>valueOf()</c> method is called only if its <c>toString()</c> method
         /// does not return a primitive object.
         /// </remarks>
-        public static ASAny AS_toPrimitiveStringHint(ASObject obj) {
+        public static ASAny AS_toPrimitiveStringHint(ASObject? obj) {
             if (AS_isPrimitive(obj))
                 return obj;
 
@@ -2194,11 +2205,11 @@ namespace Mariana.AVM2.Core {
 
             ASAny result;
             result = obj.AS_callProperty(QName.publicName("toString"), Array.Empty<ASAny>());
-            if (result.isUndefinedOrNull || result.AS_class.isPrimitiveClass)
+            if (result.isUndefinedOrNull || result.AS_class!.isPrimitiveClass)
                 return result;
 
             result = obj.AS_callProperty(QName.publicName("valueOf"), Array.Empty<ASAny>());
-            if (result.isUndefinedOrNull || result.AS_class.isPrimitiveClass)
+            if (result.isUndefinedOrNull || result.AS_class!.isPrimitiveClass)
                 return result;
 
             throw ErrorHelper.createError(ErrorCode.CANNOT_CONVERT_OBJECT_TO_PRIMITIVE);
@@ -2224,7 +2235,7 @@ namespace Mariana.AVM2.Core {
         /// and its <c>toString()</c> method is called only if its <c>valueOf()</c> method
         /// does not return a primitive object.
         /// </remarks>
-        public static ASAny AS_toPrimitiveNumHint(ASObject obj) {
+        public static ASAny AS_toPrimitiveNumHint(ASObject? obj) {
             if (AS_isPrimitive(obj))
                 return obj;
 
@@ -2233,11 +2244,11 @@ namespace Mariana.AVM2.Core {
 
             ASAny result;
             result = obj.AS_callProperty(QName.publicName("valueOf"), Array.Empty<ASAny>());
-            if (result.isUndefinedOrNull || result.AS_class.isPrimitiveClass)
+            if (result.isUndefinedOrNull || result.AS_class!.isPrimitiveClass)
                 return result;
 
             result = obj.AS_callProperty(QName.publicName("toString"), Array.Empty<ASAny>());
-            if (result.isUndefinedOrNull || result.AS_class.isPrimitiveClass)
+            if (result.isUndefinedOrNull || result.AS_class!.isPrimitiveClass)
                 return result;
 
             throw ErrorHelper.createError(ErrorCode.CANNOT_CONVERT_OBJECT_TO_PRIMITIVE);
@@ -2291,7 +2302,7 @@ namespace Mariana.AVM2.Core {
         /// <item><description>Otherwise, the two objects are not equal.</description></item>
         /// </list>
         /// </remarks>
-        public static bool AS_weakEq(ASObject x, ASObject y) {
+        public static bool AS_weakEq(ASObject? x, ASObject? y) {
             if (x == y) {
                 // Equal by reference, or both null. NaN is an exception!
                 return !(x is ASNumber && Double.IsNaN((double)x));
@@ -2369,7 +2380,7 @@ namespace Mariana.AVM2.Core {
         /// only.</description></item>
         /// </list>
         /// </remarks>
-        public static bool AS_strictEq(ASObject x, ASObject y) {
+        public static bool AS_strictEq(ASObject? x, ASObject? y) {
             if (x == y) {
                 // Equal by reference, or both null. NaN is an exception!
                 return !(x is ASNumber && Double.IsNaN((double)x));
@@ -2410,7 +2421,7 @@ namespace Mariana.AVM2.Core {
         /// on character code points and is locale-independent. Otherwise, the objects are converted
         /// to the Number type and their floating-point values are compared.
         /// </remarks>
-        public static bool AS_lessThan(ASObject x, ASObject y) {
+        public static bool AS_lessThan(ASObject? x, ASObject? y) {
             ASAny prim1 = AS_toPrimitiveNumHint(x);
             ASAny prim2 = AS_toPrimitiveNumHint(y);
 
@@ -2435,7 +2446,7 @@ namespace Mariana.AVM2.Core {
         /// comparison is based on character code points and is locale-independent. Otherwise, the
         /// objects are converted to the Number type and their floating-point values are compared.
         /// </remarks>
-        public static bool AS_lessEq(ASObject x, ASObject y) {
+        public static bool AS_lessEq(ASObject? x, ASObject? y) {
             ASAny prim1 = AS_toPrimitiveNumHint(x);
             ASAny prim2 = AS_toPrimitiveNumHint(y);
 
@@ -2461,7 +2472,7 @@ namespace Mariana.AVM2.Core {
         /// string comparison is based on character code points and is locale-independent. Otherwise,
         /// the objects are converted to the Number type and their floating-point values are compared.
         /// </remarks>
-        public static bool AS_greaterEq(ASObject x, ASObject y) => AS_lessEq(y, x);
+        public static bool AS_greaterEq(ASObject? x, ASObject? y) => AS_lessEq(y, x);
 
         /// <summary>
         /// Compares two objects and returns true if the first object is greater than the second. This
@@ -2478,7 +2489,7 @@ namespace Mariana.AVM2.Core {
         /// comparison is based on character code points and is locale-independent. Otherwise, the
         /// objects are converted to the Number type and their floating-point values are compared.
         /// </remarks>
-        public static bool AS_greaterThan(ASObject x, ASObject y) => AS_lessThan(y, x);
+        public static bool AS_greaterThan(ASObject? x, ASObject? y) => AS_lessThan(y, x);
 
         /// <summary>
         /// Adds two objects using the definition of the addition (+) operator in ActionScript 3.
@@ -2502,7 +2513,7 @@ namespace Mariana.AVM2.Core {
         /// <c>valueOf</c> or <c>toString</c> methods and the primitive objects are added.</description></item>
         /// </list>
         /// </remarks>
-        public static ASObject AS_add(ASObject x, ASObject y) {
+        public static ASObject AS_add(ASObject? x, ASObject? y) {
             ClassTagSet tagSet = default;
 
             if (x != null)
@@ -2524,9 +2535,9 @@ namespace Mariana.AVM2.Core {
 
             tagSet = default;
             if (!prim1.isUndefinedOrNull)
-                tagSet = tagSet.add(prim1.AS_class.tag);
+                tagSet = tagSet.add(prim1.AS_class!.tag);
             if (!prim2.isUndefinedOrNull)
-                tagSet = tagSet.add(prim2.AS_class.tag);
+                tagSet = tagSet.add(prim2.AS_class!.tag);
 
             if (ClassTagSet.numericOrBool.containsAll(tagSet))
                 return (double)prim1 + (double)prim2;
@@ -2547,25 +2558,18 @@ namespace Mariana.AVM2.Core {
         /// objects), "xml" (for XML and XMLList objects) or "object" (for null or objects of any
         /// other type).
         /// </remarks>
-        public static string AS_typeof(ASObject obj) {
-            if (obj != null) {
-                switch (obj.AS_class.tag) {
-                    case ClassTag.NUMBER:
-                    case ClassTag.INT:
-                    case ClassTag.UINT:
-                        return "number";
-                    case ClassTag.BOOLEAN:
-                        return "boolean";
-                    case ClassTag.STRING:
-                        return "string";
-                    case ClassTag.FUNCTION:
-                        return "function";
-                    case ClassTag.XML:
-                    case ClassTag.XML_LIST:
-                        return "xml";
-                }
-            }
-            return "object";
+        public static string AS_typeof(ASObject? obj) {
+            if (obj == null)
+                return "object";
+
+            return obj.AS_class.tag switch {
+                ClassTag.NUMBER or ClassTag.INT or ClassTag.UINT => "number",
+                ClassTag.BOOLEAN => "boolean",
+                ClassTag.STRING => "string",
+                ClassTag.FUNCTION => "function",
+                ClassTag.XML or ClassTag.XML_LIST => "xml",
+                _ => "object",
+            };
         }
 
         /// <summary>
@@ -2592,8 +2596,8 @@ namespace Mariana.AVM2.Core {
         /// interfaces are not part of the prototype chain of classes that implement them.</para>
         /// <para>For class-based type checking, use <see cref="AS_isType"/>.</para>
         /// </remarks>
-        public static bool AS_instanceof(ASObject obj, ASObject classOrFunction) {
-            ASObject protoObject;
+        public static bool AS_instanceof(ASObject? obj, ASObject classOrFunction) {
+            ASObject? protoObject;
 
             if (classOrFunction is ASClass classObj)
                 protoObject = classObj.internalClass.prototypeObject;
@@ -2602,7 +2606,7 @@ namespace Mariana.AVM2.Core {
             else
                 throw ErrorHelper.createError(ErrorCode.INSTANCEOF_NOT_CLASS_OR_FUNCTION);
 
-            if (obj == null)
+            if (obj == null || protoObject == null)
                 return false;
 
             obj = obj.AS_proto;
@@ -2630,7 +2634,7 @@ namespace Mariana.AVM2.Core {
         /// <item><description>TypeError #1040: The <paramref name="typeObj"/> argument is not a class.</description></item>
         /// </list>
         /// </exception>
-        public static bool AS_isType(ASObject obj, ASObject typeObj) {
+        public static bool AS_isType([NotNullWhen(true)] ASObject? obj, ASObject typeObj) {
             if (typeObj is not ASClass klass)
                 throw ErrorHelper.createError(ErrorCode.IS_AS_NOT_CLASS);
 
@@ -2638,23 +2642,13 @@ namespace Mariana.AVM2.Core {
             // operator returns true (and the as operator returns the first operand) if
             // the first operand is of a numeric type and can be round-trip converted to
             // the target numeric type.
-            switch (klass.internalClass.tag) {
-                case ClassTag.INT:
-                    return AS_isInt(obj);
-                case ClassTag.UINT:
-                    return AS_isUint(obj);
-                case ClassTag.NUMBER:
-                    return AS_isNumeric(obj);
-            }
 
-            if (obj == null)
-                return false;
-
-            Type klassUnderlyingType = klass.internalClass.underlyingType;
-            if (klassUnderlyingType != null)
-                return klassUnderlyingType.IsInstanceOfType(obj);
-
-            return obj.AS_class.canAssignTo(klass.internalClass);
+            return klass.internalClass.tag switch {
+                ClassTag.INT => AS_isInt(obj),
+                ClassTag.UINT => AS_isUint(obj),
+                ClassTag.NUMBER => AS_isNumeric(obj),
+                _ => klass.internalClass.isInstance(obj),
+            };
         }
 
         /// <summary>
@@ -2672,7 +2666,7 @@ namespace Mariana.AVM2.Core {
         /// <item><description>TypeError #1040: The <paramref name="typeObj"/> argument is not a class.</description></item>
         /// </list>
         /// </exception>
-        public static ASObject AS_asType(ASObject obj, ASObject typeObj) => AS_isType(obj, typeObj) ? obj : null;
+        public static ASObject? AS_asType(ASObject? obj, ASObject typeObj) => AS_isType(obj, typeObj) ? obj : null;
 
         /// <summary>
         /// Creates an implementation of the generic class definition <paramref name="def"/> with
@@ -2721,7 +2715,7 @@ namespace Mariana.AVM2.Core {
             }
 
             if (typeParams[0] == ASAny.@null)
-                return Class.fromType(typeof(ASVectorAny)).classObject;
+                return Class.fromType(typeof(ASVectorAny))!.classObject;
 
             if (typeParams[0].value is ASClass paramClass)
                 return paramClass.internalClass.getVectorClass().classObject;
@@ -2744,7 +2738,7 @@ namespace Mariana.AVM2.Core {
         /// <remarks>
         /// Only XML and XMLList objects can be used with the filter operator.
         /// </remarks>
-        public static void AS_checkFilter(ASObject obj) {
+        public static void AS_checkFilter(ASObject? obj) {
             if (obj == null || !ClassTagSet.xmlOrXmlList.contains(obj.AS_class.tag)) {
                 throw ErrorHelper.createError(
                     ErrorCode.FILTER_NOT_SUPPORTED, (obj == null) ? "null" : obj.AS_class.name.ToString());
@@ -2758,7 +2752,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="obj">The object.</param>
         /// <returns>True, if <paramref name="obj"/> is of a numeric type, false
         /// otherwise.</returns>
-        public static bool AS_isNumeric(ASObject obj) =>
+        public static bool AS_isNumeric([NotNullWhen(true)] ASObject? obj) =>
             obj != null && ClassTagSet.numeric.contains(obj.AS_class.tag);
 
         /// <summary>
@@ -2770,7 +2764,7 @@ namespace Mariana.AVM2.Core {
         /// <returns>True, if <paramref name="obj"/> is is of the integer type or of another numeric
         /// type with a value that is exactly representable as a signed integer, otherwise
         /// false.</returns>
-        public static bool AS_isInt(ASObject obj) {
+        public static bool AS_isInt([NotNullWhen(true)] ASObject? obj) {
             if (obj == null)
                 return false;
 
@@ -2798,7 +2792,7 @@ namespace Mariana.AVM2.Core {
         /// <returns>True, if <paramref name="obj"/> is is of the unsigned integer type or of another numeric
         /// type with a value that is exactly representable as an unsigned integer, otherwise
         /// false.</returns>
-        public static bool AS_isUint(ASObject obj) {
+        public static bool AS_isUint([NotNullWhen(true)] ASObject? obj) {
             if (obj == null)
                 return false;
 
@@ -2824,7 +2818,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="obj">The object.</param>
         /// <returns>True, if <paramref name="obj"/> is of a primitive type, false
         /// otherwise.</returns>
-        public static bool AS_isPrimitive(ASObject obj) =>
+        public static bool AS_isPrimitive([NotNullWhen(true)] ASObject? obj) =>
             obj != null && ClassTagSet.primitive.contains(obj.AS_class.tag);
 
         /// <summary>
@@ -2834,7 +2828,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="obj">The object.</param>
         /// <returns>True, if <paramref name="obj"/> is of the Array or Vector type, false
         /// otherwise.</returns>
-        public static bool AS_isArrayLike(ASObject obj) {
+        public static bool AS_isArrayLike([NotNullWhen(true)] ASObject? obj) {
             if (obj == null)
                 return false;
 
@@ -2878,7 +2872,7 @@ namespace Mariana.AVM2.Core {
             if (otherObj.value == null)
                 return false;
 
-            ASObject p = otherObj.value.AS_proto;
+            ASObject? p = otherObj.value.AS_proto;
             while (p != null) {
                 if (this == p)
                     return true;
@@ -2906,7 +2900,7 @@ namespace Mariana.AVM2.Core {
             if (name.isUndefined)
                 return false;
 
-            DynamicPropertyCollection dynamicProperties = AS_dynamicProps;
+            DynamicPropertyCollection? dynamicProperties = AS_dynamicProps;
             return dynamicProperties != null && dynamicProperties.isEnumerable(ASAny.AS_convertString(name));
         }
 
@@ -2928,7 +2922,7 @@ namespace Mariana.AVM2.Core {
         //[AVM2ExportTrait(nsName = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
         public void setPropertyIsEnumerable(string name, bool value) {
-            DynamicPropertyCollection dynamicProperties = AS_dynamicProps;
+            DynamicPropertyCollection? dynamicProperties = AS_dynamicProps;
             if (dynamicProperties == null)
                 throw ErrorHelper.createError(ErrorCode.CANNOT_CREATE_PROPERTY, name, AS_class.name);
 

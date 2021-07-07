@@ -42,14 +42,12 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// The error class name.
         /// </summary>
-        [AVM2ExportTrait]
-        public string name;
+        private ASAny m_name;
 
         /// <summary>
         /// The error message.
         /// </summary>
-        [AVM2ExportTrait]
-        public string message;
+        private ASAny m_message;
 
         /// <summary>
         /// The <see cref="StackTrace"/> representing the call stack at the time of the error's construction.
@@ -68,12 +66,30 @@ namespace Mariana.AVM2.Core {
         /// <param name="message">The error message.</param>
         /// <param name="id">The error ID.</param>
         [AVM2ExportTrait]
-        public ASError(string message = "", int id = 0) {
+        public ASError([ParamDefaultValue("")] ASAny message, int id = 0) {
             this.m_errorID = id;
             this.message = message;
             this.name = "Error";
             this.m_stackTrace = new StackTrace(1, fNeedFileInfo: false);
             this.m_lazyStackTraceString = new LazyInitObject<string>(_initStackTrace);
+        }
+
+        /// <summary>
+        /// Gets or sets the error name.
+        /// </summary>
+        [AVM2ExportTrait]
+        public ASAny name {
+            get => m_name;
+            set => m_name = value;
+        }
+
+        /// <summary>
+        /// Gets or sets the error message.
+        /// </summary>
+        [AVM2ExportTrait]
+        public ASAny message {
+            get => m_message;
+            set => m_message = value;
         }
 
         /// <summary>
@@ -117,7 +133,7 @@ namespace Mariana.AVM2.Core {
                     if (domain == null)
                         continue;
 
-                    Trait trait = domain.getGlobalTraitByFilter(t => t is MethodTrait m && m.underlyingMethodInfo == method);
+                    Trait? trait = domain.getGlobalTraitByFilter(t => t is MethodTrait m && m.underlyingMethodInfo == method);
                     if (trait == null)
                         continue;
 
@@ -126,7 +142,7 @@ namespace Mariana.AVM2.Core {
                     sb.Append("()");
                 }
                 else if (method is ConstructorInfo ctor) {
-                    if ((object)klass.constructor.underlyingConstructorInfo != ctor)
+                    if (klass.constructor?.underlyingConstructorInfo != ctor)
                         continue;
 
                     sb.Append("\n    at ");
@@ -134,7 +150,7 @@ namespace Mariana.AVM2.Core {
                     sb.Append("()");
                 }
                 else {
-                    Trait trait = klass.getTraitByFilter(t => t is MethodTrait m && m.underlyingMethodInfo == method);
+                    Trait? trait = klass.getTraitByFilter(t => t is MethodTrait m && m.underlyingMethodInfo == method);
                     if (trait == null)
                         continue;
 
@@ -162,8 +178,8 @@ namespace Mariana.AVM2.Core {
         //[AVM2ExportTrait(name = "toString", nsName = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod(name = "toString")]
         public virtual new string AS_toString() {
-            string name = this.name ?? "null";
-            string message = this.message ?? "null";
+            string name = ASAny.AS_convertString(this.name);
+            string message = ASAny.AS_convertString(this.message);
             return (message.Length == 0) ? name : name + ": " + message;
         }
 

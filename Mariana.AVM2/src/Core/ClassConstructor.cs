@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Reflection;
 using Mariana.Common;
 
@@ -11,9 +12,9 @@ namespace Mariana.AVM2.Core {
 
         private Class m_declaringClass;
 
-        private ConstructorInfo m_underlyingCtorInfo;
+        private ConstructorInfo? m_underlyingCtorInfo;
 
-        private MethodTraitParameter[] m_params;
+        private MethodTraitParameter[]? m_params;
 
         private bool m_hasRest;
 
@@ -41,7 +42,18 @@ namespace Mariana.AVM2.Core {
         /// Gets the underlying <see cref="ConstructorInfo"/> for the class constructor
         /// represented by this instance.
         /// </summary>
-        public ConstructorInfo underlyingConstructorInfo => m_underlyingCtorInfo;
+        public ConstructorInfo underlyingConstructorInfo {
+            get {
+                Debug.Assert(m_underlyingCtorInfo != null);
+                return m_underlyingCtorInfo!;
+            }
+        }
+
+        /// <summary>
+        /// Checks if this <see cref="ClassConstructor"/> has an underlying <see cref="ConstructorInfo"/>
+        /// available. This is used internally by the compiler to represent constructors that are being compiled.
+        /// </summary>
+        internal bool isUnderlyingConstructorInfoAvailable => m_underlyingCtorInfo != null;
 
         /// <summary>
         /// Gets a Boolean value indicating whether the constructor has a "rest" parameter.
@@ -51,7 +63,7 @@ namespace Mariana.AVM2.Core {
         /// <summary>
         /// Gets the number of formal parameters declared by the constructor.
         /// </summary>
-        public int paramCount => m_params.Length;
+        public int paramCount => m_params!.Length;
 
         /// <summary>
         /// Returns the number of formal parameters in this constructor that have no default values.
@@ -120,7 +132,7 @@ namespace Mariana.AVM2.Core {
         /// </list>
         /// </exception>
         public virtual ASAny invoke(ReadOnlySpan<ASAny> args) {
-            if (args.Length < m_requiredArgCount || (!m_hasRest && args.Length > m_params.Length))
+            if (args.Length < m_requiredArgCount || (!m_hasRest && args.Length > m_params!.Length))
                 throw ErrorHelper.createArgCountMismatchError(this, args.Length);
 
             return m_lazyRuntimeDispatch.value(default(ASAny), args);
@@ -144,7 +156,7 @@ namespace Mariana.AVM2.Core {
             sb.Append(declaringClass.name.ToString());
 
             sb.Append('(');
-            MethodTraitParameter.paramListToString(m_params, sb);
+            MethodTraitParameter.paramListToString(m_params!, sb);
 
             if (hasRest) {
                 if (paramCount != 0)

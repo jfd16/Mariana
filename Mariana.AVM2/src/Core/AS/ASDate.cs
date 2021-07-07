@@ -160,7 +160,7 @@ namespace Mariana.AVM2.Core {
                     ASAny primitive = ASObject.AS_toPrimitive(rest[0].value);
 
                     if (primitive.value is ASString) {
-                        bool isValidString = DateParser.tryParse((string)primitive, out m_value);
+                        bool isValidString = DateParser.tryParse((string?)primitive, out m_value);
                         if (isValidString)
                             _internalCheckTimestamp();
                         else

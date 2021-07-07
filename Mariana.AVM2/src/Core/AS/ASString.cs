@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Mariana.AVM2.Native;
@@ -45,7 +46,7 @@ namespace Mariana.AVM2.Core {
             new LazyInitObject<ASObject[]>(() => _prepareSingleCharCachedObjects());
 
         private static LazyInitObject<Class> s_lazyClass = new LazyInitObject<Class>(
-            () => Class.fromType(typeof(ASString)),
+            () => Class.fromType(typeof(ASString))!,
             recursionHandling: LazyInitRecursionHandling.RECURSIVE_CALL
         );
 
@@ -322,7 +323,7 @@ namespace Mariana.AVM2.Core {
         /// is used for the match
         /// </remarks>
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
-        public ASArray match(ASAny regExp = default) => match(m_value, regExp);
+        public ASArray? match(ASAny regExp = default) => match(m_value, regExp);
 
         /// <summary>
         /// Returns a new string with matches of the <paramref name="search"/> string or RegExp
@@ -527,7 +528,7 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         /// <param name="s">The string.</param>
         /// <returns>True if the string is null or empty, otherwise false.</returns>
-        public static bool AS_toBoolean(string s) => s != null && s.Length != 0;
+        public static bool AS_toBoolean(string? s) => s != null && s.Length != 0;
 
         /// <summary>
         /// Parses a string to a 64-bit IEEE 754 floating-point number.
@@ -537,7 +538,7 @@ namespace Mariana.AVM2.Core {
         /// <returns>The floating-point number. If <paramref name="s"/> is null, empty or contains
         /// only whitespace, 0 is returned; if <paramref name="s"/> is an invalid string, NaN is
         /// returned.</returns>
-        public static double AS_toNumber(string s) {
+        public static double AS_toNumber(string? s) {
             if (s == null)
                 return 0.0;
 
@@ -554,7 +555,7 @@ namespace Mariana.AVM2.Core {
         /// as a hexadecimal integer.</param>
         /// <returns>The integer. If <paramref name="s"/> is null, empty or invalid, 0 is
         /// returned.</returns>
-        public static int AS_toInt(string s) {
+        public static int AS_toInt(string? s) {
             if (s == null)
                 return 0;
 
@@ -574,7 +575,7 @@ namespace Mariana.AVM2.Core {
         /// as a hexadecimal integer.</param>
         /// <returns>The unsigned integer. If <paramref name="s"/> is null, empty or invalid, 0 is
         /// returned.</returns>
-        public static uint AS_toUint(string s) {
+        public static uint AS_toUint(string? s) {
             if (s == null)
                 return 0;
 
@@ -593,7 +594,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="s">The string.</param>
         /// <returns>If <paramref name="s"/> is null, returns the string "null", otherwise returns
         /// <paramref name="s"/>.</returns>
-        public static string AS_convertString(string s) => s ?? "null";
+        public static string AS_convertString(string? s) => s ?? "null";
 
         /// <summary>
         /// Converts a floating-point index passed in to some String instance methods to an integer index.
@@ -819,7 +820,7 @@ namespace Mariana.AVM2.Core {
         /// the target string.
         /// </remarks>
         [AVM2ExportPrototypeMethod]
-        public static ASArray match(string s, ASAny regExp) {
+        public static ASArray? match(string s, ASAny regExp) {
             if (s == null)
                 throw ErrorHelper.createError(ErrorCode.NULL_REFERENCE_ERROR);
 
@@ -837,7 +838,7 @@ namespace Mariana.AVM2.Core {
                 return matchArray;
             }
             else {
-                return (ASArray)re.exec(s);
+                return (ASArray?)re.exec(s);
             }
         }
 
@@ -881,7 +882,7 @@ namespace Mariana.AVM2.Core {
 
             var replFunction = repl.value as ASFunction;
             var searchRegex = search.value as ASRegExp;
-            string searchString = null, replString = null;
+            string? searchString = null, replString = null;
 
             // If repl is not a function, convert to a string.
             if (replFunction == null)
@@ -895,7 +896,7 @@ namespace Mariana.AVM2.Core {
             // Otherwise, only the first match is replaced.
             bool isGlobal = searchRegex != null && searchRegex.global;
 
-            ASAny[] callbackArgs = null;
+            ASAny[]? callbackArgs = null;
 
             if (replFunction != null) {
                 callbackArgs = new ASAny[3 + ((searchRegex != null) ? searchRegex.groupCount : 0)];
@@ -905,7 +906,7 @@ namespace Mariana.AVM2.Core {
             // Determine the index of the first match. If the first match has not been found, return the input
             // string, as there are no replacements to be made.
             int matchIndex;
-            Match regexMatch = null;
+            Match? regexMatch = null;
 
             if (searchRegex == null) {
                 matchIndex = input.IndexOf(searchString, StringComparison.Ordinal);
@@ -925,18 +926,18 @@ namespace Mariana.AVM2.Core {
                 parsedReplString = new ParsedReplaceString(replString, searchRegex.groupCount);
 
             int srcLastIndex = 0;
-            var resultBuilder = new ReplaceResultBuilder(input, replString);
+            var resultBuilder = new ReplaceResultBuilder(input, replString!);
 
             while (true) {
-                int matchLength = (searchRegex != null) ? regexMatch.Length : searchString.Length;
+                int matchLength = (regexMatch != null) ? regexMatch.Length : searchString!.Length;
                 resultBuilder.addSourceStringSpan(srcLastIndex, matchIndex - srcLastIndex);
 
                 if (replFunction != null)
                     resultBuilder.addOtherString(getCurrentReplaceStringFromCallback());
-                else if (searchRegex != null)
+                else if (regexMatch != null)
                     parsedReplString.resolveWithMatch(regexMatch, ref resultBuilder);
                 else
-                    resultBuilder.addReplaceStringSpan(0, replString.Length);
+                    resultBuilder.addReplaceStringSpan(0, replString!.Length);
 
                 srcLastIndex = matchIndex + matchLength;
 
@@ -946,7 +947,7 @@ namespace Mariana.AVM2.Core {
                 }
 
                 // Do the next match.
-                if (searchRegex != null) {
+                if (regexMatch != null) {
                     regexMatch = regexMatch.NextMatch();
                     if (!regexMatch.Success)
                         break;
@@ -957,8 +958,8 @@ namespace Mariana.AVM2.Core {
                     int nextMatchStart = matchIndex + Math.Max(matchLength, 1);
                     matchIndex = -1;
 
-                    if (nextMatchStart <= searchString.Length)
-                        matchIndex = input.IndexOf(searchString, nextMatchStart, StringComparison.Ordinal);
+                    if (nextMatchStart <= searchString!.Length)
+                        matchIndex = input.IndexOf(searchString!, nextMatchStart, StringComparison.Ordinal);
 
                     if (matchIndex == -1)
                         break;
@@ -970,14 +971,14 @@ namespace Mariana.AVM2.Core {
 
             string getCurrentReplaceStringFromCallback() {
                 if (regexMatch == null) {
-                    callbackArgs[0] = searchString;
+                    callbackArgs![0] = searchString;
                 }
                 else {
                     GroupCollection groups = regexMatch.Groups;
                     for (int i = 0; i < groups.Count; i++)
-                        callbackArgs[i] = groups[i].Success ? groups[i].Value : ASAny.undefined;
+                        callbackArgs![i] = groups[i].Success ? groups[i].Value : ASAny.undefined;
                 }
-                callbackArgs[^2] = matchIndex;
+                callbackArgs![^2] = matchIndex;
                 return ASAny.AS_convertString(replFunction.AS_invoke(ASAny.@null, callbackArgs));
             }
         }
@@ -1256,7 +1257,7 @@ namespace Mariana.AVM2.Core {
             }
 
             int lastIndex = 0;
-            Match currentMatch = null;
+            Match? currentMatch = null;
 
             while (result.length < limit) {
                 if (currentMatch == null)
@@ -1383,9 +1384,9 @@ namespace Mariana.AVM2.Core {
         internal static new ASAny __AS_CONSTRUCT(ReadOnlySpan<ASAny> args) => __AS_INVOKE(args);
 
         internal static void __AS_INIT_CLASS(ASClass classObj) {
-            classObj.AS_dynamicProps.setValue(
+            classObj.AS_dynamicProps!.setValue(
                 nameof(fromCharCode),
-                classObj.internalClass.getMethod(new QName(Namespace.AS3, nameof(fromCharCode)), TraitScope.STATIC).createMethodClosure()
+                classObj.internalClass.getMethod(new QName(Namespace.AS3, nameof(fromCharCode)), TraitScope.STATIC)!.createMethodClosure()
             );
         }
 
@@ -1407,7 +1408,8 @@ namespace Mariana.AVM2.Core {
         /// Creates a boxed object from a string value.
         /// </summary>
         /// <param name="val">The value to be boxed.</param>
-        internal static ASObject box(string val) {
+        [return: NotNullIfNotNull("val")]
+        internal static ASObject? box(string? val) {
             if (val == null)
                 return null;
 

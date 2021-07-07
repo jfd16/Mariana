@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Reflection;
 using Mariana.Common;
 
@@ -9,9 +10,9 @@ namespace Mariana.AVM2.Core {
     /// </summary>
     public class FieldTrait : Trait {
 
-        private FieldInfo m_underlyingFieldInfo;
+        private FieldInfo? m_underlyingFieldInfo;
 
-        private Class m_fieldType;
+        private Class? m_fieldType;
 
         private bool m_isReadOnly;
 
@@ -28,7 +29,7 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         private LazyInitObject<RuntimeDispatch.FieldStub> m_lazyRuntimeDispatch;
 
-        internal FieldTrait(in QName name, Class declaringClass, ApplicationDomain appDomain, bool isStatic)
+        internal FieldTrait(in QName name, Class? declaringClass, ApplicationDomain appDomain, bool isStatic)
             : base(name, declaringClass, appDomain, isStatic)
         {
             m_lazyRuntimeDispatch = new LazyInitObject<RuntimeDispatch.FieldStub>(
@@ -40,12 +41,24 @@ namespace Mariana.AVM2.Core {
         /// Gets the underlying <see cref="FieldInfo"/> of the field trait represented by this
         /// instance.
         /// </summary>
-        public FieldInfo underlyingFieldInfo => m_underlyingFieldInfo;
+        public FieldInfo underlyingFieldInfo {
+            get {
+                Debug.Assert(m_underlyingFieldInfo != null);
+                return m_underlyingFieldInfo!;
+            }
+        }
+
+        /// <summary>
+        /// Checks if this <see cref="FieldTrait"/> has an underlying <see cref="FieldInfo"/>
+        /// available. This is used internally by the compiler to represent fields in classes that
+        /// are being compiled.
+        /// </summary>
+        internal bool isUnderlyingFieldInfoAvailable => m_underlyingFieldInfo != null;
 
         /// <summary>
         /// Gets the type of the field value.
         /// </summary>
-        public Class fieldType => m_fieldType;
+        public Class? fieldType => m_fieldType;
 
         /// <summary>
         /// Gets a Boolean value indicating whether the field is read-only.
@@ -68,7 +81,7 @@ namespace Mariana.AVM2.Core {
         /// Sets the type of this field.
         /// </summary>
         /// <param name="fieldType">The type of this field.</param>
-        protected private void setFieldType(Class fieldType) {
+        protected private void setFieldType(Class? fieldType) {
             m_fieldType = fieldType;
         }
 
@@ -127,7 +140,7 @@ namespace Mariana.AVM2.Core {
             if (target.isUndefined && !isStatic)
                 throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
 
-            ASObject f = m_lazyRuntimeDispatch.value(target, default(ASAny), set: false).value;
+            ASObject? f = m_lazyRuntimeDispatch.value(target, default(ASAny), set: false).value;
             if (f != null)
                 return f.AS_tryInvoke(receiver, args, out result) ? BindStatus.SUCCESS : BindStatus.FAILED_NOTFUNCTION;
 
@@ -148,7 +161,7 @@ namespace Mariana.AVM2.Core {
             if (target.isUndefined && !isStatic)
                 throw ErrorHelper.createError(ErrorCode.UNDEFINED_REFERENCE_ERROR);
 
-            ASObject f = m_lazyRuntimeDispatch.value(target, default(ASAny), set: false).value;
+            ASObject? f = m_lazyRuntimeDispatch.value(target, default(ASAny), set: false).value;
             if (f != null)
                 return f.AS_tryConstruct(args, out result) ? BindStatus.SUCCESS : BindStatus.FAILED_NOTCONSTRUCTOR;
 

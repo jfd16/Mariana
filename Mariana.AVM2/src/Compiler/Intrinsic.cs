@@ -60,9 +60,9 @@ namespace Mariana.AVM2.Compiler {
         public static Intrinsic VECTOR_T_PUSH_1(Class arg) => new Intrinsic(IntrinsicName.VECTOR_T_PUSH_1, arg);
 
         public readonly IntrinsicName name;
-        public readonly object arg;
+        public readonly object? arg;
 
-        private Intrinsic(IntrinsicName name, object arg = null) {
+        private Intrinsic(IntrinsicName name, object? arg = null) {
             this.name = name;
             this.arg = arg;
         }

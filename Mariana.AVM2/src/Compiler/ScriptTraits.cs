@@ -7,7 +7,7 @@ namespace Mariana.AVM2.Compiler {
 
     internal sealed class ScriptField : FieldTrait {
         internal ScriptField(
-            ABCTraitInfo traitInfo, Class declClass, ApplicationDomain domain, bool isStatic, Class fieldType)
+            ABCTraitInfo traitInfo, Class? declClass, ApplicationDomain domain, bool isStatic, Class? fieldType)
             : base(traitInfo.name, declClass, domain, isStatic)
         {
             setIsReadOnly(traitInfo.kind == ABCTraitFlags.Const);
@@ -16,7 +16,7 @@ namespace Mariana.AVM2.Compiler {
         }
 
         internal ScriptField(
-            in QName name, Class declClass, ApplicationDomain domain, bool isStatic, Class fieldType, bool isReadOnly)
+            in QName name, Class? declClass, ApplicationDomain domain, bool isStatic, Class? fieldType, bool isReadOnly)
             : base(name, declClass, domain, isStatic)
         {
             setIsReadOnly(isReadOnly);
@@ -27,7 +27,7 @@ namespace Mariana.AVM2.Compiler {
     }
 
     internal sealed class ScriptConstant : ConstantTrait {
-        internal ScriptConstant(ABCTraitInfo traitInfo, Class declClass, ApplicationDomain domain)
+        internal ScriptConstant(ABCTraitInfo traitInfo, Class? declClass, ApplicationDomain domain)
             : base(traitInfo.name, declClass, domain, traitInfo.fieldDefaultValue)
         {
             setMetadata(traitInfo.metadata);
@@ -35,13 +35,13 @@ namespace Mariana.AVM2.Compiler {
     }
 
     internal sealed class ScriptProperty : PropertyTrait {
-        internal ScriptProperty(in QName name, Class declClass, ApplicationDomain domain, bool isStatic)
+        internal ScriptProperty(in QName name, Class? declClass, ApplicationDomain domain, bool isStatic)
             : base(name, declClass, domain, isStatic, getter: null, setter: null)
         {
 
         }
 
-        internal new void setAccessors(MethodTrait getter, MethodTrait setter) => base.setAccessors(getter, setter);
+        internal new void setAccessors(MethodTrait? getter, MethodTrait? setter) => base.setAccessors(getter, setter);
     }
 
     internal sealed class ScriptMethod : MethodTrait {
@@ -52,23 +52,23 @@ namespace Mariana.AVM2.Compiler {
         internal ScriptMethod(
             ABCMethodInfo methodInfo,
             in QName name,
-            Class declClass,
+            Class? declClass,
             ApplicationDomain domain,
             bool isStatic,
             bool isFinal,
             bool isOverride,
-            MetadataTagCollection metadata
+            MetadataTagCollection? metadata
         )
             : base(name, declClass, domain, isStatic)
         {
             m_abcMethodInfo = methodInfo;
-            m_isFinal = isStatic || (isFinal && !declClass.isInterface) || declClass.isFinal;
+            m_isFinal = isStatic || (isFinal && !declClass!.isInterface) || declClass!.isFinal;
             setIsOverride(isOverride);
             setMetadata(metadata);
         }
 
         internal ScriptMethod(
-            ABCTraitInfo traitInfo, Class declClass, ApplicationDomain domain, bool isStatic
+            ABCTraitInfo traitInfo, Class? declClass, ApplicationDomain domain, bool isStatic
         )
             : this(
                 traitInfo.methodInfo,
@@ -87,7 +87,7 @@ namespace Mariana.AVM2.Compiler {
         internal new void setUnderlyingMethodInfo(MethodInfo mi) => base.setUnderlyingMethodInfo(mi);
 
         internal new void setSignature(
-            bool hasReturn, Class returnType, MethodTraitParameter[] parameters, bool hasRest)
+            bool hasReturn, Class? returnType, MethodTraitParameter[] parameters, bool hasRest)
         {
             base.setSignature(hasReturn, returnType, parameters, hasRest);
         }

@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Mariana.Common {
 
@@ -23,7 +24,9 @@ namespace Mariana.Common {
         /// <param name="encodedURI">The encoded URI string.</param>
         ///
         /// <returns>True if the URI was encoded successfully, false if it is invalid.</returns>
-        public static bool tryEncode(string uri, string noEscapeChars, bool failOnInvalidSurrogate, out string? encodedURI) {
+        public static bool tryEncode(
+            string uri, string noEscapeChars, bool failOnInvalidSurrogate, [NotNullWhen(true)] out string? encodedURI)
+        {
             if (uri == null) {
                 encodedURI = null;
                 return false;
@@ -125,7 +128,9 @@ namespace Mariana.Common {
         ///
         /// <returns>True if <paramref name="uri"/> was decoded successfully, otherwise
         /// false.</returns>
-        public static bool tryDecode(string uri, string noDecodeChars, bool failOnInvalidSurrogate, out string? decodedURI) {
+        public static bool tryDecode(
+            string uri, string noDecodeChars, bool failOnInvalidSurrogate, [NotNullWhen(true)] out string? decodedURI)
+        {
             if (uri == null) {
                 decodedURI = null;
                 return false;

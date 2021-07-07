@@ -62,7 +62,7 @@ namespace Mariana.AVM2.Core {
         private static readonly string[] s_cachedStrings = _prepareCachedStrings();
 
         private static LazyInitObject<Class> s_lazyClass = new LazyInitObject<Class>(
-            () => Class.fromType(typeof(ASuint)),
+            () => Class.fromType(typeof(ASuint))!,
             recursionHandling: LazyInitRecursionHandling.RECURSIVE_CALL
         );
 

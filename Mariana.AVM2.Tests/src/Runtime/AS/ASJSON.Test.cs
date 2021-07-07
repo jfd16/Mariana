@@ -1709,7 +1709,7 @@ namespace Mariana.AVM2.Tests {
 
             void runTest() {
                 for (int i = 0; i < primitiveClasses.Length; i++) {
-                    string name = (primitiveClasses[i].underlyingType == typeof(ASVectorAny))
+                    string name = primitiveClasses[i].hasUnderlyingType(typeof(ASVectorAny))
                         ? "Vector"
                         : primitiveClasses[i].name.localName;
 

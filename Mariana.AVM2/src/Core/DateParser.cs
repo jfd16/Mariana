@@ -252,7 +252,7 @@ namespace Mariana.AVM2.Core {
         /// ensure that all timestamps of representable dates are nonnegative). See remarks on
         /// <see cref="ASDate"/> for further information.
         /// </remarks>
-        internal static bool tryParse(string str, out long timestamp) {
+        internal static bool tryParse(string? str, out long timestamp) {
             DateParser newInst = default;
             ref DateParser inst = ref ((str != null && str.Length > 80) ? ref newInst : ref s_threadInstance);
             return inst._parse(str, out timestamp);
@@ -266,7 +266,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="timestamp">The timestamp.</param>
         /// <returns>True if <paramref name="str"/> represents a valid date, false
         /// otherwise.</returns>
-        private bool _parse(string str, out long timestamp) {
+        private bool _parse(string? str, out long timestamp) {
             timestamp = 0;
 
             if (str == null || str.Length == 0)

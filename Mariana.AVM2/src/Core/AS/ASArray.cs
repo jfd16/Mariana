@@ -39,14 +39,14 @@ namespace Mariana.AVM2.Core {
             public static readonly Value undef = new Value(new ASObject());
             public static readonly Value empty = default(Value);
 
-            private readonly ASObject m_obj;
+            private readonly ASObject? m_obj;
 
-            private Value(ASObject obj) => m_obj = obj;
+            private Value(ASObject? obj) => m_obj = obj;
 
             public static Value fromAny(ASAny val) =>
                 val.isDefined ? new Value(val.value ?? @null.m_obj) : undef;
 
-            public static Value fromObject(ASObject val) => new Value(val ?? @null.m_obj);
+            public static Value fromObject(ASObject? val) => new Value(val ?? @null.m_obj);
 
             public bool isEmpty => m_obj == null;
 
@@ -161,9 +161,9 @@ namespace Mariana.AVM2.Core {
         private class ArrayValueComparerWithUserFunc {
             private readonly ASFunction m_func;
             private readonly ASAny[] m_callArgs = new ASAny[2];
-            private readonly Value[] m_indexArray;
+            private readonly Value[]? m_indexArray;
 
-            public ArrayValueComparerWithUserFunc(ASFunction compareFunc, Value[] indexArray = null) {
+            public ArrayValueComparerWithUserFunc(ASFunction compareFunc, Value[]? indexArray = null) {
                 m_func = compareFunc;
                 m_indexArray = indexArray;
             }
@@ -176,7 +176,7 @@ namespace Mariana.AVM2.Core {
                 return (result > 0) ? 1 : ((result < 0) ? -1 : 0);
             }
 
-            public int compareIndices(int x, int y) => compareValues(m_indexArray[x], m_indexArray[y]);
+            public int compareIndices(int x, int y) => compareValues(m_indexArray![x], m_indexArray![y]);
         }
 
         /// <summary>
@@ -229,7 +229,7 @@ namespace Mariana.AVM2.Core {
         /// is currently being used, this is null. If this is not null, its length must be the same as
         /// that of the <see cref="m_values"/> array.
         /// </summary>
-        private HashLink[] m_hashLinks;
+        private HashLink[]? m_hashLinks;
 
         /// <summary>
         /// The head of the hash table chain containing deleted elements, if hash table storage is
@@ -396,7 +396,7 @@ namespace Mariana.AVM2.Core {
         /// element type is <see cref="ASObject"/> or a subclass of it, as it has better
         /// performance
         /// </remarks>
-        public static ASArray fromObjectSpan<T>(Span<T> span) where T : ASObject => fromObjectSpan((ReadOnlySpan<T>)span);
+        public static ASArray fromObjectSpan<T>(Span<T> span) where T : ASObject? => fromObjectSpan((ReadOnlySpan<T>)span);
 
         /// <summary>
         /// Creates a new <see cref="ASArray"/> instance using values from the given span.
@@ -441,7 +441,7 @@ namespace Mariana.AVM2.Core {
         /// element type is <see cref="ASObject"/> or a subclass of it, as it has better
         /// performance
         /// </remarks>
-        public static ASArray fromObjectSpan<T>(ReadOnlySpan<T> span) where T : ASObject {
+        public static ASArray fromObjectSpan<T>(ReadOnlySpan<T> span) where T : ASObject? {
             ASArray array = new ASArray();
             array.m_values = span.IsEmpty ? Array.Empty<Value>() : new Value[span.Length];
 
@@ -500,8 +500,9 @@ namespace Mariana.AVM2.Core {
         /// <returns>The value of the object with the given key. If no value is associated with
         /// the key, returns <see cref="Value.empty"/>.</returns>
         private Value _hashGetValue(uint key) {
-            HashLink[] hashLinks = m_hashLinks;
-            int chain = ((int)key & 0x7FFFFFFF) % m_hashLinks.Length;
+            HashLink[] hashLinks = m_hashLinks!;
+
+            int chain = ((int)key & 0x7FFFFFFF) % hashLinks.Length;
             int curIndex = hashLinks[chain].headOfChain;
 
             while (curIndex != -1) {
@@ -534,17 +535,18 @@ namespace Mariana.AVM2.Core {
         /// false.</param>
         private void _hashSetValue(uint key, Value value, out bool isNew) {
             int chain = 0;
+            HashLink[] hashLinks = m_hashLinks!;
 
-            if (m_hashLinks.Length != 0)
-                chain = ((int)key & 0x7FFFFFFF) % m_hashLinks.Length;
+            if (hashLinks.Length != 0)
+                chain = ((int)key & 0x7FFFFFFF) % hashLinks.Length;
 
             if (key < m_length) {
                 // Check for an existing element with the key.
-                chain = ((int)key & 0x7FFFFFFF) % m_hashLinks.Length;
+                chain = ((int)key & 0x7FFFFFFF) % hashLinks.Length;
 
-                int curIndex = m_hashLinks[chain].headOfChain;
+                int curIndex = hashLinks[chain].headOfChain;
                 while (curIndex != -1) {
-                    ref HashLink link = ref m_hashLinks[curIndex];
+                    ref HashLink link = ref hashLinks[curIndex];
                     if (link.key == key) {
                         m_values[curIndex] = value;
                         isNew = false;
@@ -559,15 +561,17 @@ namespace Mariana.AVM2.Core {
             if (m_totalCount > m_nonEmptyCount) {
                 // If there are empty slots in the hash table, use one of them.
                 newSlotIndex = m_hashEmptyChainHead;
-                m_hashEmptyChainHead = m_hashLinks[newSlotIndex].next;
+                m_hashEmptyChainHead = hashLinks[newSlotIndex].next;
             }
             else {
                 // No empty slots. Store the element in a new slot.
-                if (m_totalCount == m_hashLinks.Length) {
+                if (m_totalCount == hashLinks.Length) {
                     // Resize the hash table.
-                    int newSize = Math.Max(checked(m_hashLinks.Length * 2), 4);
+                    int newSize = Math.Max(checked(hashLinks.Length * 2), 4);
+
                     HashLink[] newLinks = new HashLink[newSize];
-                    m_hashLinks.CopyTo(newLinks.AsSpan());
+                    hashLinks.CopyTo(newLinks.AsSpan());
+                    hashLinks = newLinks;
                     m_hashLinks = newLinks;
 
                     Value[] newValues = new Value[newSize];
@@ -575,14 +579,15 @@ namespace Mariana.AVM2.Core {
                     m_values = newValues;
 
                     _resetHashTableChains();
-                    chain = ((int)key & 0x7FFFFFFF) % m_hashLinks.Length;
+                    chain = ((int)key & 0x7FFFFFFF) % hashLinks.Length;
                 }
+
                 newSlotIndex = m_totalCount;
                 m_totalCount++;
             }
 
-            ref HashLink newLink = ref m_hashLinks[newSlotIndex];
-            ref int headOfChain = ref m_hashLinks[chain].headOfChain;
+            ref HashLink newLink = ref hashLinks[newSlotIndex];
+            ref int headOfChain = ref hashLinks[chain].headOfChain;
 
             newLink.next = headOfChain;
             newLink.key = key;
@@ -601,20 +606,21 @@ namespace Mariana.AVM2.Core {
         /// <returns>The value of the deleted element. If the key does not exist, returns
         /// <see cref="Value.empty"/>.</returns>
         private Value _hashDeleteAndGet(uint key) {
-            int chain = ((int)key & 0x7FFFFFFF) % m_hashLinks.Length;
+            HashLink[] hashLinks = m_hashLinks!;
+            int chain = ((int)key & 0x7FFFFFFF) % hashLinks.Length;
 
-            int curIndex = m_hashLinks[chain].headOfChain;
+            int curIndex = hashLinks[chain].headOfChain;
             int prevIndex = -1;
 
             while (curIndex != -1) {
-                ref HashLink curLink = ref m_hashLinks[curIndex];
+                ref HashLink curLink = ref hashLinks[curIndex];
                 if (curLink.key != key) {
                     prevIndex = curIndex;
                     curIndex = curLink.next;
                     continue;
                 }
 
-                ref int prevRef = ref ((prevIndex != -1) ? ref m_hashLinks[prevIndex].next : ref m_hashLinks[chain].headOfChain);
+                ref int prevRef = ref ((prevIndex != -1) ? ref hashLinks[prevIndex].next : ref hashLinks[chain].headOfChain);
                 prevRef = curLink.next;
 
                 ref Value valRef = ref m_values[curIndex];
@@ -637,7 +643,7 @@ namespace Mariana.AVM2.Core {
         /// directly. Call this method only if hash table storage is currently in use.
         /// </summary>
         private void _resetHashTableChains() {
-            HashLink[] hashLinks = m_hashLinks;
+            HashLink[] hashLinks = m_hashLinks!;
 
             for (int i = 0; i < hashLinks.Length; i++)
                 hashLinks[i].headOfChain = -1;
@@ -793,7 +799,8 @@ namespace Mariana.AVM2.Core {
         /// </remarks>
         private void _hashToDenseArray(int newLength) {
             Value[] newDenseArray = new Value[newLength];
-            HashLink[] hashLinks = m_hashLinks;
+
+            HashLink[] hashLinks = m_hashLinks!;
             int newTotalCount = 0;
 
             for (int i = 0; i < hashLinks.Length; i++) {
@@ -887,10 +894,10 @@ namespace Mariana.AVM2.Core {
             // For hash table storage.
 
             void trimHash(uint newlen) {
-                HashLink[] hashLinks = m_hashLinks;
+                HashLink[] hashLinks = m_hashLinks!;
 
                 for (int chain = 0; chain < hashLinks.Length; chain++) {
-                    int curIndex = m_hashLinks[chain].headOfChain;
+                    int curIndex = hashLinks[chain].headOfChain;
                     int prevIndex = -1;
 
                     while (curIndex != -1) {
@@ -1846,7 +1853,7 @@ namespace Mariana.AVM2.Core {
             if (index > m_totalCount)
                 return base.AS_nameAtIndex(index - m_totalCount);
 
-            return _isDenseArray() ? (uint)(index - 1) : m_hashLinks[index - 1].key;
+            return _isDenseArray() ? (uint)(index - 1) : m_hashLinks![index - 1].key;
         }
 
         /// <summary>
@@ -1889,7 +1896,7 @@ namespace Mariana.AVM2.Core {
             // or a hash table).
 
             for (int i = 0; i < nArgs; i++) {
-                ASObject arg = args[i].value;
+                ASObject? arg = args[i].value;
 
                 uint argLength;
                 int argNonEmptyCount;
@@ -1978,7 +1985,6 @@ namespace Mariana.AVM2.Core {
 
             void appendArrayToResult(ASArray argArray) {
                 var argValues = new ReadOnlySpan<Value>(argArray.m_values, 0, argArray.m_totalCount);
-                HashLink[] argHashLinks = argArray.m_hashLinks;
                 Span<Value> resultValues = resultArray.m_values;
 
                 if (resultArray._isDenseArray()) {
@@ -1993,6 +1999,8 @@ namespace Mariana.AVM2.Core {
                     }
                     else {
                         // Argument is a hash table but the result is a dense array.
+                        HashLink[] argHashLinks = argArray.m_hashLinks!;
+
                         for (int i = 0; i < argValues.Length; i++) {
                             Value val = argValues[i];
                             if (!val.isEmpty) {
@@ -2009,11 +2017,9 @@ namespace Mariana.AVM2.Core {
                 else {
                     // Result is a hash table.
                     // We must handle the last argument truncated case here.
-
-                    bool argIsHash = !argArray._isDenseArray();
                     uint appendLength = Math.Min(argArray.length, resultLength - resCurrentLength);
 
-                    if (!argIsHash) {
+                    if (argArray._isDenseArray()) {
                         if (appendLength < (uint)argValues.Length)
                             argValues = argValues.Slice(0, (int)appendLength);
 
@@ -2024,6 +2030,8 @@ namespace Mariana.AVM2.Core {
                         }
                     }
                     else {
+                        HashLink[] argHashLinks = argArray.m_hashLinks!;
+
                         for (int i = 0; i < argValues.Length; i++) {
                             Value val = argValues[i];
                             uint key = argHashLinks[i].key;
@@ -2295,7 +2303,7 @@ namespace Mariana.AVM2.Core {
                 var valuesSpan = new ReadOnlySpan<Value>(m_values, (int)uFromIndex, (int)(m_length - uFromIndex));
 
                 if (searchElement.isUndefinedOrNull
-                    || !ClassTagSet.specialStrictEquality.contains(searchElement.AS_class.tag))
+                    || !ClassTagSet.specialStrictEquality.contains(searchElement.AS_class!.tag))
                 {
                     Value searchVal = Value.fromAny(searchElement);
                     for (int i = 0; i < valuesSpan.Length; i++) {
@@ -2305,16 +2313,18 @@ namespace Mariana.AVM2.Core {
                 }
                 else if (ASObject.AS_isNumeric(searchElement.value)) {
                     double searchVal = (double)searchElement;
+
                     for (int i = 0; i < valuesSpan.Length; i++) {
-                        ASObject obj = valuesSpan[i].toAny().value;
+                        ASObject? obj = valuesSpan[i].toAny().value;
                         if (ASObject.AS_isNumeric(obj) && (double)obj == searchVal)
                             return (double)((uint)i + uFromIndex);
                     }
                 }
                 else if (searchElement.value is ASString) {
-                    string searchVal = (string)searchElement;
+                    string searchVal = (string)searchElement.value;
+
                     for (int i = 0; i < valuesSpan.Length; i++) {
-                        ASObject strObj = valuesSpan[i].toAny().value as ASString;
+                        ASObject? strObj = valuesSpan[i].toAny().value as ASString;
                         if (strObj != null && (string)strObj == searchVal)
                             return (double)((uint)i + uFromIndex);
                     }
@@ -2351,7 +2361,7 @@ namespace Mariana.AVM2.Core {
             string sepStr = sep.isDefined ? ASAny.AS_convertString(sep) : ",";
             int length = (int)Math.Min(m_length, (uint)Int32.MaxValue);
 
-            string[] strings = new string[length];
+            string?[] strings = new string?[length];
 
             if (_isDenseArrayWithoutEmptySlots()) {
                 var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, m_totalCount);
@@ -2396,7 +2406,7 @@ namespace Mariana.AVM2.Core {
                 var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, (int)Math.Min(uFromIndex + 1, m_length));
 
                 if (searchElement.isUndefinedOrNull
-                    || !ClassTagSet.specialStrictEquality.contains(searchElement.AS_class.tag))
+                    || !ClassTagSet.specialStrictEquality.contains(searchElement.AS_class!.tag))
                 {
                     Value searchVal = Value.fromAny(searchElement);
                     for (int i = valuesSpan.Length - 1; i >= 0; i--) {
@@ -2406,16 +2416,18 @@ namespace Mariana.AVM2.Core {
                 }
                 else if (ASObject.AS_isNumeric(searchElement.value)) {
                     double searchVal = (double)searchElement;
+
                     for (int i = valuesSpan.Length - 1; i >= 0; i--) {
-                        ASObject obj = valuesSpan[i].toAny().value;
+                        ASObject? obj = valuesSpan[i].toAny().value;
                         if (ASObject.AS_isNumeric(obj) && (double)obj == searchVal)
                             return (double)i;
                     }
                 }
                 else if (searchElement.value is ASString) {
-                    string searchVal = (string)searchElement;
+                    string searchVal = (string)searchElement.value;
+
                     for (int i = valuesSpan.Length - 1; i >= 0; i--) {
-                        ASObject strObj = valuesSpan[i].toAny().value as ASString;
+                        ASObject? strObj = valuesSpan[i].toAny().value as ASString;
                         if (strObj != null && (string)strObj == searchVal)
                             return (double)i;
                     }
@@ -2429,11 +2441,14 @@ namespace Mariana.AVM2.Core {
             }
             else {
                 uint curIndex = (uFromIndex == m_length) ? m_length - 1 : uFromIndex;
+
                 while (true) {
                     if (ASAny.AS_strictEq(searchElement, AS_getElement(curIndex)))
                         return (double)curIndex;
+
                     if (curIndex == 0)
                         break;
+
                     curIndex--;
                 }
             }
@@ -2651,7 +2666,7 @@ namespace Mariana.AVM2.Core {
             else {
                 // For a hash table, reverse by modifying the keys and rebuilding the chains.
                 var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, m_totalCount);
-                HashLink[] hashLinks = m_hashLinks;
+                HashLink[] hashLinks = m_hashLinks!;
 
                 for (int i = 0; i < valuesSpan.Length; i++) {
                     if (!valuesSpan[i].isEmpty) {
@@ -2702,7 +2717,7 @@ namespace Mariana.AVM2.Core {
                 removed = _hashDeleteAndGet(0);
 
                 var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, m_totalCount);
-                HashLink[] hashLinks = m_hashLinks;
+                HashLink[] hashLinks = m_hashLinks!;
 
                 for (int i = 0; i < valuesSpan.Length; i++) {
                     if (!valuesSpan[i].isEmpty)
@@ -2893,7 +2908,7 @@ namespace Mariana.AVM2.Core {
         [AVM2ExportTrait(nsUri = "http://adobe.com/AS3/2006/builtin")]
         [AVM2ExportPrototypeMethod]
         public virtual ASAny sort(RestParam args = default) {
-            ASFunction compareFunc = (args.length >= 1) ? args[0].value as ASFunction : null;
+            ASFunction? compareFunc = (args.length >= 1) ? args[0].value as ASFunction : null;
             int flags;
 
             if (compareFunc != null) {
@@ -2925,7 +2940,7 @@ namespace Mariana.AVM2.Core {
 
             int sortArrayLength = isSortInPlace ? m_totalCount : valuesForSort.Length;
             int sortArrAndUndefinedLength;
-            int[] indexArray = null;
+            int[]? indexArray = null;
 
             if (returnIndexedArray) {
                 indexArray = new int[checked((int)m_length)];
@@ -2958,16 +2973,16 @@ namespace Mariana.AVM2.Core {
 
                 var comparer = new ArrayValueComparerWithUserFunc(compareFunc, valuesForSort);
 
-                if (returnIndexedArray)
+                if (indexArray != null)
                     DataStructureUtil.sortSpan(indexArray.AsSpan(0, sortArrayLength), comparer.compareIndices);
                 else
                     DataStructureUtil.sortSpan(valuesForSort.AsSpan(0, sortArrayLength), comparer.compareValues);
 
                 if (uniqueSort && sortKeyCount > 0) {
-                    Value prevValue = valuesForSort[returnIndexedArray ? indexArray[0] : 0];
+                    Value prevValue = valuesForSort[(indexArray != null) ? indexArray[0] : 0];
 
                     for (int i = 1; i < sortKeyCount; i++) {
-                        Value curValue = valuesForSort[returnIndexedArray ? indexArray[i] : i];
+                        Value curValue = valuesForSort[(indexArray != null) ? indexArray[i] : i];
                         if (comparer.compareValues(prevValue, curValue) == 0)
                             return 0;
 
@@ -2980,11 +2995,11 @@ namespace Mariana.AVM2.Core {
                 var comparer = GenericComparer<double>.defaultComparer;
 
                 for (int i = 0; i < keys.Length; i++) {
-                    Value val = valuesForSort[returnIndexedArray ? indexArray[i] : i];
+                    Value val = valuesForSort[(indexArray != null) ? indexArray[i] : i];
                     keys[i] = (double)val.toAny();
                 }
 
-                if (returnIndexedArray)
+                if (indexArray != null)
                     Array.Sort(keys, indexArray, 0, sortArrayLength, comparer);
                 else
                     Array.Sort(keys, valuesForSort, 0, sortArrayLength, comparer);
@@ -2998,11 +3013,11 @@ namespace Mariana.AVM2.Core {
 
                 string[] keys = new string[sortKeyCount];
                 for (int i = 0; i < keys.Length; i++) {
-                    Value val = valuesForSort[returnIndexedArray ? indexArray[i] : i];
+                    Value val = valuesForSort[(indexArray != null) ? indexArray[i] : i];
                     keys[i] = ASAny.AS_convertString(val.toAny());
                 }
 
-                if (returnIndexedArray)
+                if (indexArray != null)
                     Array.Sort(keys, indexArray, 0, sortArrayLength, comparer);
                 else
                     Array.Sort(keys, valuesForSort, 0, sortArrayLength, comparer);
@@ -3011,7 +3026,7 @@ namespace Mariana.AVM2.Core {
                     return 0;
             }
 
-            if (returnIndexedArray) {
+            if (indexArray != null) {
                 if ((flags & DESCENDING) != 0)
                     indexArray.AsSpan(0, sortArrayLength).Reverse();
 
@@ -3151,7 +3166,7 @@ namespace Mariana.AVM2.Core {
 
             int sortArrayLength = isSortInPlace ? m_totalCount : valuesForSort.Length;
             int sortArrAndUndefinedLength;
-            int[] indexArray = null;
+            int[]? indexArray = null;
 
             if (returnIndexedArray) {
                 indexArray = new int[checked((int)m_length)];
@@ -3169,8 +3184,11 @@ namespace Mariana.AVM2.Core {
             }
             else {
                 _doPreSortPartition(
-                    valuesForSort.AsSpan(0, sortArrayLength), separateNulls: true, out sortArrAndUndefinedLength, out int definedCount);
-
+                    valuesForSort.AsSpan(0, sortArrayLength),
+                    separateNulls: true,
+                    out sortArrAndUndefinedLength,
+                    out int definedCount
+                );
                 sortArrayLength = definedCount;
             }
 
@@ -3202,13 +3220,13 @@ namespace Mariana.AVM2.Core {
                     double[] keys = new double[sortArrayLength];
 
                     for (int i = 0; i < keys.Length; i++) {
-                        Value val = valuesForSort[returnIndexedArray ? indexArray[i] : i];
+                        Value val = valuesForSort[(indexArray != null) ? indexArray[i] : i];
                         keys[i] = (double)val.toAny().AS_getProperty(propName);
                     }
 
                     var comparer = GenericComparer<double>.defaultComparer;
 
-                    if (returnIndexedArray)
+                    if (indexArray != null)
                         Array.Sort(keys, indexArray, 0, sortArrayLength, comparer);
                     else
                         Array.Sort(keys, valuesForSort, 0, sortArrayLength, comparer);
@@ -3220,14 +3238,14 @@ namespace Mariana.AVM2.Core {
                     string[] keys = new string[sortArrayLength];
 
                     for (int i = 0; i < keys.Length; i++) {
-                        Value val = valuesForSort[returnIndexedArray ? indexArray[i] : i];
+                        Value val = valuesForSort[(indexArray != null) ? indexArray[i] : i];
                         keys[i] = ASAny.AS_convertString(val.toAny().AS_getProperty(propName));
                     }
 
                     var comparerType = ((propFlags[0] & CASEINSENSITIVE) != 0) ? GenericComparerType.STRING_IGNORECASE : GenericComparerType.DEFAULT;
                     IComparer<string> comparer = GenericComparer<string>.getComparer(comparerType);
 
-                    if (returnIndexedArray)
+                    if (indexArray != null)
                         Array.Sort(keys, indexArray, 0, sortArrayLength, comparer);
                     else
                         Array.Sort(keys, valuesForSort, 0, sortArrayLength, comparer);
@@ -3240,9 +3258,9 @@ namespace Mariana.AVM2.Core {
                 // Use the slower path in other cases.
 
                 _internalCreateSortOnKeysAndComparer(
-                    objects: returnIndexedArray ? valuesForSort : valuesForSort.AsSpan(0, sortArrayLength),
-                    useIndices: returnIndexedArray,
-                    indices: returnIndexedArray ? indexArray.AsSpan(0, sortArrayLength) : default,
+                    objects: (indexArray != null) ? valuesForSort : valuesForSort.AsSpan(0, sortArrayLength),
+                    useIndices: indexArray != null,
+                    indices: (indexArray != null) ? indexArray.AsSpan(0, sortArrayLength) : default,
                     propNames,
                     propFlags,
                     out int[] keys,
@@ -3250,7 +3268,7 @@ namespace Mariana.AVM2.Core {
                     out mustReverse
                 );
 
-                if (returnIndexedArray)
+                if (indexArray != null)
                     Array.Sort(keys, indexArray, 0, sortArrayLength, comparer);
                 else
                     Array.Sort(keys, valuesForSort, 0, sortArrayLength, comparer);
@@ -3259,7 +3277,7 @@ namespace Mariana.AVM2.Core {
                     return 0;
             }
 
-            if (returnIndexedArray) {
+            if (indexArray != null) {
                 if (mustReverse)
                     indexArray.AsSpan(0, sortArrayLength).Reverse();
 
@@ -3744,7 +3762,7 @@ namespace Mariana.AVM2.Core {
                 // is greater than the dense array load factor threshold, and switch to a dense array if that is the case.
 
                 Span<Value> values = m_values.AsSpan(0, m_totalCount);
-                HashLink[] hashLinks = m_hashLinks;
+                HashLink[] hashLinks = m_hashLinks!;
 
                 for (int i = 0; i < values.Length; i++) {
                     ref Value val = ref values[i];
@@ -3807,9 +3825,9 @@ namespace Mariana.AVM2.Core {
             //
 
             int len = (int)Math.Min(m_length, (uint)Int32.MaxValue);
-            var strings = new string[len];
+            string?[] strings = new string?[len];
 
-            static string callToLocaleStringOnElement(ASAny elem) {
+            static string? callToLocaleStringOnElement(ASAny elem) {
                 if (elem.value == null)
                     return null;
 
@@ -3883,7 +3901,7 @@ namespace Mariana.AVM2.Core {
             }
             else {
                 var values = m_values.AsSpan(0, m_totalCount);
-                HashLink[] hashLinks = m_hashLinks;
+                HashLink[] hashLinks = m_hashLinks!;
 
                 // Shift hash keys and then rebuild chains.
                 for (int i = 0; i < values.Length; i++) {
@@ -3929,7 +3947,7 @@ namespace Mariana.AVM2.Core {
 
             if (ASObject.AS_isUint(name.value))
                 index = (uint)name.value;
-            else if (NumberFormatHelper.parseArrayIndex((string)name, allowLeadingZeroes: false, out uint parsedIndex))
+            else if (NumberFormatHelper.parseArrayIndex((string?)name, allowLeadingZeroes: false, out uint parsedIndex))
                 index = parsedIndex;
 
             if (index != UInt32.MaxValue)
@@ -3945,7 +3963,7 @@ namespace Mariana.AVM2.Core {
 
             if (ASObject.AS_isUint(name.value))
                 index = (uint)name.value;
-            else if (NumberFormatHelper.parseArrayIndex((string)name, allowLeadingZeroes: false, out uint parsedIndex))
+            else if (NumberFormatHelper.parseArrayIndex((string?)name, allowLeadingZeroes: false, out uint parsedIndex))
                 index = parsedIndex;
 
             if (index != UInt32.MaxValue)

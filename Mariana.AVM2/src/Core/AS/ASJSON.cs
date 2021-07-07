@@ -30,7 +30,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <returns>The object created from the JSON string.</returns>
         [AVM2ExportTrait]
-        public static ASObject parse(string str, ASFunction reviver = null) {
+        public static ASObject? parse(string str, ASFunction? reviver = null) {
             var parser = new Parser(reviver);
             return parser.parseString(str);
         }
@@ -79,17 +79,17 @@ namespace Mariana.AVM2.Core {
         /// </para>
         /// </remarks>
         [AVM2ExportTrait]
-        public static string stringify(ASObject obj, ASObject replacer = null, ASObject space = null) {
+        public static string stringify(ASObject obj, ASObject? replacer = null, ASObject? space = null) {
             bool prettyPrint = false;
-            HashSet<string> nameFilter = null;
-            ASFunction replacerFunc = null;
-            string spaceString = null;
+            HashSet<string>? nameFilter = null;
+            ASFunction? replacerFunc = null;
+            string? spaceString = null;
 
             if (replacer is ASArray replacerArr) {
                 nameFilter = new HashSet<string>(StringComparer.Ordinal);
 
                 for (uint i = 0; i < replacerArr.length; i++) {
-                    ASObject prop = replacerArr[i].value;
+                    ASObject? prop = replacerArr[i].value;
                     if (prop is ASString || ASObject.AS_isNumeric(prop))
                         nameFilter.Add((string)prop);
                 }
@@ -188,14 +188,14 @@ namespace Mariana.AVM2.Core {
             }
 
             private struct _StackItem {
-                public string propName;
+                public string? propName;
                 public bool isArray;
                 public int stackBaseIndex;
             }
 
             private struct _Property {
                 public string name;
-                public ASObject value;
+                public ASObject? value;
             }
 
             private string m_str;
@@ -208,30 +208,32 @@ namespace Mariana.AVM2.Core {
 
             private char[] m_stringBuffer;
 
-            private ASFunction m_reviver;
+            private ASFunction? m_reviver;
 
             private ASAny[] m_reviverArgs;
 
-            private ASObject m_rootObject;
+            private ASObject? m_rootObject;
 
-            private string m_curPropName;
+            private string? m_curPropName;
 
             private DynamicArray<_StackItem> m_stack;
 
-            private DynamicArray<ASObject> m_arrayStack;
+            private DynamicArray<ASObject?> m_arrayStack;
 
             private DynamicArray<_Property> m_propertyStack;
 
             private _State m_curState;
 
-            internal Parser(ASFunction reviver = null) : this() {
+            internal Parser(ASFunction? reviver = null) : this() {
+                m_str = null!;  // Set in parseString()
+
                 m_reviver = reviver;
                 m_reviverArgs = new ASAny[2];
                 m_stringBuffer = new char[128];
                 m_namePool = new NamePool();
             }
 
-            internal ASObject parseString(string str) {
+            internal ASObject? parseString(string? str) {
                 if (str == null)
                     throw _error(_Error.NULL_INPUT);
 
@@ -276,7 +278,7 @@ namespace Mariana.AVM2.Core {
                 if (m_reviver != null) {
                     // Pass the root through the reviver
                     ASObject reviverThis = new ASObject();
-                    reviverThis.AS_dynamicProps.setValue("", m_rootObject);
+                    reviverThis.AS_dynamicProps!.setValue("", m_rootObject);
                     m_rootObject = _callReviver(reviverThis, "", m_rootObject).value;
                 }
 
@@ -331,7 +333,7 @@ namespace Mariana.AVM2.Core {
                     throw _error(_Error.NAME_EXPECTED);
 
                 int nameStartPos = m_pos + 1;
-                string propName = null;
+                string? propName = null;
 
                 // For short names without escape characters, a name pool is used to conserve memory.
 
@@ -429,7 +431,7 @@ namespace Mariana.AVM2.Core {
                 }
             }
 
-            private void _acceptObject(ASObject obj) {
+            private void _acceptObject(ASObject? obj) {
                 if (m_stack.length == 0) {
                     m_rootObject = obj;
                     m_curState = _State.END_OF_STRING;
@@ -439,15 +441,15 @@ namespace Mariana.AVM2.Core {
                     m_curState = _State.NEXT_ARRAY_ELEM_OR_END;
                 }
                 else {
-                    m_propertyStack.add(new _Property {name = m_curPropName, value = obj});
+                    m_propertyStack.add(new _Property {name = m_curPropName!, value = obj});
                     m_curState = _State.NEXT_PROP_OR_END;
                 }
             }
 
-            private ASAny _callReviver(ASObject obj, string key, ASObject value) {
+            private ASAny _callReviver(ASObject obj, string key, ASObject? value) {
                 m_reviverArgs[0] = key;
                 m_reviverArgs[1] = value;
-                return m_reviver.AS_invoke(obj, m_reviverArgs);
+                return m_reviver!.AS_invoke(obj, m_reviverArgs);
             }
 
             private void _endCurrentObject() {
@@ -473,7 +475,7 @@ namespace Mariana.AVM2.Core {
                     var properties = m_propertyStack.asSpan(topOfStack.stackBaseIndex, propCount);
 
                     obj = new ASObject();
-                    DynamicPropertyCollection objProps = obj.AS_dynamicProps;
+                    DynamicPropertyCollection objProps = obj.AS_dynamicProps!;
 
                     for (int i = 0; i < properties.Length; i++)
                         objProps.setValue(properties[i].name, properties[i].value);
@@ -494,7 +496,7 @@ namespace Mariana.AVM2.Core {
 
                         while (curIndex != -1) {
                             properties[effectivePropCount] = new _Property {
-                                name = objProps.getNameFromIndex(curIndex),
+                                name = objProps.getNameFromIndex(curIndex)!,
                                 value = objProps.getValueFromIndex(curIndex).value
                             };
                             effectivePropCount++;
@@ -708,12 +710,12 @@ namespace Mariana.AVM2.Core {
             private struct _StackItem {
 
                 public readonly ASObject obj;
-                public readonly ASArray array;
-                public readonly ASVectorAny vector;
+                public readonly ASArray? array;
+                public readonly ASVectorAny? vector;
 
                 public readonly ReadOnlyArrayView<Trait> traits;
                 public readonly ReadOnlyArrayView<Trait> staticTraits;
-                public readonly DynamicPropertyCollection dynamicProps;
+                public readonly DynamicPropertyCollection? dynamicProps;
 
                 public readonly int arrayLength;
 
@@ -755,11 +757,11 @@ namespace Mariana.AVM2.Core {
                     this.curArrayOrDynPropIndex = -1;
                 }
 
-                public Trait nextWritableTrait() {
+                public Trait? nextWritableTrait() {
                     int traitCount = this.traitCount;
 
                     int curIndex;
-                    Trait curTrait = null;
+                    Trait? curTrait = null;
 
                     for (curIndex = curTraitIndex + 1; curIndex < traitCount; curIndex++) {
                         Trait trait = (curIndex >= traits.length)
@@ -790,70 +792,58 @@ namespace Mariana.AVM2.Core {
             /// Caches toJSON functions for common object types to improve performance.
             /// </summary>
             private struct _CachedToJSONFunctions {
-                private ASFunction m_objectToJSON;
-                private ASFunction m_arrayToJSON;
-                private ASFunction m_numberToJSON;
-                private ASFunction m_stringToJSON;
-                private ASFunction m_boolToJSON;
+                private ASFunction? m_objectToJSON;
+                private ASFunction? m_arrayToJSON;
+                private ASFunction? m_numberToJSON;
+                private ASFunction? m_stringToJSON;
+                private ASFunction? m_boolToJSON;
 
                 public void init() {
                     m_objectToJSON =
-                        Class.fromType(typeof(ASObject)).prototypeObject.AS_getProperty(s_toJSONMethodName).value as ASFunction;
+                        Class.fromType(typeof(ASObject))!.prototypeObject.AS_getProperty(s_toJSONMethodName).value as ASFunction;
 
                     m_arrayToJSON =
-                        Class.fromType(typeof(ASArray)).prototypeObject.AS_getProperty(s_toJSONMethodName).value as ASFunction;
+                        Class.fromType(typeof(ASArray))!.prototypeObject.AS_getProperty(s_toJSONMethodName).value as ASFunction;
 
                     m_numberToJSON =
-                        Class.fromType(typeof(double)).prototypeObject.AS_getProperty(s_toJSONMethodName).value as ASFunction;
+                        Class.fromType(typeof(double))!.prototypeObject.AS_getProperty(s_toJSONMethodName).value as ASFunction;
 
                     m_stringToJSON =
-                        Class.fromType(typeof(string)).prototypeObject.AS_getProperty(s_toJSONMethodName).value as ASFunction;
+                        Class.fromType(typeof(string))!.prototypeObject.AS_getProperty(s_toJSONMethodName).value as ASFunction;
 
                     m_boolToJSON =
-                        Class.fromType(typeof(bool)).prototypeObject.AS_getProperty(s_toJSONMethodName).value as ASFunction;
+                        Class.fromType(typeof(bool))!.prototypeObject.AS_getProperty(s_toJSONMethodName).value as ASFunction;
                 }
 
-                public ASFunction getCachedFunc(ASObject obj) {
+                public ASFunction? getCachedFunc(ASObject obj) {
                     Class klass = obj.AS_class;
 
-                    switch (klass.tag) {
-                        case ClassTag.NUMBER:
-                        case ClassTag.INT:
-                        case ClassTag.UINT:
-                            return m_numberToJSON;
+                    return klass.tag switch {
+                        ClassTag.NUMBER or ClassTag.INT or ClassTag.UINT => m_numberToJSON,
+                        ClassTag.STRING => m_stringToJSON,
+                        ClassTag.BOOLEAN => m_boolToJSON,
+                        ClassTag.OBJECT => klass.isObjectClass ? m_objectToJSON : null,
 
-                        case ClassTag.STRING:
-                            return m_stringToJSON;
+                        // No need to check for derived classes of Array (which may define their own toJSON)
+                        // because the tag does not apply to them.
+                        ClassTag.ARRAY => m_arrayToJSON,
 
-                        case ClassTag.BOOLEAN:
-                            return m_boolToJSON;
-
-                        case ClassTag.ARRAY:
-                            // No need to check for derived classes of Array (which may define their own toJSON)
-                            // because the tag does not apply to them.
-                            return m_arrayToJSON;
-
-                        case ClassTag.OBJECT:
-                            if (klass.isObjectClass)
-                                return m_objectToJSON;
-                            break;
-                    }
-
-                    return null;
+                        _ => null,
+                    };
                 }
             }
 
             private bool m_prettyPrint;
 
-            private string m_indentString1, m_indentString2, m_indentString4;
+            private string? m_indentString1, m_indentString2, m_indentString4;
 
             private DynamicArray<string> m_parts;
 
-            private HashSet<string> m_nameFilter;
+            private HashSet<string>? m_nameFilter;
 
-            private ASFunction m_replacer;
+            private ASFunction? m_replacer;
 
-            private char[] m_stringBuffer;
+            private char[]? m_stringBuffer;
 
             private ASAny[] m_toJSONArgs;
 
@@ -865,13 +855,13 @@ namespace Mariana.AVM2.Core {
 
             private _State m_curState;
 
-            private string m_curPropName;
+            private string? m_curPropName;
 
             private ASAny m_curObject;
 
             private _CachedToJSONFunctions m_toJSONCache;
 
-            internal Stringifier(bool prettyPrint, string indent, HashSet<string> nameFilter, ASFunction replacer) : this() {
+            internal Stringifier(bool prettyPrint, string? indent, HashSet<string>? nameFilter, ASFunction? replacer) : this() {
                 m_prettyPrint = prettyPrint;
 
                 m_indentString1 = indent;
@@ -919,7 +909,7 @@ namespace Mariana.AVM2.Core {
                 if (m_stack[m_stack.length - 1].isArrayOrVector)
                     return ASint.AS_convertString(m_stack[m_stack.length - 1].curArrayOrDynPropIndex);
 
-                return m_curPropName;
+                return m_curPropName!;
             }
 
             private void _state_visit() {
@@ -940,13 +930,13 @@ namespace Mariana.AVM2.Core {
                     }
                     else {
                         parentObj = new ASObject();
-                        parentObj.AS_dynamicProps.setValue("", m_curObject);
+                        parentObj.AS_dynamicProps!.setValue("", m_curObject);
                     }
 
                     m_curObject = m_replacer.AS_invoke(parentObj, m_replacerArgs);
                 }
 
-                ASObject curObj = m_curObject.value;
+                ASObject? curObj = m_curObject.value;
 
                 if (m_curObject.isUndefined || curObj is ASFunction) {
                     // If the current object is undefined or a function, skip it if it is an object property.
@@ -968,7 +958,7 @@ namespace Mariana.AVM2.Core {
                 _writeIndent();
 
                 if (!parentIsArray && m_stack.length != 0) {
-                    _writeJSONEscapedString(m_curPropName);
+                    _writeJSONEscapedString(m_curPropName!);
                     m_parts.add(m_prettyPrint ? ": " : ":");
                 }
 
@@ -1017,7 +1007,7 @@ namespace Mariana.AVM2.Core {
                 if (m_curObject.isUndefinedOrNull)
                     return false;
 
-                ASFunction cachedFunc = m_toJSONCache.getCachedFunc(m_curObject.value);
+                ASFunction? cachedFunc = m_toJSONCache.getCachedFunc(m_curObject.value!);
                 if (cachedFunc != null) {
                     m_toJSONArgs[0] = _getCurrentKeyString();
                     return cachedFunc.AS_tryInvoke(m_curObject, m_toJSONArgs, out result);
@@ -1033,10 +1023,10 @@ namespace Mariana.AVM2.Core {
             }
 
             private void _state_enter() {
-                if (!m_currentPathSet.add(m_curObject.value))
-                    throw ErrorHelper.createError(ErrorCode.JSON_CYCLIC_STRUCTURE);
+                ASObject curObj = m_curObject.value!;
 
-                ASObject curObj = m_curObject.value;
+                if (!m_currentPathSet.add(curObj))
+                    throw ErrorHelper.createError(ErrorCode.JSON_CYCLIC_STRUCTURE);
 
                 if (curObj is ASArray curObjAsArray) {
                     m_stack.add(new _StackItem(curObjAsArray));
@@ -1077,7 +1067,7 @@ namespace Mariana.AVM2.Core {
 
                         m_curObject = (topOfStack.vector != null)
                             ? topOfStack.vector.AS_getElement(nextIndex)
-                            : topOfStack.array.AS_getElement((uint)nextIndex);
+                            : topOfStack.array!.AS_getElement((uint)nextIndex);
                     }
                     return;
                 }
@@ -1086,12 +1076,12 @@ namespace Mariana.AVM2.Core {
 
                 if (topOfStack.curTraitIndex < topOfStack.traitCount) {
                     // Check if there are any traits from the object's class that can be written.
-                    Trait trait = topOfStack.nextWritableTrait();
+                    Trait? trait = topOfStack.nextWritableTrait();
 
                     if (trait != null) {
                         m_curPropName = trait.name.localName;
 
-                        if (m_nameFilter != null && !m_nameFilter.Contains(m_curPropName)) {
+                        if (m_nameFilter != null && !m_nameFilter.Contains(m_curPropName!)) {
                             m_curState = _State.NEXT;
                         }
                         else {
@@ -1104,7 +1094,7 @@ namespace Mariana.AVM2.Core {
 
                 // No more traits, so move on to the object's dynamic properties.
 
-                DynamicPropertyCollection dynProps = topOfStack.dynamicProps;
+                DynamicPropertyCollection? dynProps = topOfStack.dynamicProps;
                 int nextDynPropIndex = (dynProps != null) ? dynProps.getNextIndex(topOfStack.curArrayOrDynPropIndex) : -1;
 
                 if (nextDynPropIndex == -1) {
@@ -1114,9 +1104,9 @@ namespace Mariana.AVM2.Core {
                 }
 
                 topOfStack.curArrayOrDynPropIndex = nextDynPropIndex;
-                m_curPropName = dynProps.getNameFromIndex(nextDynPropIndex);
+                m_curPropName = dynProps!.getNameFromIndex(nextDynPropIndex);
 
-                if (m_nameFilter != null && !m_nameFilter.Contains(m_curPropName)) {
+                if (m_nameFilter != null && !m_nameFilter.Contains(m_curPropName!)) {
                     m_curState = _State.NEXT;
                 }
                 else {
@@ -1158,19 +1148,19 @@ namespace Mariana.AVM2.Core {
                 m_parts.add("\n");
 
                 while (depth >= 4) {
-                    m_parts.add(m_indentString4);
+                    m_parts.add(m_indentString4!);
                     depth -= 4;
                 }
                 switch (depth) {
                     case 1:
-                        m_parts.add(m_indentString1);
+                        m_parts.add(m_indentString1!);
                         break;
                     case 2:
-                        m_parts.add(m_indentString2);
+                        m_parts.add(m_indentString2!);
                         break;
                     case 3:
-                        m_parts.add(m_indentString2);
-                        m_parts.add(m_indentString1);
+                        m_parts.add(m_indentString2!);
+                        m_parts.add(m_indentString1!);
                         break;
                 }
             }
@@ -1180,10 +1170,9 @@ namespace Mariana.AVM2.Core {
             /// </summary>
             /// <param name="str">The string to escape and write.</param>
             private void _writeJSONEscapedString(string str) {
-                char[] buffer = m_stringBuffer;
+                char[]? buffer = null;
                 int bufSize = 0;
                 int bufPos = 0;
-                bool useBuffer = false;
 
                 for (int i = 0; i < str.Length; i++) {
                     char c = str[i];
@@ -1193,20 +1182,18 @@ namespace Mariana.AVM2.Core {
                         // be escaped, the original string can be used and no memory needs to be allocated for
                         // a new string.
 
-                        if (buffer == null) {
+                        if (m_stringBuffer == null)
                             m_stringBuffer = new char[64];
-                            buffer = m_stringBuffer;
-                        }
 
-                        bufSize = m_stringBuffer.Length;
+                        buffer = m_stringBuffer;
+                        bufSize = buffer.Length;
                         str.CopyTo(0, buffer, 0, i);
                         bufPos = i;
-                        useBuffer = true;
                         break;
                     }
                 }
 
-                if (!useBuffer) {
+                if (buffer == null) {
                     m_parts.add("\"");
                     m_parts.add(str);
                     m_parts.add("\"");
