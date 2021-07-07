@@ -73,7 +73,7 @@ namespace Mariana.AVM2.Compiler {
         /// <returns>A <see cref="MethodTrait"/> instance representing the method whose disp_id is,
         /// given, or null if no method is associated with that disp_id.</returns>
         public MethodTrait? getMethodByDispId(int dispId, bool isStatic) {
-            m_dict.TryGetValue(_keyForSlotId(dispId, isStatic), out Trait trait);
+            m_dict.TryGetValue(_keyForDispId(dispId, isStatic), out Trait trait);
             return trait as MethodTrait;
         }
 

@@ -532,7 +532,7 @@ namespace Mariana.AVM2.Core {
         /// Gets the first child node of this node.
         /// </summary>
         /// <returns>The first child of this node, or null if this node has no children.</returns>
-        protected virtual ASXML? internalGetFirstChild() => null;
+        protected private virtual ASXML? internalGetFirstChild() => null;
 
         /// <exclude/>
         ///
@@ -540,7 +540,7 @@ namespace Mariana.AVM2.Core {
         /// Gets the last child node of this node.
         /// </summary>
         /// <returns>The last child of this node, or null if this node has no children.</returns>
-        protected virtual ASXML? internalGetLastChild() => null;
+        protected private virtual ASXML? internalGetLastChild() => null;
 
         /// <exclude/>
         ///
@@ -548,7 +548,7 @@ namespace Mariana.AVM2.Core {
         /// Gets the first attribute of this node.
         /// </summary>
         /// <returns>The first attribute of this node, or null if this node has no attributes.</returns>
-        protected virtual ASXML? internalGetFirstAttr() => null;
+        protected private virtual ASXML? internalGetFirstAttr() => null;
 
         /// <exclude/>
         ///
@@ -559,7 +559,7 @@ namespace Mariana.AVM2.Core {
         /// <param name="name">The qualified name for which to find a prefix.</param>
         /// <param name="isAttr">Set this to true if <paramref name="name"/> is the name of an
         /// attribute, otherwise set to false.</param>
-        protected virtual string? internalFindPrefixForName(ASQName name, bool isAttr) =>
+        protected private virtual string? internalFindPrefixForName(ASQName name, bool isAttr) =>
             m_parent!.internalFindPrefixForName(name, isAttr);
 
         /// <summary>
@@ -2770,9 +2770,9 @@ namespace Mariana.AVM2.Core {
                 m_nsdecls = new DynamicArray<ASNamespace>(nsdecls, nsdecls.Length);
             }
 
-            protected override ASXML? internalGetFirstChild() => m_firstChild;
-            protected override ASXML? internalGetLastChild() => m_lastChild;
-            protected override ASXML? internalGetFirstAttr() => m_firstAttr;
+            protected private override ASXML? internalGetFirstChild() => m_firstChild;
+            protected private override ASXML? internalGetLastChild() => m_lastChild;
+            protected private override ASXML? internalGetFirstAttr() => m_firstAttr;
 
             /// <summary>
             /// This method must be called before inserting a new child node into this element. It
@@ -2874,7 +2874,7 @@ namespace Mariana.AVM2.Core {
                 return true;
             }
 
-            protected override string? internalFindPrefixForName(ASQName name, bool isAttr) {
+            protected private override string? internalFindPrefixForName(ASQName name, bool isAttr) {
                 // We don't lock here because if multiple threads reach this point, they
                 // will get the same prefix.
                 // [Unless this node or one of its ancestors is modified, in which case thread

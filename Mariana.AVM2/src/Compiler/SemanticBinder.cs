@@ -1669,6 +1669,7 @@ namespace Mariana.AVM2.Compiler {
                 if (method == null) {
                     throw m_compilation.createError(
                         ErrorCode.DISP_ID_OUT_OF_RANGE,
+                        instr.id,
                         instr.data.callMethod.methodOrDispId,
                         m_compilation.getDataNodeTypeName(objectNode)
                     );
@@ -5432,7 +5433,9 @@ namespace Mariana.AVM2.Compiler {
 
         private void _checkTraitAccessObject(ref DataNode node, Trait trait, int instrId) {
             if (trait.isStatic) {
-                _markStackNodeAsNoPush(ref node);
+                if (node.isConstant)
+                    _markStackNodeAsNoPush(ref node);
+
                 return;
             }
 

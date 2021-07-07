@@ -32,7 +32,7 @@ namespace Mariana.Common {
         private static int s_nextZoneId = NON_DEFAULT_ZONE_ID_BEGIN;
         private static readonly Stack<int> s_availableIds = new Stack<int>();
 
-        private static ConcurrentBag<IZoneStaticData>[] s_registeredVarsByZoneId = Array.Empty<ConcurrentBag<IZoneStaticData>>();
+        private static List<IZoneStaticData>[] s_registeredVarsByZoneId = Array.Empty<List<IZoneStaticData>>();
 
         /// <summary>
         /// The zone ID of the active zone for the thread.
@@ -56,13 +56,13 @@ namespace Mariana.Common {
                 else {
                     m_id = s_nextZoneId;
                     s_nextZoneId++;
-
-                    int collectionsIndex = m_id - NON_DEFAULT_ZONE_ID_BEGIN;
-                    ConcurrentBag<IZoneStaticData>[] variableCollections =
-                        DataStructureUtil.volatileEnsureArraySize(ref s_registeredVarsByZoneId!, collectionsIndex + 1);
-
-                    variableCollections[collectionsIndex] = new ConcurrentBag<IZoneStaticData>();
                 }
+
+                int collectionsIndex = m_id - NON_DEFAULT_ZONE_ID_BEGIN;
+                List<IZoneStaticData>[] variableCollections =
+                    DataStructureUtil.volatileEnsureArraySize(ref s_registeredVarsByZoneId!, collectionsIndex + 1);
+
+                variableCollections[collectionsIndex] = new List<IZoneStaticData>();
             }
         }
 
@@ -210,10 +210,11 @@ namespace Mariana.Common {
         /// <param name="zoneId">The ID of the zone for which to register the variable</param>
         /// <param name="variable">The zone-local variable to register in the zone.</param>
         internal static void registerVariable(int zoneId, IZoneStaticData variable) {
-            ConcurrentBag<IZoneStaticData> variableCollection =
+            List<IZoneStaticData> variableCollection =
                 Volatile.Read(ref s_registeredVarsByZoneId)[zoneId - NON_DEFAULT_ZONE_ID_BEGIN];
 
-            variableCollection.Add(variable);
+            lock (variableCollection)
+                variableCollection.Add(variable);
         }
 
         /// <summary>
@@ -232,13 +233,15 @@ namespace Mariana.Common {
                 throw new InvalidOperationException("Cannot dispose the active zone.");
 
             lock (s_createDisposeLock) {
-                ConcurrentBag<IZoneStaticData> variableCollection =
-                    Volatile.Read(ref s_registeredVarsByZoneId)[m_id - NON_DEFAULT_ZONE_ID_BEGIN];
+                List<IZoneStaticData>[] variableCollections = Volatile.Read(ref s_registeredVarsByZoneId);
+                List<IZoneStaticData> trackedVars = variableCollections[m_id - NON_DEFAULT_ZONE_ID_BEGIN];
 
-                while (variableCollection.TryTake(out IZoneStaticData varToDispose))
-                    varToDispose.onZoneDisposed(m_id);
+                for (int i = 0; i < trackedVars.Count; i++)
+                    trackedVars[i].onZoneDisposed(m_id);
 
+                variableCollections[m_id - NON_DEFAULT_ZONE_ID_BEGIN] = null!;
                 s_availableIds.Push(m_id);
+
                 m_id = DISPOSED_ZONE_ID;
             }
         }

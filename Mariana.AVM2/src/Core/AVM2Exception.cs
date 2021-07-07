@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Globalization;
 using System.Reflection;
 
@@ -9,9 +8,6 @@ namespace Mariana.AVM2.Core {
     /// Represents an exception thrown by ActionScript 3 code, or internally by the AVM2.
     /// </summary>
     public sealed class AVM2Exception : Exception {
-
-        private static ConcurrentDictionary<RuntimeTypeHandle, ConstructorInfo> s_cachedConstructors =
-            new ConcurrentDictionary<RuntimeTypeHandle, ConstructorInfo>();
 
         private ASAny m_thrownValue;
 
@@ -78,21 +74,8 @@ namespace Mariana.AVM2.Core {
         ///
         /// <returns>An <see cref="AVM2Exception"/> object wrapping the created instance of the
         /// given error type.</returns>
-        public static AVM2Exception create(RuntimeTypeHandle typeHandle, string message, int code) {
-            ConstructorInfo ctor = s_cachedConstructors.GetOrAdd(
-                typeHandle,
-                h => {
-                    var newCtor = Type.GetTypeFromHandle(h).GetConstructor(new[] {typeof(string), typeof(int)});
-                    if (newCtor == null) {
-                        throw new ArgumentException(
-                            "Error type does not have the required constructor.", nameof(typeHandle));
-                    }
-                    return newCtor;
-                }
-            );
-
-            return new AVM2Exception((ASError)ctor.Invoke(new object[] {message, code}));
-        }
+        public static AVM2Exception create(RuntimeTypeHandle typeHandle, string message, int code) =>
+            new AVM2Exception(ErrorHelper.createErrorObject(Type.GetTypeFromHandle(typeHandle), code, message));
 
         /// <summary>
         /// Creates an <see cref="AVM2Exception"/> object to throw as an exception when an

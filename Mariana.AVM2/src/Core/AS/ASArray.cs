@@ -2115,15 +2115,13 @@ namespace Mariana.AVM2.Core {
             ASAny[] cbArgsArray = new ASAny[3];
             cbArgsArray[2] = this;
 
-            ReadOnlySpan<ASAny> cbArgs = cbArgsArray.AsSpan(0, Math.Min(cbArgsArray.Length, callback.length));
-
             if (_isDenseArrayWithoutEmptySlots()) {
                 var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, m_totalCount);
                 for (int i = 0; i < valuesSpan.Length; i++) {
                     cbArgsArray[0] = valuesSpan[i].toAny();
                     cbArgsArray[1] = (uint)i;
 
-                    ASAny cbResult = callback.AS_invoke(thisObject, cbArgs);
+                    ASAny cbResult = callback.AS_invoke(thisObject, cbArgsArray);
                     if (!(cbResult.value is ASBoolean && (bool)cbResult))
                         return false;
                 }
@@ -2133,7 +2131,7 @@ namespace Mariana.AVM2.Core {
                     cbArgsArray[0] = AS_getElement(i);
                     cbArgsArray[1] = i;
 
-                    ASAny cbResult = callback.AS_invoke(thisObject, cbArgs);
+                    ASAny cbResult = callback.AS_invoke(thisObject, cbArgsArray);
                     if (!(cbResult.value is ASBoolean && (bool)cbResult))
                         return false;
                 }
@@ -2189,13 +2187,11 @@ namespace Mariana.AVM2.Core {
             ASAny[] cbArgsArray = new ASAny[3];
             cbArgsArray[2] = this;
 
-            ReadOnlySpan<ASAny> cbArgs = cbArgsArray.AsSpan(0, Math.Min(cbArgsArray.Length, callback.length));
-
-            void check(uint ind, ASAny val, in ReadOnlySpan<ASAny> _cbArgs) {
+            void check(uint ind, ASAny val) {
                 cbArgsArray[0] = val;
                 cbArgsArray[1] = ind;
 
-                ASAny cbReturn = callback.AS_invoke(thisObject, _cbArgs);
+                ASAny cbReturn = callback.AS_invoke(thisObject, cbArgsArray);
                 if (cbReturn.value is ASBoolean && (bool)cbReturn) {
                     resultArray.AS_setElement(resultCount, val);
                     resultCount++;
@@ -2205,11 +2201,11 @@ namespace Mariana.AVM2.Core {
             if (_isDenseArrayWithoutEmptySlots()) {
                 var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, m_totalCount);
                 for (int i = 0; i < valuesSpan.Length; i++)
-                    check((uint)i, valuesSpan[i].toAny(), cbArgs);
+                    check((uint)i, valuesSpan[i].toAny());
             }
             else {
                 for (uint i = 0, n = m_length; i < n; i++)
-                    check(i, AS_getElement(i), cbArgs);
+                    check(i, AS_getElement(i));
             }
 
             return resultArray;
@@ -2250,21 +2246,19 @@ namespace Mariana.AVM2.Core {
             ASAny[] cbArgsArray = new ASAny[3];
             cbArgsArray[2] = this;
 
-            ReadOnlySpan<ASAny> cbArgs = cbArgsArray.AsSpan(0, Math.Min(cbArgsArray.Length, callback.length));
-
             if (_isDenseArrayWithoutEmptySlots()) {
                 var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, m_totalCount);
                 for (int i = 0; i < valuesSpan.Length; i++) {
                     cbArgsArray[0] = valuesSpan[i].toAny();
                     cbArgsArray[1] = (uint)i;
-                    callback.AS_invoke(thisObject, cbArgs);
+                    callback.AS_invoke(thisObject, cbArgsArray);
                 }
             }
             else {
                 for (uint i = 0, n = m_length; i < n; i++) {
                     cbArgsArray[0] = AS_getElement(i);
                     cbArgsArray[1] = i;
-                    callback.AS_invoke(thisObject, cbArgs);
+                    callback.AS_invoke(thisObject, cbArgsArray);
                 }
             }
         }
@@ -2507,21 +2501,19 @@ namespace Mariana.AVM2.Core {
             ASAny[] cbArgsArray = new ASAny[3];
             cbArgsArray[2] = this;
 
-            ReadOnlySpan<ASAny> cbArgs = cbArgsArray.AsSpan(0, Math.Min(cbArgsArray.Length, callback.length));
-
             if (_isDenseArrayWithoutEmptySlots()) {
                 var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, length);
                 for (int i = 0; i < valuesSpan.Length; i++) {
                     cbArgsArray[0] = valuesSpan[i].toAny();
                     cbArgsArray[1] = (uint)i;
-                    resultValues[i] = Value.fromAny(callback.AS_invoke(thisObject, cbArgs));
+                    resultValues[i] = Value.fromAny(callback.AS_invoke(thisObject, cbArgsArray));
                 }
             }
             else {
                 for (uint i = 0; i < (uint)length; i++) {
                     cbArgsArray[0] = AS_getElement(i);
                     cbArgsArray[1] = i;
-                    resultValues[(int)i] = Value.fromAny(callback.AS_invoke(thisObject, cbArgs));
+                    resultValues[(int)i] = Value.fromAny(callback.AS_invoke(thisObject, cbArgsArray));
                 }
             }
 
@@ -2847,15 +2839,13 @@ namespace Mariana.AVM2.Core {
             ASAny[] cbArgsArray = new ASAny[3];
             cbArgsArray[2] = this;
 
-            ReadOnlySpan<ASAny> cbArgs = cbArgsArray.AsSpan(0, Math.Min(cbArgsArray.Length, callback.length));
-
             if (_isDenseArrayWithoutEmptySlots()) {
                 var valuesSpan = new ReadOnlySpan<Value>(m_values, 0, m_totalCount);
                 for (int i = 0; i < valuesSpan.Length; i++) {
                     cbArgsArray[0] = m_values[i].toAny();
                     cbArgsArray[1] = (uint)i;
 
-                    ASAny cbResult = callback.AS_invoke(thisObject, cbArgs);
+                    ASAny cbResult = callback.AS_invoke(thisObject, cbArgsArray);
                     if (cbResult.value is ASBoolean && (bool)cbResult)
                         return true;
                 }
@@ -2865,7 +2855,7 @@ namespace Mariana.AVM2.Core {
                     cbArgsArray[0] = AS_getElement(i);
                     cbArgsArray[1] = i;
 
-                    ASAny cbResult = callback.AS_invoke(thisObject, cbArgs);
+                    ASAny cbResult = callback.AS_invoke(thisObject, cbArgsArray);
                     if (cbResult.value is ASBoolean && (bool)cbResult)
                         return true;
                 }

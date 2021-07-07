@@ -38,6 +38,7 @@ namespace Mariana.AVM2.ABC {
         /// <param name="filename">The name of the file to read.</param>
         /// <param name="parseOptions">A set of flags from the <see cref="ABCParseOptions"/>
         /// enumeration specifying any options for the parser.</param>
+        /// <exception cref="AVM2Exception">ArgumentError #10060: <paramref name="filename"/> is null.</exception>
         public static ABCFile readFromFile(string filename, ABCParseOptions parseOptions = 0) {
             if (filename == null)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(filename));
@@ -54,6 +55,7 @@ namespace Mariana.AVM2.ABC {
         /// <param name="data">The byte array containing the ActioNScript 3 bytecode file.</param>
         /// <param name="parseOptions">A set of flags from the <see cref="ABCParseOptions"/>
         /// enumeration specifying any options for the parser.</param>
+        /// <exception cref="AVM2Exception">ArgumentError #10060: <paramref name="data"/> is null.</exception>
         public static ABCFile read(byte[] data, ABCParseOptions parseOptions = 0) {
             if (data == null)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(data));
@@ -67,13 +69,17 @@ namespace Mariana.AVM2.ABC {
         /// </summary>
         /// <returns>An <see cref="ABCFile"/> instance containing the ABC data parsed
         /// from the stream.</returns>
+        ///
         /// <param name="stream">The <see cref="Stream"/> instance representing the stream
         /// from which to read the ABC file.</param>
         /// <param name="parseOptions">A set of flags from the <see cref="ABCParseOptions"/>
         /// enumeration specifying any options for the parser.</param>
+        ///
         /// <remarks>
         /// This method does not close <paramref name="stream"/> after the ABC file has been read.
         /// </remarks>
+        ///
+        /// <exception cref="AVM2Exception">ArgumentError #10060: <paramref name="stream"/> is null.</exception>
         public static ABCFile read(Stream stream, ABCParseOptions parseOptions = 0) {
             if (stream == null)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(stream));

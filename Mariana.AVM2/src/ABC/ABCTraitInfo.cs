@@ -57,7 +57,7 @@ namespace Mariana.AVM2.ABC {
 
         /// <summary>
         /// Returns a value indicating whether this <see cref="ABCTraitInfo"/> represents a
-        /// class trait.
+        /// class trait (that is, its kind is <see cref="ABCTraitFlags.Class"/>).
         /// </summary>
         public bool isClass => kind == ABCTraitFlags.Class;
 
@@ -67,12 +67,17 @@ namespace Mariana.AVM2.ABC {
         /// </summary>
         public bool isFunction => kind == ABCTraitFlags.Function;
 
+        /// <summary>
+        /// Returns a value indicating whether this <see cref="ABCTraitInfo"/> represents a
+        /// method trait (that is, its kind is <see cref="ABCTraitFlags.Method"/>).
+        /// </summary>
+        public bool isMethod => kind == ABCTraitFlags.Method;
 
         /// <summary>
         /// Returns a value indicating whether this <see cref="ABCTraitInfo"/> represents a method,
         /// getter or setter trait.
         /// </summary>
-        public bool isMethod {
+        public bool isMethodOrAccessor {
             get {
                 var kind = m_flags & ABCTraitFlags.KIND_MASK;
                 return kind >= ABCTraitFlags.Method && kind <= ABCTraitFlags.Setter;
@@ -105,7 +110,7 @@ namespace Mariana.AVM2.ABC {
         /// represent a method, function, getter or setter trait.</exception>
         public ABCMethodInfo methodInfo {
             get {
-                if (isMethod || isFunction)
+                if (isMethodOrAccessor || isFunction)
                     return (ABCMethodInfo)m_obj;
 
                 throw ErrorHelper.createError(
@@ -175,7 +180,7 @@ namespace Mariana.AVM2.ABC {
         /// represents a method, function, getter or setter trait.</exception>
         public int slotId {
             get {
-                if (!isMethod)
+                if (!isMethodOrAccessor)
                     return m_slotOrDispId;
 
                 throw ErrorHelper.createError(
@@ -192,7 +197,7 @@ namespace Mariana.AVM2.ABC {
         /// represent a method, function, getter or setter trait.</exception>
         public int methodDispId {
             get {
-                if (isMethod)
+                if (isMethodOrAccessor)
                     return m_slotOrDispId;
 
                 throw ErrorHelper.createError(

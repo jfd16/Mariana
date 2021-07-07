@@ -268,14 +268,11 @@ namespace Mariana.AVM2.Tests {
                     Assert.False(call.isConstruct);
 
                     var args = call.getArguments();
-                    Assert.Equal(Math.Min(function.length, 3), args.Length);
+                    Assert.Equal(3, args.Length);
 
-                    if (args.Length >= 1)
-                        AssertHelper.identical(arrayElements[i], args[0]);
-                    if (args.Length >= 2)
-                        AssertHelper.valueIdentical(i, args[1]);
-                    if (args.Length >= 3)
-                        AssertHelper.identical(array.instance, args[2]);
+                    AssertHelper.identical(arrayElements[i], args[0]);
+                    AssertHelper.valueIdentical(i, args[1]);
+                    AssertHelper.identical(array.instance, args[2]);
 
                     if (!(call.returnValue.value is ASBoolean && (bool)call.returnValue)) {
                         Assert.False(result);
@@ -325,14 +322,11 @@ namespace Mariana.AVM2.Tests {
                     Assert.False(call.isConstruct);
 
                     var args = call.getArguments();
-                    Assert.Equal(Math.Min(function.length, 3), args.Length);
+                    Assert.Equal(3, args.Length);
 
-                    if (args.Length >= 1)
-                        AssertHelper.identical(arrayElements[i], args[0]);
-                    if (args.Length >= 2)
-                        AssertHelper.valueIdentical(i, args[1]);
-                    if (args.Length >= 3)
-                        AssertHelper.identical(array.instance, args[2]);
+                    AssertHelper.identical(arrayElements[i], args[0]);
+                    AssertHelper.valueIdentical(i, args[1]);
+                    AssertHelper.identical(array.instance, args[2]);
 
                     if (call.returnValue.value is ASBoolean && (bool)call.returnValue) {
                         Assert.True(result);
@@ -495,14 +489,11 @@ namespace Mariana.AVM2.Tests {
                     Assert.False(call.isConstruct);
 
                     var args = call.getArguments();
-                    Assert.Equal(Math.Min(function.length, 3), args.Length);
+                    Assert.Equal(3, args.Length);
 
-                    if (args.Length >= 1)
-                        AssertHelper.identical(arrayElements[i], args[0]);
-                    if (args.Length >= 2)
-                        AssertHelper.valueIdentical(i, args[1]);
-                    if (args.Length >= 3)
-                        AssertHelper.identical(array.instance, args[2]);
+                    AssertHelper.identical(arrayElements[i], args[0]);
+                    AssertHelper.valueIdentical(i, args[1]);
+                    AssertHelper.identical(array.instance, args[2]);
                 }
             });
         }
@@ -765,7 +756,7 @@ namespace Mariana.AVM2.Tests {
                 var arrayElements = getArrayElementsFromImage(image);
                 Assert.True(result.length <= (uint)arrayElements.Length);
 
-                runInZoneWithArrayPrototype(null, () => {
+                runInZoneWithBlankArrayPrototype(() => {
                     var callRecords = function.getCallHistory();
                     Assert.True(callRecords.Length <= arrayElements.Length);
 
@@ -778,14 +769,11 @@ namespace Mariana.AVM2.Tests {
                         Assert.False(call.isConstruct);
 
                         var args = call.getArguments();
-                        Assert.Equal(Math.Min(function.length, 3), args.Length);
+                        Assert.Equal(3, args.Length);
 
-                        if (args.Length >= 1)
-                            AssertHelper.identical(arrayElements[i], args[0]);
-                        if (args.Length >= 2)
-                            AssertHelper.valueIdentical(i, args[1]);
-                        if (args.Length >= 3)
-                            AssertHelper.identical(array.instance, args[2]);
+                        AssertHelper.identical(arrayElements[i], args[0]);
+                        AssertHelper.valueIdentical(i, args[1]);
+                        AssertHelper.identical(array.instance, args[2]);
 
                         if (call.returnValue.value is ASBoolean && (bool)call.returnValue) {
                             Assert.True(resultIndex < result.length);
@@ -1013,7 +1001,7 @@ namespace Mariana.AVM2.Tests {
 
                 var arrayElements = getArrayElementsFromImage(image);
 
-                runInZoneWithArrayPrototype(null, () => {
+                runInZoneWithBlankArrayPrototype(() => {
                     var callRecords = function.getCallHistory();
 
                     Assert.True(callRecords.Length == arrayElements.Length);
@@ -1026,14 +1014,11 @@ namespace Mariana.AVM2.Tests {
                         Assert.False(call.isConstruct);
 
                         var args = call.getArguments();
-                        Assert.Equal(Math.Min(function.length, 3), args.Length);
+                        Assert.Equal(3, args.Length);
 
-                        if (args.Length >= 1)
-                            AssertHelper.identical(arrayElements[i], args[0]);
-                        if (args.Length >= 2)
-                            AssertHelper.valueIdentical(i, args[1]);
-                        if (args.Length >= 3)
-                            AssertHelper.identical(array.instance, args[2]);
+                        AssertHelper.identical(arrayElements[i], args[0]);
+                        AssertHelper.valueIdentical(i, args[1]);
+                        AssertHelper.identical(array.instance, args[2]);
 
                         Assert.True(result.AS_hasElement(i));
                         AssertHelper.identical(result.AS_getElement(i), call.returnValue);
@@ -1051,7 +1036,7 @@ namespace Mariana.AVM2.Tests {
             Assert.Equal(endIndex - startIndex, slice.length);
             var currentProto = s_currentProtoProperties.value;
 
-            runInZoneWithArrayPrototype(null, () => {
+            runInZoneWithBlankArrayPrototype(() => {
                 for (uint i = startIndex; i < endIndex; i++) {
                     Assert.True(slice.AS_hasElement(i - startIndex));
                     ASAny expectedValue;

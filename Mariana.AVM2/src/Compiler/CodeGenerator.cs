@@ -2974,14 +2974,14 @@ namespace Mariana.AVM2.Compiler {
 
         private void _visitCallMethodOrStatic(ref Instruction instr) {
             var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
-            var argIds = stackPopIds.Slice(stackPopIds.Length - instr.data.callOrConstruct.argCount);
+            var argIds = stackPopIds.Slice(stackPopIds.Length - instr.data.callMethod.argCount);
             int receiverId = stackPopIds[0];
 
             int resultId = instr.stackPushedNodeId;
             if (resultId != -1 && m_compilation.getDataNode(resultId).isNotPushed)
                 resultId = -1;
 
-            ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.callOrConstruct.resolvedPropId);
+            ref ResolvedProperty resolvedProp = ref m_compilation.getResolvedProperty(instr.data.callMethod.resolvedPropId);
             var trait = (Trait)resolvedProp.propInfo!;
 
             if (resolvedProp.propKind == ResolvedPropertyKind.TRAIT) {
@@ -5015,7 +5015,7 @@ namespace Mariana.AVM2.Compiler {
                 Debug.Assert(!isConstruct);
 
                 Class? objectType = (objectId == -1) ? null : _getPushedClassOfNode(m_compilation.getDataNode(objectId));
-                _emitCallToMethod((MethodTrait)trait, objectType, argIds, isSuper, resultId == -1);
+                _emitCallToMethod((MethodTrait)trait, objectType, argIds, isSuper, noReturn: resultId == -1);
             }
             else if (traitType == TraitType.CLASS) {
                 var klass = (Class)trait;

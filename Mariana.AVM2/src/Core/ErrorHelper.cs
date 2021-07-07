@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Mariana.AVM2.Native;
 using Mariana.Common;
@@ -16,6 +17,8 @@ namespace Mariana.AVM2.Core {
         }
 
         private static readonly Dictionary<ErrorCode, _ErrInfo> m_errorInfoDict = _loadErrorData();
+
+        private static ConditionalWeakTable<Type, ConstructorInfo?> s_cachedConstructors = new();
 
         private static Dictionary<ErrorCode, _ErrInfo> _loadErrorData() {
             Dictionary<ErrorCode, _ErrInfo> errInfoDict = new Dictionary<ErrorCode, _ErrInfo>();
@@ -99,8 +102,36 @@ namespace Mariana.AVM2.Core {
         /// <returns>An <see cref="ASError"/> object.</returns>
         internal static ASError createErrorObject(ErrorCode code, params object?[] args) {
             _ErrInfo errinfo = m_errorInfoDict[code];
-            ConstructorInfo ctor = errinfo.type.GetConstructor(new[] {typeof(ASAny), typeof(int)});
-            return (ASError)ctor.Invoke(new object[] {(ASAny)_formatErrorMsg(errinfo.msg, args), (int)code});
+            return createErrorObject(errinfo.type, (int)code, _formatErrorMsg(errinfo.msg, args));
+        }
+
+        /// <summary>
+        /// Creates an Error object with the given type, code and message.
+        /// </summary>
+        ///
+        /// <param name="errorType">The type of the error to construct. This must be a subtype
+        /// of <see cref="ASError"/>.</param>
+        /// <param name="code">The error code.</param>
+        /// <param name="message">The error message.</param>
+        /// <returns>The created <see cref="ASError"/> instance.</returns>
+        internal static ASError createErrorObject(Type errorType, int code, string message) {
+            ConstructorInfo? errorTypeCtor = s_cachedConstructors.GetValue(
+                errorType,
+                t => errorType.GetConstructor(new[] {typeof(ASAny), typeof(int)})
+            );
+
+            ASError instance;
+
+            if (errorTypeCtor != null) {
+                instance = (ASError)errorTypeCtor.Invoke(new object[] {(ASAny)message, (int)code});
+            }
+            else {
+                // If we could not find a constructor for the type, create a generic Error
+                // with the type name in the message.
+                instance = new ASError(errorType.Name + ": " + message, code);
+            }
+
+            return instance;
         }
 
         /// <summary>
@@ -253,7 +284,7 @@ namespace Mariana.AVM2.Core {
                 int argIndex = messageSpan[placeholderPos + 1] - '0';
                 if (argIndex <= 9) {
                     sb.Append(messageSpan.Slice(0, placeholderPos));
-                    object? arg = args[argIndex - 1];
+                    object? arg = (argIndex > args.Length) ? "?" : args[argIndex - 1];
                     sb.Append((arg != null) ? arg.ToString() : "null");
                 }
 

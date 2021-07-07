@@ -1431,7 +1431,7 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Gets or sets the day of the week of the Date object in UTC.
+        /// Gets the day of the week of the Date object in UTC.
         /// </summary>
         [AVM2ExportTrait]
         public double dayUTC => getUTCDay();
@@ -1579,7 +1579,7 @@ namespace Mariana.AVM2.Core {
         }
 
         /// <summary>
-        /// Gets or sets the day of the week of the Date object in local time.
+        /// Gets the day of the week of the Date object in local time.
         /// </summary>
         [AVM2ExportTrait]
         public double day => getDay();

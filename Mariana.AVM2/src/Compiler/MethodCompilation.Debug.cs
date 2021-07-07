@@ -180,7 +180,13 @@ namespace Mariana.AVM2.Compiler {
 
                 case ABCOp.callmethod:
                 case ABCOp.callstatic:
-                    sb.AppendFormat(ic, "{0}, argCount = {1}", instr.data.callMethod.methodOrDispId, instr.data.callMethod.argCount);
+                    sb.AppendFormat(
+                        ic,
+                        "{0}, argCount = {1}, resolved = {2}",
+                        instr.data.callMethod.methodOrDispId,
+                        instr.data.callMethod.argCount,
+                        resolvedPropertyToString(instr.data.callMethod.resolvedPropId)
+                    );
                     break;
 
                 case ABCOp.pushint:

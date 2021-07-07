@@ -748,7 +748,7 @@ namespace Mariana.AVM2.Compiler {
                 throw ErrorHelper.createError(ErrorCode.INVALID_TRAIT_KIND, "Function");
             }
 
-            Trait? createdTrait = null;
+            Trait createdTrait;
             bool isProperty = false;
             int slotId = 0;
 
@@ -756,7 +756,7 @@ namespace Mariana.AVM2.Compiler {
                 createdTrait = _createFieldTrait(traitInfo, declClass: null, isStatic: true);
                 slotId = traitInfo.slotId;
             }
-            else if (traitInfo.kind == ABCTraitFlags.Method) {
+            else if (traitInfo.isMethod) {
                 ScriptMethod method = new ScriptMethod(traitInfo, declClass: null, m_domain, isStatic: true);
                 _setMethodForMethodInfo(traitInfo.methodInfo, method);
 
@@ -765,7 +765,8 @@ namespace Mariana.AVM2.Compiler {
 
                 createdTrait = method;
             }
-            else if (traitInfo.kind == ABCTraitFlags.Getter || traitInfo.kind == ABCTraitFlags.Setter) {
+            else {
+                Debug.Assert(traitInfo.kind == ABCTraitFlags.Getter || traitInfo.kind == ABCTraitFlags.Setter);
                 isProperty = true;
 
                 ScriptMethod method = _definePropertyAccessor(traitInfo, declClass: null, isStatic: true);
@@ -773,8 +774,6 @@ namespace Mariana.AVM2.Compiler {
 
                 createdTrait = method;
             }
-
-            Debug.Assert(createdTrait != null);
 
             if (isProperty) {
                 // We don't stage properties now because getter and setter methods with the same property
@@ -913,7 +912,7 @@ namespace Mariana.AVM2.Compiler {
                 throw ErrorHelper.createError(ErrorCode.INVALID_TRAIT_KIND, "Function");
             }
 
-            Trait? createdTrait = null;
+            Trait createdTrait;
             bool isProperty = false;
             int slotId = 0;
             int dispId = 0;
@@ -932,7 +931,7 @@ namespace Mariana.AVM2.Compiler {
                 createdTrait = _createFieldTrait(traitInfo, declClass, isStatic);
                 slotId = traitInfo.slotId;
             }
-            else if (traitInfo.kind == ABCTraitFlags.Method) {
+            else if (traitInfo.isMethod) {
                 ScriptMethod method = new ScriptMethod(traitInfo, declClass, m_domain, isStatic);
 
                 m_methodTraitData[method] = new MethodTraitData();
@@ -940,8 +939,11 @@ namespace Mariana.AVM2.Compiler {
 
                 createdTrait = method;
                 dispId = traitInfo.methodDispId;
+
+                _setMethodForMethodInfo(traitInfo.methodInfo, method);
             }
-            else if (traitInfo.kind == ABCTraitFlags.Getter || traitInfo.kind == ABCTraitFlags.Setter) {
+            else {
+                Debug.Assert(traitInfo.kind == ABCTraitFlags.Getter || traitInfo.kind == ABCTraitFlags.Setter);
                 isProperty = true;
 
                 ScriptMethod method = _definePropertyAccessor(traitInfo, declClass, isStatic);
@@ -2287,27 +2289,27 @@ namespace Mariana.AVM2.Compiler {
         /// <summary>
         /// Associates a method or constructor with an <see cref="ABCMethodInfo"/> instance.
         /// </summary>
-        /// <param name="mthdInfo">The <see cref="ABCMethodInfo"/> instance representing the method
+        /// <param name="methodInfo">The <see cref="ABCMethodInfo"/> instance representing the method
         /// entry in the ABC file.</param>
         /// <param name="methodOrCtor">An instance of <see cref="ScriptMethod"/> or
         /// <see cref="ScriptClassConstructor"/>.</param>
-        private void _setMethodForMethodInfo(ABCMethodInfo mthdInfo, object methodOrCtor) {
-            MethodInfoData mthdInfoData = m_abcMethodInfoDataByIndex[mthdInfo.abcIndex];
+        private void _setMethodForMethodInfo(ABCMethodInfo methodInfo, object methodOrCtor) {
+            MethodInfoData methodInfoData = m_abcMethodInfoDataByIndex[methodInfo.abcIndex];
 
-            if (mthdInfoData == null) {
-                mthdInfoData = new MethodInfoData();
-                m_abcMethodInfoDataByIndex[mthdInfo.abcIndex] = mthdInfoData;
+            if (methodInfoData == null) {
+                methodInfoData = new MethodInfoData();
+                m_abcMethodInfoDataByIndex[methodInfo.abcIndex] = methodInfoData;
             }
 
-            if (mthdInfoData.methodOrCtor != null) {
+            if (methodInfoData.methodOrCtor != null) {
                 throw ErrorHelper.createError(
                     ErrorCode.MARIANA__ABC_METHOD_INFO_ALREADY_ASSIGNED,
                     _createErrMsgTraitName(methodOrCtor),
-                    _createErrMsgTraitName(mthdInfoData.methodOrCtor)
+                    _createErrMsgTraitName(methodInfoData.methodOrCtor)
                 );
             }
 
-            mthdInfoData.methodOrCtor = methodOrCtor;
+            methodInfoData.methodOrCtor = methodOrCtor;
         }
 
         /// <summary>

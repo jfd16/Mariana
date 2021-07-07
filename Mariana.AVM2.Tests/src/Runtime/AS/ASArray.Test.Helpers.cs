@@ -142,6 +142,8 @@ namespace Mariana.AVM2.Tests {
         private static ZoneStaticData<Dictionary<uint, ASAny>> s_currentProtoProperties =
             new ZoneStaticData<Dictionary<uint, ASAny>>(() => new Dictionary<uint, ASAny>());
 
+        private static StaticZone s_blankArrayPrototypeZone = new StaticZone();
+
         /// <summary>
         /// Creates a string representation of an array index.
         /// </summary>
@@ -154,7 +156,11 @@ namespace Mariana.AVM2.Tests {
         ///
         /// <param name="propDict">A dictionary containing the properties to be set to the Array
         /// prototype.</param>
+        /// <param name="func">A function to call. The code in this function must not add or modify
+        /// any properties on the Array prototype, since the zone is shared.</param>
         private static void runInZoneWithArrayPrototype(Dictionary<uint, ASAny> propDict, Action func) {
+            propDict = propDict ?? new Dictionary<uint, ASAny>();
+
             using (StaticZone zone = new StaticZone()) {
                 zone.enterAndRun(() => {
                     ASObject proto = s_arrayClass.prototypeObject;
@@ -165,6 +171,15 @@ namespace Mariana.AVM2.Tests {
                     func();
                 });
             }
+        }
+
+        /// <summary>
+        /// Runs the given function in an isolated zone with a blank Array prototype (without
+        /// any numeric key properties)
+        /// </summary>
+        /// <param name="func">A function to call.</param>
+        private static void runInZoneWithBlankArrayPrototype(Action func) {
+            s_blankArrayPrototypeZone.enterAndRun(func);
         }
 
         public enum MutationKind {

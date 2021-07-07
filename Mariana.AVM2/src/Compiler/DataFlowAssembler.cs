@@ -1001,73 +1001,40 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="instr">The instruction for which to compute the number of items popped
         /// from the operand stack.</param>
         private int _getInstrStackPopCount(in Instruction instr) {
-            int multinameId, popCount;
+            (int multinameId, int argCount) = instr.opcode switch {
+                ABCOp.callproperty
+                or ABCOp.callproplex
+                or ABCOp.callpropvoid
+                or ABCOp.callsuper
+                or ABCOp.callsupervoid
+                or ABCOp.constructprop =>
+                    (instr.data.callProperty.multinameId, instr.data.callProperty.argCount),
 
-            switch (instr.opcode) {
-                case ABCOp.newarray:
-                    return instr.data.newArrOrObj.elementCount;
+                ABCOp.finddef or ABCOp.findproperty or ABCOp.findpropstrict =>
+                    (instr.data.findProperty.multinameId, 0),
 
-                case ABCOp.newobject:
-                    return checked(instr.data.newArrOrObj.elementCount * 2);
+                ABCOp.deleteproperty
+                or ABCOp.getdescendants
+                or ABCOp.getproperty
+                or ABCOp.getsuper
+                or ABCOp.setproperty
+                or ABCOp.initproperty
+                or ABCOp.setsuper =>
+                    (instr.data.accessProperty.multinameId, 0),
 
-                case ABCOp.call:
-                    return instr.data.callOrConstruct.argCount + 2;
+                ABCOp.newarray or ABCOp.newobject => (-1, instr.data.newArrOrObj.elementCount),
+                ABCOp.call or ABCOp.construct or ABCOp.constructsuper => (-1, instr.data.callOrConstruct.argCount),
+                ABCOp.callmethod or ABCOp.callstatic => (-1, instr.data.callMethod.argCount),
+                ABCOp.applytype => (-1, instr.data.applyType.argCount),
 
-                case ABCOp.construct:
-                case ABCOp.callmethod:
-                case ABCOp.callstatic:
-                case ABCOp.constructsuper:
-                    return instr.data.callOrConstruct.argCount + 1;
+                _ => (-1, 0)
+            };
 
-                case ABCOp.callproperty:
-                case ABCOp.callproplex:
-                case ABCOp.callpropvoid:
-                case ABCOp.callsuper:
-                case ABCOp.callsupervoid:
-                case ABCOp.constructprop:
-                    popCount = instr.data.callProperty.argCount + 1;
-                    multinameId = instr.data.callProperty.multinameId;
-                    break;
+            var multinameKind = ABCConstKind.Undefined;
+            if (multinameId != -1)
+                multinameKind = m_compilation.abcFile.resolveMultiname(multinameId).kind;
 
-                case ABCOp.finddef:
-                case ABCOp.findproperty:
-                case ABCOp.findpropstrict:
-                    popCount = 0;
-                    multinameId = instr.data.accessProperty.multinameId;
-                    break;
-
-                case ABCOp.deleteproperty:
-                case ABCOp.getdescendants:
-                case ABCOp.getproperty:
-                case ABCOp.getsuper:
-                    popCount = 1;
-                    multinameId = instr.data.accessProperty.multinameId;
-                    break;
-
-                case ABCOp.initproperty:
-                case ABCOp.setproperty:
-                case ABCOp.setsuper:
-                    popCount = 2;
-                    multinameId = instr.data.accessProperty.multinameId;
-                    break;
-
-                case ABCOp.applytype:
-                    return instr.data.applyType.argCount + 1;
-
-                default:
-                    return ABCOpInfo.getInfo(instr.opcode).stackPopCount;
-            }
-
-            // For opcodes with a multiname operand, the name and/or namespace may also exist on the
-            // stack which have to be popped along with the other arguments.
-
-            ABCMultiname multiname = m_compilation.abcFile.resolveMultiname(multinameId);
-            if (multiname.hasRuntimeNamespace)
-                popCount++;
-            if (multiname.hasRuntimeLocalName)
-                popCount++;
-
-            return popCount;
+            return ABCOpInfo.getStackPopCount(instr.opcode, multinameKind, argCount);
         }
 
         private void _mergeNextBlockEntryState(

@@ -935,14 +935,13 @@ namespace Mariana.AVM2.Core {
 
             ASAny[] cbArgsArray = new ASAny[3];
             cbArgsArray[2] = this;
-            ReadOnlySpan<ASAny> cbArgs = cbArgsArray.AsSpan(0, Math.Min(cbArgsArray.Length, callback.length));
 
             var span = asSpan();
             for (int i = 0; i < span.Length; i++) {
                 cbArgsArray[0] = anyConverter.convert(span[i]);
                 cbArgsArray[1] = i;
 
-                ASAny cbResult = callback.AS_invoke(thisObject, cbArgs);
+                ASAny cbResult = callback.AS_invoke(thisObject, cbArgsArray);
                 if (!(cbResult.value is ASBoolean && (bool)cbResult))
                     return false;
             }
@@ -995,14 +994,13 @@ namespace Mariana.AVM2.Core {
 
             ASAny[] cbArgsArray = new ASAny[3];
             cbArgsArray[2] = this;
-            ReadOnlySpan<ASAny> cbArgs = cbArgsArray.AsSpan(0, Math.Min(cbArgsArray.Length, callback.length));
 
             var span = asSpan();
             for (int i = 0; i < span.Length; i++) {
                 cbArgsArray[0] = anyConverter.convert(span[i]);
                 cbArgsArray[1] = i;
 
-                ASAny cbReturn = callback.AS_invoke(thisObject, cbArgs);
+                ASAny cbReturn = callback.AS_invoke(thisObject, cbArgsArray);
                 if (cbReturn.value is ASBoolean && (bool)cbReturn)
                     result.push(span[i]);
             }
@@ -1050,13 +1048,12 @@ namespace Mariana.AVM2.Core {
 
             ASAny[] cbArgsArray = new ASAny[3];
             cbArgsArray[2] = this;
-            ReadOnlySpan<ASAny> cbArgs = cbArgsArray.AsSpan(0, Math.Min(cbArgsArray.Length, callback.length));
 
             var span = asSpan();
             for (int i = 0; i < span.Length; i++) {
                 cbArgsArray[0] = anyConverter.convert(span[i]);
                 cbArgsArray[1] = i;
-                callback.AS_invoke(thisObject, cbArgs);
+                callback.AS_invoke(thisObject, cbArgsArray);
             }
         }
 
@@ -1189,13 +1186,12 @@ namespace Mariana.AVM2.Core {
 
             ASAny[] cbArgsArray = new ASAny[3];
             cbArgsArray[2] = this;
-            ReadOnlySpan<ASAny> cbArgs = cbArgsArray.AsSpan(0, Math.Min(cbArgsArray.Length, callback.length));
 
             var span = asSpan();
             for (int i = 0; i < span.Length; i++) {
                 cbArgsArray[0] = convTypeToAny.convert(span[i]);
                 cbArgsArray[1] = i;
-                resultSpan[i] = convAnyToType.convert(callback.AS_invoke(thisObject, cbArgs));
+                resultSpan[i] = convAnyToType.convert(callback.AS_invoke(thisObject, cbArgsArray));
             }
 
             return result;
@@ -1385,14 +1381,13 @@ namespace Mariana.AVM2.Core {
             var anyConverter = GenericTypeConverter<T, ASAny>.instance;
             ASAny[] cbArgsArray = new ASAny[3];
             cbArgsArray[2] = this;
-            ReadOnlySpan<ASAny> cbArgs = cbArgsArray.AsSpan(0, Math.Min(cbArgsArray.Length, callback.length));
 
             var span = asSpan();
             for (int i = 0; i < span.Length; i++) {
                 cbArgsArray[0] = anyConverter.convert(span[i]);
                 cbArgsArray[1] = i;
 
-                ASAny cbResult = callback.AS_invoke(thisObject, cbArgs);
+                ASAny cbResult = callback.AS_invoke(thisObject, cbArgsArray);
                 if (cbResult.value is ASBoolean && (bool)cbResult)
                     return true;
             }

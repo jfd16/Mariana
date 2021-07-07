@@ -310,7 +310,7 @@ namespace Mariana.AVM2.Core {
         ///
         /// <remarks>
         /// If this is set, the '^' and '$' characters in the pattern matches the beginning and end of
-        /// lines in the target string respectively, rather than only the beginning and end of the
+        /// lines in the target string respectively, instead of only the beginning and end of the
         /// entire string.
         /// </remarks>
         [AVM2ExportTrait]

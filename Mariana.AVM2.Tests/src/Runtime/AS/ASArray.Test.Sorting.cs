@@ -155,8 +155,8 @@ namespace Mariana.AVM2.Tests {
             // If RETURNINDEXEDARRAY is set, we use this hashset to verify that every index is unique.
             var visitedIndices = new HashSet<uint>();
 
-            // Run in a zone with a fresh Array prototype so that we can check holes in the sorted array.
-            runInZoneWithArrayPrototype(null, () => {
+            // Run in a zone with a blank Array prototype so that we can check holes in the sorted array.
+            runInZoneWithBlankArrayPrototype(() => {
                 for (int i = 0; i < (int)originalImage.length; i++) {
                     ASAny value;
 
@@ -1210,7 +1210,7 @@ namespace Mariana.AVM2.Tests {
                 ASArray.NUMERIC | ASArray.CASEINSENSITIVE | ASArray.DESCENDING | ASArray.UNIQUESORT | ASArray.RETURNINDEXEDARRAY,
             };
 
-            runInZoneWithArrayPrototype(null, () => {
+            runInZoneWithBlankArrayPrototype(() => {
                 setRandomSeed(9471);
 
                 testWithArgs(Array.Empty<ASAny>());
@@ -1258,7 +1258,7 @@ namespace Mariana.AVM2.Tests {
                 new ASAny[] {new MockFunctionObject(), new ASObject()},
             };
 
-            runInZoneWithArrayPrototype(null, () => {
+            runInZoneWithBlankArrayPrototype(() => {
                 setRandomSeed(18378);
                 for (int i = 0; i < args.Length; i++) {
                     AssertHelper.throwsErrorWithCode(
@@ -1339,7 +1339,7 @@ namespace Mariana.AVM2.Tests {
             var compareFunc = makeArraySortOnCompareFunc(propNames, propFlags);
 
             // Run in a zone with a fresh Array prototype so that we can check holes in the sorted array.
-            runInZoneWithArrayPrototype(null, () => {
+            runInZoneWithBlankArrayPrototype(() => {
                 for (int i = 0; i < (int)originalImage.length; i++) {
                     ASAny value;
 
@@ -2298,7 +2298,7 @@ namespace Mariana.AVM2.Tests {
         [Theory]
         [MemberData(nameof(sortOnMethodTest_arrayLengthTooBig_data))]
         public void sortOnMethodTest_arrayLengthTooBig(ArrayWrapper array, Image image) {
-            runInZoneWithArrayPrototype(null, () => {
+            runInZoneWithBlankArrayPrototype(() => {
                 setRandomSeed(573711);
 
                 testWithArgs("x", default);

@@ -213,21 +213,28 @@ namespace Mariana.AVM2.ABC {
         /// Gets the number of items popped from the stack by an instruction of the given opcode
         /// with the given operands.
         /// </summary>
+        ///
         /// <returns>The number of items popped from the stack.</returns>
+        ///
         /// <param name="opcode">The instruction opcode.</param>
         /// <param name="multinameKind">The type of the multiname operand for the instruction.
         /// If <paramref name="opcode"/> uses a multiname operand, this must be a valid multiname
         /// kind; otherwise, this argument is ignored.</param>
         /// <param name="argCount">The argument count for a call-like instruction. If
         /// <paramref name="opcode"/> does not use an argument count, this argument is ignored.</param>
-        public int getStackPopCount(ABCOp opcode, ABCConstKind multinameKind = 0, int argCount = 0) {
+        ///
+        /// <exception cref="AVM2Exception">ArgumentError #10061: <paramref name="argCount"/> is negative,
+        /// <paramref name="opcode"/> is not the opcode of a valid instruction, or <paramref name="opcode"/>
+        /// represents an instruction with a multiname argument and <paramref name="multinameKind"/> is not
+        /// a valid multiname kind.</exception>
+        public static int getStackPopCount(ABCOp opcode, ABCConstKind multinameKind = 0, int argCount = 0) {
             if (argCount < 0)
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_OUT_OF_RANGE, nameof(argCount));
 
             ABCOpInfo opInfo = s_opinfo[(byte)opcode];
 
             if (!opInfo.isValid)
-                return -1;
+                throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_OUT_OF_RANGE, nameof(opcode));
 
             (int popCount, bool hasMultiname) = opcode switch {
                 ABCOp.newarray => (argCount, false),
@@ -244,7 +251,7 @@ namespace Mariana.AVM2.ABC {
 
                 ABCOp.finddef or ABCOp.findproperty or ABCOp.findpropstrict => (0, true),
                 ABCOp.deleteproperty or ABCOp.getdescendants or ABCOp.getproperty or ABCOp.getsuper => (1, true),
-                ABCOp.setproperty or ABCOp.setsuper => (2, true),
+                ABCOp.setproperty or ABCOp.setsuper or ABCOp.initproperty => (2, true),
 
                 _ => (opInfo.stackPopCount, false)
             };
