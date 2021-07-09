@@ -159,6 +159,11 @@ namespace Mariana.AVM2.Compiler {
         /// </summary>
         DEFINES_PHI_NODES = 4,
 
+        /// <summary>
+        /// Indicates that this basic block is unreachable and should not be emitted.
+        /// </summary>
+        UNREACHABLE = 8,
+
     }
 
 }

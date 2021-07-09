@@ -833,14 +833,19 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitBasicBlock(in BasicBlock block) {
+            if ((block.flags & BasicBlockFlags.UNREACHABLE) != 0)
+                return;
+
             _emitBasicBlockHeader(block);
 
             var instructions = m_compilation.getInstructionsInBasicBlock(block);
             for (int i = 0; i < instructions.Length; i++)
                 _visitInstruction(ref instructions[i]);
 
-            if (block.exitType == BasicBlockExitType.JUMP)
-                _emitJumpFromBasicBlock(block);
+            if (block.exitType == BasicBlockExitType.JUMP) {
+                var exitBlockIds = m_compilation.staticIntArrayPool.getSpan(block.exitBlockIds);
+                _emitJumpFromBasicBlock(block, m_compilation.getBasicBlock(exitBlockIds[0]));
+            }
         }
 
         private void _emitBasicBlockHeader(in BasicBlock block) {
@@ -2070,6 +2075,24 @@ namespace Mariana.AVM2.Compiler {
                         break;
                     }
 
+                    case ComparisonType.BOOL_CONST_L:
+                    case ComparisonType.BOOL_CONST_R:
+                    {
+                        var constFlags = (compareType == ComparisonType.BOOL_CONST_L) ? _left.flags : _right.flags;
+                        if ((constFlags & DataNodeFlags.NO_PUSH) == 0)
+                            goto case ComparisonType.UINT;
+
+                        bool constValue =
+                            (compareType == ComparisonType.BOOL_CONST_L) ? _left.constant.boolValue : _right.constant.boolValue;
+
+                        // x == true is a no-op when x is boolean.
+                        if (!constValue) {
+                            m_ilBuilder.emit(ILOp.ldc_i4_0);
+                            m_ilBuilder.emit(ILOp.ceq);
+                        }
+                        break;
+                    }
+
                     case ComparisonType.OBJ_NULL_L:
                     case ComparisonType.OBJ_NULL_R:
                     {
@@ -3272,6 +3295,23 @@ namespace Mariana.AVM2.Compiler {
         private void _visitIfTrueFalse(ref Instruction instr) {
             ref DataNode inputNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
 
+            ref BasicBlock thisBlock = ref m_compilation.getBasicBlockOfInstruction(instr);
+            var exitBlockIds = m_compilation.staticIntArrayPool.getSpan(thisBlock.exitBlockIds);
+
+            ref BasicBlock trueBlock = ref m_compilation.getBasicBlock(exitBlockIds[0]);
+            ref BasicBlock falseBlock = ref m_compilation.getBasicBlock(exitBlockIds[1]);
+
+            if (instr.data.ifTrueFalse.isConstant) {
+                _emitDiscardTopOfStack(inputNode);
+
+                if (instr.data.ifTrueFalse.constResult)
+                    _emitJumpFromBasicBlock(thisBlock, trueBlock);
+                else
+                    _emitJumpFromBasicBlock(thisBlock, falseBlock);
+
+                return;
+            }
+
             Class? inputClass = _getPushedClassOfNode(inputNode);
 
             if (inputClass == null || inputClass.isObjectClass
@@ -3279,11 +3319,6 @@ namespace Mariana.AVM2.Compiler {
             {
                 _emitTypeCoerceForTopOfStack(inputNode, DataNodeType.BOOL);
             }
-
-            ref BasicBlock thisBlock = ref m_compilation.getBasicBlockOfInstruction(instr);
-            var exitBlockIds = m_compilation.staticIntArrayPool.getSpan(thisBlock.exitBlockIds);
-            ref BasicBlock trueBlock = ref m_compilation.getBasicBlock(exitBlockIds[0]);
-            ref BasicBlock falseBlock = ref m_compilation.getBasicBlock(exitBlockIds[1]);
 
             TwoWayBranchEmitInfo emitInfo = _getTwoWayBranchEmitInfo(thisBlock, trueBlock, falseBlock);
 
@@ -3297,13 +3332,27 @@ namespace Mariana.AVM2.Compiler {
 
         private void _visitBinaryCompareBranch(ref Instruction instr) {
             var stackPopIds = m_compilation.getInstructionStackPoppedNodes(instr);
+
             ref DataNode leftInputNode = ref m_compilation.getDataNode(stackPopIds[0]);
             ref DataNode rightInputNode = ref m_compilation.getDataNode(stackPopIds[1]);
 
             ref BasicBlock thisBlock = ref m_compilation.getBasicBlockOfInstruction(instr);
             var exitBlockIds = m_compilation.staticIntArrayPool.getSpan(thisBlock.exitBlockIds);
+
             ref BasicBlock trueBlock = ref m_compilation.getBasicBlock(exitBlockIds[0]);
             ref BasicBlock falseBlock = ref m_compilation.getBasicBlock(exitBlockIds[1]);
+
+            if (instr.data.compareBranch.compareType == ComparisonType.CONSTANT) {
+                _emitDiscardTopOfStack(rightInputNode);
+                _emitDiscardTopOfStack(leftInputNode);
+
+                if (instr.data.compareBranch.constResult)
+                    _emitJumpFromBasicBlock(thisBlock, trueBlock);
+                else
+                    _emitJumpFromBasicBlock(thisBlock, falseBlock);
+
+                return;
+            }
 
             TwoWayBranchEmitInfo branchEmitInfo = _getTwoWayBranchEmitInfo(thisBlock, trueBlock, falseBlock);
 
@@ -3384,6 +3433,24 @@ namespace Mariana.AVM2.Compiler {
                         (ilOp, invIlOp) = !rightInputNode.isNotPushed ? (ILOp.beq, ILOp.bne_un) : (ILOp.brfalse, ILOp.brtrue);
                     else
                         (ilOp, invIlOp) = !rightInputNode.isNotPushed ? (ILOp.bne_un, ILOp.beq) : (ILOp.brtrue, ILOp.brfalse);
+                    break;
+                }
+
+                case ComparisonType.BOOL_CONST_L:
+                case ComparisonType.BOOL_CONST_R:
+                {
+                    ref DataNode constNode = ref ((cmpType == ComparisonType.BOOL_CONST_L) ? ref leftInputNode : ref rightInputNode);
+
+                    if (!constNode.isNotPushed)
+                        (ilOp, invIlOp) = (ILOp.beq, ILOp.bne_un);
+                    else if (constNode.constant.boolValue)
+                        (ilOp, invIlOp) = (ILOp.brtrue, ILOp.brfalse);
+                    else
+                        (ilOp, invIlOp) = (ILOp.brfalse, ILOp.brtrue);
+
+                    if (instr.opcode == ABCOp.ifne || instr.opcode == ABCOp.ifstrictne)
+                        (ilOp, invIlOp) = (invIlOp, ilOp);
+
                     break;
                 }
 
@@ -6346,17 +6413,13 @@ namespace Mariana.AVM2.Compiler {
         }
 
         /// <summary>
-        /// Emits an unconditional jump from the given basic block. The target block of the
-        /// jump is determined from <see cref="BasicBlock.exitBlockIds"/>.
+        /// Emits an unconditional jump from the given basic block to the given target block.
         /// </summary>
         /// <param name="fromBlock">A reference to a <see cref="BasicBlock"/> representing
         /// the block from which the jump is to be emitted.</param>
-        private void _emitJumpFromBasicBlock(in BasicBlock fromBlock) {
-            Debug.Assert(fromBlock.exitType == BasicBlockExitType.JUMP);
-
-            var exitBlockIds = m_compilation.staticIntArrayPool.getSpan(fromBlock.exitBlockIds);
-            ref BasicBlock toBlock = ref m_compilation.getBasicBlock(exitBlockIds[0]);
-
+        /// <param name="toBlock">A reference to a <see cref="BasicBlock"/> representing the
+        /// target of the jump.</param>
+        private void _emitJumpFromBasicBlock(in BasicBlock fromBlock, in BasicBlock toBlock) {
             _emitBlockTransition(fromBlock, toBlock);
 
             if (!_isBasicBlockImmediatelyBefore(fromBlock, toBlock))
@@ -6817,12 +6880,29 @@ namespace Mariana.AVM2.Compiler {
         /// <returns>True if <paramref name="first"/> is immediately before <paramref name="second"/>,
         /// otherwise false.</returns>
         private bool _isBasicBlockImmediatelyBefore(in BasicBlock first, in BasicBlock second) {
-            if (first.postorderIndex - 1 != second.postorderIndex)
-                return false;
-
-            if (m_blockEmitInfo[second.id].needsStackStashAndRestore)
+            if (m_blockEmitInfo[second.id].needsStackStashAndRestore) {
                 // A jump instruction is needed for skipping the stack restore code in the forward case.
                 return false;
+            }
+
+            if (second.postorderIndex == first.postorderIndex - 1)
+                return true;
+
+            if (second.postorderIndex > first.postorderIndex) {
+                // Backward jump
+                return false;
+            }
+
+            // Check if there is any reachable block in between.
+
+            ReadOnlySpan<int> basicBlockRpo = m_compilation.getBasicBlockReversePostorder();
+            int firstRpoIndex = basicBlockRpo.Length - first.postorderIndex - 1;
+            int secondRpoIndex = basicBlockRpo.Length - second.postorderIndex - 1;
+
+            for (int i = firstRpoIndex + 1; i < secondRpoIndex; i++) {
+                if ((m_compilation.getBasicBlock(basicBlockRpo[i]).flags & BasicBlockFlags.UNREACHABLE) == 0)
+                    return false;
+            }
 
             return true;
         }

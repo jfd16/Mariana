@@ -120,6 +120,8 @@ namespace Mariana.AVM2.Compiler {
 
         private bool m_localStateChangedFromLastVisit;
 
+        private bool m_mayHaveConstantConditionalBranches;
+
         /// <summary>
         /// An array pool used to allocate <see cref="DataNodeTypeSnapshot"/> instances.
         /// </summary>
@@ -138,6 +140,8 @@ namespace Mariana.AVM2.Compiler {
 
         public void run() {
             try {
+                m_mayHaveConstantConditionalBranches = false;
+
                 var blocks = m_compilation.getBasicBlocks();
 
                 m_basicBlockEntrySnapshots.clearAndAddUninitialized(blocks.Length);
@@ -153,6 +157,8 @@ namespace Mariana.AVM2.Compiler {
 
                 while (m_queuedBlockIds.Count > 0)
                     _visitBasicBlock(ref blocks[m_queuedBlockIds.Dequeue()]);
+
+                _markUnreachableBasicBlocks();
             }
             finally {
                 m_nodeSnapshotArrayPool.clear();
@@ -606,6 +612,11 @@ namespace Mariana.AVM2.Compiler {
 
                 case ABCOp.@typeof:
                     _visitTypeof(ref instr);
+                    break;
+
+                case ABCOp.iftrue:
+                case ABCOp.iffalse:
+                    _visitIfTrueFalse(ref instr);
                     break;
 
                 case ABCOp.ifeq:
@@ -1218,12 +1229,16 @@ namespace Mariana.AVM2.Compiler {
             ref DataNode input1 = ref m_compilation.getDataNode(inputIds[0]);
             ref DataNode input2 = ref m_compilation.getDataNode(inputIds[1]);
 
+            instr.data.compareBranch.compareType = ComparisonType.NONE;
+
             output.constant = default;
             output.isConstant = false;
             output.isNotNull = false;
 
-            if (tryEvalConstCompareOp(input1, input2, ref output, instr.opcode))
+            if (tryEvalConstCompareOp(input1, input2, ref output, instr.opcode)) {
+                instr.data.compare.compareType = ComparisonType.CONSTANT;
                 return;
+            }
 
             output.dataType = DataNodeType.BOOL;
             output.isNotNull = true;
@@ -1263,8 +1278,38 @@ namespace Mariana.AVM2.Compiler {
             pushed.constant = new DataNodeConstant(klass);
         }
 
+        private void _visitIfTrueFalse(ref Instruction instr) {
+            ref DataNode inputNode = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
+            DataNode dummyResultNode = default;
+
+            instr.data.ifTrueFalse.isConstant = false;
+
+            if (tryEvalConstUnaryOp(inputNode, ref dummyResultNode, ABCOp.convert_b)) {
+                bool constResult = dummyResultNode.constant.boolValue;
+                if (instr.opcode == ABCOp.iffalse)
+                    constResult = !constResult;
+
+                instr.data.ifTrueFalse.isConstant = true;
+                instr.data.ifTrueFalse.constResult = constResult;
+                m_mayHaveConstantConditionalBranches = true;
+            }
+        }
+
         private void _visitBinaryCompareBranch(ref Instruction instr) {
-            // Nothing to be done here.
+            var inputIds = m_compilation.getInstructionStackPoppedNodes(instr);
+
+            instr.data.compareBranch.compareType = ComparisonType.NONE;
+
+            ref DataNode leftInputNode = ref m_compilation.getDataNode(inputIds[0]);
+            ref DataNode rightInputNode = ref m_compilation.getDataNode(inputIds[1]);
+
+            DataNode dummyResultNode = default;
+
+            if (tryEvalConstCompareOp(leftInputNode, rightInputNode, ref dummyResultNode, instr.opcode)) {
+                instr.data.compareBranch.compareType = ComparisonType.CONSTANT;
+                instr.data.compareBranch.constResult = dummyResultNode.constant.boolValue;
+                m_mayHaveConstantConditionalBranches = true;
+            }
         }
 
         private void _visitApplyType(ref Instruction instr) {
@@ -3250,6 +3295,67 @@ namespace Mariana.AVM2.Compiler {
             }
         }
 
+        /// <summary>
+        /// Finds and marks basic blocks that are unreachable because of constant branch conditions
+        /// so that they are excluded from generated code.
+        /// </summary>
+        private void _markUnreachableBasicBlocks() {
+            if (!m_mayHaveConstantConditionalBranches)
+                return;
+
+            Span<BasicBlock> blocks = m_compilation.getBasicBlocks();
+            Span<ExceptionHandler> excHandlers = m_compilation.getExceptionHandlers();
+
+            // Start by marking all blocks as unreachable.
+            // Then travese the control flow graph and remove the flag from reachable blocks.
+
+            for (int i = 0; i < blocks.Length; i++)
+                blocks[i].flags |= BasicBlockFlags.UNREACHABLE;
+
+            m_queuedBlockIds.Enqueue(m_compilation.getInstruction(0).blockId);
+
+            for (int i = 0; i < excHandlers.Length; i++)
+                m_queuedBlockIds.Enqueue(m_compilation.getInstruction(excHandlers[i].catchTargetInstrId).blockId);
+
+            while (m_queuedBlockIds.Count > 0) {
+                int curBlockId = m_queuedBlockIds.Dequeue();
+                ref BasicBlock curBlock = ref blocks[curBlockId];
+
+                if ((curBlock.flags & BasicBlockFlags.UNREACHABLE) == 0)
+                    continue;
+
+                curBlock.flags &= ~BasicBlockFlags.UNREACHABLE;
+
+                Span<int> exitBlockIds = m_compilation.staticIntArrayPool.getSpan(curBlock.exitBlockIds);
+
+                if (curBlock.exitType == BasicBlockExitType.BRANCH) {
+                    // Check for constant conditional branches
+                    bool? constCondition = null;
+
+                    ref Instruction lastInstr =
+                        ref m_compilation.getInstruction(curBlock.firstInstrId + curBlock.instrCount - 1);
+
+                    if (lastInstr.opcode == ABCOp.iftrue || lastInstr.opcode == ABCOp.iffalse) {
+                        if (lastInstr.data.ifTrueFalse.isConstant)
+                            constCondition = lastInstr.data.ifTrueFalse.constResult;
+                    }
+                    else {
+                        // This must be a compare-and-branch instruction.
+                        if (lastInstr.data.compareBranch.compareType == ComparisonType.CONSTANT)
+                            constCondition = lastInstr.data.compareBranch.constResult;
+                    }
+
+                    // If the condition is a constant, only consider the successor block corresponding
+                    // to that constant value.
+                    if (constCondition.HasValue)
+                        exitBlockIds = exitBlockIds.Slice(constCondition.Value ? 0 : 1, 1);
+                }
+
+                for (int j = 0; j < exitBlockIds.Length; j++)
+                    m_queuedBlockIds.Enqueue(exitBlockIds[j]);
+            }
+        }
+
     }
 
     internal sealed class SemanticBinderSecondPass {
@@ -3309,6 +3415,9 @@ namespace Mariana.AVM2.Compiler {
         }
 
         private void _visitBasicBlock(ref BasicBlock block) {
+            if ((block.flags & BasicBlockFlags.UNREACHABLE) != 0)
+                return;
+
             var instructions = m_compilation.getInstructionsInBasicBlock(block);
 
             for (int i = 0; i < instructions.Length; i++)
@@ -3889,17 +3998,30 @@ namespace Mariana.AVM2.Compiler {
 
         private void _visitBinaryCompareBranch(ref Instruction instr) {
             var inputIds = m_compilation.getInstructionStackPoppedNodes(instr);
+
             ref DataNode input1 = ref m_compilation.getDataNode(inputIds[0]);
             ref DataNode input2 = ref m_compilation.getDataNode(inputIds[1]);
 
-            instr.data.compareBranch.compareType = _getComparisonType(input1, input2, instr.opcode);
-            _checkCompareOperation(ref input1, ref input2, instr.id, ref instr.data.compareBranch.compareType);
+            if (instr.data.compareBranch.compareType == ComparisonType.CONSTANT) {
+                _markStackNodeAsNoPush(ref input1);
+                _markStackNodeAsNoPush(ref input2);
+            }
+            else {
+                instr.data.compareBranch.compareType = _getComparisonType(input1, input2, instr.opcode);
+                _checkCompareOperation(ref input1, ref input2, instr.id, ref instr.data.compareBranch.compareType);
+            }
         }
 
         private void _visitIfTrueFalse(ref Instruction instr) {
             ref DataNode input = ref m_compilation.getDataNode(m_compilation.getInstructionStackPoppedNode(instr));
-            _checkForSpecialObjectCoerce(input);
-            _checkForIntegerModuloCompareZero(input);
+
+            if (instr.data.ifTrueFalse.isConstant) {
+                _markStackNodeAsNoPush(ref input);
+            }
+            else {
+                _checkForSpecialObjectCoerce(input);
+                _checkForIntegerModuloCompareZero(input);
+            }
         }
 
         private void _visitLookupSwitch(ref Instruction instr) {
@@ -4927,22 +5049,22 @@ namespace Mariana.AVM2.Compiler {
         /// Returns a value from the <see cref="ComparisonType"/> enumeration representing the kind
         /// of comparison to be made when a comparison instruction is executed on the given input nodes.
         /// </summary>
-        /// <param name="input1">The left input node.</param>
-        /// <param name="input2">The right input node.</param>
+        /// <param name="leftInput">The left input node.</param>
+        /// <param name="rightInput">The right input node.</param>
         /// <param name="opcode">The opcode for the comparison instruction.</param>
         /// <returns>A value from the <see cref="ComparisonType"/> enumeration that represents
         /// the type of comparison (based on the input node types).</returns>
-        private ComparisonType _getComparisonType(in DataNode input1, in DataNode input2, ABCOp opcode) {
+        private ComparisonType _getComparisonType(in DataNode leftInput, in DataNode rightInput, ABCOp opcode) {
             bool isStrictEquals = false;
 
-            ref readonly DataNode inputVar = ref input1;
-            ref readonly DataNode inputConst = ref input2;
+            ref readonly DataNode inputVar = ref leftInput;
+            ref readonly DataNode inputConst = ref rightInput;
             bool isLeftConstant = false;
 
-            if (input1.isConstant) {
+            if (leftInput.isConstant) {
                 isLeftConstant = true;
-                inputVar = ref input2;
-                inputConst = ref input1;
+                inputVar = ref rightInput;
+                inputConst = ref leftInput;
             }
 
             switch (opcode) {
@@ -4959,6 +5081,9 @@ namespace Mariana.AVM2.Compiler {
                     if (inputConst.isConstant) {
                         if (isInteger(inputVar.dataType) && isConstantZero(inputConst))
                             return isLeftConstant ? ComparisonType.INT_ZERO_L : ComparisonType.INT_ZERO_R;
+
+                        if (inputVar.dataType == DataNodeType.BOOL && inputConst.dataType == DataNodeType.BOOL)
+                            return isLeftConstant ? ComparisonType.BOOL_CONST_L : ComparisonType.BOOL_CONST_R;
 
                         if (isStrictEquals && inputConst.dataType == DataNodeType.UNDEFINED
                             && isAnyOrUndefined(inputVar.dataType))
@@ -4987,9 +5112,9 @@ namespace Mariana.AVM2.Compiler {
                         }
                     }
 
-                    DataNodeType input1Ty = input1.dataType;
-                    DataNodeType input2Ty = input2.dataType;
-                    DataNodeType commonType = (input1Ty == input2Ty) ? input1Ty : DataNodeType.UNKNOWN;
+                    DataNodeType leftType = leftInput.dataType;
+                    DataNodeType rightType = rightInput.dataType;
+                    DataNodeType commonType = (leftType == rightType) ? leftType : DataNodeType.UNKNOWN;
 
                     switch (commonType) {
                         case DataNodeType.NAMESPACE:
@@ -5005,10 +5130,10 @@ namespace Mariana.AVM2.Compiler {
                             return ComparisonType.UINT;
                     }
 
-                    bool input1IsNumeric = isNumeric(input1Ty);
-                    bool input2IsNumeric = isNumeric(input2Ty);
+                    bool leftIsNumeric = isNumeric(leftType);
+                    bool rightIsNumeric = isNumeric(rightType);
 
-                    if (input1IsNumeric && input2IsNumeric) {
+                    if (leftIsNumeric && rightIsNumeric) {
                         if (inputVar.dataType == DataNodeType.INT && isConstantInt(inputConst))
                             return ComparisonType.INT;
 
@@ -5018,11 +5143,11 @@ namespace Mariana.AVM2.Compiler {
                         return ComparisonType.NUMBER;
                     }
 
-                    if (isAnyOrUndefined(input1Ty) || isAnyOrUndefined(input2Ty))
+                    if (isAnyOrUndefined(leftType) || isAnyOrUndefined(rightType))
                         return ComparisonType.ANY;
 
-                    Class input1Class = m_compilation.getDataNodeClass(input1)!;
-                    Class input2Class = m_compilation.getDataNodeClass(input2)!;
+                    Class input1Class = m_compilation.getDataNodeClass(leftInput)!;
+                    Class input2Class = m_compilation.getDataNodeClass(rightInput)!;
                     var inputClassTagSet = new ClassTagSet(input1Class.tag, input2Class.tag);
 
                     if (!isStrictEquals && ClassTagSet.primitive.containsAll(inputClassTagSet)) {
@@ -5049,20 +5174,20 @@ namespace Mariana.AVM2.Compiler {
                 case ABCOp.greaterthan:
                 case ABCOp.ifgt:
                 case ABCOp.ifnle:
-                    if (input1.dataType == DataNodeType.UINT && isConstantZero(input2))
+                    if (leftInput.dataType == DataNodeType.UINT && isConstantZero(rightInput))
                         return ComparisonType.INT_ZERO_R;
                     goto default;
 
                 case ABCOp.lessthan:
                 case ABCOp.iflt:
                 case ABCOp.ifnge:
-                    if (input2.dataType == DataNodeType.UINT && isConstantZero(input1))
+                    if (rightInput.dataType == DataNodeType.UINT && isConstantZero(leftInput))
                         return ComparisonType.INT_ZERO_L;
                     goto default;
 
                 default: {
-                    DataNodeType input1Ty = input1.dataType;
-                    DataNodeType input2Ty = input2.dataType;
+                    DataNodeType input1Ty = leftInput.dataType;
+                    DataNodeType input2Ty = rightInput.dataType;
                     DataNodeType commonType = (input1Ty == input2Ty) ? input1Ty : DataNodeType.UNKNOWN;
 
                     switch (commonType) {
@@ -5077,7 +5202,7 @@ namespace Mariana.AVM2.Compiler {
                             return ComparisonType.STRING;
                     }
 
-                    if (isNumeric(input1.dataType) || isNumeric(input2.dataType)) {
+                    if (isNumeric(leftInput.dataType) || isNumeric(rightInput.dataType)) {
                         if (inputVar.dataType == DataNodeType.INT && isConstantInt(inputConst))
                             return ComparisonType.INT;
 
@@ -5087,7 +5212,7 @@ namespace Mariana.AVM2.Compiler {
                         return ComparisonType.NUMBER;
                     }
 
-                    if (isAnyOrUndefined(input1.dataType) || isAnyOrUndefined(input2.dataType))
+                    if (isAnyOrUndefined(leftInput.dataType) || isAnyOrUndefined(rightInput.dataType))
                         return ComparisonType.ANY;
 
                     return ComparisonType.OBJECT;
@@ -5158,6 +5283,16 @@ namespace Mariana.AVM2.Compiler {
                     _requireStackNodeAsType(ref left, DataNodeType.INT, instrId);
                     _markStackNodeAsNoPush(ref right);
                     _checkForIntegerModuloCompareZero(left);
+                    break;
+
+                case ComparisonType.BOOL_CONST_L:
+                    _requireStackNodeAsType(ref right, DataNodeType.BOOL, instrId);
+                    _markStackNodeAsNoPush(ref left);
+                    break;
+
+                case ComparisonType.BOOL_CONST_R:
+                    _requireStackNodeAsType(ref left, DataNodeType.BOOL, instrId);
+                    _markStackNodeAsNoPush(ref right);
                     break;
 
                 case ComparisonType.ANY_UNDEF_L:

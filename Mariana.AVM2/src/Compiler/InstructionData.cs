@@ -29,6 +29,7 @@ namespace Mariana.AVM2.Compiler {
         [FieldOffset(0)] public Add add;
         [FieldOffset(0)] public BinaryOp binaryOp;
         [FieldOffset(0)] public Compare compare;
+        [FieldOffset(0)] public IfTrueFalse ifTrueFalse;
         [FieldOffset(0)] public CompareBranch compareBranch;
         [FieldOffset(0)] public NewCatch newCatch;
         [FieldOffset(0)] public NewClass newClass;
@@ -272,6 +273,22 @@ namespace Mariana.AVM2.Compiler {
         }
 
         /// <summary>
+        /// Instruction-specific data for an iftrue/iffalse instruction.
+        /// </summary>
+        public struct IfTrueFalse {
+            /// <summary>
+            /// True if the input to the instruction is a constant that can be evaluated to true/false at
+            /// compile time.
+            /// </summary>
+            public bool isConstant;
+
+            /// <summary>
+            /// The branch to be taken for a constant evaluated condition, if <see cref="isConstant"/> is true.
+            /// </summary>
+            public bool constResult;
+        }
+
+        /// <summary>
         /// Instruction-specific data for a compare-and-branch instruction.
         /// </summary>
         public struct CompareBranch {
@@ -285,6 +302,12 @@ namespace Mariana.AVM2.Compiler {
             /// The type of comparison to be performed, based on the operand types.
             /// </summary>
             public ComparisonType compareType;
+
+            /// <summary>
+            /// The result of a compile-time evaluated comparison, if <see cref="compareType"/> is
+            /// <see cref="ComparisonType.CONSTANT"/>.
+            /// </summary>
+            public bool constResult;
         }
 
         /// <summary>

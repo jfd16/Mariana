@@ -7,6 +7,11 @@ namespace Mariana.AVM2.Compiler {
     internal enum ComparisonType : byte {
 
         /// <summary>
+        /// The comparison type has not yet been determined.
+        /// </summary>
+        NONE,
+
+        /// <summary>
         /// The comparison is an integer comparison. Operands must be converted to the
         /// signed integer type.
         /// </summary>
@@ -93,6 +98,16 @@ namespace Mariana.AVM2.Compiler {
         ANY_UNDEF_R,
 
         /// <summary>
+        /// An equality or inequality comparison of boolean values with the left operand being a constant.
+        /// </summary>
+        BOOL_CONST_L,
+
+        /// <summary>
+        /// An equality or inequality comparison of boolean values with the right operand being a constant.
+        /// </summary>
+        BOOL_CONST_R,
+
+        /// <summary>
         /// Used for the intrinsic expression patterns
         /// <c>int op str.charCodeAt(int)</c> and <c>const_str op str.charAt(int)</c>
         /// </summary>
@@ -103,6 +118,11 @@ namespace Mariana.AVM2.Compiler {
         /// <c>str.charCodeAt(int) op int</c> and <c>str.charAt(int) op const_str</c>
         /// </summary>
         STR_CHARAT_R,
+
+        /// <summary>
+        /// The comparison involves constant operands and has been evaluated at compile time.
+        /// </summary>
+        CONSTANT,
 
     }
 

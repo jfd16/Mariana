@@ -35,7 +35,6 @@ if (__name__ == "__main__"):
         for subdir in os.scandir("."):
             if (subdir.name.endswith(".Tests") or subdir.name in gitignores):
                 # Exclude test projects and those in .gitignore
-
                 continue
 
             csprojPath = path.join(subdir.name, subdir.name + ".csproj")
