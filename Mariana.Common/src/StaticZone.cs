@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
@@ -29,21 +28,36 @@ namespace Mariana.Common {
 
         private static object s_createDisposeLock = new object();
 
+        private static readonly StaticZone s_defaultZone = new StaticZone(DEFAULT_ZONE_ID);
+
         private static int s_nextZoneId = NON_DEFAULT_ZONE_ID_BEGIN;
+
         private static readonly Stack<int> s_availableIds = new Stack<int>();
 
         private static List<IZoneStaticData>[] s_registeredVarsByZoneId = Array.Empty<List<IZoneStaticData>>();
 
         /// <summary>
-        /// The zone ID of the active zone for the thread.
+        /// The current zone for this thread. Since thread static are initialized to null for
+        /// new threads, the current zone is the default zone if this is null.
+        /// </summary>
+        [ThreadStatic]
+        private static StaticZone? s_currentZone;
+
+        /// <summary>
+        /// The current zone ID for this thread.
         /// </summary>
         [ThreadStatic]
         private static int s_currentZoneId;
 
         /// <summary>
-        /// An identifier for this zone. This must be a value other than <see cref="DEFAULT_ZONE_ID"/>
+        /// An identifier for this zone used for indexing into zone-local data.
         /// </summary>
         private int m_id;
+
+        /// <summary>
+        /// The number of times this zone has been entered but not exited yet.
+        /// </summary>
+        private int m_enteredCount;
 
         /// <summary>
         /// Creates a new instance of <see cref="StaticZone"/>.
@@ -67,6 +81,19 @@ namespace Mariana.Common {
         }
 
         /// <summary>
+        /// This constructor is used to create <see cref="StaticZone"/> instance for the default zone.
+        /// </summary>
+        private StaticZone(int id) => m_id = id;
+
+        /// <summary>
+        /// Gets the <see cref="StaticZone"/> instance representing the default zone.
+        /// </summary>
+        /// <remarks>
+        /// The default zone is the zone that all new threads start in, and it cannot be disposed.
+        /// </remarks>
+        public static StaticZone defaultZone => s_defaultZone;
+
+        /// <summary>
         /// Returns the zone ID of the current zone.
         /// </summary>
         internal static int currentZoneId => s_currentZoneId;
@@ -76,7 +103,7 @@ namespace Mariana.Common {
         /// reads and writes to zone-local variables within the function will operate
         /// on the values that are associated with the zone.
         /// </summary>
-        /// <param name="action">The function to execute in this zone.</param>
+        /// <param name="action">The function to be called in this zone.</param>
         ///
         /// <exception cref="ArgumentNullException"><paramref name="action"/> is null.</exception>
         /// <exception cref="ObjectDisposedException">This <see cref="StaticZone"/> instance has
@@ -92,7 +119,23 @@ namespace Mariana.Common {
             if (m_id == DISPOSED_ZONE_ID)
                 throw new ObjectDisposedException(nameof(StaticZone));
 
-            _enterZoneWithIdAndRun(m_id, action);
+            ref StaticZone? currentZoneRef = ref s_currentZone;
+            ref int currentZoneIdRef = ref s_currentZoneId;
+
+            StaticZone? prevZone = currentZoneRef;
+            int prevZoneId = currentZoneIdRef;
+
+            try {
+                currentZoneRef = this;
+                currentZoneIdRef = m_id;
+                Interlocked.Increment(ref m_enteredCount);
+                action();
+            }
+            finally {
+                Interlocked.Decrement(ref m_enteredCount);
+                currentZoneRef = prevZone;
+                currentZoneIdRef = prevZoneId;
+            }
         }
 
         /// <summary>
@@ -102,7 +145,7 @@ namespace Mariana.Common {
         /// </summary>
         /// <param name="state">The state argument that will be passed into the call to
         /// <paramref name="action"/>.</param>
-        /// <param name="action">The function to execute in this zone.</param>
+        /// <param name="action">The function to be called in this zone.</param>
         ///
         /// <typeparam name="TState">The type of the state parameter of the function.</typeparam>
         ///
@@ -120,87 +163,64 @@ namespace Mariana.Common {
             if (m_id == DISPOSED_ZONE_ID)
                 throw new ObjectDisposedException(nameof(StaticZone));
 
-            _enterZoneWithIdAndRun(m_id, action, state);
-        }
+            ref StaticZone? currentZoneRef = ref s_currentZone;
+            ref int currentZoneIdRef = ref s_currentZoneId;
 
-        /// <summary>
-        /// Executes the given function outside of any static zone. All
-        /// reads and writes to zone-local variables within the function will operate
-        /// on the non-zone shared values of the variables.
-        /// </summary>
-        /// <param name="action">The function to be called outside of any static zone.</param>
-        ///
-        /// <remarks>If this method is called when not executing in a static zone (that is, not
-        /// from a function passed to <see cref="enterAndRun"/> or <see cref="enterAndRun{TState}"/>),
-        /// it has the same effect as a direct call to <paramref name="action"/>.</remarks>
-        ///
-        /// <exception cref="ArgumentNullException"><paramref name="action"/> is null.</exception>
-        public static void runOutsideCurrentZone(Action action) {
-            if (action == null)
-                throw new ArgumentNullException(nameof(action));
-
-            _enterZoneWithIdAndRun(DEFAULT_ZONE_ID, action);
-        }
-
-        /// <summary>
-        /// Executes the given function outside of any static zone. All
-        /// reads and writes to zone-local variables within the function will operate
-        /// on the non-zone shared values of the variables.
-        /// </summary>
-        /// <param name="state">The state argument that will be passed into the call to
-        /// <paramref name="action"/>.</param>
-        /// <param name="action">The function to be called outside of any static zone.</param>
-        ///
-        /// <typeparam name="TState">The type of the state parameter of the function.</typeparam>
-        ///
-        /// <remarks>If this method is called when not executing in a static zone (that is, not
-        /// from a function passed to <see cref="enterAndRun"/> or <see cref="enterAndRun{TState}"/>),
-        /// it has the same effect as a direct call to <paramref name="action"/>.</remarks>
-        public static void runOutsideCurrentZone<TState>(TState state, Action<TState> action) {
-            if (action == null)
-                throw new ArgumentNullException(nameof(action));
-
-            _enterZoneWithIdAndRun(DEFAULT_ZONE_ID, action, state);
-        }
-
-        /// <summary>
-        /// Calls the given function in the zone with the given ID.
-        /// </summary>
-        /// <param name="zoneId">The zone identifier, or <see cref="DEFAULT_ZONE_ID"/> to execute
-        /// the function in a non-zone context.</param>
-        /// <param name="action">The function to be called.</param>
-        private static void _enterZoneWithIdAndRun(int zoneId, Action action) {
-            ref int zoneIdRef = ref s_currentZoneId;
-            int prevZoneId = zoneIdRef;
+            StaticZone? prevZone = currentZoneRef;
+            int prevZoneId = currentZoneIdRef;
 
             try {
-                zoneIdRef = zoneId;
-                action();
-            }
-            finally {
-                zoneIdRef = prevZoneId;
-            }
-        }
-
-        /// <summary>
-        /// Calls the given function in the zone with the given ID.
-        /// </summary>
-        /// <param name="zoneId">The zone identifier, or <see cref="DEFAULT_ZONE_ID"/> to execute
-        /// the function in a non-zone context.</param>
-        /// <param name="action">The function to be called.</param>
-        /// <param name="state">The state argument to pass to the call to <paramref name="action"/>.</param>
-        /// <typeparam name="TState">The type of the state parameter of the callback function.</typeparam>
-        private static void _enterZoneWithIdAndRun<TState>(int zoneId, Action<TState> action, TState state) {
-            ref int zoneIdRef = ref s_currentZoneId;
-            int prevZoneId = zoneIdRef;
-
-            try {
-                zoneIdRef = zoneId;
+                currentZoneRef = this;
+                currentZoneIdRef = m_id;
+                Interlocked.Increment(ref m_enteredCount);
                 action(state);
             }
             finally {
-                zoneIdRef = prevZoneId;
+                Interlocked.Decrement(ref m_enteredCount);
+                currentZoneRef = prevZone;
+                currentZoneIdRef = prevZoneId;
             }
+        }
+
+        /// <summary>
+        /// Returns a delegate that, when invoked, invokes the given delegate in the
+        /// current <see cref="StaticZone"/> when this method is called. This can be used,
+        /// for instance, to preserve the current zone across threads or await boundaries.
+        /// </summary>
+        ///
+        /// <param name="action">The function to be called in the current zone.</param>
+        ///
+        /// <returns>A delegate that, when invoked, invokes <paramref name="action"/> in the
+        /// current <see cref="StaticZone"/> when this method is called, irrespective of the
+        /// zone from which the returned delegate is invoked.</returns>
+        public static Action captureCurrent(Action action) {
+            if (action == null)
+                throw new ArgumentNullException(nameof(action));
+
+            StaticZone capturedZone = s_currentZone ?? s_defaultZone;
+            return () => capturedZone.enterAndRun(action);
+        }
+
+        /// <summary>
+        /// Returns a delegate that, when invoked, invokes the given delegate in the
+        /// current <see cref="StaticZone"/> when this method is called. This can be used,
+        /// for instance, to preserve the current zone across threads or await boundaries.
+        /// </summary>
+        ///
+        /// <param name="state">The state argument that will be passed into the call to
+        /// <paramref name="action"/>.</param>
+        /// <param name="action">The function to be called in the current zone.</param>
+        /// <typeparam name="TState">The type of the state parameter of the function.</typeparam>
+        ///
+        /// <returns>A delegate that, when invoked, invokes <paramref name="action"/> in the
+        /// current <see cref="StaticZone"/> when this method is called, irrespective of the
+        /// zone from which the returned delegate is invoked.</returns>
+        public static Action captureCurrent<TState>(TState state, Action<TState> action) {
+            if (action == null)
+                throw new ArgumentNullException(nameof(action));
+
+            StaticZone capturedZone = s_currentZone ?? s_defaultZone;
+            return () => capturedZone.enterAndRun(state, action);
         }
 
         /// <summary>
@@ -222,17 +242,21 @@ namespace Mariana.Common {
         /// variable values in this zone that have attached disposers.
         /// </summary>
         ///
-        /// <exception cref="InvalidOperationException">An attempt is made to dispose the
-        /// active zone of the current thread (that is, this method is called from a function
-        /// passed to <see cref="enterAndRun"/> or <see cref="enterAndRun{TState}"/>.</exception>
+        /// <exception cref="InvalidOperationException">An attempt is made to dispose the default
+        /// zone, or a zone that is currently active (that is, a function passed to
+        /// <see cref="enterAndRun"/> or <see cref="enterAndRun{TState}"/> has not yet finished
+        /// executing).</exception>
         public void Dispose() {
-            if (m_id == DISPOSED_ZONE_ID)
-                return;
-
-            if (m_id == s_currentZoneId)
-                throw new InvalidOperationException("Cannot dispose the active zone.");
-
             lock (s_createDisposeLock) {
+                if (m_id == DISPOSED_ZONE_ID)
+                    return;
+
+                if (m_id == DEFAULT_ZONE_ID)
+                    throw new InvalidOperationException("Cannot dispose the default zone.");
+
+                if (m_enteredCount != 0)
+                    throw new InvalidOperationException("Cannot dispose a currently active zone.");
+
                 List<IZoneStaticData>[] variableCollections = Volatile.Read(ref s_registeredVarsByZoneId);
                 List<IZoneStaticData> trackedVars = variableCollections[m_id - NON_DEFAULT_ZONE_ID_BEGIN];
 
@@ -269,10 +293,6 @@ namespace Mariana.Common {
     /// <remarks>
     /// A zone-static variable has a value associated with each <see cref="StaticZone"/>,
     /// which is accessed when executing in that zone with <see cref="StaticZone.enterAndRun"/>.
-    /// In addition, each zone-static variable that is of a type <typeparamref name="T"/> that
-    /// does not implement <see cref="IDisposable"/> and that does not have an attached disposer
-    /// has a non-zone value, which is used when not executing in a static zone and is globally
-    /// shared.
     /// </remarks>
     public sealed class ZoneStaticData<T> : IZoneStaticData where T : class {
 
@@ -306,9 +326,8 @@ namespace Mariana.Common {
         }
 
         /// <summary>
-        /// Gets or sets the value of this zone-local variable in the currently executing
-        /// <see cref="StaticZone"/>, or the non-zone shared value if not executing
-        /// in a static zone.
+        /// Gets or sets the value of this zone-local variable associated with the current
+        /// <see cref="StaticZone"/>.
         /// </summary>
         ///
         /// <remarks>
@@ -335,9 +354,8 @@ namespace Mariana.Common {
         /// </description></item>
         /// <item><description>This is a disposable <see cref="ZoneStaticData{T}"/> (that is,
         /// <typeparamref name="T"/> implements <see cref="IDisposable"/> or a disposer was
-        /// provided when constructing this instance) and this property is accessed outside
-        /// of a function passed to and called by <see cref="StaticZone.enterAndRun"/> or
-        /// <see cref="StaticZone.enterAndRun{TState}"/></description></item>
+        /// provided when constructing this instance) and this property is accessed from the
+        /// default zone.</description></item>
         /// </list>
         /// </exception>
         ///
@@ -361,7 +379,7 @@ namespace Mariana.Common {
 
                 lock (m_lazyInitLock) {
                     if (zoneId == StaticZone.DEFAULT_ZONE_ID && m_disposer != null)
-                        throw new InvalidOperationException("Cannot access a disposable ZoneStaticData outside of a zone.");
+                        throw new InvalidOperationException("Cannot access a disposable ZoneStaticData from the default zone.");
 
                     // Resize the array if needed.
                     values = DataStructureUtil.volatileEnsureArraySize(ref m_zoneValues!, zoneId + 1);
@@ -395,29 +413,32 @@ namespace Mariana.Common {
                     throw new ArgumentNullException(nameof(value));
 
                 int zoneId = StaticZone.currentZoneId;
-                T? currentValue = null;
+                T? currentValue;
 
                 // We need to check if the value is already initialized before setting it
                 // because it will have to be registered in the zone if it is being set for
-                // the first time.
+                // the first time, and an existing value may have to be disposed.
+
                 T?[] values = Volatile.Read(ref m_zoneValues);
 
-                if ((uint)zoneId < (uint)values.Length)
-                    currentValue = Volatile.Read(ref values[zoneId]);
+                if ((uint)zoneId < (uint)values.Length) {
+                    ref T? currentValueRef = ref values[zoneId];
+                    currentValue = Volatile.Read(ref currentValueRef);
 
-                if (currentValue == value)
-                    return;
+                    if (currentValue == value)
+                        return;
 
-                if (currentValue != null) {
-                    // Already initialized, no need to register.
-                    m_disposer?.Invoke(currentValue);
-                    Volatile.Write(ref values[zoneId], value);
-                    return;
+                    if (currentValue != null) {
+                        // Already initialized, no need to register.
+                        m_disposer?.Invoke(currentValue);
+                        Volatile.Write(ref currentValueRef, value);
+                        return;
+                    }
                 }
 
                 lock (m_lazyInitLock) {
                     if (zoneId == StaticZone.DEFAULT_ZONE_ID && m_disposer != null)
-                        throw new InvalidOperationException("Cannot access a disposable ZoneStaticData outside of a zone.");
+                        throw new InvalidOperationException("Cannot access a disposable ZoneStaticData from the default zone.");
 
                     // Resize the array if needed.
                     values = DataStructureUtil.volatileEnsureArraySize(ref m_zoneValues!, zoneId + 1);

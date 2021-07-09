@@ -92,7 +92,8 @@ namespace Mariana.AVM2.Core {
         /// Creates a new Vector with data from the given span.
         /// </summary>
         ///
-        /// <param name="data">The span containing the elements of the <see cref="ASVector{T}"/> instance.</param>
+        /// <param name="data">The span containing the elements with which to initialize
+        /// the <see cref="ASVector{T}"/> instance</param>
         /// <param name="isFixed">A Boolean value indicating whether the vector has a fixed length. Any
         /// attempt to change the length of a fixed-length vector will result in an error.</param>
         public ASVector(ReadOnlySpan<T> data, bool isFixed = false) : this(data.Length, isFixed) {
@@ -103,7 +104,8 @@ namespace Mariana.AVM2.Core {
         /// Creates a new Vector with data from the given span.
         /// </summary>
         ///
-        /// <param name="data">The span containing the elements of the <see cref="ASVector{T}"/> instance.</param>
+        /// <param name="data">The span containing the elements with which to initialize
+        /// the <see cref="ASVector{T}"/> instance.</param>
         /// <param name="isFixed">A Boolean value indicating whether the vector has a fixed length. Any
         /// attempt to change the length of a fixed-length vector will result in an error.</param>
         public static ASVector<T> fromSpan(ReadOnlySpan<T> data, bool isFixed = false) =>
@@ -128,7 +130,8 @@ namespace Mariana.AVM2.Core {
         /// Creates a new Vector with data from the given span.
         /// </summary>
         ///
-        /// <param name="data">The span containing the elements of the <see cref="ASVector{T}"/> instance.</param>
+        /// <param name="data">The span containing the elements with which to initialize
+        /// the <see cref="ASVector{T}"/> instance</param>
         /// <param name="isFixed">A Boolean value indicating whether the vector has a fixed length. Any
         /// attempt to change the length of a fixed-length vector will result in an error.</param>
         public static ASVector<T> fromSpan(Span<T> data, bool isFixed = false) => fromSpan((ReadOnlySpan<T>)data, isFixed);
@@ -138,7 +141,8 @@ namespace Mariana.AVM2.Core {
         /// the vector's element type.
         /// </summary>
         ///
-        /// <param name="data">The span containing the elements of the <see cref="ASVector{T}"/> instance.</param>
+        /// <param name="data">The span containing the elements with which to initialize
+        /// the <see cref="ASVector{T}"/> instance</param>
         /// <param name="isFixed">A Boolean value indicating whether the vector has a fixed length. Any
         /// attempt to change the length of a fixed-length vector will result in an error.</param>
         /// <typeparam name="U">The type of the elements in <paramref name="data"/>.</typeparam>
@@ -148,8 +152,8 @@ namespace Mariana.AVM2.Core {
         /// Creates a new Vector with data from the given array.
         /// </summary>
         ///
-        /// <param name="data">The array containing the elements of the <see cref="ASVector{T}"/> instance
-        /// to be created.</param>
+        /// <param name="data">The array containing the elements with which to initialized the
+        /// <see cref="ASVector{T}"/> instance.</param>
         /// <param name="isFixed">A Boolean value indicating whether the vector has a fixed length. Any
         /// attempt to change the length of a fixed-length vector will result in an error.</param>
         public static ASVector<T> fromTypedArray(T[] data, bool isFixed = false) => fromSpan(new ReadOnlySpan<T>(data), isFixed);
@@ -159,8 +163,8 @@ namespace Mariana.AVM2.Core {
         /// the vector's element type.
         /// </summary>
         ///
-        /// <param name="data">The array containing the elements of the <see cref="ASVector{T}"/> instance
-        /// to be created.</param>
+        /// <param name="data">The array containing the elements with which to initialized the
+        /// <see cref="ASVector{T}"/> instance.</param>
         /// <param name="isFixed">A Boolean value indicating whether the vector has a fixed length. Any
         /// attempt to change the length of a fixed-length vector will result in an error.</param>
         /// <typeparam name="U">The type of the elements in <paramref name="data"/>.</typeparam>
@@ -175,13 +179,15 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         ///
         /// <param name="data">An <see cref="IEnumerable{T}"/> instance that enumerates the elements
-        /// of the <see cref="ASVector{T}"/> instance.</param>
+        /// with which to initialize the <see cref="ASVector{T}"/> instance.</param>
         /// <param name="isFixed">A Boolean value indicating whether the vector has a fixed length. Any
         /// attempt to change the length of a fixed-length vector will result in an error.</param>
         public static ASVector<T> fromEnumerable(IEnumerable<T> data, bool isFixed = false) {
             var vec = new ASVector<T>();
+
             foreach (T item in data)
                 vec.push(item);
+
             vec.@fixed = isFixed;
             return vec;
         }
@@ -192,15 +198,17 @@ namespace Mariana.AVM2.Core {
         /// </summary>
         ///
         /// <param name="data">An <see cref="IEnumerable{U}"/> instance that enumerates the elements
-        /// of the <see cref="ASVector{T}"/> instance.</param>
+        /// with which to initialize th <see cref="ASVector{T}"/> instance.</param>
         /// <param name="isFixed">A Boolean value indicating whether the vector has a fixed length. Any
         /// attempt to change the length of a fixed-length vector will result in an error.</param>
         /// <typeparam name="U">The type of the elements in <paramref name="data"/>.</typeparam>
         public static ASVector<T> fromEnumerable<U>(IEnumerable<U> data, bool isFixed = false) {
             var vec = new ASVector<T>(0, isFixed);
             var converter = GenericTypeConverter<U, T>.instance;
+
             foreach (U item in data)
                 vec.push(converter.convert(item));
+
             return vec;
         }
 

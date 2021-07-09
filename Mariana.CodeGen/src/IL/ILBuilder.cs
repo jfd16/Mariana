@@ -1311,7 +1311,7 @@ namespace Mariana.CodeGen.IL {
         /// 0.</exception>
         ///
         /// <remarks>
-        /// The only situation in which stack size has to be manually provided is after marking the
+        /// The only situation in which the stack size has to be manually provided is after marking the
         /// target of a backward branch with a non-empty stack. In all other cases, the
         /// <see cref="ILBuilder"/> computes the stack size automatically as instructions are
         /// emitted.
