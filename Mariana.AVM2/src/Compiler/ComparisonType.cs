@@ -24,6 +24,11 @@ namespace Mariana.AVM2.Compiler {
         UINT,
 
         /// <summary>
+        /// The comparison is a boolean equality comparison. Operands must be converted to the Boolean type.
+        /// </summary>
+        BOOL,
+
+        /// <summary>
         /// The comparison is a floating-point numeric comparison. Operands must be converted to the
         /// Number type.
         /// </summary>

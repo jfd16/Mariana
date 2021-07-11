@@ -2033,6 +2033,11 @@ namespace Mariana.AVM2.Compiler {
                         m_ilBuilder.emit(ILOp.ceq);
                         break;
 
+                    case ComparisonType.BOOL:
+                        _emitTypeCoerceForStackTop2(_left, _right, DataNodeType.BOOL, DataNodeType.BOOL);
+                        m_ilBuilder.emit(ILOp.ceq);
+                        break;
+
                     case ComparisonType.STRING:
                         _emitTypeCoerceForStackTop2(_left, _right, DataNodeType.STRING, DataNodeType.STRING);
                         m_ilBuilder.emit(ILOp.call, KnownMembers.strEquals, -1);
@@ -2230,7 +2235,7 @@ namespace Mariana.AVM2.Compiler {
                     }
 
                     default:
-                        Debug.Assert(false);
+                        Debug.Assert(false, $"Invalid compare type for non-equality comparison: {compareType}.");
                         break;
                 }
             }
@@ -3377,6 +3382,11 @@ namespace Mariana.AVM2.Compiler {
                     getILOpForIntCompare(instr.opcode, isUnsigned: true, out ilOp, out invIlOp);
                     break;
 
+                case ComparisonType.BOOL:
+                    _emitTypeCoerceForStackTop2(leftInputNode, rightInputNode, DataNodeType.BOOL, DataNodeType.BOOL);
+                    getILOpForIntCompare(instr.opcode, isUnsigned: true, out ilOp, out invIlOp);
+                    break;
+
                 case ComparisonType.NUMBER:
                     _emitTypeCoerceForStackTop2(leftInputNode, rightInputNode, DataNodeType.NUMBER, DataNodeType.NUMBER);
                     getILOpForFloatCompare(instr.opcode, out ilOp, out invIlOp);
@@ -4128,7 +4138,7 @@ namespace Mariana.AVM2.Compiler {
                     break;
 
                 default:
-                    Debug.Assert(false);
+                    Debug.Assert(false, $"Invalid data type for constant node: {node.dataType}.");
                     break;
             }
         }
@@ -6143,7 +6153,7 @@ namespace Mariana.AVM2.Compiler {
                         Debug.Assert(arg1.isNotNull);
                     }
                     else {
-                        Debug.Assert(false);
+                        Debug.Assert(false, "Namespace intrinsic constructor: Argument must be string or Namespace");
                     }
                     break;
 
@@ -6156,7 +6166,7 @@ namespace Mariana.AVM2.Compiler {
                         Debug.Assert(arg1.isNotNull);
                     }
                     else {
-                        Debug.Assert(false);
+                        Debug.Assert(false, "QName intrinsic constructor: Argument must be string or QName");
                     }
                     break;
 

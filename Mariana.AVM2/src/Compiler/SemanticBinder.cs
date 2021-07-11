@@ -5126,8 +5126,9 @@ namespace Mariana.AVM2.Compiler {
                         case DataNodeType.INT:
                             return ComparisonType.INT;
                         case DataNodeType.UINT:
-                        case DataNodeType.BOOL:
                             return ComparisonType.UINT;
+                        case DataNodeType.BOOL:
+                            return ComparisonType.BOOL;
                     }
 
                     bool leftIsNumeric = isNumeric(leftType);

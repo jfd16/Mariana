@@ -288,7 +288,7 @@ namespace Mariana.Common {
     /// <summary>
     /// A variable that is local to a <see cref="StaticZone"/>.
     /// </summary>
-    /// <typeparam name="T">The type of the variable. This muse be a reference type.</typeparam>
+    /// <typeparam name="T">The type of the variable. This must be a reference type.</typeparam>
     ///
     /// <remarks>
     /// A zone-static variable has a value associated with each <see cref="StaticZone"/>,
