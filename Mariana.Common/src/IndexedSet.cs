@@ -22,6 +22,8 @@ namespace Mariana.Common {
 
         private const int DEFAULT_INITIAL_CAPACITY = 4;
 
+        private const int HASH_CODE_MASK = 0x7FFFFFFF;
+
         private int m_count;
         private Slot[] m_slots;
         private int[] m_chains;
@@ -78,7 +80,7 @@ namespace Mariana.Common {
         /// <param name="obj">The element to find or add to the set.</param>
         /// <returns>The index of the element in the set.</returns>
         public int findOrAdd(T obj) {
-            int hash = obj.GetHashCode() & 0x7FFFFFFF;
+            int hash = obj.GetHashCode() & HASH_CODE_MASK;
             int chain = hash % m_chains.Length;
             int i = m_chains[chain];
 
@@ -126,7 +128,7 @@ namespace Mariana.Common {
         /// <param name="o">The element to find in the set.</param>
         /// <returns>The index of the element in the set, or -1 if it does not exist.</returns>
         public int find(T o) {
-            int hash = o.GetHashCode() & 0x7FFFFFFF;
+            int hash = o.GetHashCode() & HASH_CODE_MASK;
             int i = m_chains[hash % m_chains.Length];
 
             while (i != -1) {

@@ -149,7 +149,7 @@ namespace Mariana.AVM2.Core {
             // without an added object memory footprint while allowing a reasonable amount of
             // concurrency (which depends on the number of locks used).
 
-            int lockIndex = RuntimeHelpers.GetHashCode(this) % s_internalFieldInitLocks.Length;
+            int lockIndex = (int)((uint)RuntimeHelpers.GetHashCode(this) % (uint)s_internalFieldInitLocks.Length);
 
             lock (s_internalFieldInitLocks[lockIndex]) {
                 if (m_class != null)

@@ -33,6 +33,8 @@ namespace Mariana.Common {
         /// </summary>
         private const int DEFAULT_INITIAL_CAPACITY = 4;
 
+        private const int HASH_CODE_MASK = 0x7FFFFFFF;
+
         private int[] m_chains;
 
         private Slot[] m_slots;
@@ -84,7 +86,7 @@ namespace Mariana.Common {
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
-            int chain = (RuntimeHelpers.GetHashCode(key) & 0x7FFFFFFF) % m_chains.Length;
+            int chain = (RuntimeHelpers.GetHashCode(key) & HASH_CODE_MASK) % m_chains.Length;
             int i = m_chains[chain];
 
             while (i != -1) {
@@ -144,7 +146,7 @@ namespace Mariana.Common {
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
-            int hash = RuntimeHelpers.GetHashCode(key) & 0x7FFFFFFF;
+            int hash = RuntimeHelpers.GetHashCode(key) & HASH_CODE_MASK;
             int chain = hash % m_chains.Length;
             int i = m_chains[chain];
 
@@ -177,7 +179,7 @@ namespace Mariana.Common {
                     m_slots.AsSpan(0, m_count).CopyTo(newSlots);
 
                     for (int j = 0, n = m_count; j < n; j++) {
-                        int newChain = RuntimeHelpers.GetHashCode(newSlots[j].key) % newSize;
+                        int newChain = (RuntimeHelpers.GetHashCode(newSlots[j].key) & HASH_CODE_MASK) % newSize;
                         newSlots[j].next = newChains[newChain];
                         newChains[newChain] = j;
                     }
@@ -190,6 +192,8 @@ namespace Mariana.Common {
                 newIndex = m_count;
                 m_count++;
             }
+
+            //Console.WriteLine($"Creating at index: {newIndex}, chain: {chain}");
 
             ref Slot newSlot = ref m_slots[newIndex];
             ref int chainStart = ref m_chains[chain];
@@ -213,7 +217,7 @@ namespace Mariana.Common {
             if (key == null)
                 throw new ArgumentNullException(nameof(key));
 
-            int hash = RuntimeHelpers.GetHashCode(key) & 0x7FFFFFFF;
+            int hash = RuntimeHelpers.GetHashCode(key) & HASH_CODE_MASK;
             int path = hash % m_chains.Length;
             int prev = -1;
             int i = m_chains[path];

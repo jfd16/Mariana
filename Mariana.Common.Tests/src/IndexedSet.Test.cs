@@ -13,7 +13,7 @@ namespace Mariana.Common.Tests {
             public Key(int v) => this.v = v;
 
             public bool Equals(Key other) => v == other.v;
-            public override int GetHashCode() => v & 31;
+            public override int GetHashCode() => (v & 31) | unchecked((int)0x80000000u);
         }
 
         [Fact]

@@ -417,7 +417,7 @@ namespace Mariana.AVM2.Core {
             // Update the links for unqualified lookup.
 
             links = isStatic ? m_linksForStaticUnqalified : m_linksForInstUnqualified!;
-            hash = name.localName!.GetHashCode() & 0x7FFFFFFF;
+            hash = name.localName!.GetHashCode() & HASH_CODE_MASK;
             chain = hash % links.Length;
 
             links[newIndex].hash = hash;

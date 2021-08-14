@@ -20,6 +20,8 @@ namespace Mariana.AVM2.Core {
         // The initial table size for new instances.
         private const int INITIAL_SIZE = 5;
 
+        private const int HASH_CODE_MASK = 0x7FFFFFFF;
+
         private int m_emptyChainHead = -1;
         private int m_emptyCount;
 
@@ -76,7 +78,7 @@ namespace Mariana.AVM2.Core {
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(name));
 
             int hash = name.GetHashCode();
-            int i = m_chainHeads[(hash & 0x7FFFFFFF) % m_chainHeads.Length];
+            int i = m_chainHeads[(hash & HASH_CODE_MASK) % m_chainHeads.Length];
 
             while (i != -1) {
                 ref Slot slot = ref m_slots[i];
@@ -106,7 +108,7 @@ namespace Mariana.AVM2.Core {
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(name));
 
             int hash = name.GetHashCode();
-            int chain = (hash & 0x7FFFFFFF) % m_chainHeads.Length;
+            int chain = (hash & HASH_CODE_MASK) % m_chainHeads.Length;
             int i = m_chainHeads[chain];
 
             while (i != -1) {
@@ -136,14 +138,14 @@ namespace Mariana.AVM2.Core {
                     m_slots.AsSpan(0, m_count).CopyTo(newSlots);
 
                     for (int j = 0, n = m_count; j < n; j++) {
-                        int newChain = (newSlots[j].hash & 0x7FFFFFFF) % newSize;
+                        int newChain = (newSlots[j].hash & HASH_CODE_MASK) % newSize;
                         newSlots[j].next = newChainHeads[newChain];
                         newChainHeads[newChain] = j;
                     }
 
                     m_chainHeads = newChainHeads;
                     m_slots = newSlots;
-                    chain = (hash & 0x7FFFFFFF) % newSize;
+                    chain = (hash & HASH_CODE_MASK) % newSize;
                 }
 
                 newIndex = m_count++;
@@ -184,7 +186,7 @@ namespace Mariana.AVM2.Core {
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(name));
 
             int hash = name.GetHashCode();
-            int i = m_chainHeads[(hash & 0x7FFFFFFF) % m_chainHeads.Length];
+            int i = m_chainHeads[(hash & HASH_CODE_MASK) % m_chainHeads.Length];
 
             while (i != -1) {
                 ref Slot slot = ref m_slots[i];
@@ -274,7 +276,7 @@ namespace Mariana.AVM2.Core {
                 throw ErrorHelper.createError(ErrorCode.MARIANA__ARGUMENT_NULL, nameof(name));
 
             int hash = name.GetHashCode();
-            int chain = (hash & 0x7FFFFFFF) % m_chainHeads.Length;
+            int chain = (hash & HASH_CODE_MASK) % m_chainHeads.Length;
 
             int i = m_chainHeads[chain];
             ref int nextFromPrev = ref m_chainHeads[chain];
@@ -331,7 +333,7 @@ namespace Mariana.AVM2.Core {
                 Slot[] slots = table.m_slots;
                 int[] chainHeads = table.m_chainHeads;
 
-                int i = chainHeads[(hash & 0x7FFFFFFF) % chainHeads.Length];
+                int i = chainHeads[(hash & HASH_CODE_MASK) % chainHeads.Length];
 
                 while (i != -1) {
                     ref Slot slot = ref slots[i];

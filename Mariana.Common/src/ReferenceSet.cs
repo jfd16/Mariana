@@ -27,6 +27,8 @@ namespace Mariana.Common {
 
         private const int DEFAULT_INITIAL_CAPACITY = 4;
 
+        private const int HASH_CODE_MASK = 0x7FFFFFFF;
+
         private int[] m_chains;
 
         private Slot[] m_slots;
@@ -65,7 +67,7 @@ namespace Mariana.Common {
             if (item == null)
                 throw new ArgumentNullException(nameof(item));
 
-            int chain = (RuntimeHelpers.GetHashCode(item) & 0x7FFFFFFF) % m_chains.Length;
+            int chain = (RuntimeHelpers.GetHashCode(item) & HASH_CODE_MASK) % m_chains.Length;
             int i = m_chains[chain];
 
             while (i != -1) {
@@ -89,7 +91,7 @@ namespace Mariana.Common {
             if (item == null)
                 throw new ArgumentNullException(nameof(item));
 
-            int hash = RuntimeHelpers.GetHashCode(item) & 0x7FFFFFFF;
+            int hash = RuntimeHelpers.GetHashCode(item) & HASH_CODE_MASK;
             int chain = hash % m_chains.Length;
             int i = m_chains[chain];
 
@@ -117,7 +119,7 @@ namespace Mariana.Common {
                     m_slots.AsSpan(0, m_count).CopyTo(newSlots);
 
                     for (int j = 0, n = m_count; j < n; j++) {
-                        int newChain = RuntimeHelpers.GetHashCode(newSlots[j].value) % newSize;
+                        int newChain = (RuntimeHelpers.GetHashCode(newSlots[j].value) & HASH_CODE_MASK) % newSize;
                         newSlots[j].next = newChains[newChain];
                         newChains[newChain] = j;
                     }
@@ -151,7 +153,7 @@ namespace Mariana.Common {
             if (item == null)
                 throw new ArgumentNullException(nameof(item));
 
-            int hash = RuntimeHelpers.GetHashCode(item) & 2147483647;
+            int hash = RuntimeHelpers.GetHashCode(item) & HASH_CODE_MASK;
             int path = hash % m_chains.Length;
             int prev = -1;
             int i = m_chains[path];
