@@ -1978,7 +1978,7 @@ namespace Mariana.AVM2.Compiler {
 
             _emitTypeCoerceForStackTop2(leftInputNode, rightInputNode, DataNodeType.INT, DataNodeType.INT);
 
-            m_ilBuilder.emit(instr.opcode switch {
+            ILOp ilOp = instr.opcode switch {
                 ABCOp.add_i => ILOp.add,
                 ABCOp.subtract_i => ILOp.sub,
                 ABCOp.multiply_i => ILOp.mul,
@@ -1988,7 +1988,20 @@ namespace Mariana.AVM2.Compiler {
                 ABCOp.lshift => ILOp.shl,
                 ABCOp.rshift => ILOp.shr,
                 ABCOp.urshift => ILOp.shr_un
-            });
+            };
+
+            if ((int)ilOp >= (int)ILOp.shl && (int)ilOp <= (int)ILOp.shr_un) {
+                // Shift count must be bitwise ANDed with 31 according to ECMA spec
+                if (!rightInputNode.isConstant
+                    || !isInteger(rightInputNode.dataType)
+                    || (rightInputNode.constant.intValue & ~31) != 0)
+                {
+                    m_ilBuilder.emit(ILOp.ldc_i4, 31);
+                    m_ilBuilder.emit(ILOp.and);
+                }
+            }
+
+            m_ilBuilder.emit(ilOp);
         }
 
         private void _visitBinaryCompareOp(ref Instruction instr) {

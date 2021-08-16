@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -42,7 +43,38 @@ namespace Mariana.AVM2.Core {
         [ThreadStatic]
         private static ILBuilder? s_threadIlBuilder;
 
+        // Mono's implementation of DynamicILInfo (as of version 6.12.0) is incomplete, so
+        // check if we are running on a Mono runtime with an incomplete DynamicILInfo implementation
+        // and fallback to ILGenerator in this case.
+
+        private static readonly bool s_isDynamicILInfoFullyImplemented = _checkIfDynamicILInfoFullyImplemented();
+
+        private static bool _checkIfDynamicILInfoFullyImplemented() {
+            try {
+                var dynamicMethod = new DynamicMethod("_", typeof(void), Array.Empty<Type>(), typeof(RuntimeDispatch));
+                var dynamicILInfo = dynamicMethod.GetDynamicILInfo();
+
+                // Should support getting tokens for methods on generic types
+                var genericTypeMethod = typeof(Tuple<int, int>).GetProperty(nameof(Tuple<int, int>.Item1)).GetMethod;
+                dynamicILInfo.GetTokenFor(genericTypeMethod.MethodHandle, genericTypeMethod.DeclaringType.TypeHandle);
+
+                // Should support getting tokens for fields on generic types
+                var genericTypeField = typeof(ValueTuple<int, int>).GetField(nameof(ValueTuple<int, int>.Item1));
+                dynamicILInfo.GetTokenFor(genericTypeField.FieldHandle, genericTypeField.DeclaringType.TypeHandle);
+
+                // Should support SetLocalSignature
+                dynamicILInfo.SetLocalSignature(new byte[] {7, 0});
+
+                return true;
+            }
+            catch (NotImplementedException) {
+                return false;
+            }
+        }
+
         private static ILBuilder _getILBuilder(DynamicILInfo dynamicILInfo, int paramCount = 0) {
+            Debug.Assert(s_isDynamicILInfoFullyImplemented);
+
             ref DynamicMethodTokenProvider? tokenProvider = ref s_threadTokenProvider;
 
             if (tokenProvider == null)
@@ -71,10 +103,16 @@ namespace Mariana.AVM2.Core {
             Type[] paramTypes = new[] {typeof(ASAny), typeof(ASAny), typeof(bool)};
 
             var dynMethod = new DynamicMethod(methodName, returnType, paramTypes, field.underlyingFieldInfo.DeclaringType);
-            var dynILInfo = dynMethod.GetDynamicILInfo();
-            var ilWriter = _getILBuilder(dynILInfo);
-            _generateFieldStubInternal(field, _getILBuilder(dynILInfo));
-            ilWriter.createMethodBody().bindToDynamicILInfo(dynILInfo);
+
+            if (s_isDynamicILInfoFullyImplemented) {
+                var dynILInfo = dynMethod.GetDynamicILInfo();
+                var ilBuilder = _getILBuilder(dynILInfo);
+                _generateFieldStubInternal(field, ilBuilder);
+                ilBuilder.createMethodBody().bindToDynamicILInfo(dynILInfo);
+            }
+            else {
+                _generateFieldStubInternal(field, dynMethod.GetILGenerator());
+            }
 
             return ReflectUtil.makeDelegate<FieldStub>(dynMethod);
         }
@@ -121,28 +159,84 @@ namespace Mariana.AVM2.Core {
             }
         }
 
+        private static void _generateFieldStubInternal(FieldTrait field, ILGenerator generator) {
+            bool isReadOnly = field.underlyingFieldInfo.IsInitOnly;
+            bool isStatic = field.isStatic;
+
+            if (!isStatic) {
+                // Push target object.
+                generator.Emit(OpCodes.Ldarg_0);
+                ILEmitHelper.emitTypeCoerce(generator, null, field.declaringClass);
+            }
+
+            // If the field is not read-only then we need to decide whether
+            // to read or write depending on the read/write argument (the third one)
+            Label branchToSet = default;
+            if (!isReadOnly) {
+                branchToSet = generator.DefineLabel();
+                generator.Emit(OpCodes.Ldarg, 2);
+                generator.Emit(OpCodes.Brtrue, branchToSet);
+            }
+
+            if (isStatic)
+                generator.Emit(OpCodes.Ldsfld, field.underlyingFieldInfo);
+            else
+                generator.Emit(OpCodes.Ldfld, field.underlyingFieldInfo);
+
+            ILEmitHelper.emitTypeCoerceToAny(generator, field.fieldType);
+            generator.Emit(OpCodes.Ret);
+
+            if (!isReadOnly) {
+                generator.MarkLabel(branchToSet);
+                generator.Emit(OpCodes.Ldarg, 1);
+                ILEmitHelper.emitTypeCoerce(generator, null, field.fieldType);
+
+                if (isStatic)
+                    generator.Emit(OpCodes.Stsfld, field.underlyingFieldInfo);
+                else
+                    generator.Emit(OpCodes.Stfld, field.underlyingFieldInfo);
+
+                ILEmitHelper.emitPushConstant(generator, ASAny.undefined);
+                generator.Emit(OpCodes.Ret);
+            }
+        }
+
         public static MethodStub generateMethodStub(MethodTrait method) {
             string methodName = _createStubName(method.name, method.declaringClass);
             Type returnType = typeof(ASAny);
             Type[] paramTypes = new[] {typeof(ASAny), typeof(ReadOnlySpan<ASAny>)};
 
             var dynMethod = new DynamicMethod(methodName, returnType, paramTypes, method.underlyingMethodInfo.DeclaringType);
-            var dynILInfo = dynMethod.GetDynamicILInfo();
-            var ilBuilder = _getILBuilder(dynILInfo, method.paramCount);
 
             Class? recvType = method.isStatic ? null : method.declaringClass;
 
-            _generateMethodStubInternal(
-                method.underlyingMethodInfo,
-                recvType,
-                method.hasReturn,
-                method.returnType,
-                method.getParameters(),
-                method.hasRest,
-                ilBuilder
-            );
+            if (s_isDynamicILInfoFullyImplemented) {
+                var dynILInfo = dynMethod.GetDynamicILInfo();
+                var ilBuilder = _getILBuilder(dynILInfo, method.paramCount);
 
-            ilBuilder.createMethodBody().bindToDynamicILInfo(dynILInfo);
+                _generateMethodStubInternal(
+                    method.underlyingMethodInfo,
+                    recvType,
+                    method.hasReturn,
+                    method.returnType,
+                    method.getParameters(),
+                    method.hasRest,
+                    ilBuilder
+                );
+                ilBuilder.createMethodBody().bindToDynamicILInfo(dynILInfo);
+            }
+            else {
+                _generateMethodStubInternal(
+                    method.underlyingMethodInfo,
+                    recvType,
+                    method.hasReturn,
+                    method.returnType,
+                    method.getParameters(),
+                    method.hasRest,
+                    dynMethod.GetILGenerator()
+                );
+            }
+
             return ReflectUtil.makeDelegate<MethodStub>(dynMethod);
         }
 
@@ -152,20 +246,35 @@ namespace Mariana.AVM2.Core {
             Type[] paramTypes = new[] {typeof(ASAny), typeof(ReadOnlySpan<ASAny>)};
 
             var dynMethod = new DynamicMethod(methodName, returnType, paramTypes, ctor.declaringClass.underlyingType);
-            var dynILInfo = dynMethod.GetDynamicILInfo();
-            var ilBuilder = _getILBuilder(dynILInfo, ctor.paramCount);
 
-            _generateMethodStubInternal(
-                ctor.underlyingConstructorInfo,
-                receiverType: null,
-                hasReturn: true,
-                returnType: ctor.declaringClass,
-                parameters: ctor.getParameters(),
-                hasRest: ctor.hasRest,
-                builder: ilBuilder
-            );
+            if (s_isDynamicILInfoFullyImplemented) {
+                var dynILInfo = dynMethod.GetDynamicILInfo();
+                var ilBuilder = _getILBuilder(dynILInfo, ctor.paramCount);
 
-            ilBuilder.createMethodBody().bindToDynamicILInfo(dynILInfo);
+                _generateMethodStubInternal(
+                    ctor.underlyingConstructorInfo,
+                    receiverType: null,
+                    hasReturn: true,
+                    returnType: ctor.declaringClass,
+                    parameters: ctor.getParameters(),
+                    hasRest: ctor.hasRest,
+                    builder: ilBuilder
+                );
+
+                ilBuilder.createMethodBody().bindToDynamicILInfo(dynILInfo);
+            }
+            else {
+                _generateMethodStubInternal(
+                    ctor.underlyingConstructorInfo,
+                    receiverType: null,
+                    hasReturn: true,
+                    returnType: ctor.declaringClass,
+                    parameters: ctor.getParameters(),
+                    hasRest: ctor.hasRest,
+                    generator: dynMethod.GetILGenerator()
+                );
+            }
+
             return ReflectUtil.makeDelegate<MethodStub>(dynMethod);
         }
 
@@ -269,6 +378,108 @@ namespace Mariana.AVM2.Core {
                 ILEmitHelper.emitPushConstant(builder, ASAny.undefined);
 
             builder.emit(ILOp.ret);
+        }
+
+        private static void _generateMethodStubInternal(
+            MethodBase methodOrCtor,
+            Class? receiverType,
+            bool hasReturn,
+            Class? returnType,
+            ReadOnlyArrayView<MethodTraitParameter> parameters,
+            bool hasRest,
+            ILGenerator generator
+        ) {
+            var argsLengthLocal = generator.DeclareLocal(typeof(int));
+            generator.Emit(OpCodes.Ldarga, 1);
+            generator.Emit(OpCodes.Call, KnownMembers.roSpanOfAnyLength);
+            generator.Emit(OpCodes.Stloc, argsLengthLocal);
+
+            int paramCount = parameters.length;
+
+            if (receiverType != null) {
+                // Not a static method or constructor.
+                generator.Emit(OpCodes.Ldarg_0);
+                generator.Emit(OpCodes.Call, ILEmitHelper.getAnyCastMethod(receiverType));
+            }
+
+            // Load formal arguments.
+            for (int i = 0; i < paramCount; i++) {
+                MethodTraitParameter p = parameters[i];
+
+                if (!p.isOptional) {
+                    generator.Emit(OpCodes.Ldarga, 1);
+                    generator.Emit(OpCodes.Ldc_I4, i);
+                    generator.Emit(OpCodes.Call, KnownMembers.roSpanOfAnyGet);
+                    generator.Emit(OpCodes.Ldobj, typeof(ASAny));
+                    ILEmitHelper.emitTypeCoerce(generator, null, p.type);
+                    continue;
+                }
+
+                var label1 = generator.DefineLabel();
+                var label2 = generator.DefineLabel();
+
+                // If i >= argsLengthLocal then goto label1
+                generator.Emit(OpCodes.Ldc_I4, i);
+                generator.Emit(OpCodes.Ldloc, argsLengthLocal);
+                generator.Emit(OpCodes.Bge, label1);
+
+                // Push argument from arguments array
+                generator.Emit(OpCodes.Ldarga, 1);
+                generator.Emit(OpCodes.Ldc_I4, i);
+                generator.Emit(OpCodes.Call, KnownMembers.roSpanOfAnyGet);
+                generator.Emit(OpCodes.Ldobj, typeof(ASAny));
+                ILEmitHelper.emitTypeCoerce(generator, null, p.type);
+
+                if (!p.hasDefault)
+                    generator.Emit(OpCodes.Newobj, ILEmitHelper.getOptionalParamCtor(p.type));
+
+                generator.Emit(OpCodes.Br, label2);
+
+                generator.MarkLabel(label1);
+
+                // Push the default value (or OptionalParam.missing).
+                if (p.hasDefault)
+                    ILEmitHelper.emitPushConstantAsType(generator, p.defaultValue, p.type);
+                else
+                    generator.Emit(OpCodes.Ldsfld, ILEmitHelper.getOptionalParamMissingField(p.type));
+
+                generator.MarkLabel(label2);
+            }
+
+            if (hasRest) {
+                // Push the rest argument.
+                var label1 = generator.DefineLabel();
+                var label2 = generator.DefineLabel();
+
+                generator.Emit(OpCodes.Ldloc, argsLengthLocal);
+                generator.Emit(OpCodes.Ldc_I4, paramCount);
+                generator.Emit(OpCodes.Ble_Un, label1);
+
+                generator.Emit(OpCodes.Ldarga, 1);
+                generator.Emit(OpCodes.Ldc_I4, paramCount);
+                generator.Emit(OpCodes.Call, KnownMembers.roSpanOfAnySlice);
+                generator.Emit(OpCodes.Newobj, KnownMembers.restParamFromSpan);
+                generator.Emit(OpCodes.Br, label2);
+
+                generator.MarkLabel(label1);
+                generator.Emit(OpCodes.Call, KnownMembers.roSpanOfAnyEmpty);
+
+                generator.MarkLabel(label2);
+            }
+
+            // Call the method or constructor
+            if (methodOrCtor is ConstructorInfo ctorInfo)
+                generator.Emit(OpCodes.Newobj, ctorInfo);
+            else
+                generator.Emit((receiverType == null) ? OpCodes.Call : OpCodes.Callvirt, (MethodInfo)methodOrCtor);
+
+            // Return.
+            if (hasReturn)
+                ILEmitHelper.emitTypeCoerceToAny(generator, returnType);
+            else
+                ILEmitHelper.emitPushConstant(generator, ASAny.undefined);
+
+            generator.Emit(OpCodes.Ret);
         }
 
         private static string _createStubName(QName traitName, Class? declClass) {

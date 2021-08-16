@@ -1,5 +1,6 @@
 using System;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using Mariana.AVM2.Core;
 using Mariana.CodeGen.IL;
@@ -522,7 +523,7 @@ namespace Mariana.AVM2.Compiler {
                     builder.emit(ILOp.ldc_i4, (int)value);
                     break;
                 case ClassTag.NUMBER:
-                    builder.emit(ILOp.ldc_r8, (double)value);
+                    emitPushDoubleConstant(builder, (double)value);
                     break;
                 case ClassTag.BOOLEAN:
                     builder.emit(ILOp.ldc_i4, (bool)value ? 1 : 0);
@@ -657,6 +658,430 @@ namespace Mariana.AVM2.Compiler {
             builder.emit(ILOp.call, KnownMembers.createExceptionFromCodeAndMsg, -2);
             builder.emit(ILOp.@throw);
         }
+
+#region ILGenerator methods
+
+        /// <summary>
+        /// Emits IL instructions to convert the value on top of the stack from one type to another.
+        /// </summary>
+        /// <param name="generator">The <see cref="ILGenerator"/> instance in which to emit the
+        /// code.</param>
+        /// <param name="fromType">The type of the value on top of the stack.</param>
+        /// <param name="toType">The type to convert the value to.</param>
+        /// <param name="useNativeDoubleToIntConv">Set to true to use native conversions when converting from
+        /// Number to int/uint.</param>
+        public static void emitTypeCoerce(ILGenerator generator, Class? fromType, Class? toType, bool useNativeDoubleToIntConv = false) {
+            if (fromType == toType)
+                return;
+
+            if (toType == null) {
+                emitTypeCoerceToAny(generator, fromType);
+                return;
+            }
+
+            switch (toType.tag) {
+                case ClassTag.INT:
+                    emitTypeCoerceToInt(generator, fromType);
+                    return;
+                case ClassTag.UINT:
+                    emitTypeCoerceToUint(generator, fromType);
+                    return;
+                case ClassTag.NUMBER:
+                    emitTypeCoerceToNumber(generator, fromType);
+                    return;
+                case ClassTag.BOOLEAN:
+                    emitTypeCoerceToBoolean(generator, fromType);
+                    return;
+                case ClassTag.STRING:
+                    emitTypeCoerceToString(generator, fromType);
+                    return;
+            }
+
+            // Target type is an object type.
+
+            if (fromType == null) {
+                if (toType.isObjectClass) {
+                    emitTypeCoerceToObject(generator, fromType);
+                }
+                else {
+                    MethodInfo castMethod = getAnyCastMethod(toType);
+                    generator.Emit(OpCodes.Call, castMethod);
+                }
+                return;
+            }
+
+            emitTypeCoerceToObject(generator, fromType);
+
+            if (!fromType.canAssignTo(toType)) {
+                MethodInfo castMethod = getObjectCastMethod(toType);
+                generator.Emit(OpCodes.Call, castMethod);
+            }
+        }
+
+        /// <summary>
+        /// Emits IL instructions to convert the value on top of the stack to the "any" type.
+        /// </summary>
+        /// <param name="generator">The <see cref="ILGenerator"/> instance in which to emit the
+        /// code.</param>
+        /// <param name="fromType">The type of the value on top of the stack.</param>
+        public static void emitTypeCoerceToAny(ILGenerator generator, Class? fromType) {
+            if (fromType == null)   // No-op
+                return;
+
+            switch (fromType.tag) {
+                case ClassTag.INT:
+                    generator.Emit(OpCodes.Call, KnownMembers.intToAny);
+                    break;
+                case ClassTag.UINT:
+                    generator.Emit(OpCodes.Call, KnownMembers.uintToAny);
+                    break;
+                case ClassTag.NUMBER:
+                    generator.Emit(OpCodes.Call, KnownMembers.numberToAny);
+                    break;
+                case ClassTag.STRING:
+                    generator.Emit(OpCodes.Call, KnownMembers.stringToAny);
+                    break;
+                case ClassTag.BOOLEAN:
+                    generator.Emit(OpCodes.Call, KnownMembers.boolToAny);
+                    break;
+                default:
+                    if (fromType.isInterface)
+                        generator.Emit(OpCodes.Castclass, typeof(ASObject));
+                    generator.Emit(OpCodes.Call, KnownMembers.anyFromObject);
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Emits IL instructions to convert the value on top of the stack to the int type.
+        /// </summary>
+        /// <param name="generator">The <see cref="ILGenerator"/> instance in which to emit the
+        /// code.</param>
+        /// <param name="fromType">The type of the value on top of the stack.</param>
+        public static void emitTypeCoerceToInt(ILGenerator generator, Class? fromType) {
+            if (fromType == null) {
+                generator.Emit(OpCodes.Call, KnownMembers.anyToInt);
+                return;
+            }
+
+            switch (fromType.tag) {
+                case ClassTag.INT:
+                case ClassTag.UINT:
+                    // No-op
+                    break;
+                case ClassTag.BOOLEAN:
+                    generator.Emit(OpCodes.Ldc_I4_0);
+                    generator.Emit(OpCodes.Cgt_Un);
+                    break;
+
+                case ClassTag.NUMBER:
+                    generator.Emit(OpCodes.Call, KnownMembers.numberToInt);
+                    break;
+
+                case ClassTag.STRING:
+                    generator.Emit(OpCodes.Call, KnownMembers.stringToInt);
+                    break;
+
+                default:
+                    // Object type.
+                    if (fromType.isInterface)
+                        generator.Emit(OpCodes.Castclass, typeof(ASObject));
+                    generator.Emit(OpCodes.Call, KnownMembers.objectToInt);
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Emits IL instructions to convert the value on top of the stack to the uint type.
+        /// </summary>
+        /// <param name="generator">The <see cref="ILGenerator"/> instance in which to emit the
+        /// code.</param>
+        /// <param name="fromType">The type of the value on top of the stack.</param>
+        /// <param name="useNativeDoubleToIntConv">Set to true to use native conversions when converting from
+        /// Number to int/uint.</param>
+        public static void emitTypeCoerceToUint(ILGenerator generator, Class? fromType) {
+            if (fromType == null) {
+                generator.Emit(OpCodes.Call, KnownMembers.anyToUint);
+                return;
+            }
+
+            switch (fromType.tag) {
+                case ClassTag.INT:
+                case ClassTag.UINT:
+                    // No-op
+                    break;
+                case ClassTag.BOOLEAN:
+                    generator.Emit(OpCodes.Ldc_I4_0);
+                    generator.Emit(OpCodes.Cgt_Un);
+                    break;
+
+                case ClassTag.NUMBER:
+                    generator.Emit(OpCodes.Call, KnownMembers.numberToUint);
+                    break;
+
+                case ClassTag.STRING:
+                    generator.Emit(OpCodes.Call, KnownMembers.stringToUint);
+                    break;
+
+                default:
+                    // Object type.
+                    if (fromType.isInterface)
+                        generator.Emit(OpCodes.Castclass, typeof(ASObject));
+                    generator.Emit(OpCodes.Call, KnownMembers.objectToUint);
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Emits IL instructions to convert the value on top of the stack to the Number type.
+        /// </summary>
+        /// <param name="generator">The <see cref="ILGenerator"/> instance in which to emit the
+        /// code.</param>
+        /// <param name="fromType">The type of the value on top of the stack.</param>
+        public static void emitTypeCoerceToNumber(ILGenerator generator, Class? fromType) {
+            if (fromType == null) {
+                generator.Emit(OpCodes.Call, KnownMembers.anyToNumber);
+                return;
+            }
+
+            switch (fromType.tag) {
+                case ClassTag.INT:
+                    generator.Emit(OpCodes.Conv_R8);
+                    break;
+                case ClassTag.UINT:
+                    generator.Emit(OpCodes.Conv_R_Un);
+                    break;
+                case ClassTag.BOOLEAN:
+                    generator.Emit(OpCodes.Ldc_I4_0);
+                    generator.Emit(OpCodes.Cgt_Un);
+                    generator.Emit(OpCodes.Conv_R8);
+                    break;
+                case ClassTag.NUMBER:
+                    // No-op
+                    break;
+                case ClassTag.STRING:
+                    generator.Emit(OpCodes.Call, KnownMembers.stringToNumber);
+                    break;
+                default:
+                    // Object type.
+                    if (fromType.isInterface)
+                        generator.Emit(OpCodes.Castclass, typeof(ASObject));
+                    generator.Emit(OpCodes.Call, KnownMembers.objectToNumber);
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Emits IL instructions to convert the value on top of the stack to the Number type.
+        /// </summary>
+        ///
+        /// <param name="generator">The <see cref="ILGenerator"/> instance in which to emit the
+        /// code.</param>
+        /// <param name="fromType">The type of the value on top of the stack.</param>
+        /// <param name="convert">If this is true, convert null and undefined to their string
+        /// representations "null" and "undefined" respectively (instead of the null string).</param>
+        public static void emitTypeCoerceToString(ILGenerator generator, Class? fromType, bool convert = false) {
+            if (fromType == null) {
+                generator.Emit(OpCodes.Call, convert ? KnownMembers.anyToStringConvert : KnownMembers.anyToStringCoerce);
+                return;
+            }
+
+            switch (fromType.tag) {
+                case ClassTag.INT:
+                    generator.Emit(OpCodes.Call, KnownMembers.intToString);
+                    break;
+                case ClassTag.UINT:
+                    generator.Emit(OpCodes.Call, KnownMembers.uintToString);
+                    break;
+                case ClassTag.BOOLEAN:
+                    generator.Emit(OpCodes.Call, KnownMembers.boolToString);
+                    break;
+                case ClassTag.NUMBER:
+                    generator.Emit(OpCodes.Call, KnownMembers.numberToString);
+                    break;
+
+                case ClassTag.STRING:
+                    if (convert) {
+                        var label = generator.DefineLabel();
+                        generator.Emit(OpCodes.Dup);
+                        generator.Emit(OpCodes.Brtrue, label);
+                        generator.Emit(OpCodes.Pop);
+                        generator.Emit(OpCodes.Ldstr, "null");
+                        generator.MarkLabel(label);
+                    }
+                    break;
+
+                default:
+                    // Object type.
+                    if (fromType.isInterface)
+                        generator.Emit(OpCodes.Castclass, typeof(ASObject));
+                    generator.Emit(OpCodes.Call, convert ? KnownMembers.objectToStringConvert : KnownMembers.objectToStringCoerce);
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Emits IL instructions to convert the value on top of the stack to the Boolean type.
+        /// </summary>
+        /// <param name="generator">The <see cref="ILGenerator"/> instance in which to emit the
+        /// code.</param>
+        /// <param name="fromType">The type of the value on top of the stack.</param>
+        public static void emitTypeCoerceToBoolean(ILGenerator generator, Class? fromType) {
+            if (fromType == null) {
+                generator.Emit(OpCodes.Call, KnownMembers.anyToBool);
+                return;
+            }
+
+            switch (fromType.tag) {
+                case ClassTag.INT:
+                case ClassTag.UINT:
+                    generator.Emit(OpCodes.Ldc_I4_0);
+                    generator.Emit(OpCodes.Cgt_Un);
+                    break;
+                case ClassTag.BOOLEAN:
+                    // No-op
+                    break;
+                case ClassTag.NUMBER:
+                    generator.Emit(OpCodes.Call, KnownMembers.numberToBool);
+                    break;
+                case ClassTag.STRING:
+                    generator.Emit(OpCodes.Call, KnownMembers.stringToBool);
+                    break;
+                default:
+                    // Object type.
+                    if (fromType.isObjectClass) {
+                        generator.Emit(OpCodes.Call, KnownMembers.objectToBool);
+                    }
+                    else {
+                        generator.Emit(OpCodes.Ldnull);
+                        generator.Emit(OpCodes.Cgt_Un);
+                    }
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Emits IL instructions to convert the value on top of the stack to the Object type.
+        /// </summary>
+        /// <param name="generator">The <see cref="ILGenerator"/> instance in which to emit the
+        /// code.</param>
+        /// <param name="fromType">The type of the value on top of the stack.</param>
+        public static void emitTypeCoerceToObject(ILGenerator generator, Class? fromType) {
+            if (fromType == null) {
+                var tempvar = generator.DeclareLocal(typeof(ASAny));
+                generator.Emit(OpCodes.Stloc, tempvar);
+                generator.Emit(OpCodes.Ldloca, tempvar);
+                generator.Emit(OpCodes.Call, KnownMembers.anyGetObject);
+                return;
+            }
+
+            switch (fromType.tag) {
+                case ClassTag.INT:
+                    generator.Emit(OpCodes.Call, KnownMembers.intToObject);
+                    break;
+                case ClassTag.UINT:
+                    generator.Emit(OpCodes.Call, KnownMembers.uintToObject);
+                    break;
+                case ClassTag.NUMBER:
+                    generator.Emit(OpCodes.Call, KnownMembers.numberToObject);
+                    break;
+                case ClassTag.STRING:
+                    generator.Emit(OpCodes.Call, KnownMembers.stringToObject);
+                    break;
+                case ClassTag.BOOLEAN:
+                    generator.Emit(OpCodes.Call, KnownMembers.boolToObject);
+                    break;
+                default:
+                    if (fromType.isInterface)
+                        // We assume that AS3 code doesn't need to handle non-AS objects implementing
+                        // interfaces, so use castclass instead of calling AS_cast.
+                        generator.Emit(OpCodes.Castclass, typeof(ASObject));
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Emits IL instructions to push a constant value onto the stack.
+        /// </summary>
+        /// <param name="generator">The <see cref="ILGenerator"/> instance in which to emit the
+        /// code.</param>
+        /// <param name="value">The constant. This must be of one of the following types: int, uint,
+        /// Number, String, Boolean or Namespace, or the value null or undefined.</param>
+        public static void emitPushConstant(ILGenerator generator, ASAny value) {
+            if (value.isUndefined) {
+                generator.Emit(OpCodes.Ldsfld, KnownMembers.undefinedField);
+                return;
+            }
+            if (value.isNull) {
+                generator.Emit(OpCodes.Ldnull);
+                return;
+            }
+
+            switch (value.AS_class!.tag) {
+                case ClassTag.INT:
+                case ClassTag.UINT:
+                    generator.Emit(OpCodes.Ldc_I4, (int)value);
+                    break;
+                case ClassTag.NUMBER:
+                    generator.Emit(OpCodes.Ldc_R8, (double)value);
+                    break;
+                case ClassTag.BOOLEAN:
+                    generator.Emit(OpCodes.Ldc_I4, (bool)value ? 1 : 0);
+                    break;
+                case ClassTag.STRING:
+                    generator.Emit(OpCodes.Ldstr, ((string)value)!);
+                    break;
+                case ClassTag.NAMESPACE:
+                    generator.Emit(OpCodes.Ldstr, ((ASNamespace)value)!.uri);
+                    generator.Emit(OpCodes.Newobj, KnownMembers.xmlNsCtorFromURI);
+                    break;
+                default:
+                    throw new ArgumentException("Invalid constant type.", nameof(value));
+            }
+        }
+
+        /// <summary>
+        /// Emits IL instructions to push a constant value onto the stack and coerce the value
+        /// to the given type.
+        /// </summary>
+        /// <param name="generator">The <see cref="ILGenerator"/> instance in which to emit the
+        /// code.</param>
+        /// <param name="value">The constant. This must be of one of the following types: int, uint,
+        /// Number, String, Boolean or Namespace, or the value null or undefined.</param>
+        /// <param name="type">The type to coerce the constant value to.</param>
+        public static void emitPushConstantAsType(ILGenerator generator, ASAny value, Class? type) {
+            if (type == null) {
+                emitPushConstant(generator, value);
+
+                if (value.isUndefined)
+                    return;
+
+                if (value.isNull || !value.AS_class!.isPrimitiveClass)
+                    generator.Emit(OpCodes.Call, KnownMembers.anyFromObject);
+                else
+                    emitTypeCoerce(generator, value.AS_class, type);
+            }
+            else if (value.isUndefinedOrNull) {
+                if (!ClassTagSet.numericOrBool.contains(type.tag)) {
+                    generator.Emit(OpCodes.Ldnull);
+                }
+                else if (type.tag == ClassTag.NUMBER) {
+                    generator.Emit(OpCodes.Ldc_R8, value.isUndefined ? Double.NaN : 0.0);
+                }
+                else {
+                    // Integer or boolean - default value is 0 (which is also boolean false)
+                    generator.Emit(OpCodes.Ldc_I4_0);
+                }
+            }
+            else {
+                emitPushConstant(generator, value);
+                Class valueType = value.AS_class!;
+                if (valueType != type)
+                    emitTypeCoerce(generator, valueType, type);
+            }
+        }
+
+#endregion
 
     }
 
