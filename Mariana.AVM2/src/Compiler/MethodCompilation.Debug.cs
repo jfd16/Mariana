@@ -71,6 +71,9 @@ namespace Mariana.AVM2.Compiler {
                             resolvedPropertyToString(instr.data.findProperty.resolvedPropId)
                         );
                     }
+                    else {
+                        sb.Append(", resolved = runtime");
+                    }
                     break;
 
                 case ABCOp.callproplex:

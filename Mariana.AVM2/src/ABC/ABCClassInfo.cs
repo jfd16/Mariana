@@ -94,29 +94,35 @@ namespace Mariana.AVM2.ABC {
         /// this class.</returns>
         public ReadOnlyArrayView<ABCTraitInfo> getStaticTraits() => new ReadOnlyArrayView<ABCTraitInfo>(m_staticTraits);
 
-        internal ABCClassInfo(
-            int abcIndex, in QName name, ABCMultiname parentName, ABCMultiname[] ifaceNames, Namespace protectedNs, ABCClassFlags flags)
-        {
+        internal ABCClassInfo(int abcIndex) {
             m_abcIndex = abcIndex;
-            m_name = name;
-            m_parentName = parentName;
-            m_ifaceNames = ifaceNames;
-            m_protectedNs = protectedNs;
-            m_flags = flags;
 
-            // These will be set from setInstanceInfo and setStaticInfo
+            // This will be set from init()
+            m_ifaceNames = null!;
+
+            // These will be set from initInstanceInfo and initStaticInfo
             m_instanceInit = null!;
             m_instanceTraits = null!;
             m_staticInit = null!;
             m_staticTraits = null!;
         }
 
-        internal void setInstanceInfo(ABCMethodInfo instanceInit, ABCTraitInfo[] instanceTraits) {
+        internal void init(
+            in QName name, ABCMultiname parentName, ABCMultiname[] ifaceNames, Namespace protectedNs, ABCClassFlags flags)
+        {
+            m_name = name;
+            m_parentName = parentName;
+            m_ifaceNames = ifaceNames;
+            m_protectedNs = protectedNs;
+            m_flags = flags;
+        }
+
+        internal void initInstanceInfo(ABCMethodInfo instanceInit, ABCTraitInfo[] instanceTraits) {
             m_instanceInit = instanceInit;
             m_instanceTraits = instanceTraits;
         }
 
-        internal void setStaticInfo(ABCMethodInfo staticInit, ABCTraitInfo[] staticTraits) {
+        internal void initStaticInfo(ABCMethodInfo staticInit, ABCTraitInfo[] staticTraits) {
             m_staticInit = staticInit;
             m_staticTraits = staticTraits;
         }

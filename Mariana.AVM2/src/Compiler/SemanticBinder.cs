@@ -2707,33 +2707,45 @@ namespace Mariana.AVM2.Compiler {
                 }
 
                 case TraitType.CLASS: {
-                    if (!isInit
-                        || !m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCRIPT_INIT)
-                        || value.dataType != DataNodeType.CLASS)
-                    {
+                    if (!isInit || value.dataType != DataNodeType.CLASS)
                         return false;
-                    }
 
                     Class classBeingAssigned = value.constant.classValue;
+                    Class traitClassImpl = ((Class)trait).getClassImpl();
 
-                    if (classBeingAssigned == trait) {
+                    if (traitClassImpl != classBeingAssigned.getClassImpl()) {
+                        // If a class is being assigned to a trait that represents a different class using
+                        // initproperty, the assignment must fail silently if the class that is the target
+                        // of the assignment is the class in the current appdomain having the same name
+                        // as the class being assigned, and the global conflict resolution strategy
+                        // is not "fail".
+
                         using var lockedContext = m_compilation.getContext();
-                        return lockedContext.value.getExportingScript(trait) == m_compilation.currentScriptInfo;
+
+                        return trait.declaringClass == null
+                            && m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCRIPT_INIT)
+                            && m_compilation.compileOptions.appDomainConflictResolution != AppDomainConflictResolution.FAIL
+                            && trait == lockedContext.value.getGlobalTraitByQName(classBeingAssigned.name);
                     }
 
-                    // If a class constant is being assigned to a different trait via initproperty,
-                    // it may be the case that the resolved trait is from the parent application domain
-                    // and it has the same name as the class, and this prevented the class from being
-                    // registered in the script's application domain if appDomainConflictResolution is
-                    // set to USE_PARENT. In that case, we have to fail silently.
+                    if (trait.declaringClass == null) {
+                        if (!m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCRIPT_INIT))
+                            return false;
 
-                    if (m_compilation.compileOptions.appDomainConflictResolution != AppDomainConflictResolution.USE_PARENT)
-                        return false;
+                        using var lockedContext = m_compilation.getContext();
 
-                    if (trait == m_compilation.applicationDomain.parent!.getGlobalTrait(classBeingAssigned.name))
-                        return true;
+                        if (lockedContext.value.getExportingScript(trait) != m_compilation.currentScriptInfo)
+                            return false;
+                    }
+                    else {
+                        if (!m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_STATIC_INIT)
+                            || trait.declaringClass != m_compilation.declaringClass)
+                        {
+                            return false;
+                        }
+                    }
 
-                    return false;
+                    return true;
                 }
 
                 case TraitType.CONSTANT:
@@ -4473,11 +4485,8 @@ namespace Mariana.AVM2.Compiler {
             using var lockedContext = m_compilation.getContext();
             ScriptClass klass = lockedContext.value.getClassFromClassInfo(instr.data.newClass.classInfoId);
 
-            if (!m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCRIPT_INIT)
-                || lockedContext.value.getExportingScript(klass) != m_compilation.currentScriptInfo)
-            {
+            if (!m_compilation.isAnyFlagSet(MethodCompilationFlags.IS_SCRIPT_INIT | MethodCompilationFlags.IS_STATIC_INIT))
                 throw m_compilation.createError(ErrorCode.MARIANA__ABC_NEWCLASS_SCRIPT_INIT, instr.id);
-            }
 
             if (lockedContext.value.getClassCapturedScope(klass) != null) {
                 // If a captured scope has already been set, it means that we are "creating"

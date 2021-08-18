@@ -435,6 +435,14 @@ namespace Mariana.AVM2.ABC {
             int classCount = _readU30();
             var classInfoArr = new ABCClassInfo[classCount];
 
+            // Since a class can refer to another via a class trait in its instance_info
+            // or static_info traits, we must create all ABCClassInfo instances upfront.
+
+            for (int i = 0; i < classInfoArr.Length; i++)
+                classInfoArr[i] = new ABCClassInfo(i);
+
+            m_abcFile.setClassInfo(classInfoArr);
+
             // Read instance_info
 
             for (int i = 0; i < classInfoArr.Length; i++) {
@@ -479,20 +487,16 @@ namespace Mariana.AVM2.ABC {
                 ABCMethodInfo instanceInit = m_abcFile.resolveMethodInfo(_readU30());
                 ABCTraitInfo[] traits = _readTraitInfo(_readU30());
 
-                classInfoArr[i] = new ABCClassInfo(
-                    i, classQualifiedName, parentName, interfaceNames, protectedNS, flags);
-
-                classInfoArr[i].setInstanceInfo(instanceInit, traits);
+                classInfoArr[i].init(classQualifiedName, parentName, interfaceNames, protectedNS, flags);
+                classInfoArr[i].initInstanceInfo(instanceInit, traits);
             }
 
             // Read class_info
             for (int i = 0; i < classCount; i++) {
                 ABCMethodInfo staticInit = m_abcFile.resolveMethodInfo(_readU30());
                 ABCTraitInfo[] traits = _readTraitInfo(_readU30());
-                classInfoArr[i].setStaticInfo(staticInit, traits);
+                classInfoArr[i].initStaticInfo(staticInit, traits);
             }
-
-            m_abcFile.setClassInfo(classInfoArr);
         }
 
         private ABCTraitInfo[] _readTraitInfo(int count) {

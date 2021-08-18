@@ -212,7 +212,7 @@
 10354   VerifyError             Invalid trait kind '$1' in activation object of method '$2': Only Slot and Const traits are allowed.
 10355   VerifyError             Invalid use of GenericClassName. (method: $1, offset: $2)
 10356   VerifyError             Invalid exception handler index for newcatch instruction. (method: $1, offset: $2)
-10357   VerifyError             newclass is allowed only in the initializer for the script exporting the class. (method: $1, offset: $2)
+10357   VerifyError             newclass is allowed only in a script initializer or class static initializer (method: $1, offset: $2)
 10358   VerifyError             Cannot merge scope stack: "with" flags do not match. (method: $1)
 10359   VerifyError             method_info $1 cannot be used with the callstatic instruction. (method: $2, offset: $3)
 10360   VerifyError             Cannot create a function from method_info $1 with the newfunction opcode.

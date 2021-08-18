@@ -7,22 +7,30 @@ namespace Mariana.AVM2.Compiler {
 
     internal sealed class ScriptClass : ClassImpl {
 
-        private ABCClassInfo m_abcClassInfo;
+        private ABCClassInfo? m_abcClassInfo;
+
+        private ABCClassFlags m_flags;
 
         private SlotMap m_slotMap = new SlotMap();
 
         internal ScriptClass(ABCClassInfo classInfo, ApplicationDomain domain)
-            : base(classInfo.name, domain, ClassTag.OBJECT)
+            : this(classInfo.name, classInfo.flags, domain)
         {
             m_abcClassInfo = classInfo;
-            setIsDynamic((m_abcClassInfo.flags & ABCClassFlags.ClassSealed) == 0);
         }
 
-        public override bool isFinal => (m_abcClassInfo.flags & ABCClassFlags.ClassFinal) != 0;
+        internal ScriptClass(QName name, ABCClassFlags flags, ApplicationDomain domain)
+            : base(name, domain, ClassTag.OBJECT)
+        {
+            m_flags = flags;
+            setIsDynamic((flags & ABCClassFlags.ClassSealed) == 0);
+        }
 
-        public override bool isInterface => (m_abcClassInfo.flags & ABCClassFlags.ClassInterface) != 0;
+        public override bool isFinal => (m_flags & ABCClassFlags.ClassFinal) != 0;
 
-        internal ABCClassInfo abcClassInfo => m_abcClassInfo;
+        public override bool isInterface => (m_flags & ABCClassFlags.ClassInterface) != 0;
+
+        internal ABCClassInfo? abcClassInfo => m_abcClassInfo;
 
         internal new void setParent(Class parent) => base.setParent(parent);
 
