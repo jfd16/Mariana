@@ -797,8 +797,6 @@ namespace Mariana.AVM2.Compiler {
         /// <param name="generator">The <see cref="ILGenerator"/> instance in which to emit the
         /// code.</param>
         /// <param name="fromType">The type of the value on top of the stack.</param>
-        /// <param name="useNativeDoubleToIntConv">Set to true to use native conversions when converting from
-        /// Number to int/uint.</param>
         public static void emitTypeCoerceToUint(ILGenerator generator, Class? fromType) {
             if (fromType == null) {
                 generator.Emit(OpCodes.Call, KnownMembers.anyToUint);
