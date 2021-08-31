@@ -2803,12 +2803,16 @@ namespace Mariana.AVM2.Compiler {
             // Get the field value. This will call the static constructor of the field's declaring
             // class if it has not yet been called. If any error occurs, bail out and emit a runtime
             // field access.
+            // Take a lock on the context to ensure that we don't run static constructors concurrently.
+
             ASAny fieldValue;
-            try {
-                fieldValue = field.getValue();
-            }
-            catch {
-                return false;
+            using (var lockedContext = m_compilation.getContext()) {
+                try {
+                    fieldValue = field.getValue();
+                }
+                catch {
+                    return false;
+                }
             }
 
             // Check if the actual field value is of a supported constant type.
