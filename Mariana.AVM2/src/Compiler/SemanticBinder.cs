@@ -17,6 +17,7 @@ namespace Mariana.AVM2.Compiler {
         public static readonly Class vectorClass = Class.fromType(typeof(ASVector<>))!;
         public static readonly Class vectorAnyClass = Class.fromType(typeof(ASVectorAny))!;
         public static readonly Class functionClass = Class.fromType(typeof(ASFunction))!;
+        public static readonly Class classClass = Class.fromType(typeof(ASClass))!;
 
         public static readonly Trait mathMinTrait =
             Class.fromType(typeof(ASMath))!.getTrait("min")!;
@@ -2589,9 +2590,16 @@ namespace Mariana.AVM2.Compiler {
                     var resolvedTrait = (Trait)resolvedProp.propInfo!;
 
                     switch (resolvedTrait.traitType) {
-                        case TraitType.FIELD:
-                            result.setDataTypeFromClass(((FieldTrait)resolvedTrait).fieldType);
+                        case TraitType.FIELD: {
+                            var field = (FieldTrait)resolvedTrait;
+
+                            if (_tryGetStaticConstantFieldValue(field, out ASAny constantValue))
+                                setToConstant(ref result, constantValue);
+                            else
+                                result.setDataTypeFromClass(field.fieldType);
+
                             break;
+                        }
 
                         case TraitType.PROPERTY: {
                             MethodTrait? getter = ((PropertyTrait)resolvedTrait).getter;
@@ -2760,6 +2768,64 @@ namespace Mariana.AVM2.Compiler {
                 default:
                     return true;
             }
+        }
+
+        /// <summary>
+        /// Attempts to get a constant value from a static read-only field that exists in the
+        /// runtime (that is, not part of the current compilation).
+        /// </summary>
+        /// <param name="field"></param>
+        /// <param name="constantValue">An output argument to which the constant value should be written.</param>
+        /// <returns></returns>
+        private bool _tryGetStaticConstantFieldValue(FieldTrait field, out ASAny constantValue) {
+            constantValue = default;
+
+            // Field must be static and read-only
+            if (!field.isStatic || !field.isReadOnly)
+                return false;
+
+            // Field must be already compiled (or imported from a native class)
+            if (!field.isUnderlyingFieldInfoAvailable)
+                return false;
+
+            // Only null, undefined, primitive types and class constants are supported. Do a
+            // check on the field type first to see if the type of the value can never be one of these.
+
+            Class? fieldType = field.fieldType;
+            if (fieldType != null
+                && !ClassTagSet.primitive.contains(fieldType.tag)
+                && !fieldType.isObjectClass
+                && fieldType != classClass)
+            {
+                return false;
+            }
+
+            // Get the field value. This will call the static constructor of the field's declaring
+            // class if it has not yet been called. If any error occurs, bail out and emit a runtime
+            // field access.
+            ASAny fieldValue;
+            try {
+                fieldValue = field.getValue();
+            }
+            catch {
+                return false;
+            }
+
+            // Check if the actual field value is of a supported constant type.
+            if (!fieldValue.isUndefinedOrNull
+                && !ClassTagSet.primitive.contains(fieldValue.AS_class!.tag)
+                && !(fieldValue.value is ASClass))
+            {
+                return false;
+            }
+
+            // Limit the length of string constants to avoid polluting the generated PE file
+            // with large strings.
+            if (fieldValue.value is ASString str && str.length >= 128)
+                return false;
+
+            constantValue = fieldValue;
+            return true;
         }
 
         private void _resolveSetProperty(ref ResolvedProperty resolvedProp, ref DataNode value, bool isInit) {

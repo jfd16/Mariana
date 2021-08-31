@@ -98,24 +98,16 @@ namespace Mariana.AVM2.Compiler {
 
     internal static class DataNodeTypeHelper {
 
-        private const int INTEGER_MASK =
-              (1 << (int)DataNodeType.INT)
-            | (1 << (int)DataNodeType.UINT);
+        private const int INTEGER_MASK = (1 << (int)DataNodeType.INT) | (1 << (int)DataNodeType.UINT);
 
-        private const int NUMERIC_MASK =
-              (1 << (int)DataNodeType.INT)
-            | (1 << (int)DataNodeType.UINT)
-            | (1 << (int)DataNodeType.NUMBER);
+        private const int NUMERIC_MASK = INTEGER_MASK | (1 << (int)DataNodeType.NUMBER);
 
-        private const int PRIMITIVE_MASK =
-              NUMERIC_MASK
-            | (1 << (int)DataNodeType.NUMBER)
-            | (1 << (int)DataNodeType.BOOL)
-            | (1 << (int)DataNodeType.STRING);
+        private const int NUMERIC_OR_BOOL_MASK = NUMERIC_MASK | (1 << (int)DataNodeType.BOOL);
+
+        private const int PRIMITIVE_MASK = NUMERIC_OR_BOOL_MASK | (1 << (int)DataNodeType.STRING);
 
         private const int NON_NULLABLE_MASK =
-              NUMERIC_MASK
-            | (1 << (int)DataNodeType.BOOL)
+              NUMERIC_OR_BOOL_MASK
             | (1 << (int)DataNodeType.THIS)
             | (1 << (int)DataNodeType.REST)
             | (1 << (int)DataNodeType.CLASS)

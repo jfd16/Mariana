@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using Mariana.AVM2.ABC;
 using Mariana.AVM2.Core;
 
@@ -99,6 +100,7 @@ namespace Mariana.AVM2.Compiler {
         /// or its type must be a numeric type, boolean, string, Namespace or QName.</param>
         public static void setToConstant(ref DataNode node, ASAny constantValue) {
             node.constant = default;
+            node.isNotNull = false;
 
             if (constantValue.isUndefined) {
                 node.dataType = DataNodeType.UNDEFINED;
@@ -122,6 +124,7 @@ namespace Mariana.AVM2.Compiler {
                     case ClassTag.STRING:
                         node.dataType = DataNodeType.STRING;
                         node.constant = new DataNodeConstant((string)constantValue.value!);
+                        node.isNotNull = true;
                         break;
                     case ClassTag.BOOLEAN:
                         node.dataType = DataNodeType.BOOL;
@@ -135,11 +138,22 @@ namespace Mariana.AVM2.Compiler {
                         node.dataType = DataNodeType.QNAME;
                         node.constant = new DataNodeConstant(QName.fromASQName((ASQName)constantValue.value!));
                         break;
+
+                    default: {
+                        if (constantValue.value is ASClass classObj) {
+                            node.dataType = DataNodeType.CLASS;
+                            node.constant = new DataNodeConstant(classObj.internalClass);
+                        }
+                        else {
+                            Debug.Fail($"Unsupported constant type: {constantValue.AS_class!.name}");
+                        }
+                        break;
+                    }
                 }
             }
 
             node.isConstant = true;
-            node.isNotNull = DataNodeTypeHelper.isNonNullable(node.dataType);
+            node.isNotNull |= DataNodeTypeHelper.isNonNullable(node.dataType);
         }
 
         /// <summary>
